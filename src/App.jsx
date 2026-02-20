@@ -72,7 +72,7 @@ import { formatDateTime, formatPrice, formatTwd } from "./utils/formatters";
 import "./App.css";
 
 const { Header, Content } = Layout;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const RowContext = createContext({
   listeners: undefined,
@@ -551,13 +551,13 @@ function App() {
   return (
     <Layout className="app-layout">
       <Header className="app-header">
-        <div>
-          <Title level={3} className="app-title">
-            個人股票現值管理
-          </Title>
-          {/* <Text type="secondary">PWA + IndexedDB，本地儲存持股與快照</Text> */}
-        </div>
-        <div className="header-actions" />
+        <div className="header-spacer" />
+        <img
+          src={`${import.meta.env.BASE_URL}vite.svg`}
+          alt="My Stock logo"
+          className="header-logo"
+        />
+        <div className="header-spacer" />
       </Header>
 
       <Content className="app-content">

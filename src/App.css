@@ -11,25 +11,24 @@
 .app-header {
   height: auto;
   min-height: 84px;
-  background: #ffffffcc;
+  background: none;
   backdrop-filter: blur(8px);
-  border-bottom: 1px solid #ecf0f6;
-  display: flex;
+  /* border-bottom: 1px solid #ecf0f6; */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   padding: 16px 24px;
 }
 
-.app-title {
-  margin: 0 !important;
+.header-spacer {
+  min-height: 1px;
 }
 
-.header-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
+.header-logo {
+  width: 32px;
+  height: 32px;
+  display: block;
 }
 
 .app-content {
@@ -119,15 +118,6 @@
 }
 
 @media (max-width: 768px) {
-  .app-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .header-actions {
-    align-items: flex-start;
-  }
-
   .app-content {
     padding: 12px;
   }
