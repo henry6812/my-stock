@@ -15,6 +15,24 @@ const TREND_RANGE_HOURS = {
   '30d': 24 * 30,
 }
 
+const sortHoldingsByOrder = (a, b) => {
+  const aOrder = Number(a?.sortOrder)
+  const bOrder = Number(b?.sortOrder)
+  const aHasOrder = Number.isFinite(aOrder)
+  const bHasOrder = Number.isFinite(bOrder)
+
+  if (aHasOrder && bHasOrder && aOrder !== bOrder) {
+    return aOrder - bOrder
+  }
+  if (aHasOrder && !bHasOrder) return -1
+  if (!aHasOrder && bHasOrder) return 1
+
+  if (!a?.updatedAt && !b?.updatedAt) return 0
+  if (!a?.updatedAt) return 1
+  if (!b?.updatedAt) return -1
+  return a.updatedAt > b.updatedAt ? -1 : 1
+}
+
 const normalizeSymbol = (symbol, market) => {
   const normalized = symbol.trim().toUpperCase()
   if (market === MARKET.TW) {
@@ -65,11 +83,19 @@ export const upsertHolding = async ({ symbol, market, shares }) => {
     return
   }
 
+  const holdings = await db.holdings.toArray()
+  const maxSortOrder = holdings.reduce((max, item) => {
+    const value = Number(item?.sortOrder)
+    if (!Number.isFinite(value)) return max
+    return Math.max(max, value)
+  }, 0)
+
   await db.holdings.add({
     symbol: normalizedSymbol,
     market: normalizedMarket,
     shares: parsedShares,
     companyName: normalizedSymbol,
+    sortOrder: maxSortOrder + 1,
     createdAt: nowIso,
     updatedAt: nowIso,
   })
@@ -113,6 +139,48 @@ export const removeHolding = async ({ id }) => {
 
     await db.holdings.delete(parsedId)
     await db.price_snapshots.where('holdingId').equals(parsedId).delete()
+
+    const remaining = await db.holdings.toArray()
+    remaining.sort(sortHoldingsByOrder)
+    for (let i = 0; i < remaining.length; i += 1) {
+      await db.holdings.update(remaining[i].id, { sortOrder: i + 1 })
+    }
+  })
+}
+
+export const reorderHoldings = async ({ orderedIds }) => {
+  if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+    throw new Error('orderedIds is required')
+  }
+
+  const normalizedIds = orderedIds.map((id) => Number(id))
+  if (normalizedIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+    throw new Error('orderedIds contains invalid id')
+  }
+
+  const uniqueIds = new Set(normalizedIds)
+  if (uniqueIds.size !== normalizedIds.length) {
+    throw new Error('orderedIds contains duplicate id')
+  }
+
+  await db.transaction('rw', db.holdings, async () => {
+    const holdings = await db.holdings.toArray()
+    const existingIds = holdings.map((item) => item.id)
+
+    if (existingIds.length !== normalizedIds.length) {
+      throw new Error('orderedIds does not match holdings length')
+    }
+
+    const existingIdSet = new Set(existingIds)
+    for (const id of normalizedIds) {
+      if (!existingIdSet.has(id)) {
+        throw new Error('orderedIds contains unknown id')
+      }
+    }
+
+    for (let i = 0; i < normalizedIds.length; i += 1) {
+      await db.holdings.update(normalizedIds[i], { sortOrder: i + 1 })
+    }
   })
 }
 
@@ -199,7 +267,8 @@ export const refreshPrices = async () => {
 }
 
 export const getPortfolioView = async () => {
-  const holdings = await db.holdings.orderBy('updatedAt').reverse().toArray()
+  const holdings = await db.holdings.toArray()
+  holdings.sort(sortHoldingsByOrder)
   const rows = []
   let totalTwd = 0
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   App as AntdApp,
@@ -12,10 +12,25 @@ import {
   Space,
   Statistic,
   Table,
+  Tabs,
   Tag,
   Typography,
 } from 'antd'
-import { DeleteOutlined, EditOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, MenuOutlined } from '@ant-design/icons'
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import dayjs from 'dayjs'
 import HoldingForm from './components/HoldingForm'
 import TrendChart from './components/TrendChart'
@@ -24,6 +39,7 @@ import {
   getTrend,
   refreshPrices,
   removeHolding,
+  reorderHoldings,
   updateHoldingShares,
   upsertHolding,
 } from './services/portfolioService'
@@ -32,6 +48,61 @@ import './App.css'
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
+
+const RowContext = createContext({
+  listeners: undefined,
+  setActivatorNodeRef: undefined,
+})
+
+function DragHandle({ disabled }) {
+  const { listeners, setActivatorNodeRef } = useContext(RowContext)
+
+  return (
+    <Button
+      type="text"
+      size="small"
+      icon={<MenuOutlined />}
+      ref={setActivatorNodeRef}
+      {...listeners}
+      disabled={disabled}
+      aria-label="拖曳排序"
+      style={{ cursor: disabled ? 'not-allowed' : 'grab' }}
+    />
+  )
+}
+
+function SortableRow({ disabled, ...props }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props['data-row-key'], disabled })
+
+  const style = {
+    ...props.style,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...(isDragging ? { position: 'relative', zIndex: 999, background: '#fff' } : {}),
+  }
+
+  const contextValue = useMemo(
+    () => ({
+      setActivatorNodeRef,
+      listeners,
+    }),
+    [setActivatorNodeRef, listeners],
+  )
+
+  return (
+    <RowContext.Provider value={contextValue}>
+      <tr {...props} ref={setNodeRef} style={style} {...attributes} />
+    </RowContext.Provider>
+  )
+}
 
 function App() {
   const { message } = AntdApp.useApp()
@@ -44,9 +115,19 @@ function App() {
   const [loadingRefresh, setLoadingRefresh] = useState(false)
   const [loadingAddHolding, setLoadingAddHolding] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
+  const [loadingReorder, setLoadingReorder] = useState(false)
+  const [activeHoldingTab, setActiveHoldingTab] = useState('all')
   const [editingHoldingId, setEditingHoldingId] = useState(null)
   const [editingShares, setEditingShares] = useState(null)
   const [loadingActionById, setLoadingActionById] = useState({})
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+  )
 
   const loadAllData = useCallback(async () => {
     const [portfolio, trendData] = await Promise.all([
@@ -113,7 +194,85 @@ function App() {
     }
   }, [editingHoldingId, loadAllData, message, setRowLoading])
 
+  const filteredRows = useMemo(() => {
+    if (activeHoldingTab === 'tw') {
+      return rows.filter((row) => row.market === 'TW')
+    }
+    if (activeHoldingTab === 'us') {
+      return rows.filter((row) => row.market === 'US')
+    }
+    return rows
+  }, [activeHoldingTab, rows])
+
+  const dragDisabled = editingHoldingId !== null || loadingData || loadingReorder
+
+  const handleDragEnd = useCallback(async ({ active, over }) => {
+    if (dragDisabled || !over || active.id === over.id) {
+      return
+    }
+
+    const currentRows = filteredRows
+    const oldIndex = currentRows.findIndex((row) => row.id === active.id)
+    const newIndex = currentRows.findIndex((row) => row.id === over.id)
+
+    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
+      return
+    }
+
+    const reorderedTabRows = arrayMove(currentRows, oldIndex, newIndex)
+
+    let orderedIds = []
+    if (activeHoldingTab === 'all') {
+      orderedIds = reorderedTabRows.map((row) => row.id)
+    } else {
+      const reorderedIds = reorderedTabRows.map((row) => row.id)
+      const reorderedIdSet = new Set(reorderedIds)
+      let index = 0
+      const mergedRows = rows.map((row) => {
+        if (!reorderedIdSet.has(row.id)) {
+          return row
+        }
+
+        const next = reorderedTabRows[index]
+        index += 1
+        return next
+      })
+      orderedIds = mergedRows.map((row) => row.id)
+    }
+
+    try {
+      setLoadingReorder(true)
+      await reorderHoldings({ orderedIds })
+      await loadAllData()
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '持股排序更新失敗')
+      await loadAllData()
+    } finally {
+      setLoadingReorder(false)
+    }
+  }, [activeHoldingTab, dragDisabled, filteredRows, loadAllData, message, rows])
+
+  const tabItems = useMemo(() => {
+    const twCount = rows.filter((row) => row.market === 'TW').length
+    const usCount = rows.filter((row) => row.market === 'US').length
+
+    return [
+      { key: 'all', label: `全部 (${rows.length})` },
+      { key: 'tw', label: `台股 (${twCount})` },
+      { key: 'us', label: `美股 (${usCount})` },
+    ]
+  }, [rows])
+
   const tableColumns = useMemo(() => [
+    {
+      title: '',
+      key: 'drag',
+      width: 52,
+      align: 'center',
+      render: (_, record) => (
+        <DragHandle disabled={dragDisabled || Boolean(loadingActionById[record.id])} />
+      ),
+    },
     {
       title: '公司名稱',
       dataIndex: 'companyName',
@@ -179,7 +338,7 @@ function App() {
       fixed: 'right',
       width: 190,
       render: (_, record) => {
-        const rowLoading = Boolean(loadingActionById[record.id])
+        const rowLoading = Boolean(loadingActionById[record.id]) || loadingReorder
         const isEditing = editingHoldingId === record.id
 
         if (isEditing) {
@@ -208,7 +367,7 @@ function App() {
           <Space>
             <Button
               size="small"
-              disabled={editingHoldingId !== null}
+              disabled={editingHoldingId !== null || loadingReorder}
               loading={rowLoading}
               onClick={() => handleEditClick(record)}
               icon={<EditOutlined />}
@@ -222,12 +381,12 @@ function App() {
               cancelText="取消"
               onConfirm={() => handleRemoveHolding(record)}
               okButtonProps={{ danger: true, loading: rowLoading }}
-              disabled={editingHoldingId !== null}
+              disabled={editingHoldingId !== null || loadingReorder}
             >
               <Button
                 danger
                 size="small"
-                disabled={editingHoldingId !== null || rowLoading}
+                disabled={editingHoldingId !== null || rowLoading || loadingReorder}
                 icon={<DeleteOutlined />}
                 aria-label="移除持股"
               >
@@ -238,6 +397,7 @@ function App() {
       },
     },
   ], [
+    dragDisabled,
     editingHoldingId,
     editingShares,
     handleCancelEdit,
@@ -245,7 +405,13 @@ function App() {
     handleRemoveHolding,
     handleSaveShares,
     loadingActionById,
+    loadingReorder,
   ])
+
+  const DraggableBodyRow = useCallback(
+    (props) => <SortableRow {...props} disabled={dragDisabled} />,
+    [dragDisabled],
+  )
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -329,14 +495,32 @@ function App() {
 
           <Col xs={24}>
             <Card title="持股列表">
-              <Table
-                rowKey={(record) => `${record.market}-${record.symbol}`}
-                dataSource={rows}
-                columns={tableColumns}
-                pagination={{ pageSize: 8 }}
-                loading={loadingData}
-                scroll={{ x: 980 }}
+              <Tabs
+                activeKey={activeHoldingTab}
+                onChange={setActiveHoldingTab}
+                items={tabItems}
+                style={{ marginBottom: 12 }}
               />
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext
+                  items={filteredRows.map((row) => row.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <Table
+                    rowKey="id"
+                    dataSource={filteredRows}
+                    columns={tableColumns}
+                    pagination={false}
+                    loading={loadingData || loadingReorder}
+                    scroll={{ x: 1030 }}
+                    components={{
+                      body: {
+                        row: DraggableBodyRow,
+                      },
+                    }}
+                  />
+                </SortableContext>
+              </DndContext>
             </Card>
           </Col>
 
