@@ -3,17 +3,30 @@ import dayjs from 'dayjs'
 import { db, FX_PAIR_USD_TWD, SYNC_KEY_PRICES } from '../db/database'
 import { getUsdTwdRate } from './priceProviders/fxProvider'
 import { getHoldingQuote, sleepForRateLimit } from './priceProviders/finnhubProvider'
+import {
+  initCloudSync,
+  setSyncUser,
+  stopCloudSync,
+  syncNowWithCloud,
+} from './firebase/cloudSyncService'
 
 const MARKET = {
   TW: 'TW',
   US: 'US',
 }
 
+const SYNC_PENDING = 'pending'
+const SYNC_SYNCED = 'synced'
+
 const TREND_RANGE_HOURS = {
   '24h': 24,
   '7d': 24 * 7,
   '30d': 24 * 30,
 }
+
+const isDeleted = (item) => Boolean(item?.deletedAt)
+
+const getNowIso = () => new Date().toISOString()
 
 const sortHoldingsByOrder = (a, b) => {
   const aOrder = Number(a?.sortOrder)
@@ -41,23 +54,48 @@ const normalizeSymbol = (symbol, market) => {
   return normalized
 }
 
-const getLatestSnapshotByHoldingId = async (holdingId) => (
-  db.price_snapshots
+const getLatestSnapshotByHoldingId = async (holdingId) => {
+  const snapshots = await db.price_snapshots
     .where('[holdingId+capturedAt]')
     .between([holdingId, Dexie.minKey], [holdingId, Dexie.maxKey])
-    .last()
-)
+    .reverse()
+    .toArray()
+
+  return snapshots.find((item) => !isDeleted(item))
+}
 
 const setSyncMeta = async ({ status, errorMessage = '' }) => {
-  const nowIso = new Date().toISOString()
+  const nowIso = getNowIso()
   await db.sync_meta.put({
     key: SYNC_KEY_PRICES,
     lastUpdatedAt: nowIso,
     status,
     errorMessage,
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
   })
   return nowIso
 }
+
+const getActiveHoldings = async () => {
+  const holdings = await db.holdings.toArray()
+  return holdings.filter((item) => !isDeleted(item))
+}
+
+export const setCurrentUser = (uid) => {
+  setSyncUser(uid ?? null)
+}
+
+export const initSync = async (uid) => {
+  await initCloudSync(uid)
+}
+
+export const stopSync = () => {
+  stopCloudSync()
+}
+
+export const syncNow = async () => syncNowWithCloud()
 
 export const upsertHolding = async ({ symbol, market, shares }) => {
   const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW
@@ -73,12 +111,14 @@ export const upsertHolding = async ({ symbol, market, shares }) => {
   }
 
   const existing = await db.holdings.where('[symbol+market]').equals([normalizedSymbol, normalizedMarket]).first()
-  const nowIso = new Date().toISOString()
+  const nowIso = getNowIso()
 
   if (existing) {
     await db.holdings.update(existing.id, {
       shares: parsedShares,
       updatedAt: nowIso,
+      deletedAt: null,
+      syncState: SYNC_PENDING,
     })
     return {
       id: existing.id,
@@ -86,7 +126,7 @@ export const upsertHolding = async ({ symbol, market, shares }) => {
     }
   }
 
-  const holdings = await db.holdings.toArray()
+  const holdings = await getActiveHoldings()
   const maxSortOrder = holdings.reduce((max, item) => {
     const value = Number(item?.sortOrder)
     if (!Number.isFinite(value)) return max
@@ -101,6 +141,8 @@ export const upsertHolding = async ({ symbol, market, shares }) => {
     sortOrder: maxSortOrder + 1,
     createdAt: nowIso,
     updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
   })
 
   return {
@@ -122,13 +164,14 @@ export const updateHoldingShares = async ({ id, shares }) => {
   }
 
   const existing = await db.holdings.get(parsedId)
-  if (!existing) {
+  if (!existing || isDeleted(existing)) {
     throw new Error('Holding not found')
   }
 
   await db.holdings.update(parsedId, {
     shares: parsedShares,
-    updatedAt: new Date().toISOString(),
+    updatedAt: getNowIso(),
+    syncState: SYNC_PENDING,
   })
 }
 
@@ -141,17 +184,37 @@ export const removeHolding = async ({ id }) => {
 
   await db.transaction('rw', db.holdings, db.price_snapshots, async () => {
     const existing = await db.holdings.get(parsedId)
-    if (!existing) {
+    if (!existing || isDeleted(existing)) {
       throw new Error('Holding not found')
     }
 
-    await db.holdings.delete(parsedId)
-    await db.price_snapshots.where('holdingId').equals(parsedId).delete()
+    const nowIso = getNowIso()
 
-    const remaining = await db.holdings.toArray()
+    await db.holdings.update(parsedId, {
+      deletedAt: nowIso,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    })
+
+    await db.price_snapshots
+      .where('holdingId')
+      .equals(parsedId)
+      .modify({
+        deletedAt: nowIso,
+        updatedAt: nowIso,
+        syncState: SYNC_PENDING,
+      })
+
+    const allHoldings = await db.holdings.toArray()
+    const remaining = allHoldings.filter((item) => !isDeleted(item) && item.id !== parsedId)
     remaining.sort(sortHoldingsByOrder)
+
     for (let i = 0; i < remaining.length; i += 1) {
-      await db.holdings.update(remaining[i].id, { sortOrder: i + 1 })
+      await db.holdings.update(remaining[i].id, {
+        sortOrder: i + 1,
+        updatedAt: nowIso,
+        syncState: SYNC_PENDING,
+      })
     }
   })
 }
@@ -172,7 +235,7 @@ export const reorderHoldings = async ({ orderedIds }) => {
   }
 
   await db.transaction('rw', db.holdings, async () => {
-    const holdings = await db.holdings.toArray()
+    const holdings = (await db.holdings.toArray()).filter((item) => !isDeleted(item))
     const existingIds = holdings.map((item) => item.id)
 
     if (existingIds.length !== normalizedIds.length) {
@@ -186,8 +249,13 @@ export const reorderHoldings = async ({ orderedIds }) => {
       }
     }
 
+    const nowIso = getNowIso()
     for (let i = 0; i < normalizedIds.length; i += 1) {
-      await db.holdings.update(normalizedIds[i], { sortOrder: i + 1 })
+      await db.holdings.update(normalizedIds[i], {
+        sortOrder: i + 1,
+        updatedAt: nowIso,
+        syncState: SYNC_PENDING,
+      })
     }
   })
 }
@@ -199,7 +267,7 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
   }
 
   const holding = await db.holdings.get(parsedHoldingId)
-  if (!holding) {
+  if (!holding || isDeleted(holding)) {
     throw new Error('Holding not found')
   }
 
@@ -214,10 +282,13 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
       rate: fx.rate,
       fetchedAt: fx.fetchedAt,
       source: 'open.er-api',
+      updatedAt: getNowIso(),
+      deletedAt: null,
+      syncState: SYNC_PENDING,
     })
   }
 
-  const nowIso = new Date().toISOString()
+  const nowIso = getNowIso()
   const valueTwd = holding.market === MARKET.US
     ? quote.price * holding.shares * fxRateToTwd
     : quote.price * holding.shares
@@ -231,12 +302,16 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
     fxRateToTwd,
     valueTwd,
     capturedAt: nowIso,
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
   })
 
   if (quote.name && quote.name !== holding.companyName) {
     await db.holdings.update(holding.id, {
       companyName: quote.name,
       updatedAt: nowIso,
+      syncState: SYNC_PENDING,
     })
   }
 
@@ -245,6 +320,9 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
     lastUpdatedAt: nowIso,
     status: 'success',
     errorMessage: '',
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
   })
 
   return {
@@ -253,7 +331,7 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
 }
 
 export const refreshPrices = async () => {
-  const holdings = await db.holdings.toArray()
+  const holdings = await getActiveHoldings()
   if (holdings.length === 0) {
     const lastUpdatedAt = await setSyncMeta({ status: 'success' })
     return { updatedCount: 0, lastUpdatedAt }
@@ -271,10 +349,13 @@ export const refreshPrices = async () => {
         rate: fx.rate,
         fetchedAt: fx.fetchedAt,
         source: 'open.er-api',
+        updatedAt: getNowIso(),
+        deletedAt: null,
+        syncState: SYNC_PENDING,
       })
     }
 
-    const nowIso = new Date().toISOString()
+    const nowIso = getNowIso()
     const snapshots = []
 
     for (let i = 0; i < holdings.length; i += 1) {
@@ -297,12 +378,16 @@ export const refreshPrices = async () => {
         fxRateToTwd: usdTwdRate,
         valueTwd,
         capturedAt: nowIso,
+        updatedAt: nowIso,
+        deletedAt: null,
+        syncState: SYNC_PENDING,
       })
 
       if (quote.name && quote.name !== holding.companyName) {
         await db.holdings.update(holding.id, {
           companyName: quote.name,
           updatedAt: nowIso,
+          syncState: SYNC_PENDING,
         })
       }
     }
@@ -316,6 +401,9 @@ export const refreshPrices = async () => {
       lastUpdatedAt: nowIso,
       status: 'success',
       errorMessage: '',
+      updatedAt: nowIso,
+      deletedAt: null,
+      syncState: SYNC_PENDING,
     })
 
     return {
@@ -335,8 +423,9 @@ export const refreshPrices = async () => {
 }
 
 export const getPortfolioView = async () => {
-  const holdings = await db.holdings.toArray()
+  const holdings = (await db.holdings.toArray()).filter((item) => !isDeleted(item))
   holdings.sort(sortHoldingsByOrder)
+
   const rows = []
   let totalTwd = 0
 
@@ -370,6 +459,7 @@ export const getPortfolioView = async () => {
     lastUpdatedAt: syncMeta?.lastUpdatedAt,
     syncStatus: syncMeta?.status,
     syncError: syncMeta?.errorMessage,
+    cloudSyncState: syncMeta?.syncState ?? SYNC_SYNCED,
   }
 }
 
@@ -377,20 +467,23 @@ export const getTrend = async (range) => {
   const hours = TREND_RANGE_HOURS[range] ?? TREND_RANGE_HOURS['24h']
   const fromIso = dayjs().subtract(hours, 'hour').toISOString()
 
-  const holdings = await db.holdings.toArray()
+  const holdings = (await db.holdings.toArray()).filter((item) => !isDeleted(item))
   if (holdings.length === 0) {
     return []
   }
 
+  const activeHoldingIds = new Set(holdings.map((item) => item.id))
   const latestValueByHolding = new Map()
   let runningTotal = 0
 
   for (const holding of holdings) {
-    const seedSnapshot = await db.price_snapshots
+    const snapshots = await db.price_snapshots
       .where('[holdingId+capturedAt]')
       .between([holding.id, Dexie.minKey], [holding.id, fromIso], true, false)
-      .last()
+      .reverse()
+      .toArray()
 
+    const seedSnapshot = snapshots.find((item) => !isDeleted(item))
     if (seedSnapshot) {
       latestValueByHolding.set(holding.id, seedSnapshot.valueTwd)
       runningTotal += seedSnapshot.valueTwd
@@ -404,6 +497,10 @@ export const getTrend = async (range) => {
 
   const totalByTimestamp = new Map()
   for (const snapshot of snapshots) {
+    if (isDeleted(snapshot) || !activeHoldingIds.has(snapshot.holdingId)) {
+      continue
+    }
+
     const previousValue = latestValueByHolding.get(snapshot.holdingId)
     if (typeof previousValue === 'number') {
       runningTotal -= previousValue

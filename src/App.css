@@ -31,6 +31,20 @@
   display: block;
 }
 
+.header-auth {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 1px;
+}
+
+.header-auth .ant-typography {
+  display: inline-flex;
+  align-items: center;
+  max-width: 420px;
+  text-align: right;
+}
+
 .app-content {
   padding: 20px;
   max-width: 1200px;
@@ -118,6 +132,21 @@
 }
 
 @media (max-width: 768px) {
+  .app-header {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 10px;
+  }
+
+  .header-auth {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .header-auth .ant-typography {
+    text-align: center;
+  }
+
   .app-content {
     padding: 12px;
   }

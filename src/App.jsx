@@ -27,8 +27,11 @@ import {
   Typography,
 } from "antd";
 import {
+  CloudSyncOutlined,
   DeleteOutlined,
   EditOutlined,
+  GoogleOutlined,
+  LogoutOutlined,
   MenuOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -61,13 +64,22 @@ import TrendChart from "./components/TrendChart";
 import {
   getPortfolioView,
   getTrend,
+  initSync,
   refreshPrices,
   refreshHoldingPrice,
   removeHolding,
   reorderHoldings,
+  setCurrentUser,
+  stopSync,
+  syncNow as syncNowPortfolio,
   updateHoldingShares,
   upsertHolding,
 } from "./services/portfolioService";
+import {
+  loginWithGoogle,
+  logoutGoogle,
+  observeAuthState,
+} from "./services/firebase/authService";
 import { formatDateTime, formatPrice, formatTwd } from "./utils/formatters";
 import "./App.css";
 
@@ -143,6 +155,12 @@ function App() {
   const [loadingAddHolding, setLoadingAddHolding] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [loadingReorder, setLoadingReorder] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [authUser, setAuthUser] = useState(null);
+  const [loadingAuthAction, setLoadingAuthAction] = useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState("idle");
+  const [cloudSyncError, setCloudSyncError] = useState("");
+  const [cloudLastSyncedAt, setCloudLastSyncedAt] = useState();
   const [isTrendExpanded, setIsTrendExpanded] = useState(false);
   const [isPieExpanded, setIsPieExpanded] = useState(false);
   const [activeHoldingTab, setActiveHoldingTab] = useState("all");
@@ -176,6 +194,23 @@ function App() {
     setLoadingActionById((prev) => ({ ...prev, [id]: isLoading }));
   }, []);
 
+  const performCloudSync = useCallback(async () => {
+    if (!authUser) {
+      return;
+    }
+
+    try {
+      setCloudSyncStatus("syncing");
+      setCloudSyncError("");
+      await syncNowPortfolio();
+      setCloudSyncStatus("success");
+      setCloudLastSyncedAt(new Date().toISOString());
+    } catch (error) {
+      setCloudSyncStatus("error");
+      setCloudSyncError(error instanceof Error ? error.message : "同步失敗");
+    }
+  }, [authUser]);
+
   const handleEditClick = useCallback((record) => {
     setEditingHoldingId(record.id);
     setEditingShares(record.shares);
@@ -198,6 +233,7 @@ function App() {
         setRowLoading(record.id, true);
         await updateHoldingShares({ id: record.id, shares: parsedShares });
         await loadAllData();
+        await performCloudSync();
         setEditingHoldingId(null);
         setEditingShares(null);
         message.success("股數已更新");
@@ -207,7 +243,7 @@ function App() {
         setRowLoading(record.id, false);
       }
     },
-    [editingShares, loadAllData, message, setRowLoading],
+    [editingShares, loadAllData, message, performCloudSync, setRowLoading],
   );
 
   const handleRemoveHolding = useCallback(
@@ -216,6 +252,7 @@ function App() {
         setRowLoading(record.id, true);
         await removeHolding({ id: record.id });
         await loadAllData();
+        await performCloudSync();
         if (editingHoldingId === record.id) {
           setEditingHoldingId(null);
           setEditingShares(null);
@@ -227,7 +264,7 @@ function App() {
         setRowLoading(record.id, false);
       }
     },
-    [editingHoldingId, loadAllData, message, setRowLoading],
+    [editingHoldingId, loadAllData, message, performCloudSync, setRowLoading],
   );
 
   const filteredRows = useMemo(() => {
@@ -282,6 +319,7 @@ function App() {
         setLoadingReorder(true);
         await reorderHoldings({ orderedIds });
         await loadAllData();
+        await performCloudSync();
       } catch (error) {
         message.error(
           error instanceof Error ? error.message : "持股排序更新失敗",
@@ -291,7 +329,15 @@ function App() {
         setLoadingReorder(false);
       }
     },
-    [activeHoldingTab, dragDisabled, filteredRows, loadAllData, message, rows],
+    [
+      activeHoldingTab,
+      dragDisabled,
+      filteredRows,
+      loadAllData,
+      message,
+      performCloudSync,
+      rows,
+    ],
   );
 
   const tabItems = useMemo(() => {
@@ -490,6 +536,57 @@ function App() {
   );
 
   useEffect(() => {
+    let alive = true;
+
+    const unsubscribe = observeAuthState(async (user) => {
+      if (!alive) {
+        return;
+      }
+
+      setAuthUser(user);
+      setCurrentUser(user?.uid ?? null);
+
+      if (!user) {
+        stopSync();
+        setCloudSyncStatus("idle");
+        setCloudSyncError("");
+        setCloudLastSyncedAt(undefined);
+        setAuthReady(true);
+        return;
+      }
+
+      try {
+        setCloudSyncStatus("syncing");
+        setCloudSyncError("");
+        await initSync(user.uid);
+        await loadAllData();
+        if (!alive) {
+          return;
+        }
+        setCloudSyncStatus("success");
+        setCloudLastSyncedAt(new Date().toISOString());
+      } catch (error) {
+        if (!alive) {
+          return;
+        }
+        setCloudSyncStatus("error");
+        setCloudSyncError(error instanceof Error ? error.message : "同步初始化失敗");
+      } finally {
+        if (alive) {
+          setAuthReady(true);
+        }
+      }
+    });
+
+    return () => {
+      alive = false;
+      unsubscribe();
+      stopSync();
+      setCurrentUser(null);
+    };
+  }, [loadAllData]);
+
+  useEffect(() => {
     const bootstrap = async () => {
       setLoadingData(true);
       try {
@@ -518,6 +615,7 @@ function App() {
     try {
       await refreshHoldingPrice({ holdingId: upsertResult.id });
       await loadAllData();
+      await performCloudSync();
       setIsAddHoldingModalOpen(false);
       message.success("持股已儲存並更新價格");
       return true;
@@ -538,6 +636,7 @@ function App() {
       setLoadingRefresh(true);
       const result = await refreshPrices();
       await loadAllData();
+      await performCloudSync();
       message.success(
         `更新完成，已更新 ${result.updatedCount} 檔（${dayjs(result.lastUpdatedAt).format("HH:mm:ss")}）`,
       );
@@ -545,6 +644,45 @@ function App() {
       message.error(error instanceof Error ? error.message : "更新價格失敗");
     } finally {
       setLoadingRefresh(false);
+    }
+  };
+
+  const cloudSyncText = useMemo(() => {
+    if (!authUser) {
+      return "未登入（僅本機）";
+    }
+    if (cloudSyncStatus === "syncing") {
+      return "同步中...";
+    }
+    if (cloudSyncStatus === "error") {
+      return `同步失敗${cloudSyncError ? `：${cloudSyncError}` : ""}`;
+    }
+    if (cloudLastSyncedAt) {
+      return `已同步：${formatDateTime(cloudLastSyncedAt)}`;
+    }
+    return "已登入";
+  }, [authUser, cloudLastSyncedAt, cloudSyncError, cloudSyncStatus]);
+
+  const handleGoogleLogin = async () => {
+    try {
+      setLoadingAuthAction(true);
+      await loginWithGoogle();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Google 登入失敗");
+    } finally {
+      setLoadingAuthAction(false);
+    }
+  };
+
+  const handleGoogleLogout = async () => {
+    try {
+      setLoadingAuthAction(true);
+      await logoutGoogle();
+      message.success("已登出 Google");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "登出失敗");
+    } finally {
+      setLoadingAuthAction(false);
     }
   };
 
@@ -557,7 +695,34 @@ function App() {
           alt="My Stock logo"
           className="header-logo"
         />
-        <div className="header-spacer" />
+        <div className="header-auth">
+          <Space size={8}>
+            <Text type={cloudSyncStatus === "error" ? "danger" : "secondary"}>
+              <CloudSyncOutlined style={{ marginRight: 6 }} />
+              {authReady ? cloudSyncText : "讀取登入狀態中..."}
+            </Text>
+            {authUser ? (
+              <Tooltip title={authUser.email || "Google 帳號"}>
+                <Button
+                  size="small"
+                  icon={<LogoutOutlined />}
+                  onClick={handleGoogleLogout}
+                  loading={loadingAuthAction}
+                  aria-label="Google 登出"
+                />
+              </Tooltip>
+            ) : (
+              <Button
+                size="small"
+                icon={<GoogleOutlined />}
+                onClick={handleGoogleLogin}
+                loading={loadingAuthAction}
+              >
+                Google 登入
+              </Button>
+            )}
+          </Space>
+        </div>
       </Header>
 
       <Content className="app-content">
@@ -567,6 +732,15 @@ function App() {
             showIcon
             message="上次同步發生錯誤"
             description={syncError}
+            style={{ marginBottom: 16 }}
+          />
+        )}
+        {!authUser && authReady && (
+          <Alert
+            type="info"
+            showIcon
+            message="目前為本機模式"
+            description="登入 Google 後可將持股與快照同步到你的其他裝置。"
             style={{ marginBottom: 16 }}
           />
         )}
