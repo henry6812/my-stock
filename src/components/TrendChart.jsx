@@ -17,21 +17,27 @@ const rangeOptions = [
   { label: '一個月', value: '30d' },
 ]
 
-function TrendChart({ range, onRangeChange, data }) {
+function TrendChart({ range, onRangeChange, data, height = 320 }) {
   const chartData = data.map((point) => ({
     ...point,
     label: dayjs(point.ts).format('MM/DD HH:mm'),
   }))
 
   return (
-    <div>
+    <div
+      style={{
+        height,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       <Segmented
         value={range}
         options={rangeOptions}
         onChange={onRangeChange}
-        style={{ marginBottom: 16 }}
+        style={{ marginBottom: 12 }}
       />
-      <div style={{ height: 320 }}>
+      <div style={{ flex: 1, minHeight: 0 }}>
         {chartData.length === 0 ? (
           <Empty description="尚無走勢資料，請先按更新" />
         ) : (

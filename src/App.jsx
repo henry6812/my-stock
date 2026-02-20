@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Col,
+  Empty,
   InputNumber,
   Layout,
   Modal,
@@ -33,6 +34,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import dayjs from 'dayjs'
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import HoldingForm from './components/HoldingForm'
 import TrendChart from './components/TrendChart'
 import {
@@ -118,6 +120,8 @@ function App() {
   const [loadingAddHolding, setLoadingAddHolding] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
   const [loadingReorder, setLoadingReorder] = useState(false)
+  const [isTrendExpanded, setIsTrendExpanded] = useState(false)
+  const [isPieExpanded, setIsPieExpanded] = useState(false)
   const [activeHoldingTab, setActiveHoldingTab] = useState('all')
   const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false)
   const [editingHoldingId, setEditingHoldingId] = useState(null)
@@ -264,6 +268,29 @@ function App() {
       { key: 'tw', label: `台股 (${twCount})` },
       { key: 'us', label: `美股 (${usCount})` },
     ]
+  }, [rows])
+
+  const marketAllocation = useMemo(() => {
+    const result = {
+      TW: 0,
+      US: 0,
+    }
+
+    for (const row of rows) {
+      if (typeof row.latestValueTwd !== 'number') {
+        continue
+      }
+      if (row.market === 'TW') {
+        result.TW += row.latestValueTwd
+      } else if (row.market === 'US') {
+        result.US += row.latestValueTwd
+      }
+    }
+
+    return [
+      { name: '台股', key: 'TW', value: result.TW, color: '#165dff' },
+      { name: '美股', key: 'US', value: result.US, color: '#f7b500' },
+    ].filter((item) => item.value > 0)
   }, [rows])
 
   const tableColumns = useMemo(() => [
@@ -500,12 +527,86 @@ function App() {
         )}
 
         <Row gutter={[16, 16]}>
-          <Col xs={24} md={8}>
-            <Card>
-              <Statistic title="總現值（TWD）" value={totalTwd} precision={0} formatter={(value) => formatTwd(Number(value))} />
-            </Card>
+          <Col xs={24}>
+            <div className="asset-summary-panel">
+              <div className="asset-summary-value">
+                <Statistic
+                  title="總現值（TWD）"
+                  value={totalTwd}
+                  precision={0}
+                  formatter={(value) => formatTwd(Number(value))}
+                />
+              </div>
+              <div className="asset-summary-actions">
+                <Button
+                  type={isTrendExpanded ? 'primary' : 'default'}
+                  onClick={() => setIsTrendExpanded((prev) => !prev)}
+                >
+                  趨勢
+                </Button>
+                <Button
+                  type={isPieExpanded ? 'primary' : 'default'}
+                  onClick={() => setIsPieExpanded((prev) => !prev)}
+                >
+                  分配
+                </Button>
+              </div>
+            </div>
           </Col>
 
+          {(isTrendExpanded || isPieExpanded) && (
+            <Col xs={24}>
+              <div className={`expanded-chart-grid ${isTrendExpanded !== isPieExpanded ? 'expanded-chart-grid--single' : ''}`}>
+                {isTrendExpanded && (
+                  <div className="expanded-chart-item expanded-chart-item--visible">
+                    <Card title="現值變化走勢">
+                      <div className="expanded-chart-frame">
+                        <TrendChart
+                          range={range}
+                          onRangeChange={(value) => setRange(value)}
+                          data={trend}
+                          height="100%"
+                        />
+                      </div>
+                    </Card>
+                  </div>
+                )}
+
+                {isPieExpanded && (
+                  <div className="expanded-chart-item expanded-chart-item--visible">
+                    <Card title="台股 / 美股資產比例">
+                      {marketAllocation.length === 0 ? (
+                        <Empty description="尚無可計算比例的持股資料" />
+                      ) : (
+                        <div className="expanded-chart-frame">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={marketAllocation}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius="68%"
+                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                              >
+                                {marketAllocation.map((entry) => (
+                                  <Cell key={entry.key} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value) => formatTwd(Number(value))} />
+                              <Legend />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </Card>
+                  </div>
+                )}
+              </div>
+            </Col>
+          )}
+          
           <Col xs={24}>
             <Card
               title="持股列表"
@@ -545,16 +646,6 @@ function App() {
                   />
                 </SortableContext>
               </DndContext>
-            </Card>
-          </Col>
-
-          <Col xs={24}>
-            <Card title="現值變化走勢">
-              <TrendChart
-                range={range}
-                onRangeChange={(value) => setRange(value)}
-                data={trend}
-              />
             </Card>
           </Col>
         </Row>
