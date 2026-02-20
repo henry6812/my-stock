@@ -25,6 +25,7 @@ const SYNC_PENDING = 'pending'
 const SYNC_ERROR = 'error'
 const SYNC_SYNCED = 'synced'
 const AUTO_SYNC_INTERVAL_MS = 30_000
+const SYNC_TIMEOUT_MS = 15_000
 
 let currentUid = null
 let autoSyncTimer = null
@@ -367,6 +368,23 @@ const performSync = async () => {
   return { pushed, pulled }
 }
 
+const withTimeout = async (taskPromise, timeoutMs) => {
+  let timeoutId
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(`Cloud sync timeout after ${timeoutMs}ms`))
+    }, timeoutMs)
+  })
+
+  try {
+    return await Promise.race([taskPromise, timeoutPromise])
+  } finally {
+    if (timeoutId) {
+      window.clearTimeout(timeoutId)
+    }
+  }
+}
+
 const markPendingAsError = async () => {
   await db.holdings.where('syncState').equals(SYNC_PENDING).modify({ syncState: SYNC_ERROR })
   await db.price_snapshots.where('syncState').equals(SYNC_PENDING).modify({ syncState: SYNC_ERROR })
@@ -389,7 +407,7 @@ export const syncNowWithCloud = async () => {
 
   syncInFlight = (async () => {
     try {
-      const result = await performSync()
+      const result = await withTimeout(performSync(), SYNC_TIMEOUT_MS)
       return result
     } catch (error) {
       await markPendingAsError()
@@ -412,7 +430,8 @@ export const initCloudSync = async (uid) => {
   }
 
   await markLegacyRowsPending()
-  await syncNowWithCloud()
+  // Avoid blocking login UX on first full sync; run it in background.
+  syncNowWithCloud().catch(() => {})
 
   if (onlineHandler) {
     window.removeEventListener('online', onlineHandler)
