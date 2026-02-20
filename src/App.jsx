@@ -35,6 +35,7 @@ import {
   MenuOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SyncOutlined,
 } from "@ant-design/icons";
 import {
   DndContext,
@@ -158,6 +159,7 @@ function App() {
   const [authReady, setAuthReady] = useState(false);
   const [authUser, setAuthUser] = useState(null);
   const [loadingAuthAction, setLoadingAuthAction] = useState(false);
+  const [loadingManualSync, setLoadingManualSync] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState("idle");
   const [cloudSyncError, setCloudSyncError] = useState("");
   const [cloudLastSyncedAt, setCloudLastSyncedAt] = useState();
@@ -194,20 +196,25 @@ function App() {
     setLoadingActionById((prev) => ({ ...prev, [id]: isLoading }));
   }, []);
 
-  const performCloudSync = useCallback(async () => {
+  const performCloudSync = useCallback(async ({ throwOnError = false } = {}) => {
     if (!authUser) {
-      return;
+      return { pushed: 0, pulled: 0 };
     }
 
     try {
       setCloudSyncStatus("syncing");
       setCloudSyncError("");
-      await syncNowPortfolio();
+      const result = await syncNowPortfolio();
       setCloudSyncStatus("success");
       setCloudLastSyncedAt(new Date().toISOString());
+      return result;
     } catch (error) {
       setCloudSyncStatus("error");
       setCloudSyncError(error instanceof Error ? error.message : "同步失敗");
+      if (throwOnError) {
+        throw error;
+      }
+      return { pushed: 0, pulled: 0 };
     }
   }, [authUser]);
 
@@ -560,6 +567,8 @@ function App() {
         setCloudSyncError("");
         await initSync(user.uid);
         await loadAllData();
+        await performCloudSync();
+        await loadAllData();
         if (!alive) {
           return;
         }
@@ -584,7 +593,7 @@ function App() {
       stopSync();
       setCurrentUser(null);
     };
-  }, [loadAllData]);
+  }, [loadAllData, performCloudSync]);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -657,11 +666,15 @@ function App() {
     if (cloudSyncStatus === "error") {
       return `同步失敗${cloudSyncError ? `：${cloudSyncError}` : ""}`;
     }
-    if (cloudLastSyncedAt) {
-      return `已同步：${formatDateTime(cloudLastSyncedAt)}`;
-    }
     return "已登入";
-  }, [authUser, cloudLastSyncedAt, cloudSyncError, cloudSyncStatus]);
+  }, [authUser, cloudSyncError, cloudSyncStatus]);
+
+  const cloudLastSyncedText = useMemo(() => {
+    if (!authUser) {
+      return "";
+    }
+    return `上次雲端同步時間：${formatDateTime(cloudLastSyncedAt)}`;
+  }, [authUser, cloudLastSyncedAt]);
 
   const handleGoogleLogin = async () => {
     try {
@@ -686,6 +699,25 @@ function App() {
     }
   };
 
+  const handleManualCloudSync = async () => {
+    if (!authUser) {
+      return;
+    }
+
+    try {
+      setLoadingManualSync(true);
+      const result = await performCloudSync({ throwOnError: true });
+      if (result.pulled > 0 || result.pushed > 0) {
+        await loadAllData();
+      }
+      message.success(`雲端同步完成（上傳 ${result.pushed}，下載 ${result.pulled}）`);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "手動同步失敗");
+    } finally {
+      setLoadingManualSync(false);
+    }
+  };
+
   return (
     <Layout className="app-layout">
       <Header className="app-header">
@@ -697,20 +729,38 @@ function App() {
         />
         <div className="header-auth">
           <Space size={8}>
-            <Text type={cloudSyncStatus === "error" ? "danger" : "secondary"}>
-              <CloudSyncOutlined style={{ marginRight: 6 }} />
-              {authReady ? cloudSyncText : "讀取登入狀態中..."}
-            </Text>
+            <div className="header-sync-meta">
+              <Text type={cloudSyncStatus === "error" ? "danger" : "secondary"}>
+                <CloudSyncOutlined style={{ marginRight: 6 }} />
+                {authReady ? cloudSyncText : "讀取登入狀態中..."}
+              </Text>
+              {authUser && (
+                <Text type="secondary" className="cloud-last-sync-time">
+                  {cloudLastSyncedText}
+                </Text>
+              )}
+            </div>
             {authUser ? (
-              <Tooltip title={authUser.email || "Google 帳號"}>
-                <Button
-                  size="small"
-                  icon={<LogoutOutlined />}
-                  onClick={handleGoogleLogout}
-                  loading={loadingAuthAction}
-                  aria-label="Google 登出"
-                />
-              </Tooltip>
+              <Space size={6}>
+                <Tooltip title="手動同步">
+                  <Button
+                    size="small"
+                    icon={<SyncOutlined />}
+                    onClick={handleManualCloudSync}
+                    loading={loadingManualSync}
+                    aria-label="手動同步"
+                  />
+                </Tooltip>
+                <Tooltip title={authUser.email || "Google 帳號"}>
+                  <Button
+                    size="small"
+                    icon={<LogoutOutlined />}
+                    onClick={handleGoogleLogout}
+                    loading={loadingAuthAction}
+                    aria-label="Google 登出"
+                  />
+                </Tooltip>
+              </Space>
             ) : (
               <Button
                 size="small"
