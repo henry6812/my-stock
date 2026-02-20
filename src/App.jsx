@@ -7,6 +7,7 @@ import {
   Col,
   InputNumber,
   Layout,
+  Modal,
   Popconfirm,
   Row,
   Space,
@@ -38,6 +39,7 @@ import {
   getPortfolioView,
   getTrend,
   refreshPrices,
+  refreshHoldingPrice,
   removeHolding,
   reorderHoldings,
   updateHoldingShares,
@@ -117,6 +119,7 @@ function App() {
   const [loadingData, setLoadingData] = useState(true)
   const [loadingReorder, setLoadingReorder] = useState(false)
   const [activeHoldingTab, setActiveHoldingTab] = useState('all')
+  const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false)
   const [editingHoldingId, setEditingHoldingId] = useState(null)
   const [editingShares, setEditingShares] = useState(null)
   const [loadingActionById, setLoadingActionById] = useState({})
@@ -429,13 +432,29 @@ function App() {
   }, [loadAllData, message])
 
   const handleAddHolding = async (values) => {
+    let upsertResult
+
     try {
       setLoadingAddHolding(true)
-      await upsertHolding(values)
-      await loadAllData()
-      message.success('持股已儲存')
+      upsertResult = await upsertHolding(values)
     } catch (error) {
       message.error(error instanceof Error ? error.message : '新增持股失敗')
+      return false
+    }
+
+    try {
+      await refreshHoldingPrice({ holdingId: upsertResult.id })
+      await loadAllData()
+      setIsAddHoldingModalOpen(false)
+      message.success('持股已儲存並更新價格')
+      return true
+    } catch (error) {
+      await loadAllData()
+      setIsAddHoldingModalOpen(false)
+      message.warning(
+        `持股已儲存，但抓價失敗，可稍後按「更新價格」補抓：${error instanceof Error ? error.message : '未知錯誤'}`,
+      )
+      return true
     } finally {
       setLoadingAddHolding(false)
     }
@@ -481,12 +500,6 @@ function App() {
         )}
 
         <Row gutter={[16, 16]}>
-          <Col xs={24}>
-            <Card title="新增持股">
-              <HoldingForm onSubmit={handleAddHolding} loading={loadingAddHolding} />
-            </Card>
-          </Col>
-
           <Col xs={24} md={8}>
             <Card>
               <Statistic title="總現值（TWD）" value={totalTwd} precision={0} formatter={(value) => formatTwd(Number(value))} />
@@ -494,7 +507,18 @@ function App() {
           </Col>
 
           <Col xs={24}>
-            <Card title="持股列表">
+            <Card
+              title="持股列表"
+              extra={(
+                <Button
+                  type="primary"
+                  onClick={() => setIsAddHoldingModalOpen(true)}
+                  disabled={loadingAddHolding}
+                >
+                  新增持股
+                </Button>
+              )}
+            >
               <Tabs
                 activeKey={activeHoldingTab}
                 onChange={setActiveHoldingTab}
@@ -534,6 +558,28 @@ function App() {
             </Card>
           </Col>
         </Row>
+
+        <Modal
+          title="新增持股"
+          open={isAddHoldingModalOpen}
+          onCancel={() => {
+            if (!loadingAddHolding) {
+              setIsAddHoldingModalOpen(false)
+            }
+          }}
+          footer={null}
+          destroyOnClose
+          maskClosable={!loadingAddHolding}
+          keyboard={!loadingAddHolding}
+          closable={!loadingAddHolding}
+        >
+          <HoldingForm
+            onSubmit={handleAddHolding}
+            loading={loadingAddHolding}
+            submitText="新增持股"
+            layout="vertical"
+          />
+        </Modal>
       </Content>
     </Layout>
   )

@@ -5,18 +5,25 @@ const marketOptions = [
   { value: 'US', label: '美股 (US)' },
 ]
 
-function HoldingForm({ onSubmit, loading }) {
+function HoldingForm({
+  onSubmit,
+  loading,
+  submitText = '新增 / 更新持股',
+  layout = 'inline',
+}) {
   const [form] = Form.useForm()
 
   const handleFinish = async (values) => {
-    await onSubmit(values)
-    form.resetFields(['symbol', 'shares'])
+    const shouldReset = await onSubmit(values)
+    if (shouldReset !== false) {
+      form.resetFields(['symbol', 'shares'])
+    }
   }
 
   return (
     <Form
       form={form}
-      layout="inline"
+      layout={layout}
       initialValues={{ market: 'TW' }}
       onFinish={handleFinish}
       style={{ width: '100%' }}
@@ -45,7 +52,7 @@ function HoldingForm({ onSubmit, loading }) {
       <Form.Item>
         <Space>
           <Button type="primary" htmlType="submit" loading={loading}>
-            新增 / 更新持股
+            {submitText}
           </Button>
         </Space>
       </Form.Item>

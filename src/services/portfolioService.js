@@ -80,7 +80,10 @@ export const upsertHolding = async ({ symbol, market, shares }) => {
       shares: parsedShares,
       updatedAt: nowIso,
     })
-    return
+    return {
+      id: existing.id,
+      created: false,
+    }
   }
 
   const holdings = await db.holdings.toArray()
@@ -90,7 +93,7 @@ export const upsertHolding = async ({ symbol, market, shares }) => {
     return Math.max(max, value)
   }, 0)
 
-  await db.holdings.add({
+  const id = await db.holdings.add({
     symbol: normalizedSymbol,
     market: normalizedMarket,
     shares: parsedShares,
@@ -99,6 +102,11 @@ export const upsertHolding = async ({ symbol, market, shares }) => {
     createdAt: nowIso,
     updatedAt: nowIso,
   })
+
+  return {
+    id,
+    created: true,
+  }
 }
 
 export const updateHoldingShares = async ({ id, shares }) => {
@@ -182,6 +190,66 @@ export const reorderHoldings = async ({ orderedIds }) => {
       await db.holdings.update(normalizedIds[i], { sortOrder: i + 1 })
     }
   })
+}
+
+export const refreshHoldingPrice = async ({ holdingId }) => {
+  const parsedHoldingId = Number(holdingId)
+  if (!Number.isInteger(parsedHoldingId) || parsedHoldingId <= 0) {
+    throw new Error('Holding not found')
+  }
+
+  const holding = await db.holdings.get(parsedHoldingId)
+  if (!holding) {
+    throw new Error('Holding not found')
+  }
+
+  const quote = await getHoldingQuote(holding)
+  let fxRateToTwd = 1
+
+  if (holding.market === MARKET.US) {
+    const fx = await getUsdTwdRate()
+    fxRateToTwd = fx.rate
+    await db.fx_rates.put({
+      pair: FX_PAIR_USD_TWD,
+      rate: fx.rate,
+      fetchedAt: fx.fetchedAt,
+      source: 'open.er-api',
+    })
+  }
+
+  const nowIso = new Date().toISOString()
+  const valueTwd = holding.market === MARKET.US
+    ? quote.price * holding.shares * fxRateToTwd
+    : quote.price * holding.shares
+
+  await db.price_snapshots.add({
+    holdingId: holding.id,
+    symbol: holding.symbol,
+    market: holding.market,
+    price: quote.price,
+    currency: quote.currency,
+    fxRateToTwd,
+    valueTwd,
+    capturedAt: nowIso,
+  })
+
+  if (quote.name && quote.name !== holding.companyName) {
+    await db.holdings.update(holding.id, {
+      companyName: quote.name,
+      updatedAt: nowIso,
+    })
+  }
+
+  await db.sync_meta.put({
+    key: SYNC_KEY_PRICES,
+    lastUpdatedAt: nowIso,
+    status: 'success',
+    errorMessage: '',
+  })
+
+  return {
+    updatedAt: nowIso,
+  }
 }
 
 export const refreshPrices = async () => {
@@ -309,18 +377,44 @@ export const getTrend = async (range) => {
   const hours = TREND_RANGE_HOURS[range] ?? TREND_RANGE_HOURS['24h']
   const fromIso = dayjs().subtract(hours, 'hour').toISOString()
 
+  const holdings = await db.holdings.toArray()
+  if (holdings.length === 0) {
+    return []
+  }
+
+  const latestValueByHolding = new Map()
+  let runningTotal = 0
+
+  for (const holding of holdings) {
+    const seedSnapshot = await db.price_snapshots
+      .where('[holdingId+capturedAt]')
+      .between([holding.id, Dexie.minKey], [holding.id, fromIso], true, false)
+      .last()
+
+    if (seedSnapshot) {
+      latestValueByHolding.set(holding.id, seedSnapshot.valueTwd)
+      runningTotal += seedSnapshot.valueTwd
+    }
+  }
+
   const snapshots = await db.price_snapshots
     .where('capturedAt')
     .aboveOrEqual(fromIso)
     .sortBy('capturedAt')
 
-  const sumByTimestamp = new Map()
+  const totalByTimestamp = new Map()
   for (const snapshot of snapshots) {
-    const previous = sumByTimestamp.get(snapshot.capturedAt) ?? 0
-    sumByTimestamp.set(snapshot.capturedAt, previous + snapshot.valueTwd)
+    const previousValue = latestValueByHolding.get(snapshot.holdingId)
+    if (typeof previousValue === 'number') {
+      runningTotal -= previousValue
+    }
+
+    latestValueByHolding.set(snapshot.holdingId, snapshot.valueTwd)
+    runningTotal += snapshot.valueTwd
+    totalByTimestamp.set(snapshot.capturedAt, runningTotal)
   }
 
-  return Array.from(sumByTimestamp.entries())
+  return Array.from(totalByTimestamp.entries())
     .sort(([a], [b]) => (a > b ? 1 : -1))
     .map(([ts, totalTwd]) => ({ ts, totalTwd }))
 }
