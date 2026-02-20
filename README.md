@@ -1,16 +1,70 @@
-# React + Vite
+# My Stock Portfolio (React + PWA + IndexedDB)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+個人股票現值管理工具，支援台股/美股持股管理、手動更新價格、總現值與走勢顯示。
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- PWA，可安裝到桌面/手機
+- IndexedDB 本地儲存（持股、快照、匯率）
+- 股票價格：美股用 Finnhub，台股優先 Finnhub、受限時自動回退 TWSE，再回退 TPEX
+- 內建 `public/data/tpex_off_market.json` 同源快照 fallback（降低 TPEX CORS/代理不穩定）
+- USD/TWD 匯率：open.er-api
+- 手動更新價格，顯示上次更新時間
+- 24h / 1w / 1m 現值走勢（基於本地快照）
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React + Vite
+- Ant Design
+- Recharts
+- Dexie (IndexedDB)
+- vite-plugin-pwa
 
-## Expanding the ESLint configuration
+## Setup
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. 安裝依賴
+
+```bash
+npm install
+```
+
+2. 建立環境變數
+
+```bash
+cp .env.example .env.local
+```
+
+填入 `VITE_FINNHUB_API_KEY`。若你的網路環境無法直接連 TPEX（CORS），可另外設定 `VITE_TPEX_PROXY_URL` 指向可用代理。
+
+台股 fallback 順序：
+1. Finnhub
+2. TWSE
+3. 同源 TPEX 快照（`public/data/tpex_off_market.json`）
+4. TPEX 官方 API
+5. 代理 API（含 `VITE_TPEX_PROXY_URL` / 預設代理）
+
+3. 啟動開發環境
+
+```bash
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+```
+
+## Deploy to GitHub Pages
+
+- 已提供 workflow：`.github/workflows/deploy.yml`
+- 請在 GitHub Repository Secret 設定：`VITE_FINNHUB_API_KEY`
+- `vite.config.js` 會在 production 自動使用 `/<repo-name>/` 當作 base
+
+## Data Model (IndexedDB)
+
+- `holdings`
+- `price_snapshots`
+- `fx_rates`
+- `sync_meta`
+- `expense_entries` (預留未來擴充)
