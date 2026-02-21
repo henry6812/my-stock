@@ -550,22 +550,17 @@ function App() {
         ),
       },
       {
-        title: "公司名稱",
-        dataIndex: "companyName",
-        key: "companyName",
-        render: (_, record) => record.companyName || record.symbol,
-      },
-      {
-        title: "代號",
-        dataIndex: "symbol",
-        key: "symbol",
-        render: (value, record) => (
-          <Space>
-            <Text code>{value}</Text>
-            <Tag color={record.market === "TW" ? "blue" : "gold"}>
-              {record.market}
-            </Tag>
-          </Space>
+        title: "標的",
+        key: "target",
+        render: (_, record) => (
+          <div>
+            <div className="holding-main-text">
+              {record.companyName || record.symbol}
+            </div>
+            <Text type="secondary" className="holding-subline">
+              {record.symbol}/{record.market === "TW" ? "台股" : "美股"}
+            </Text>
+          </div>
         ),
       },
       {
@@ -1321,7 +1316,7 @@ function App() {
                     columns={tableColumns}
                     pagination={false}
                     loading={loadingData || loadingReorder}
-                    scroll={{ x: 1030 }}
+                    scroll={{ x: 980 }}
                     components={{
                       body: {
                         row: DraggableBodyRow,

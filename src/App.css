@@ -206,3 +206,14 @@
   font-weight: 400;
   color: #4c4c4c;
 }
+
+.holding-main-text {
+  font-weight: 500;
+}
+
+.holding-subline {
+  display: block;
+  margin-top: 4px;
+  line-height: 1;
+  font-size: 12px;
+}
