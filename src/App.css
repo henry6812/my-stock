@@ -95,9 +95,11 @@
   font-weight: 700;
 }
 
-.asset-total-breakdown {
+.asset-total-delta {
   display: block;
-  margin-top: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  text-align: center;
 }
 
 .asset-summary-actions {
@@ -229,4 +231,38 @@
   margin-top: 4px;
   line-height: 1;
   font-size: 12px;
+}
+
+.cell-with-delta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.cell-main-value {
+  line-height: 1.2;
+}
+
+.cell-delta {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.cell-delta--up {
+  color: #52c41a;
+}
+
+.cell-delta--down {
+  color: #f5222d;
+}
+
+.cell-delta--flat {
+  color: #8c8c8c;
+}
+
+@media (max-width: 768px) {
+  .cell-delta {
+    font-size: 11px;
+  }
 }

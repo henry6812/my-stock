@@ -101,6 +101,39 @@ const { Text } = Typography;
 const PULL_REFRESH_MAX = 96;
 const PULL_REFRESH_TRIGGER = 68;
 
+const formatSignedPrice = (value, currency = "TWD") => {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "--";
+  }
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 4,
+    signDisplay: "always",
+  }).format(value);
+};
+
+const formatSignedTwd = (value) => {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "--";
+  }
+  return new Intl.NumberFormat("zh-TW", {
+    style: "currency",
+    currency: "TWD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+    signDisplay: "always",
+  }).format(Math.round(value));
+};
+
+const formatChangePercent = (value) => {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "--";
+  }
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
+};
+
 const RowContext = createContext({
   listeners: undefined,
   setActivatorNodeRef: undefined,
@@ -163,8 +196,8 @@ function App() {
   const [rows, setRows] = useState([]);
   const [cashRows, setCashRows] = useState([]);
   const [totalTwd, setTotalTwd] = useState(0);
-  const [stockTotalTwd, setStockTotalTwd] = useState(0);
-  const [totalCashTwd, setTotalCashTwd] = useState(0);
+  const [totalChangeTwd, setTotalChangeTwd] = useState(undefined);
+  const [totalChangePct, setTotalChangePct] = useState(null);
   const [trend, setTrend] = useState([]);
   const [range, setRange] = useState("24h");
   const [lastUpdatedAt, setLastUpdatedAt] = useState();
@@ -226,8 +259,8 @@ function App() {
     setRows(portfolio.rows);
     setCashRows(portfolio.cashRows ?? []);
     setTotalTwd(portfolio.totalTwd);
-    setStockTotalTwd(portfolio.stockTotalTwd ?? portfolio.totalTwd ?? 0);
-    setTotalCashTwd(portfolio.totalCashTwd ?? 0);
+    setTotalChangeTwd(portfolio.totalChangeTwd);
+    setTotalChangePct(portfolio.totalChangePct ?? null);
     setLastUpdatedAt(portfolio.lastUpdatedAt);
     setSyncError(portfolio.syncStatus === "error" ? portfolio.syncError : "");
     setTrend(trendData);
@@ -585,6 +618,60 @@ function App() {
     [activeAllocationTab, assetTypeAllocation, marketAllocation],
   );
 
+  const getDeltaClassName = useCallback((value) => {
+    if (typeof value !== "number" || Number.isNaN(value) || value === 0) {
+      return "cell-delta cell-delta--flat";
+    }
+    return value > 0
+      ? "cell-delta cell-delta--up"
+      : "cell-delta cell-delta--down";
+  }, []);
+
+  const renderPriceDelta = useCallback((record) => {
+    if (!record.hasPreviousSnapshot) {
+      return <div className="cell-delta cell-delta--flat">--</div>;
+    }
+
+    const delta = record.priceChange;
+    if (typeof delta !== "number" || Number.isNaN(delta)) {
+      return <div className="cell-delta cell-delta--flat">--</div>;
+    }
+
+    if (delta === 0) {
+      return <div className="cell-delta cell-delta--flat">0.00 (0.00%)</div>;
+    }
+
+    const arrow = delta > 0 ? "▲" : "▼";
+    return (
+      <div className={getDeltaClassName(delta)}>
+        {arrow} {formatSignedPrice(delta, record.latestCurrency || "TWD")} (
+        {formatChangePercent(record.priceChangePct)})
+      </div>
+    );
+  }, [getDeltaClassName]);
+
+  const renderValueDelta = useCallback((record) => {
+    if (!record.hasPreviousSnapshot) {
+      return <div className="cell-delta cell-delta--flat">--</div>;
+    }
+
+    const delta = record.valueChangeTwd;
+    if (typeof delta !== "number" || Number.isNaN(delta)) {
+      return <div className="cell-delta cell-delta--flat">--</div>;
+    }
+
+    if (delta === 0) {
+      return <div className="cell-delta cell-delta--flat">0.00 (0.00%)</div>;
+    }
+
+    const arrow = delta > 0 ? "▲" : "▼";
+    return (
+      <div className={getDeltaClassName(delta)}>
+        {arrow} {formatSignedTwd(delta)} ({formatChangePercent(record.valueChangePct)})
+      </div>
+    );
+  }, [getDeltaClassName]);
+
   const tableColumns = useMemo(
     () => {
       const columns = [
@@ -618,15 +705,26 @@ function App() {
         dataIndex: "latestPrice",
         key: "latestPrice",
         align: "right",
-        render: (value, record) =>
-          formatPrice(value, record.latestCurrency || "TWD"),
+        render: (value, record) => (
+          <div className="cell-with-delta">
+            <div className="cell-main-value">
+              {formatPrice(value, record.latestCurrency || "TWD")}
+            </div>
+            {renderPriceDelta(record)}
+          </div>
+        ),
       },
       {
         title: "現值 (TWD)",
         dataIndex: "latestValueTwd",
         key: "latestValueTwd",
         align: "right",
-        render: (value) => formatTwd(value),
+        render: (value, record) => (
+          <div className="cell-with-delta">
+            <div className="cell-main-value">{formatTwd(value)}</div>
+            {renderValueDelta(record)}
+          </div>
+        ),
       },
       {
         title: "股數",
@@ -758,11 +856,13 @@ function App() {
       handleCancelEdit,
       handleEditClick,
       handleRemoveHolding,
+      renderPriceDelta,
       handleSaveShares,
       holdingTagOptions,
       isMobileViewport,
       loadingActionById,
       loadingReorder,
+      renderValueDelta,
     ],
   );
 
@@ -1319,8 +1419,18 @@ function App() {
                   precision={0}
                   formatter={(value) => formatTwd(Number(value))}
                 />
-                <Text type="secondary" className="asset-total-breakdown">
-                  股票 {formatTwd(stockTotalTwd)} + 現金 {formatTwd(totalCashTwd)}
+                <Text
+                  className={`asset-total-delta ${
+                    typeof totalChangeTwd === "number"
+                      ? getDeltaClassName(totalChangeTwd)
+                      : "cell-delta cell-delta--flat"
+                  }`}
+                >
+                  {typeof totalChangeTwd !== "number"
+                    ? "--"
+                    : totalChangeTwd === 0
+                      ? "0.00 (0.00%)"
+                      : `${totalChangeTwd > 0 ? "▲" : "▼"} ${formatSignedTwd(totalChangeTwd)} (${formatChangePercent(totalChangePct)})`}
                 </Text>
               </div>
               <div className="asset-summary-actions">

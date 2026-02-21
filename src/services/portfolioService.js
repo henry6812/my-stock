@@ -107,14 +107,18 @@ const resolveHoldingTag = ({ inputTag, options }) => {
   return normalizedInputTag
 }
 
-const getLatestSnapshotByHoldingId = async (holdingId) => {
+const getLatestTwoSnapshotsByHoldingId = async (holdingId) => {
   const snapshots = await db.price_snapshots
     .where('[holdingId+capturedAt]')
     .between([holdingId, Dexie.minKey], [holdingId, Dexie.maxKey])
     .reverse()
     .toArray()
 
-  return snapshots.find((item) => !isDeleted(item))
+  const activeSnapshots = snapshots.filter((item) => !isDeleted(item))
+  return {
+    latestSnapshot: activeSnapshots[0],
+    previousSnapshot: activeSnapshots[1],
+  }
 }
 
 const setSyncMeta = async ({ status, errorMessage = '' }) => {
@@ -753,9 +757,10 @@ export const getPortfolioView = async () => {
 
   const rows = []
   let stockTotalTwd = 0
+  let stockChangeTwd = 0
 
   for (const holding of holdings) {
-    const latestSnapshot = await getLatestSnapshotByHoldingId(holding.id)
+    const { latestSnapshot, previousSnapshot } = await getLatestTwoSnapshotsByHoldingId(holding.id)
     const hasLatestPrice = typeof latestSnapshot?.price === 'number'
     const fxRateToTwd = holding.market === MARKET.US
       ? (typeof latestSnapshot?.fxRateToTwd === 'number' ? latestSnapshot.fxRateToTwd : 1)
@@ -763,6 +768,21 @@ export const getPortfolioView = async () => {
     const latestValueTwd = hasLatestPrice
       ? latestSnapshot.price * holding.shares * fxRateToTwd
       : latestSnapshot?.valueTwd
+    const prevPrice = typeof previousSnapshot?.price === 'number' ? previousSnapshot.price : undefined
+    const prevValueTwd = typeof previousSnapshot?.valueTwd === 'number' ? previousSnapshot.valueTwd : undefined
+    const hasPreviousSnapshot = Boolean(previousSnapshot)
+    const priceChange = hasLatestPrice && typeof prevPrice === 'number'
+      ? latestSnapshot.price - prevPrice
+      : undefined
+    const valueChangeTwd = typeof latestValueTwd === 'number' && typeof prevValueTwd === 'number'
+      ? latestValueTwd - prevValueTwd
+      : undefined
+    const priceChangePct = typeof priceChange === 'number' && typeof prevPrice === 'number' && prevPrice !== 0
+      ? (priceChange / prevPrice) * 100
+      : null
+    const valueChangePct = typeof valueChangeTwd === 'number' && typeof prevValueTwd === 'number' && prevValueTwd !== 0
+      ? (valueChangeTwd / prevValueTwd) * 100
+      : null
 
     const row = {
       id: holding.id,
@@ -773,7 +793,14 @@ export const getPortfolioView = async () => {
       assetTagLabel: tagLabelMap.get(holding.assetTag || defaultTag) || (holding.assetTag || defaultTag),
       shares: holding.shares,
       latestPrice: latestSnapshot?.price,
+      prevPrice,
+      priceChange,
+      priceChangePct,
       latestValueTwd,
+      prevValueTwd,
+      valueChangeTwd,
+      valueChangePct,
+      hasPreviousSnapshot,
       latestCurrency: latestSnapshot?.currency,
       latestCapturedAt: latestSnapshot?.capturedAt,
     }
@@ -781,19 +808,30 @@ export const getPortfolioView = async () => {
     if (typeof row.latestValueTwd === 'number') {
       stockTotalTwd += row.latestValueTwd
     }
+    if (typeof row.valueChangeTwd === 'number') {
+      stockChangeTwd += row.valueChangeTwd
+    }
 
     rows.push(row)
   }
 
   const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES)
   const cashView = await getCashAccountsView()
+  const totalTwd = stockTotalTwd + cashView.totalCashTwd
+  const totalChangeTwd = stockChangeTwd
+  const previousTotalTwd = totalTwd - totalChangeTwd
+  const totalChangePct = Number.isFinite(previousTotalTwd) && previousTotalTwd !== 0
+    ? (totalChangeTwd / previousTotalTwd) * 100
+    : null
 
   return {
     rows,
     cashRows: cashView.rows,
     stockTotalTwd,
     totalCashTwd: cashView.totalCashTwd,
-    totalTwd: stockTotalTwd + cashView.totalCashTwd,
+    totalTwd,
+    totalChangeTwd,
+    totalChangePct,
     lastUpdatedAt: syncMeta?.lastUpdatedAt,
     syncStatus: syncMeta?.status,
     syncError: syncMeta?.errorMessage,
