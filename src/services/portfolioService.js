@@ -903,6 +903,22 @@ export const getPortfolioView = async () => {
     const baselineSnapshot = await getLatestCashBalanceSnapshotAtOrBefore(cashAccount.id, baselineAt)
     if (typeof baselineSnapshot?.balanceTwd === 'number') {
       baselineCashTotalTwd += baselineSnapshot.balanceTwd
+      continue
+    }
+
+    // Backward compatibility: older cash accounts may not have balance snapshots yet.
+    // If account was already created and not updated after baseline time, treat current
+    // balance as the baseline value.
+    if (
+      cashAccount.createdAt &&
+      cashAccount.createdAt <= baselineAt &&
+      cashAccount.updatedAt &&
+      cashAccount.updatedAt <= baselineAt
+    ) {
+      const fallbackBalance = Number(cashAccount.balanceTwd)
+      if (Number.isFinite(fallbackBalance)) {
+        baselineCashTotalTwd += fallbackBalance
+      }
     }
   }
 
@@ -920,6 +936,8 @@ export const getPortfolioView = async () => {
     cashRows: cashView.rows,
     stockTotalTwd,
     totalCashTwd: cashView.totalCashTwd,
+    baselineStockTotalTwd,
+    baselineCashTotalTwd,
     totalTwd,
     baselineAt,
     baselineTotalTwd,

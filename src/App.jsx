@@ -281,6 +281,23 @@ function App() {
     setLastUpdatedAt(portfolio.lastUpdatedAt);
     setSyncError(portfolio.syncStatus === "error" ? portfolio.syncError : "");
     setTrend(trendData);
+
+    console.groupCollapsed(
+      `[NetWorth Diagnostics] ${dayjs().format("YYYY/MM/DD HH:mm:ss")}`,
+    );
+    console.info("Current Total (TWD):", portfolio.totalTwd);
+    console.info("Current Stock Total (TWD):", portfolio.stockTotalTwd);
+    console.info("Current Cash Total (TWD):", portfolio.totalCashTwd);
+    console.info("Baseline At (UTC ISO):", portfolio.baselineAt);
+    console.info("Baseline Total (TWD):", portfolio.baselineTotalTwd);
+    console.info(
+      "Baseline Stock Total (TWD):",
+      portfolio.baselineStockTotalTwd,
+    );
+    console.info("Baseline Cash Total (TWD):", portfolio.baselineCashTotalTwd);
+    console.info("Total Change (TWD):", portfolio.totalChangeTwd);
+    console.info("Total Change (%):", portfolio.totalChangePct);
+    console.groupEnd();
   }, [range]);
 
   const setRowLoading = useCallback((id, isLoading) => {
