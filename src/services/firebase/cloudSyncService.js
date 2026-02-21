@@ -9,13 +9,16 @@ import {
 import { db } from '../../db/database'
 import { firestoreDb, assertFirebaseConfigured } from './firebaseApp'
 import {
+  buildCashBalanceSnapshotKey,
   buildCashAccountKey,
   buildHoldingKey,
   buildSnapshotKey,
+  cashBalanceSnapshotToRemote,
   cashAccountToRemote,
   fxRateToRemote,
   holdingToRemote,
   isRemoteNewer,
+  remoteToCashBalanceSnapshot,
   remoteToCashAccount,
   remoteToFxRate,
   remoteToHolding,
@@ -35,6 +38,7 @@ const COLLECTIONS = {
   FX_RATES: 'fx_rates',
   SYNC_META: 'sync_meta',
   CASH_ACCOUNTS: 'cash_accounts',
+  CASH_BALANCE_SNAPSHOTS: 'cash_balance_snapshots',
 }
 
 const OUTBOX_OP_SET = 'set'
@@ -48,6 +52,7 @@ let realtimeUnsubscribers = []
 let onlineHandler = null
 let offlineHandler = null
 let pendingSnapshotReplay = []
+let pendingCashBalanceSnapshotReplay = []
 
 const runtimeState = {
   connected: typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -127,6 +132,14 @@ const buildMutationPayload = ({ collectionName, record }) => {
     return {
       docId: buildCashAccountKey(record),
       payload: cashAccountToRemote(record),
+      op: OUTBOX_OP_SET,
+    }
+  }
+
+  if (collectionName === COLLECTIONS.CASH_BALANCE_SNAPSHOTS) {
+    return {
+      docId: buildCashBalanceSnapshotKey(record),
+      payload: cashBalanceSnapshotToRemote(record),
       op: OUTBOX_OP_SET,
     }
   }
@@ -309,6 +322,64 @@ const applyRemoteCashAccount = async (remote) => {
     deletedAt: remote.deletedAt ?? null,
     syncState: SYNC_SYNCED,
   })
+
+  if (pendingCashBalanceSnapshotReplay.length > 0) {
+    const queue = [...pendingCashBalanceSnapshotReplay]
+    pendingCashBalanceSnapshotReplay = []
+    for (const item of queue) {
+      await applyRemoteCashBalanceSnapshot(item)
+    }
+  }
+}
+
+const applyRemoteCashBalanceSnapshot = async (remote) => {
+  if (!remote.bankName || !remote.accountAlias || !remote.capturedAt) {
+    return
+  }
+
+  const cashAccount = await db.cash_accounts
+    .where('[bankName+accountAlias]')
+    .equals([remote.bankName, remote.accountAlias])
+    .first()
+
+  if (!cashAccount) {
+    pendingCashBalanceSnapshotReplay.push(remote)
+    return
+  }
+
+  const local = await db.cash_balance_snapshots
+    .where('[cashAccountId+capturedAt]')
+    .equals([cashAccount.id, remote.capturedAt])
+    .first()
+
+  if (!local) {
+    await db.cash_balance_snapshots.add({
+      cashAccountId: cashAccount.id,
+      bankCode: remote.bankCode ?? cashAccount.bankCode ?? null,
+      bankName: remote.bankName,
+      accountAlias: remote.accountAlias,
+      balanceTwd: Number(remote.balanceTwd) || 0,
+      capturedAt: remote.capturedAt,
+      updatedAt: remote.updatedAt ?? remote.capturedAt,
+      deletedAt: remote.deletedAt ?? null,
+      syncState: SYNC_SYNCED,
+    })
+    return
+  }
+
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
+    return
+  }
+
+  await db.cash_balance_snapshots.update(local.id, {
+    bankCode: remote.bankCode ?? local.bankCode ?? null,
+    bankName: remote.bankName,
+    accountAlias: remote.accountAlias,
+    balanceTwd: Number(remote.balanceTwd) || 0,
+    updatedAt: remote.updatedAt ?? local.updatedAt,
+    deletedAt: remote.deletedAt ?? null,
+    syncState: SYNC_SYNCED,
+  })
 }
 
 const applyRealtimeSnapshot = async (collectionName, snapshot) => {
@@ -341,6 +412,11 @@ const applyRealtimeSnapshot = async (collectionName, snapshot) => {
 
     if (collectionName === COLLECTIONS.CASH_ACCOUNTS) {
       await applyRemoteCashAccount(remoteToCashAccount(data))
+      continue
+    }
+
+    if (collectionName === COLLECTIONS.CASH_BALANCE_SNAPSHOTS) {
+      await applyRemoteCashBalanceSnapshot(remoteToCashBalanceSnapshot(data))
     }
   }
 
@@ -511,6 +587,7 @@ const stopRealtimeSyncInternal = () => {
 
   runtimeState.listenersReady = false
   pendingSnapshotReplay = []
+  pendingCashBalanceSnapshotReplay = []
 }
 
 export const stopRealtimeSync = () => {
@@ -537,6 +614,7 @@ export const startRealtimeSync = async (uid) => {
     COLLECTIONS.FX_RATES,
     COLLECTIONS.SYNC_META,
     COLLECTIONS.CASH_ACCOUNTS,
+    COLLECTIONS.CASH_BALANCE_SNAPSHOTS,
   ])
 
   for (const name of waitingFirstSnapshots) {

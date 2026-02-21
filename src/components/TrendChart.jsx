@@ -20,7 +20,7 @@ const rangeOptions = [
 function TrendChart({ range, onRangeChange, data, height = 320 }) {
   const chartData = data.map((point) => ({
     ...point,
-    label: dayjs(point.ts).format('MM/DD HH:mm'),
+    label: dayjs(point.ts).format('MM/DD'),
   }))
 
   return (

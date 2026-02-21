@@ -18,6 +18,10 @@ export const buildCashAccountKey = ({ bankCode, bankName, accountAlias }) => (
     .replaceAll('/', '_')
 )
 
+export const buildCashBalanceSnapshotKey = ({ bankCode, bankName, accountAlias, capturedAt }) => (
+  `${buildCashAccountKey({ bankCode, bankName, accountAlias })}_${capturedAt}`
+)
+
 export const holdingToRemote = (holding) => ({
   symbol: holding.symbol,
   market: holding.market,
@@ -75,6 +79,18 @@ export const cashAccountToRemote = (cashAccount) => ({
   clientUpdatedAt: cashAccount.updatedAt,
 })
 
+export const cashBalanceSnapshotToRemote = (snapshot) => ({
+  cashAccountId: snapshot.cashAccountId ?? null,
+  bankCode: snapshot.bankCode ?? null,
+  bankName: snapshot.bankName,
+  accountAlias: snapshot.accountAlias,
+  balanceTwd: snapshot.balanceTwd,
+  capturedAt: snapshot.capturedAt,
+  updatedAt: snapshot.updatedAt,
+  deletedAt: snapshot.deletedAt ?? null,
+  clientUpdatedAt: snapshot.updatedAt,
+})
+
 export const remoteToHolding = (data) => ({
   symbol: data.symbol,
   market: data.market,
@@ -123,6 +139,17 @@ export const remoteToCashAccount = (data) => ({
   accountAlias: data.accountAlias,
   balanceTwd: data.balanceTwd,
   createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
+  updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
+  deletedAt: toIso(data.deletedAt),
+})
+
+export const remoteToCashBalanceSnapshot = (data) => ({
+  cashAccountId: data.cashAccountId ?? null,
+  bankCode: data.bankCode ?? undefined,
+  bankName: data.bankName,
+  accountAlias: data.accountAlias,
+  balanceTwd: data.balanceTwd,
+  capturedAt: toIso(data.capturedAt) ?? data.capturedAt,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),
 })

@@ -1,5 +1,7 @@
 import Dexie from 'dexie'
 import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 import { db, FX_PAIR_USD_TWD, SYNC_KEY_PRICES } from '../db/database'
 import { getUsdTwdRate } from './priceProviders/fxProvider'
 import { getHoldingQuote, sleepForRateLimit } from './priceProviders/finnhubProvider'
@@ -11,6 +13,9 @@ import {
   stopCloudSync,
   syncNowWithCloud,
 } from './firebase/cloudSyncService'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 const MARKET = {
   TW: 'TW',
@@ -31,12 +36,13 @@ const CLOUD_COLLECTION = {
   FX_RATES: 'fx_rates',
   SYNC_META: 'sync_meta',
   CASH_ACCOUNTS: 'cash_accounts',
+  CASH_BALANCE_SNAPSHOTS: 'cash_balance_snapshots',
 }
 
-const TREND_RANGE_HOURS = {
-  '24h': 24,
-  '7d': 24 * 7,
-  '30d': 24 * 30,
+const TREND_RANGE_DAYS = {
+  '24h': 2,
+  '7d': 7,
+  '30d': 30,
 }
 
 const isDeleted = (item) => Boolean(item?.deletedAt)
@@ -119,6 +125,49 @@ const getLatestTwoSnapshotsByHoldingId = async (holdingId) => {
     latestSnapshot: activeSnapshots[0],
     previousSnapshot: activeSnapshots[1],
   }
+}
+
+const getLatestSnapshotAtOrBefore = async (holdingId, baselineAtIso) => {
+  const snapshots = await db.price_snapshots
+    .where('[holdingId+capturedAt]')
+    .between([holdingId, Dexie.minKey], [holdingId, baselineAtIso], true, true)
+    .reverse()
+    .toArray()
+
+  return snapshots.find((item) => !isDeleted(item))
+}
+
+const getLatestCashBalanceSnapshotAtOrBefore = async (cashAccountId, baselineAtIso) => {
+  const snapshots = await db.cash_balance_snapshots
+    .where('[cashAccountId+capturedAt]')
+    .between([cashAccountId, Dexie.minKey], [cashAccountId, baselineAtIso], true, true)
+    .reverse()
+    .toArray()
+
+  return snapshots.find((item) => !isDeleted(item))
+}
+
+const getBaselineAtIso = () => dayjs().tz('Asia/Taipei').subtract(1, 'day').endOf('day').utc().toISOString()
+
+const recordCashBalanceSnapshot = async ({ cashAccount, balanceTwd, capturedAt = getNowIso() }) => {
+  if (!cashAccount) {
+    return
+  }
+
+  const snapshot = {
+    cashAccountId: cashAccount.id,
+    bankCode: cashAccount.bankCode ?? null,
+    bankName: cashAccount.bankName,
+    accountAlias: cashAccount.accountAlias,
+    balanceTwd: Number(balanceTwd) || 0,
+    capturedAt,
+    updatedAt: capturedAt,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  }
+
+  await db.cash_balance_snapshots.add(snapshot)
+  await mirrorToCloud(CLOUD_COLLECTION.CASH_BALANCE_SNAPSHOTS, snapshot)
 }
 
 const setSyncMeta = async ({ status, errorMessage = '' }) => {
@@ -641,6 +690,11 @@ export const upsertCashAccount = async ({
     const updatedCash = await db.cash_accounts.get(existing.id)
     if (updatedCash) {
       await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash)
+      await recordCashBalanceSnapshot({
+        cashAccount: updatedCash,
+        balanceTwd: parsedBalance,
+        capturedAt: nowIso,
+      })
     }
     return {
       id: existing.id,
@@ -661,6 +715,11 @@ export const upsertCashAccount = async ({
   const insertedCash = await db.cash_accounts.get(id)
   if (insertedCash) {
     await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, insertedCash)
+    await recordCashBalanceSnapshot({
+      cashAccount: insertedCash,
+      balanceTwd: parsedBalance,
+      capturedAt: nowIso,
+    })
   }
 
   return {
@@ -685,14 +744,20 @@ export const updateCashAccountBalance = async ({ id, balanceTwd }) => {
     throw new Error('Cash account not found')
   }
 
+  const nowIso = getNowIso()
   await db.cash_accounts.update(parsedId, {
     balanceTwd: parsedBalance,
-    updatedAt: getNowIso(),
+    updatedAt: nowIso,
     syncState: SYNC_PENDING,
   })
   const updatedCash = await db.cash_accounts.get(parsedId)
   if (updatedCash) {
     await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash)
+    await recordCashBalanceSnapshot({
+      cashAccount: updatedCash,
+      balanceTwd: parsedBalance,
+      capturedAt: nowIso,
+    })
   }
 }
 
@@ -717,6 +782,11 @@ export const removeCashAccount = async ({ id }) => {
   const deletedCash = await db.cash_accounts.get(parsedId)
   if (deletedCash) {
     await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, deletedCash)
+    await recordCashBalanceSnapshot({
+      cashAccount: deletedCash,
+      balanceTwd: 0,
+      capturedAt: nowIso,
+    })
   }
 }
 
@@ -749,15 +819,17 @@ export const getCashAccountsView = async () => {
 }
 
 export const getPortfolioView = async () => {
-  const holdings = (await db.holdings.toArray()).filter((item) => !isDeleted(item))
+  const allHoldings = await db.holdings.toArray()
+  const holdings = allHoldings.filter((item) => !isDeleted(item))
   holdings.sort(sortHoldingsByOrder)
+  const allCashAccounts = await db.cash_accounts.toArray()
   const tagOptions = await ensureHoldingTagOptions()
   const tagLabelMap = new Map(tagOptions.map((item) => [item.value, item.label]))
   const defaultTag = getDefaultHoldingTag(tagOptions)
+  const baselineAt = getBaselineAtIso()
 
   const rows = []
   let stockTotalTwd = 0
-  let stockChangeTwd = 0
 
   for (const holding of holdings) {
     const { latestSnapshot, previousSnapshot } = await getLatestTwoSnapshotsByHoldingId(holding.id)
@@ -808,20 +880,39 @@ export const getPortfolioView = async () => {
     if (typeof row.latestValueTwd === 'number') {
       stockTotalTwd += row.latestValueTwd
     }
-    if (typeof row.valueChangeTwd === 'number') {
-      stockChangeTwd += row.valueChangeTwd
-    }
 
     rows.push(row)
+  }
+
+  let baselineStockTotalTwd = 0
+  for (const holding of allHoldings) {
+    if (holding.deletedAt && holding.deletedAt <= baselineAt) {
+      continue
+    }
+    const baselineSnapshot = await getLatestSnapshotAtOrBefore(holding.id, baselineAt)
+    if (typeof baselineSnapshot?.valueTwd === 'number') {
+      baselineStockTotalTwd += baselineSnapshot.valueTwd
+    }
+  }
+
+  let baselineCashTotalTwd = 0
+  for (const cashAccount of allCashAccounts) {
+    if (cashAccount.deletedAt && cashAccount.deletedAt <= baselineAt) {
+      continue
+    }
+    const baselineSnapshot = await getLatestCashBalanceSnapshotAtOrBefore(cashAccount.id, baselineAt)
+    if (typeof baselineSnapshot?.balanceTwd === 'number') {
+      baselineCashTotalTwd += baselineSnapshot.balanceTwd
+    }
   }
 
   const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES)
   const cashView = await getCashAccountsView()
   const totalTwd = stockTotalTwd + cashView.totalCashTwd
-  const totalChangeTwd = stockChangeTwd
-  const previousTotalTwd = totalTwd - totalChangeTwd
-  const totalChangePct = Number.isFinite(previousTotalTwd) && previousTotalTwd !== 0
-    ? (totalChangeTwd / previousTotalTwd) * 100
+  const baselineTotalTwd = baselineStockTotalTwd + baselineCashTotalTwd
+  const totalChangeTwd = totalTwd - baselineTotalTwd
+  const totalChangePct = Number.isFinite(baselineTotalTwd) && baselineTotalTwd !== 0
+    ? (totalChangeTwd / baselineTotalTwd) * 100
     : null
 
   return {
@@ -830,6 +921,8 @@ export const getPortfolioView = async () => {
     stockTotalTwd,
     totalCashTwd: cashView.totalCashTwd,
     totalTwd,
+    baselineAt,
+    baselineTotalTwd,
     totalChangeTwd,
     totalChangePct,
     lastUpdatedAt: syncMeta?.lastUpdatedAt,
@@ -840,54 +933,78 @@ export const getPortfolioView = async () => {
 }
 
 export const getTrend = async (range) => {
-  const hours = TREND_RANGE_HOURS[range] ?? TREND_RANGE_HOURS['24h']
-  const fromIso = dayjs().subtract(hours, 'hour').toISOString()
+  const pointCount = TREND_RANGE_DAYS[range] ?? TREND_RANGE_DAYS['24h']
+  const latestCompletedDayEnd = dayjs().tz('Asia/Taipei').subtract(1, 'day').endOf('day')
 
-  const holdings = (await db.holdings.toArray()).filter((item) => !isDeleted(item))
-  if (holdings.length === 0) {
-    return []
+  const cutoffs = []
+  for (let i = pointCount - 1; i >= 0; i -= 1) {
+    cutoffs.push(latestCompletedDayEnd.subtract(i, 'day'))
   }
 
-  const activeHoldingIds = new Set(holdings.map((item) => item.id))
-  const latestValueByHolding = new Map()
-  let runningTotal = 0
+  const allHoldings = await db.holdings.toArray()
+  const allCashAccounts = await db.cash_accounts.toArray()
 
-  for (const holding of holdings) {
+  const stockSnapshotsByHolding = new Map()
+  for (const holding of allHoldings) {
     const snapshots = await db.price_snapshots
       .where('[holdingId+capturedAt]')
-      .between([holding.id, Dexie.minKey], [holding.id, fromIso], true, false)
-      .reverse()
+      .between([holding.id, Dexie.minKey], [holding.id, Dexie.maxKey], true, true)
       .toArray()
-
-    const seedSnapshot = snapshots.find((item) => !isDeleted(item))
-    if (seedSnapshot) {
-      latestValueByHolding.set(holding.id, seedSnapshot.valueTwd)
-      runningTotal += seedSnapshot.valueTwd
-    }
+    stockSnapshotsByHolding.set(holding.id, snapshots)
   }
 
-  const snapshots = await db.price_snapshots
-    .where('capturedAt')
-    .aboveOrEqual(fromIso)
-    .sortBy('capturedAt')
-
-  const totalByTimestamp = new Map()
-  for (const snapshot of snapshots) {
-    if (isDeleted(snapshot) || !activeHoldingIds.has(snapshot.holdingId)) {
-      continue
-    }
-
-    const previousValue = latestValueByHolding.get(snapshot.holdingId)
-    if (typeof previousValue === 'number') {
-      runningTotal -= previousValue
-    }
-
-    latestValueByHolding.set(snapshot.holdingId, snapshot.valueTwd)
-    runningTotal += snapshot.valueTwd
-    totalByTimestamp.set(snapshot.capturedAt, runningTotal)
+  const cashSnapshotsByAccount = new Map()
+  for (const cashAccount of allCashAccounts) {
+    const snapshots = await db.cash_balance_snapshots
+      .where('[cashAccountId+capturedAt]')
+      .between([cashAccount.id, Dexie.minKey], [cashAccount.id, Dexie.maxKey], true, true)
+      .toArray()
+    cashSnapshotsByAccount.set(cashAccount.id, snapshots)
   }
 
-  return Array.from(totalByTimestamp.entries())
-    .sort(([a], [b]) => (a > b ? 1 : -1))
-    .map(([ts, totalTwd]) => ({ ts, totalTwd }))
+  const findLatestAtOrBefore = (snapshots, cutoffIso) => {
+    for (let i = snapshots.length - 1; i >= 0; i -= 1) {
+      const snapshot = snapshots[i]
+      if (snapshot.capturedAt > cutoffIso) {
+        continue
+      }
+      if (!isDeleted(snapshot)) {
+        return snapshot
+      }
+    }
+    return undefined
+  }
+
+  return cutoffs.map((cutoff) => {
+    const cutoffIso = cutoff.utc().toISOString()
+
+    let stockTotalTwd = 0
+    for (const holding of allHoldings) {
+      if (holding.deletedAt && holding.deletedAt <= cutoffIso) {
+        continue
+      }
+      const snapshots = stockSnapshotsByHolding.get(holding.id) || []
+      const snapshot = findLatestAtOrBefore(snapshots, cutoffIso)
+      if (typeof snapshot?.valueTwd === 'number') {
+        stockTotalTwd += snapshot.valueTwd
+      }
+    }
+
+    let cashTotalTwd = 0
+    for (const cashAccount of allCashAccounts) {
+      if (cashAccount.deletedAt && cashAccount.deletedAt <= cutoffIso) {
+        continue
+      }
+      const snapshots = cashSnapshotsByAccount.get(cashAccount.id) || []
+      const snapshot = findLatestAtOrBefore(snapshots, cutoffIso)
+      if (typeof snapshot?.balanceTwd === 'number') {
+        cashTotalTwd += snapshot.balanceTwd
+      }
+    }
+
+    return {
+      ts: cutoffIso,
+      totalTwd: stockTotalTwd + cashTotalTwd,
+    }
+  })
 }

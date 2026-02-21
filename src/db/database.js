@@ -139,6 +139,19 @@ class StockDatabase extends Dexie {
         app_config: '&key',
         outbox: '++id,uid,status,collection,docId,createdAt,retryAt',
       })
+
+    this.version(7)
+      .stores({
+        holdings: '++id,[symbol+market],symbol,market,assetTag,sortOrder,updatedAt,deletedAt,syncState',
+        price_snapshots: '++id,holdingId,symbol,market,capturedAt,[holdingId+capturedAt],updatedAt,deletedAt,syncState',
+        fx_rates: '&pair,fetchedAt,updatedAt,deletedAt,syncState',
+        sync_meta: '&key,lastUpdatedAt,updatedAt,deletedAt,syncState',
+        expense_entries: '++id,occurredAt,category',
+        cash_accounts: '++id,[bankName+accountAlias],bankName,accountAlias,updatedAt,deletedAt,syncState',
+        cash_balance_snapshots: '++id,cashAccountId,bankName,accountAlias,capturedAt,[cashAccountId+capturedAt],updatedAt,deletedAt,syncState',
+        app_config: '&key',
+        outbox: '++id,uid,status,collection,docId,createdAt,retryAt',
+      })
   }
 }
 
