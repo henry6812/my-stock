@@ -188,6 +188,9 @@ function App() {
   const [activeHoldingTab, setActiveHoldingTab] = useState("all");
   const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false);
   const [isAddCashModalOpen, setIsAddCashModalOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= 768 : false,
+  );
   const [loadingAddCashAccount, setLoadingAddCashAccount] = useState(false);
   const [loadingBankOptions, setLoadingBankOptions] = useState(false);
   const [bankOptions, setBankOptions] = useState([]);
@@ -583,7 +586,8 @@ function App() {
   );
 
   const tableColumns = useMemo(
-    () => [
+    () => {
+      const columns = [
       {
         title: "",
         key: "drag",
@@ -608,6 +612,45 @@ function App() {
             </Text>
           </div>
         ),
+      },
+      {
+        title: "最新價格",
+        dataIndex: "latestPrice",
+        key: "latestPrice",
+        align: "right",
+        render: (value, record) =>
+          formatPrice(value, record.latestCurrency || "TWD"),
+      },
+      {
+        title: "現值 (TWD)",
+        dataIndex: "latestValueTwd",
+        key: "latestValueTwd",
+        align: "right",
+        render: (value) => formatTwd(value),
+      },
+      {
+        title: "股數",
+        dataIndex: "shares",
+        key: "shares",
+        align: "right",
+        render: (value, record) => {
+          if (editingHoldingId !== record.id) {
+            return Number(value).toLocaleString("en-US", {
+              maximumFractionDigits: 4,
+            });
+          }
+
+          return (
+            <InputNumber
+              min={0.0001}
+              step={1}
+              precision={4}
+              value={editingShares ?? value}
+              onChange={(next) => setEditingShares(next)}
+              style={{ width: 130 }}
+            />
+          );
+        },
       },
       {
         title: "分類",
@@ -636,49 +679,11 @@ function App() {
         },
       },
       {
-        title: "股數",
-        dataIndex: "shares",
-        key: "shares",
-        align: "right",
-        render: (value, record) => {
-          if (editingHoldingId !== record.id) {
-            return Number(value).toLocaleString("en-US", {
-              maximumFractionDigits: 4,
-            });
-          }
-
-          return (
-            <InputNumber
-              min={0.0001}
-              step={1}
-              precision={4}
-              value={editingShares ?? value}
-              onChange={(next) => setEditingShares(next)}
-              style={{ width: 130 }}
-            />
-          );
-        },
-      },
-      {
-        title: "最新價格",
-        dataIndex: "latestPrice",
-        key: "latestPrice",
-        align: "right",
-        render: (value, record) =>
-          formatPrice(value, record.latestCurrency || "TWD"),
-      },
-      {
-        title: "現值 (TWD)",
-        dataIndex: "latestValueTwd",
-        key: "latestValueTwd",
-        align: "right",
-        render: (value) => formatTwd(value),
-      },
-      {
         title: "操作",
         key: "actions",
-        fixed: "right",
-        width: 190,
+        fixed: isMobileViewport ? undefined : "right",
+        width: isMobileViewport ? undefined : 190,
+        align: "left",
         render: (_, record) => {
           const rowLoading =
             Boolean(loadingActionById[record.id]) || loadingReorder;
@@ -739,7 +744,12 @@ function App() {
           );
         },
       },
-    ],
+    ];
+
+      return isMobileViewport
+        ? columns.filter((column) => column.key !== "drag")
+        : columns;
+    },
     [
       dragDisabled,
       editingHoldingId,
@@ -750,6 +760,7 @@ function App() {
       handleRemoveHolding,
       handleSaveShares,
       holdingTagOptions,
+      isMobileViewport,
       loadingActionById,
       loadingReorder,
     ],
@@ -957,6 +968,17 @@ function App() {
       window.removeEventListener(CLOUD_SYNC_UPDATED_EVENT, onCloudUpdated);
     };
   }, [loadAllData, refreshCloudRuntime]);
+
+  useEffect(() => {
+    const onResize = () => {
+      setIsMobileViewport(window.innerWidth <= 768);
+    };
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+    };
+  }, []);
 
   useEffect(() => {
     const loadHoldingTags = async () => {
@@ -1222,11 +1244,6 @@ function App() {
                 <CloudSyncOutlined style={{ marginRight: 6 }} />
                 {authReady ? cloudSyncText : "讀取登入狀態中..."}
               </Text>
-              {authUser && (
-                <Text type="secondary" className="cloud-last-sync-time">
-                  {cloudLastSyncedText}
-                </Text>
-              )}
             </div>
             {authUser ? (
               <Space size={6}>
@@ -1461,7 +1478,7 @@ function App() {
                     columns={tableColumns}
                     pagination={false}
                     loading={loadingData || loadingReorder}
-                    scroll={{ x: 980 }}
+                    scroll={{ x: isMobileViewport ? 860 : 980 }}
                     components={{
                       body: {
                         row: DraggableBodyRow,
@@ -1501,6 +1518,14 @@ function App() {
             </Card>
           </Col>
         </Row>
+
+        {authUser && (
+          <div style={{ marginTop: 12, textAlign: "center" }}>
+            <Text type="secondary" className="cloud-last-sync-time">
+              {cloudLastSyncedText}
+            </Text>
+          </div>
+        )}
 
         <Modal
           title="新增持股"
