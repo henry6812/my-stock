@@ -8,11 +8,14 @@ import {
 import { db } from '../../db/database'
 import { firestoreDb, assertFirebaseConfigured } from './firebaseApp'
 import {
+  buildCashAccountKey,
   buildHoldingKey,
   buildSnapshotKey,
+  cashAccountToRemote,
   fxRateToRemote,
   holdingToRemote,
   isRemoteNewer,
+  remoteToCashAccount,
   remoteToFxRate,
   remoteToHolding,
   remoteToSnapshot,
@@ -80,6 +83,13 @@ const markLegacyRowsPending = async () => {
   for (const item of syncMeta) {
     if (!item.syncState) {
       await db.sync_meta.put({ ...item, syncState: SYNC_PENDING })
+    }
+  }
+
+  const cashAccounts = await db.cash_accounts.toArray()
+  for (const item of cashAccounts) {
+    if (!item.syncState) {
+      await db.cash_accounts.update(item.id, { syncState: SYNC_PENDING })
     }
   }
 }
@@ -166,12 +176,34 @@ const pushSyncMeta = async () => {
   return pushed
 }
 
+const pushCashAccounts = async () => {
+  const pending = await db.cash_accounts.where('syncState').anyOf(SYNC_PENDING, SYNC_ERROR).toArray()
+  let pushed = 0
+
+  for (const cashAccount of pending) {
+    const id = buildCashAccountKey(cashAccount)
+    await setDoc(
+      doc(userCollection('cash_accounts'), id),
+      {
+        ...cashAccountToRemote(cashAccount),
+        serverUpdatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    )
+    await db.cash_accounts.update(cashAccount.id, { syncState: SYNC_SYNCED })
+    pushed += 1
+  }
+
+  return pushed
+}
+
 const pushPendingChanges = async () => {
   const holdingCount = await pushHoldings()
   const snapshotCount = await pushSnapshots()
   const fxCount = await pushFxRates()
   const metaCount = await pushSyncMeta()
-  return holdingCount + snapshotCount + fxCount + metaCount
+  const cashCount = await pushCashAccounts()
+  return holdingCount + snapshotCount + fxCount + metaCount + cashCount
 }
 
 const pullHoldings = async () => {
@@ -353,12 +385,69 @@ const pullSyncMeta = async () => {
   return pulled
 }
 
+const pullCashAccounts = async () => {
+  const localByKey = new Map()
+  const locals = await db.cash_accounts.toArray()
+  for (const item of locals) {
+    localByKey.set(buildCashAccountKey(item), item)
+  }
+
+  const remoteDocs = await getDocs(userCollection('cash_accounts'))
+  let pulled = 0
+
+  for (const item of remoteDocs.docs) {
+    const remote = remoteToCashAccount(item.data())
+    if (!remote.bankName || !remote.accountAlias) {
+      continue
+    }
+
+    const key = buildCashAccountKey(remote)
+    const local = localByKey.get(key)
+
+    if (!local) {
+      const nowIso = new Date().toISOString()
+      const newId = await db.cash_accounts.add({
+        bankCode: remote.bankCode ?? null,
+        bankName: remote.bankName,
+        accountAlias: remote.accountAlias,
+        balanceTwd: Number(remote.balanceTwd) || 0,
+        createdAt: remote.createdAt || nowIso,
+        updatedAt: remote.updatedAt || nowIso,
+        deletedAt: remote.deletedAt ?? null,
+        syncState: SYNC_SYNCED,
+      })
+      localByKey.set(key, { ...remote, id: newId })
+      pulled += 1
+      continue
+    }
+
+    if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
+      continue
+    }
+
+    await db.cash_accounts.update(local.id, {
+      bankCode: remote.bankCode ?? null,
+      bankName: remote.bankName,
+      accountAlias: remote.accountAlias,
+      balanceTwd: Number(remote.balanceTwd) || 0,
+      createdAt: remote.createdAt || local.createdAt,
+      updatedAt: remote.updatedAt || local.updatedAt,
+      deletedAt: remote.deletedAt ?? null,
+      syncState: SYNC_SYNCED,
+    })
+    pulled += 1
+  }
+
+  return pulled
+}
+
 const pullRemoteChanges = async () => {
   const holdings = await pullHoldings()
   const snapshots = await pullSnapshots()
   const fxRates = await pullFxRates()
   const syncMeta = await pullSyncMeta()
-  return holdings + snapshots + fxRates + syncMeta
+  const cashAccounts = await pullCashAccounts()
+  return holdings + snapshots + fxRates + syncMeta + cashAccounts
 }
 
 const performSync = async () => {
@@ -372,6 +461,7 @@ const markPendingAsError = async () => {
   await db.price_snapshots.where('syncState').equals(SYNC_PENDING).modify({ syncState: SYNC_ERROR })
   await db.fx_rates.where('syncState').equals(SYNC_PENDING).modify({ syncState: SYNC_ERROR })
   await db.sync_meta.where('syncState').equals(SYNC_PENDING).modify({ syncState: SYNC_ERROR })
+  await db.cash_accounts.where('syncState').equals(SYNC_PENDING).modify({ syncState: SYNC_ERROR })
 }
 
 export const setSyncUser = (uid) => {

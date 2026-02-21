@@ -61,6 +61,7 @@ import {
   Tooltip as RechartsTooltip,
 } from "recharts";
 import HoldingForm from "./components/HoldingForm";
+import CashAccountForm from "./components/CashAccountForm";
 import TrendChart from "./components/TrendChart";
 import {
   getPortfolioView,
@@ -73,7 +74,10 @@ import {
   setCurrentUser,
   stopSync,
   syncNow as syncNowPortfolio,
+  removeCashAccount,
+  updateCashAccountBalance,
   updateHoldingShares,
+  upsertCashAccount,
   upsertHolding,
 } from "./services/portfolioService";
 import {
@@ -81,6 +85,7 @@ import {
   logoutGoogle,
   observeAuthState,
 } from "./services/firebase/authService";
+import { getBankDirectory } from "./services/bankProviders/twBankDirectoryProvider";
 import { formatDateTime, formatPrice, formatTwd } from "./utils/formatters";
 import "./App.css";
 
@@ -147,7 +152,10 @@ function SortableRow({ disabled, ...props }) {
 function App() {
   const { message } = AntdApp.useApp();
   const [rows, setRows] = useState([]);
+  const [cashRows, setCashRows] = useState([]);
   const [totalTwd, setTotalTwd] = useState(0);
+  const [stockTotalTwd, setStockTotalTwd] = useState(0);
+  const [totalCashTwd, setTotalCashTwd] = useState(0);
   const [trend, setTrend] = useState([]);
   const [range, setRange] = useState("24h");
   const [lastUpdatedAt, setLastUpdatedAt] = useState();
@@ -167,9 +175,16 @@ function App() {
   const [isPieExpanded, setIsPieExpanded] = useState(false);
   const [activeHoldingTab, setActiveHoldingTab] = useState("all");
   const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false);
+  const [isAddCashModalOpen, setIsAddCashModalOpen] = useState(false);
+  const [loadingAddCashAccount, setLoadingAddCashAccount] = useState(false);
+  const [loadingBankOptions, setLoadingBankOptions] = useState(false);
+  const [bankOptions, setBankOptions] = useState([]);
   const [editingHoldingId, setEditingHoldingId] = useState(null);
   const [editingShares, setEditingShares] = useState(null);
   const [loadingActionById, setLoadingActionById] = useState({});
+  const [editingCashAccountId, setEditingCashAccountId] = useState(null);
+  const [editingCashBalance, setEditingCashBalance] = useState(null);
+  const [loadingCashActionById, setLoadingCashActionById] = useState({});
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -186,7 +201,10 @@ function App() {
     ]);
 
     setRows(portfolio.rows);
+    setCashRows(portfolio.cashRows ?? []);
     setTotalTwd(portfolio.totalTwd);
+    setStockTotalTwd(portfolio.stockTotalTwd ?? portfolio.totalTwd ?? 0);
+    setTotalCashTwd(portfolio.totalCashTwd ?? 0);
     setLastUpdatedAt(portfolio.lastUpdatedAt);
     setSyncError(portfolio.syncStatus === "error" ? portfolio.syncError : "");
     setTrend(trendData);
@@ -194,6 +212,10 @@ function App() {
 
   const setRowLoading = useCallback((id, isLoading) => {
     setLoadingActionById((prev) => ({ ...prev, [id]: isLoading }));
+  }, []);
+
+  const setCashRowLoading = useCallback((id, isLoading) => {
+    setLoadingCashActionById((prev) => ({ ...prev, [id]: isLoading }));
   }, []);
 
   const performCloudSync = useCallback(async ({ throwOnError = false } = {}) => {
@@ -226,6 +248,16 @@ function App() {
   const handleCancelEdit = useCallback(() => {
     setEditingHoldingId(null);
     setEditingShares(null);
+  }, []);
+
+  const handleCashEditClick = useCallback((record) => {
+    setEditingCashAccountId(record.id);
+    setEditingCashBalance(record.balanceTwd);
+  }, []);
+
+  const handleCashCancelEdit = useCallback(() => {
+    setEditingCashAccountId(null);
+    setEditingCashBalance(null);
   }, []);
 
   const handleSaveShares = useCallback(
@@ -272,6 +304,61 @@ function App() {
       }
     },
     [editingHoldingId, loadAllData, message, performCloudSync, setRowLoading],
+  );
+
+  const handleSaveCashBalance = useCallback(
+    async (record) => {
+      const parsedBalance = Number(editingCashBalance);
+      if (!Number.isFinite(parsedBalance) || parsedBalance < 0) {
+        message.error("Balance must be a non-negative number");
+        return;
+      }
+
+      try {
+        setCashRowLoading(record.id, true);
+        await updateCashAccountBalance({
+          id: record.id,
+          balanceTwd: parsedBalance,
+        });
+        await loadAllData();
+        await performCloudSync();
+        setEditingCashAccountId(null);
+        setEditingCashBalance(null);
+        message.success("現金餘額已更新");
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "更新餘額失敗");
+      } finally {
+        setCashRowLoading(record.id, false);
+      }
+    },
+    [editingCashBalance, loadAllData, message, performCloudSync, setCashRowLoading],
+  );
+
+  const handleRemoveCashAccount = useCallback(
+    async (record) => {
+      try {
+        setCashRowLoading(record.id, true);
+        await removeCashAccount({ id: record.id });
+        await loadAllData();
+        await performCloudSync();
+        if (editingCashAccountId === record.id) {
+          setEditingCashAccountId(null);
+          setEditingCashBalance(null);
+        }
+        message.success("銀行帳戶已移除");
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "移除銀行帳戶失敗");
+      } finally {
+        setCashRowLoading(record.id, false);
+      }
+    },
+    [
+      editingCashAccountId,
+      loadAllData,
+      message,
+      performCloudSync,
+      setCashRowLoading,
+    ],
   );
 
   const filteredRows = useMemo(() => {
@@ -537,6 +624,118 @@ function App() {
     ],
   );
 
+  const cashTableColumns = useMemo(
+    () => [
+      {
+        title: "銀行",
+        dataIndex: "bankName",
+        key: "bankName",
+        render: (_, record) =>
+          record.bankCode ? `${record.bankName} (${record.bankCode})` : record.bankName,
+      },
+      {
+        title: "帳戶別名",
+        dataIndex: "accountAlias",
+        key: "accountAlias",
+      },
+      {
+        title: "現金餘額 (TWD)",
+        dataIndex: "balanceTwd",
+        key: "balanceTwd",
+        align: "right",
+        render: (value, record) => {
+          if (editingCashAccountId !== record.id) {
+            return formatTwd(value);
+          }
+          return (
+            <InputNumber
+              min={0}
+              step={1000}
+              precision={0}
+              value={editingCashBalance ?? value}
+              onChange={(next) => setEditingCashBalance(next)}
+              style={{ width: 160 }}
+            />
+          );
+        },
+      },
+      {
+        title: "更新時間",
+        dataIndex: "updatedAt",
+        key: "updatedAt",
+        render: (value) => formatDateTime(value),
+      },
+      {
+        title: "操作",
+        key: "actions",
+        width: 180,
+        render: (_, record) => {
+          const rowLoading = Boolean(loadingCashActionById[record.id]);
+          const isEditing = editingCashAccountId === record.id;
+
+          if (isEditing) {
+            return (
+              <Space>
+                <Button
+                  type="primary"
+                  size="small"
+                  loading={rowLoading}
+                  onClick={() => handleSaveCashBalance(record)}
+                >
+                  儲存
+                </Button>
+                <Button
+                  size="small"
+                  disabled={rowLoading}
+                  onClick={handleCashCancelEdit}
+                >
+                  取消
+                </Button>
+              </Space>
+            );
+          }
+
+          return (
+            <Space>
+              <Button
+                size="small"
+                loading={rowLoading}
+                onClick={() => handleCashEditClick(record)}
+                icon={<EditOutlined />}
+                aria-label="編輯現金餘額"
+              />
+              <Popconfirm
+                title="移除此銀行帳戶？"
+                description="刪除後不會再列入總現值。"
+                okText="刪除"
+                cancelText="取消"
+                onConfirm={() => handleRemoveCashAccount(record)}
+                okButtonProps={{ danger: true, loading: rowLoading }}
+              >
+                <Button
+                  danger
+                  size="small"
+                  disabled={rowLoading}
+                  icon={<DeleteOutlined />}
+                  aria-label="移除銀行帳戶"
+                />
+              </Popconfirm>
+            </Space>
+          );
+        },
+      },
+    ],
+    [
+      editingCashAccountId,
+      editingCashBalance,
+      handleCashCancelEdit,
+      handleCashEditClick,
+      handleRemoveCashAccount,
+      handleSaveCashBalance,
+      loadingCashActionById,
+    ],
+  );
+
   const DraggableBodyRow = useCallback(
     (props) => <SortableRow {...props} disabled={dragDisabled} />,
     [dragDisabled],
@@ -610,6 +809,30 @@ function App() {
     bootstrap();
   }, [loadAllData, message]);
 
+  useEffect(() => {
+    if (!isAddCashModalOpen) {
+      return;
+    }
+
+    const loadBankOptions = async () => {
+      try {
+        setLoadingBankOptions(true);
+        const directory = await getBankDirectory();
+        setBankOptions(directory);
+      } catch (error) {
+        message.warning(
+          error instanceof Error
+            ? `銀行名單載入失敗，仍可手動輸入：${error.message}`
+            : "銀行名單載入失敗，仍可手動輸入",
+        );
+      } finally {
+        setLoadingBankOptions(false);
+      }
+    };
+
+    loadBankOptions();
+  }, [isAddCashModalOpen, message]);
+
   const handleAddHolding = async (values) => {
     let upsertResult;
 
@@ -653,6 +876,30 @@ function App() {
       message.error(error instanceof Error ? error.message : "更新價格失敗");
     } finally {
       setLoadingRefresh(false);
+    }
+  };
+
+  const handleAddCashAccount = async (values) => {
+    const selected = bankOptions.find((item) => item.bankName === values.bankName);
+
+    try {
+      setLoadingAddCashAccount(true);
+      await upsertCashAccount({
+        bankCode: selected?.bankCode,
+        bankName: values.bankName,
+        accountAlias: values.accountAlias,
+        balanceTwd: values.balanceTwd,
+      });
+      await loadAllData();
+      await performCloudSync();
+      setIsAddCashModalOpen(false);
+      message.success("銀行現金帳戶已儲存");
+      return true;
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "新增銀行帳戶失敗");
+      return false;
+    } finally {
+      setLoadingAddCashAccount(false);
     }
   };
 
@@ -805,6 +1052,9 @@ function App() {
                   precision={0}
                   formatter={(value) => formatTwd(Number(value))}
                 />
+                <Text type="secondary" className="asset-total-breakdown">
+                  股票 {formatTwd(stockTotalTwd)} + 現金 {formatTwd(totalCashTwd)}
+                </Text>
               </div>
               <div className="asset-summary-actions">
                 <Button
@@ -947,6 +1197,34 @@ function App() {
               </DndContext>
             </Card>
           </Col>
+
+          <Col xs={24}>
+            <Card
+              title="銀行現金資產"
+              extra={
+                <Tooltip title="新增銀行帳戶">
+                  <Button
+                    type="primary"
+                    onClick={() => setIsAddCashModalOpen(true)}
+                    disabled={loadingAddCashAccount}
+                    icon={<PlusOutlined />}
+                    aria-label="新增銀行帳戶"
+                  />
+                </Tooltip>
+              }
+            >
+              <Table
+                rowKey="id"
+                dataSource={cashRows}
+                columns={cashTableColumns}
+                pagination={false}
+                scroll={{ x: 860 }}
+                locale={{
+                  emptyText: "尚未新增銀行現金帳戶",
+                }}
+              />
+            </Card>
+          </Col>
         </Row>
 
         <Modal
@@ -968,6 +1246,29 @@ function App() {
             loading={loadingAddHolding}
             submitText="新增持股"
             layout="vertical"
+          />
+        </Modal>
+
+        <Modal
+          title="新增銀行帳戶"
+          open={isAddCashModalOpen}
+          onCancel={() => {
+            if (!loadingAddCashAccount) {
+              setIsAddCashModalOpen(false);
+            }
+          }}
+          footer={null}
+          destroyOnClose
+          maskClosable={!loadingAddCashAccount}
+          keyboard={!loadingAddCashAccount}
+          closable={!loadingAddCashAccount}
+        >
+          <CashAccountForm
+            onSubmit={handleAddCashAccount}
+            loading={loadingAddCashAccount}
+            loadingBankOptions={loadingBankOptions}
+            bankOptions={bankOptions}
+            submitText="新增銀行帳戶"
           />
         </Modal>
       </Content>

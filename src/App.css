@@ -82,6 +82,11 @@
   font-weight: 700;
 }
 
+.asset-total-breakdown {
+  display: block;
+  margin-top: 6px;
+}
+
 .asset-summary-actions {
   margin-top: 14px;
   display: flex;

@@ -83,6 +83,11 @@ const getActiveHoldings = async () => {
   return holdings.filter((item) => !isDeleted(item))
 }
 
+const getActiveCashAccounts = async () => {
+  const cashAccounts = await db.cash_accounts.toArray()
+  return cashAccounts.filter((item) => !isDeleted(item))
+}
+
 export const setCurrentUser = (uid) => {
   setSyncUser(uid ?? null)
 }
@@ -422,12 +427,143 @@ export const refreshPrices = async () => {
   }
 }
 
+export const upsertCashAccount = async ({
+  bankCode,
+  bankName,
+  accountAlias,
+  balanceTwd,
+}) => {
+  const normalizedBankCode = typeof bankCode === 'string' ? bankCode.trim() : undefined
+  const normalizedBankName = String(bankName ?? '').trim()
+  const normalizedAlias = String(accountAlias ?? '').trim()
+  const parsedBalance = Number(balanceTwd)
+
+  if (!normalizedBankName) {
+    throw new Error('Bank name is required')
+  }
+  if (!normalizedAlias) {
+    throw new Error('Account alias is required')
+  }
+  if (!Number.isFinite(parsedBalance) || parsedBalance < 0) {
+    throw new Error('Balance must be a non-negative number')
+  }
+
+  const existing = await db.cash_accounts
+    .where('[bankName+accountAlias]')
+    .equals([normalizedBankName, normalizedAlias])
+    .first()
+
+  const nowIso = getNowIso()
+  if (existing) {
+    await db.cash_accounts.update(existing.id, {
+      bankCode: normalizedBankCode || null,
+      bankName: normalizedBankName,
+      accountAlias: normalizedAlias,
+      balanceTwd: parsedBalance,
+      updatedAt: nowIso,
+      deletedAt: null,
+      syncState: SYNC_PENDING,
+    })
+    return {
+      id: existing.id,
+      created: false,
+    }
+  }
+
+  const id = await db.cash_accounts.add({
+    bankCode: normalizedBankCode || null,
+    bankName: normalizedBankName,
+    accountAlias: normalizedAlias,
+    balanceTwd: parsedBalance,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  })
+
+  return {
+    id,
+    created: true,
+  }
+}
+
+export const updateCashAccountBalance = async ({ id, balanceTwd }) => {
+  const parsedId = Number(id)
+  const parsedBalance = Number(balanceTwd)
+
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error('Cash account not found')
+  }
+  if (!Number.isFinite(parsedBalance) || parsedBalance < 0) {
+    throw new Error('Balance must be a non-negative number')
+  }
+
+  const existing = await db.cash_accounts.get(parsedId)
+  if (!existing || isDeleted(existing)) {
+    throw new Error('Cash account not found')
+  }
+
+  await db.cash_accounts.update(parsedId, {
+    balanceTwd: parsedBalance,
+    updatedAt: getNowIso(),
+    syncState: SYNC_PENDING,
+  })
+}
+
+export const removeCashAccount = async ({ id }) => {
+  const parsedId = Number(id)
+
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error('Cash account not found')
+  }
+
+  const existing = await db.cash_accounts.get(parsedId)
+  if (!existing || isDeleted(existing)) {
+    throw new Error('Cash account not found')
+  }
+
+  const nowIso = getNowIso()
+  await db.cash_accounts.update(parsedId, {
+    deletedAt: nowIso,
+    updatedAt: nowIso,
+    syncState: SYNC_PENDING,
+  })
+}
+
+export const getCashAccountsView = async () => {
+  const cashAccounts = await getActiveCashAccounts()
+  cashAccounts.sort((a, b) => {
+    if (!a?.updatedAt && !b?.updatedAt) return 0
+    if (!a?.updatedAt) return 1
+    if (!b?.updatedAt) return -1
+    return a.updatedAt > b.updatedAt ? -1 : 1
+  })
+
+  let totalCashTwd = 0
+  const rows = cashAccounts.map((item) => {
+    totalCashTwd += Number(item.balanceTwd) || 0
+    return {
+      id: item.id,
+      bankCode: item.bankCode || undefined,
+      bankName: item.bankName,
+      accountAlias: item.accountAlias,
+      balanceTwd: Number(item.balanceTwd) || 0,
+      updatedAt: item.updatedAt,
+    }
+  })
+
+  return {
+    rows,
+    totalCashTwd,
+  }
+}
+
 export const getPortfolioView = async () => {
   const holdings = (await db.holdings.toArray()).filter((item) => !isDeleted(item))
   holdings.sort(sortHoldingsByOrder)
 
   const rows = []
-  let totalTwd = 0
+  let stockTotalTwd = 0
 
   for (const holding of holdings) {
     const latestSnapshot = await getLatestSnapshotByHoldingId(holding.id)
@@ -445,17 +581,21 @@ export const getPortfolioView = async () => {
     }
 
     if (typeof row.latestValueTwd === 'number') {
-      totalTwd += row.latestValueTwd
+      stockTotalTwd += row.latestValueTwd
     }
 
     rows.push(row)
   }
 
   const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES)
+  const cashView = await getCashAccountsView()
 
   return {
     rows,
-    totalTwd,
+    cashRows: cashView.rows,
+    stockTotalTwd,
+    totalCashTwd: cashView.totalCashTwd,
+    totalTwd: stockTotalTwd + cashView.totalCashTwd,
     lastUpdatedAt: syncMeta?.lastUpdatedAt,
     syncStatus: syncMeta?.status,
     syncError: syncMeta?.errorMessage,

@@ -84,6 +84,16 @@ class StockDatabase extends Dexie {
           })
         }
       })
+
+    this.version(4)
+      .stores({
+        holdings: '++id,[symbol+market],symbol,market,sortOrder,updatedAt,deletedAt,syncState',
+        price_snapshots: '++id,holdingId,symbol,market,capturedAt,[holdingId+capturedAt],updatedAt,deletedAt,syncState',
+        fx_rates: '&pair,fetchedAt,updatedAt,deletedAt,syncState',
+        sync_meta: '&key,lastUpdatedAt,updatedAt,deletedAt,syncState',
+        expense_entries: '++id,occurredAt,category',
+        cash_accounts: '++id,[bankName+accountAlias],bankName,accountAlias,updatedAt,deletedAt,syncState',
+      })
   }
 }
 

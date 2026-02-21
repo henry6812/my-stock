@@ -13,6 +13,11 @@ export const buildSnapshotKey = ({ market, symbol, capturedAt }) => (
   `${market}_${symbol}_${capturedAt}`
 )
 
+export const buildCashAccountKey = ({ bankCode, bankName, accountAlias }) => (
+  `${bankCode || 'NA'}_${String(bankName || '').trim()}_${String(accountAlias || '').trim()}`
+    .replaceAll('/', '_')
+)
+
 export const holdingToRemote = (holding) => ({
   symbol: holding.symbol,
   market: holding.market,
@@ -58,6 +63,17 @@ export const syncMetaToRemote = (meta) => ({
   clientUpdatedAt: meta.updatedAt,
 })
 
+export const cashAccountToRemote = (cashAccount) => ({
+  bankCode: cashAccount.bankCode ?? null,
+  bankName: cashAccount.bankName,
+  accountAlias: cashAccount.accountAlias,
+  balanceTwd: cashAccount.balanceTwd,
+  createdAt: cashAccount.createdAt ?? null,
+  updatedAt: cashAccount.updatedAt,
+  deletedAt: cashAccount.deletedAt ?? null,
+  clientUpdatedAt: cashAccount.updatedAt,
+})
+
 export const remoteToHolding = (data) => ({
   symbol: data.symbol,
   market: data.market,
@@ -95,6 +111,16 @@ export const remoteToSyncMeta = (data) => ({
   lastUpdatedAt: toIso(data.lastUpdatedAt) ?? data.lastUpdatedAt ?? null,
   status: data.status ?? null,
   errorMessage: data.errorMessage ?? '',
+  updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
+  deletedAt: toIso(data.deletedAt),
+})
+
+export const remoteToCashAccount = (data) => ({
+  bankCode: data.bankCode ?? undefined,
+  bankName: data.bankName,
+  accountAlias: data.accountAlias,
+  balanceTwd: data.balanceTwd,
+  createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),
 })
