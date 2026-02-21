@@ -28,6 +28,7 @@ import {
   Typography,
 } from "antd";
 import {
+  AreaChartOutlined,
   CloudSyncOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -35,6 +36,7 @@ import {
   LogoutOutlined,
   MenuOutlined,
   PlusOutlined,
+  PieChartOutlined,
   ReloadOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
@@ -1168,6 +1170,7 @@ function App() {
                 <Button
                   type={isTrendExpanded ? "primary" : "default"}
                   onClick={() => setIsTrendExpanded((prev) => !prev)}
+                  icon={<AreaChartOutlined />}
                 >
                   趨勢
                 </Button>
@@ -1182,6 +1185,7 @@ function App() {
                       return next;
                     })
                   }
+                  icon={<PieChartOutlined />}
                 >
                   分配
                 </Button>
