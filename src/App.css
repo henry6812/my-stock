@@ -103,7 +103,7 @@
 }
 
 .networth-progress-wrap {
-  width: min(680px, 32vw);
+  width: min(680px, 92vw);
   margin: 24px auto 24px;
 }
 
@@ -356,6 +356,11 @@
 
   .asset-summary-value .ant-statistic-content {
     font-size: 30px;
+  }
+
+  .asset-summary-value {
+    width: 80vw;
+    margin: 0 auto;
   }
 
   .networth-progress-wrap {
