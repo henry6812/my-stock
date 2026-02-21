@@ -232,7 +232,12 @@ function App() {
 
   const performCloudSync = useCallback(async ({ throwOnError = false } = {}) => {
     if (!authUser) {
-      return { pushed: 0, pulled: 0 };
+      return {
+        pushed: 0,
+        pulled: 0,
+        durationMs: 0,
+        triggeredFullResync: false,
+      };
     }
 
     try {
@@ -248,7 +253,12 @@ function App() {
       if (throwOnError) {
         throw error;
       }
-      return { pushed: 0, pulled: 0 };
+      return {
+        pushed: 0,
+        pulled: 0,
+        durationMs: 0,
+        triggeredFullResync: false,
+      };
     }
   }, [authUser]);
 
@@ -1062,7 +1072,8 @@ function App() {
       if (result.pulled > 0 || result.pushed > 0) {
         await loadAllData();
       }
-      message.success(`雲端同步完成（上傳 ${result.pushed}，下載 ${result.pulled}）`);
+      const fullResyncText = result.triggeredFullResync ? "，已執行帳號切換全量重送" : "";
+      message.success(`雲端同步完成（上傳 ${result.pushed}，下載 ${result.pulled}${fullResyncText}）`);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "手動同步失敗");
     } finally {

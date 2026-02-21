@@ -27,12 +27,13 @@ import {
 const SYNC_PENDING = 'pending'
 const SYNC_ERROR = 'error'
 const SYNC_SYNCED = 'synced'
-const AUTO_SYNC_INTERVAL_MS = 30_000
+const LOCAL_SYNC_UID_KEY = 'cloud_sync_last_uid'
 
 let currentUid = null
 let autoSyncTimer = null
 let onlineHandler = null
 let syncInFlight = null
+let pendingTriggeredFullResync = false
 
 const ensureFirestore = () => {
   assertFirebaseConfigured()
@@ -55,6 +56,26 @@ const compareUpdatedAt = (a, b) => {
   if (!b) return 1
   if (a === b) return 0
   return a > b ? 1 : -1
+}
+
+const getLastSyncedUid = () => {
+  try {
+    return window.localStorage.getItem(LOCAL_SYNC_UID_KEY)
+  } catch {
+    return null
+  }
+}
+
+const setLastSyncedUid = (uid) => {
+  try {
+    if (!uid) {
+      window.localStorage.removeItem(LOCAL_SYNC_UID_KEY)
+      return
+    }
+    window.localStorage.setItem(LOCAL_SYNC_UID_KEY, uid)
+  } catch {
+    // Ignore localStorage failures (private mode, quota, etc.)
+  }
 }
 
 const markLegacyRowsPending = async () => {
@@ -92,6 +113,24 @@ const markLegacyRowsPending = async () => {
       await db.cash_accounts.update(item.id, { syncState: SYNC_PENDING })
     }
   }
+}
+
+const markAllRowsPendingForResync = async () => {
+  await db.transaction(
+    'rw',
+    db.holdings,
+    db.price_snapshots,
+    db.fx_rates,
+    db.sync_meta,
+    db.cash_accounts,
+    async () => {
+      await db.holdings.toCollection().modify({ syncState: SYNC_PENDING })
+      await db.price_snapshots.toCollection().modify({ syncState: SYNC_PENDING })
+      await db.fx_rates.toCollection().modify({ syncState: SYNC_PENDING })
+      await db.sync_meta.toCollection().modify({ syncState: SYNC_PENDING })
+      await db.cash_accounts.toCollection().modify({ syncState: SYNC_PENDING })
+    },
+  )
 }
 
 const pushHoldings = async () => {
@@ -472,7 +511,7 @@ export const setSyncUser = (uid) => {
 
 export const syncNowWithCloud = async () => {
   if (!currentUid) {
-    return { pushed: 0, pulled: 0 }
+    return { pushed: 0, pulled: 0, durationMs: 0, triggeredFullResync: false }
   }
 
   if (syncInFlight) {
@@ -480,9 +519,16 @@ export const syncNowWithCloud = async () => {
   }
 
   syncInFlight = (async () => {
+    const startedAt = Date.now()
+    const triggeredFullResync = Boolean(pendingTriggeredFullResync)
+    pendingTriggeredFullResync = false
     try {
       const result = await performSync()
-      return result
+      return {
+        ...result,
+        durationMs: Date.now() - startedAt,
+        triggeredFullResync,
+      }
     } catch (error) {
       await markPendingAsError()
       throw error
@@ -503,9 +549,16 @@ export const initCloudSync = async (uid) => {
     return
   }
 
+  const lastSyncedUid = getLastSyncedUid()
+  const shouldTriggerFullResync = lastSyncedUid !== uid
+  if (shouldTriggerFullResync) {
+    await markAllRowsPendingForResync()
+  }
+
   await markLegacyRowsPending()
-  // Avoid blocking login UX on first full sync; run it in background.
-  syncNowWithCloud().catch(() => {})
+  pendingTriggeredFullResync = shouldTriggerFullResync
+  await syncNowWithCloud()
+  setLastSyncedUid(uid)
 
   if (onlineHandler) {
     window.removeEventListener('online', onlineHandler)
@@ -517,11 +570,8 @@ export const initCloudSync = async (uid) => {
 
   if (autoSyncTimer) {
     window.clearInterval(autoSyncTimer)
+    autoSyncTimer = null
   }
-
-  autoSyncTimer = window.setInterval(() => {
-    syncNowWithCloud().catch(() => {})
-  }, AUTO_SYNC_INTERVAL_MS)
 }
 
 export const stopCloudSync = () => {
@@ -537,4 +587,5 @@ export const stopCloudSync = () => {
 
   syncInFlight = null
   currentUid = null
+  pendingTriggeredFullResync = false
 }
