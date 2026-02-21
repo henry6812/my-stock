@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -97,6 +98,8 @@ import "./App.css";
 
 const { Header, Content } = Layout;
 const { Text } = Typography;
+const PULL_REFRESH_MAX = 96;
+const PULL_REFRESH_TRIGGER = 68;
 
 const RowContext = createContext({
   listeners: undefined,
@@ -177,6 +180,8 @@ function App() {
   const [cloudSyncError, setCloudSyncError] = useState("");
   const [cloudLastSyncedAt, setCloudLastSyncedAt] = useState();
   const [cloudOutboxPending, setCloudOutboxPending] = useState(0);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const [isTrendExpanded, setIsTrendExpanded] = useState(false);
   const [isPieExpanded, setIsPieExpanded] = useState(false);
   const [activeAllocationTab, setActiveAllocationTab] = useState("assetType");
@@ -198,6 +203,8 @@ function App() {
   const [editingCashAccountId, setEditingCashAccountId] = useState(null);
   const [editingCashBalance, setEditingCashBalance] = useState(null);
   const [loadingCashActionById, setLoadingCashActionById] = useState({});
+  const pullStartYRef = useRef(0);
+  const pullingRef = useRef(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1130,6 +1137,75 @@ function App() {
     }
   };
 
+  const handlePullRefresh = useCallback(async () => {
+    if (isPullRefreshing) {
+      return;
+    }
+
+    try {
+      setIsPullRefreshing(true);
+      setPullDistance(PULL_REFRESH_TRIGGER);
+      if (authUser) {
+        await initSync(authUser.uid);
+        await performCloudSync();
+      }
+      await loadAllData();
+      refreshCloudRuntime();
+      setCloudLastSyncedAt(new Date().toISOString());
+      message.success("已重新連線並更新資料");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "重新整理失敗");
+    } finally {
+      pullingRef.current = false;
+      pullStartYRef.current = 0;
+      setPullDistance(0);
+      setIsPullRefreshing(false);
+    }
+  }, [authUser, isPullRefreshing, loadAllData, message, performCloudSync, refreshCloudRuntime]);
+
+  const handleTouchStart = useCallback((event) => {
+    if (isPullRefreshing || event.touches.length !== 1) {
+      return;
+    }
+    if (window.scrollY > 0) {
+      pullingRef.current = false;
+      return;
+    }
+    pullStartYRef.current = event.touches[0].clientY;
+    pullingRef.current = true;
+  }, [isPullRefreshing]);
+
+  const handleTouchMove = useCallback((event) => {
+    if (!pullingRef.current || isPullRefreshing) {
+      return;
+    }
+    const delta = event.touches[0].clientY - pullStartYRef.current;
+    if (delta <= 0) {
+      setPullDistance(0);
+      return;
+    }
+    if (window.scrollY > 0) {
+      setPullDistance(0);
+      return;
+    }
+    const next = Math.min(PULL_REFRESH_MAX, Math.round(delta * 0.55));
+    setPullDistance(next);
+    event.preventDefault();
+  }, [isPullRefreshing]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!pullingRef.current || isPullRefreshing) {
+      return;
+    }
+    if (pullDistance >= PULL_REFRESH_TRIGGER) {
+      handlePullRefresh();
+      return;
+    }
+    pullingRef.current = false;
+    pullStartYRef.current = 0;
+    setPullDistance(0);
+  }, [handlePullRefresh, isPullRefreshing, pullDistance]);
+
   return (
     <Layout className="app-layout">
       <Header className="app-header">
@@ -1178,7 +1254,25 @@ function App() {
         </div>
       </Header>
 
-      <Content className="app-content">
+      <Content
+        className="app-content"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+      >
+        <div
+          className={`pull-refresh-indicator ${isPullRefreshing ? "is-refreshing" : ""}`}
+          style={{ height: isPullRefreshing ? PULL_REFRESH_TRIGGER : pullDistance }}
+        >
+          <Text type="secondary">
+            {isPullRefreshing
+              ? "重新連線中..."
+              : pullDistance >= PULL_REFRESH_TRIGGER
+                ? "放開以重新連線"
+                : "下拉可重新連線"}
+          </Text>
+        </div>
         {syncError && (
           <Alert
             type="error"

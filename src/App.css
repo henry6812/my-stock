@@ -63,6 +63,19 @@
   margin: 0 auto;
 }
 
+.pull-refresh-indicator {
+  height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: height 180ms ease;
+}
+
+.pull-refresh-indicator.is-refreshing {
+  transition: none;
+}
+
 .asset-summary-panel {
   min-height: 180px;
   display: flex;
