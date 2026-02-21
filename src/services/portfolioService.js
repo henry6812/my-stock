@@ -644,6 +644,13 @@ export const getPortfolioView = async () => {
 
   for (const holding of holdings) {
     const latestSnapshot = await getLatestSnapshotByHoldingId(holding.id)
+    const hasLatestPrice = typeof latestSnapshot?.price === 'number'
+    const fxRateToTwd = holding.market === MARKET.US
+      ? (typeof latestSnapshot?.fxRateToTwd === 'number' ? latestSnapshot.fxRateToTwd : 1)
+      : 1
+    const latestValueTwd = hasLatestPrice
+      ? latestSnapshot.price * holding.shares * fxRateToTwd
+      : latestSnapshot?.valueTwd
 
     const row = {
       id: holding.id,
@@ -654,7 +661,7 @@ export const getPortfolioView = async () => {
       assetTagLabel: tagLabelMap.get(holding.assetTag || defaultTag) || (holding.assetTag || defaultTag),
       shares: holding.shares,
       latestPrice: latestSnapshot?.price,
-      latestValueTwd: latestSnapshot?.valueTwd,
+      latestValueTwd,
       latestCurrency: latestSnapshot?.currency,
       latestCapturedAt: latestSnapshot?.capturedAt,
     }
