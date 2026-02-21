@@ -18,6 +18,7 @@ import {
   Modal,
   Popconfirm,
   Row,
+  Select,
   Space,
   Statistic,
   Table,
@@ -69,6 +70,7 @@ import {
   initSync,
   refreshPrices,
   refreshHoldingPrice,
+  getHoldingTagOptions,
   removeHolding,
   reorderHoldings,
   setCurrentUser,
@@ -76,6 +78,7 @@ import {
   syncNow as syncNowPortfolio,
   removeCashAccount,
   updateCashAccountBalance,
+  updateHoldingTag,
   updateHoldingShares,
   upsertCashAccount,
   upsertHolding,
@@ -179,8 +182,14 @@ function App() {
   const [loadingAddCashAccount, setLoadingAddCashAccount] = useState(false);
   const [loadingBankOptions, setLoadingBankOptions] = useState(false);
   const [bankOptions, setBankOptions] = useState([]);
+  const [holdingTagOptions, setHoldingTagOptions] = useState([
+    { value: "STOCK", label: "個股" },
+    { value: "ETF", label: "ETF" },
+    { value: "BOND", label: "債券" },
+  ]);
   const [editingHoldingId, setEditingHoldingId] = useState(null);
   const [editingShares, setEditingShares] = useState(null);
+  const [editingHoldingTag, setEditingHoldingTag] = useState(null);
   const [loadingActionById, setLoadingActionById] = useState({});
   const [editingCashAccountId, setEditingCashAccountId] = useState(null);
   const [editingCashBalance, setEditingCashBalance] = useState(null);
@@ -243,11 +252,13 @@ function App() {
   const handleEditClick = useCallback((record) => {
     setEditingHoldingId(record.id);
     setEditingShares(record.shares);
+    setEditingHoldingTag(record.assetTag || "STOCK");
   }, []);
 
   const handleCancelEdit = useCallback(() => {
     setEditingHoldingId(null);
     setEditingShares(null);
+    setEditingHoldingTag(null);
   }, []);
 
   const handleCashEditClick = useCallback((record) => {
@@ -271,10 +282,14 @@ function App() {
       try {
         setRowLoading(record.id, true);
         await updateHoldingShares({ id: record.id, shares: parsedShares });
+        if (editingHoldingTag) {
+          await updateHoldingTag({ id: record.id, assetTag: editingHoldingTag });
+        }
         await loadAllData();
         await performCloudSync();
         setEditingHoldingId(null);
         setEditingShares(null);
+        setEditingHoldingTag(null);
         message.success("股數已更新");
       } catch (error) {
         message.error(error instanceof Error ? error.message : "更新股數失敗");
@@ -282,7 +297,14 @@ function App() {
         setRowLoading(record.id, false);
       }
     },
-    [editingShares, loadAllData, message, performCloudSync, setRowLoading],
+    [
+      editingHoldingTag,
+      editingShares,
+      loadAllData,
+      message,
+      performCloudSync,
+      setRowLoading,
+    ],
   );
 
   const handleRemoveHolding = useCallback(
@@ -295,6 +317,7 @@ function App() {
         if (editingHoldingId === record.id) {
           setEditingHoldingId(null);
           setEditingShares(null);
+          setEditingHoldingTag(null);
         }
         message.success("持股已移除");
       } catch (error) {
@@ -501,6 +524,32 @@ function App() {
         ),
       },
       {
+        title: "分類",
+        dataIndex: "assetTag",
+        key: "assetTag",
+        width: 120,
+        render: (value, record) => {
+          if (editingHoldingId === record.id) {
+            return (
+              <Select
+                size="small"
+                value={editingHoldingTag || value || "STOCK"}
+                options={holdingTagOptions}
+                onChange={(next) => setEditingHoldingTag(next)}
+                style={{ width: 110 }}
+              />
+            );
+          }
+
+          const label =
+            holdingTagOptions.find((item) => item.value === value)?.label ||
+            record.assetTagLabel ||
+            value ||
+            "個股";
+          return <Tag color="geekblue">{label}</Tag>;
+        },
+      },
+      {
         title: "股數",
         dataIndex: "shares",
         key: "shares",
@@ -614,11 +663,13 @@ function App() {
     [
       dragDisabled,
       editingHoldingId,
+      editingHoldingTag,
       editingShares,
       handleCancelEdit,
       handleEditClick,
       handleRemoveHolding,
       handleSaveShares,
+      holdingTagOptions,
       loadingActionById,
       loadingReorder,
     ],
@@ -808,6 +859,26 @@ function App() {
 
     bootstrap();
   }, [loadAllData, message]);
+
+  useEffect(() => {
+    const loadHoldingTags = async () => {
+      try {
+        const options = await getHoldingTagOptions();
+        if (Array.isArray(options) && options.length > 0) {
+          setHoldingTagOptions(
+            options.map((item) => ({
+              value: item.value,
+              label: item.label,
+            })),
+          );
+        }
+      } catch {
+        // Keep built-in default options.
+      }
+    };
+
+    loadHoldingTags();
+  }, []);
 
   useEffect(() => {
     if (!isAddCashModalOpen) {
@@ -1246,6 +1317,7 @@ function App() {
             loading={loadingAddHolding}
             submitText="新增持股"
             layout="vertical"
+            holdingTagOptions={holdingTagOptions}
           />
         </Modal>
 

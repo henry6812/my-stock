@@ -15,6 +15,12 @@ const MARKET = {
   US: 'US',
 }
 
+const DEFAULT_HOLDING_TAG_OPTIONS = [
+  { value: 'STOCK', label: '個股', isDefault: true },
+  { value: 'ETF', label: 'ETF' },
+  { value: 'BOND', label: '債券' },
+]
+
 const SYNC_PENDING = 'pending'
 const SYNC_SYNCED = 'synced'
 
@@ -52,6 +58,40 @@ const normalizeSymbol = (symbol, market) => {
     return normalized.replace('.TW', '')
   }
   return normalized
+}
+
+const normalizeAssetTag = (assetTag) => String(assetTag ?? '').trim().toUpperCase()
+
+const ensureHoldingTagOptions = async () => {
+  const config = await db.app_config.get('holding_tags')
+  const options = Array.isArray(config?.options) ? config.options : []
+  if (options.length > 0) {
+    return options
+  }
+
+  await db.app_config.put({
+    key: 'holding_tags',
+    options: DEFAULT_HOLDING_TAG_OPTIONS,
+    updatedAt: getNowIso(),
+  })
+  return DEFAULT_HOLDING_TAG_OPTIONS
+}
+
+const getDefaultHoldingTag = (options) => {
+  const defaultOption = options.find((item) => item.isDefault)
+  return defaultOption?.value || options[0]?.value || 'STOCK'
+}
+
+const resolveHoldingTag = ({ inputTag, options }) => {
+  const normalizedInputTag = normalizeAssetTag(inputTag)
+  if (!normalizedInputTag) {
+    return getDefaultHoldingTag(options)
+  }
+  const isValid = options.some((item) => item.value === normalizedInputTag)
+  if (!isValid) {
+    throw new Error('Invalid holding tag')
+  }
+  return normalizedInputTag
 }
 
 const getLatestSnapshotByHoldingId = async (holdingId) => {
@@ -102,10 +142,14 @@ export const stopSync = () => {
 
 export const syncNow = async () => syncNowWithCloud()
 
-export const upsertHolding = async ({ symbol, market, shares }) => {
+export const getHoldingTagOptions = async () => ensureHoldingTagOptions()
+
+export const upsertHolding = async ({ symbol, market, shares, assetTag }) => {
   const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW
   const normalizedSymbol = normalizeSymbol(symbol, normalizedMarket)
   const parsedShares = Number(shares)
+  const options = await ensureHoldingTagOptions()
+  const hasAssetTagInput = assetTag !== undefined && assetTag !== null && String(assetTag).trim() !== ''
 
   if (!normalizedSymbol) {
     throw new Error('Stock symbol is required')
@@ -119,8 +163,12 @@ export const upsertHolding = async ({ symbol, market, shares }) => {
   const nowIso = getNowIso()
 
   if (existing) {
+    const nextAssetTag = hasAssetTagInput
+      ? resolveHoldingTag({ inputTag: assetTag, options })
+      : (existing.assetTag || getDefaultHoldingTag(options))
     await db.holdings.update(existing.id, {
       shares: parsedShares,
+      assetTag: nextAssetTag,
       updatedAt: nowIso,
       deletedAt: null,
       syncState: SYNC_PENDING,
@@ -138,9 +186,14 @@ export const upsertHolding = async ({ symbol, market, shares }) => {
     return Math.max(max, value)
   }, 0)
 
+  const nextAssetTag = hasAssetTagInput
+    ? resolveHoldingTag({ inputTag: assetTag, options })
+    : getDefaultHoldingTag(options)
+
   const id = await db.holdings.add({
     symbol: normalizedSymbol,
     market: normalizedMarket,
+    assetTag: nextAssetTag,
     shares: parsedShares,
     companyName: normalizedSymbol,
     sortOrder: maxSortOrder + 1,
@@ -154,6 +207,27 @@ export const upsertHolding = async ({ symbol, market, shares }) => {
     id,
     created: true,
   }
+}
+
+export const updateHoldingTag = async ({ id, assetTag }) => {
+  const parsedId = Number(id)
+  const options = await ensureHoldingTagOptions()
+  const nextAssetTag = resolveHoldingTag({ inputTag: assetTag, options })
+
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error('Holding not found')
+  }
+
+  const existing = await db.holdings.get(parsedId)
+  if (!existing || isDeleted(existing)) {
+    throw new Error('Holding not found')
+  }
+
+  await db.holdings.update(parsedId, {
+    assetTag: nextAssetTag,
+    updatedAt: getNowIso(),
+    syncState: SYNC_PENDING,
+  })
 }
 
 export const updateHoldingShares = async ({ id, shares }) => {
@@ -561,6 +635,9 @@ export const getCashAccountsView = async () => {
 export const getPortfolioView = async () => {
   const holdings = (await db.holdings.toArray()).filter((item) => !isDeleted(item))
   holdings.sort(sortHoldingsByOrder)
+  const tagOptions = await ensureHoldingTagOptions()
+  const tagLabelMap = new Map(tagOptions.map((item) => [item.value, item.label]))
+  const defaultTag = getDefaultHoldingTag(tagOptions)
 
   const rows = []
   let stockTotalTwd = 0
@@ -573,6 +650,8 @@ export const getPortfolioView = async () => {
       symbol: holding.symbol,
       companyName: holding.companyName,
       market: holding.market,
+      assetTag: holding.assetTag || defaultTag,
+      assetTagLabel: tagLabelMap.get(holding.assetTag || defaultTag) || (holding.assetTag || defaultTag),
       shares: holding.shares,
       latestPrice: latestSnapshot?.price,
       latestValueTwd: latestSnapshot?.valueTwd,

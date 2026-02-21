@@ -94,6 +94,39 @@ class StockDatabase extends Dexie {
         expense_entries: '++id,occurredAt,category',
         cash_accounts: '++id,[bankName+accountAlias],bankName,accountAlias,updatedAt,deletedAt,syncState',
       })
+
+    this.version(5)
+      .stores({
+        holdings: '++id,[symbol+market],symbol,market,assetTag,sortOrder,updatedAt,deletedAt,syncState',
+        price_snapshots: '++id,holdingId,symbol,market,capturedAt,[holdingId+capturedAt],updatedAt,deletedAt,syncState',
+        fx_rates: '&pair,fetchedAt,updatedAt,deletedAt,syncState',
+        sync_meta: '&key,lastUpdatedAt,updatedAt,deletedAt,syncState',
+        expense_entries: '++id,occurredAt,category',
+        cash_accounts: '++id,[bankName+accountAlias],bankName,accountAlias,updatedAt,deletedAt,syncState',
+        app_config: '&key',
+      })
+      .upgrade(async (tx) => {
+        const holdings = await tx.table('holdings').toArray()
+        for (const holding of holdings) {
+          await tx.table('holdings').update(holding.id, {
+            assetTag: holding.assetTag || 'STOCK',
+          })
+        }
+
+        const configTable = tx.table('app_config')
+        const existingTags = await configTable.get('holding_tags')
+        if (!existingTags) {
+          await configTable.put({
+            key: 'holding_tags',
+            options: [
+              { value: 'STOCK', label: '個股', isDefault: true },
+              { value: 'ETF', label: 'ETF' },
+              { value: 'BOND', label: '債券' },
+            ],
+            updatedAt: new Date().toISOString(),
+          })
+        }
+      })
   }
 }
 

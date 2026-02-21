@@ -10,6 +10,11 @@ function HoldingForm({
   loading,
   submitText = '新增 / 更新持股',
   layout = 'inline',
+  holdingTagOptions = [
+    { value: 'STOCK', label: '個股' },
+    { value: 'ETF', label: 'ETF' },
+    { value: 'BOND', label: '債券' },
+  ],
 }) {
   const [form] = Form.useForm()
 
@@ -24,7 +29,7 @@ function HoldingForm({
     <Form
       form={form}
       layout={layout}
-      initialValues={{ market: 'TW' }}
+      initialValues={{ market: 'TW', assetTag: 'STOCK' }}
       onFinish={handleFinish}
       style={{ width: '100%' }}
     >
@@ -34,6 +39,13 @@ function HoldingForm({
         rules={[{ required: true, message: '請選擇市場' }]}
       >
         <Select options={marketOptions} style={{ width: 140 }} />
+      </Form.Item>
+      <Form.Item
+        label="持股分類"
+        name="assetTag"
+        rules={[{ required: true, message: '請選擇分類' }]}
+      >
+        <Select options={holdingTagOptions} style={{ width: 140 }} />
       </Form.Item>
       <Form.Item
         label="股票代號"

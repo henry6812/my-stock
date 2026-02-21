@@ -21,6 +21,7 @@ export const buildCashAccountKey = ({ bankCode, bankName, accountAlias }) => (
 export const holdingToRemote = (holding) => ({
   symbol: holding.symbol,
   market: holding.market,
+  assetTag: holding.assetTag ?? 'STOCK',
   shares: holding.shares,
   companyName: holding.companyName,
   sortOrder: holding.sortOrder,
@@ -77,6 +78,7 @@ export const cashAccountToRemote = (cashAccount) => ({
 export const remoteToHolding = (data) => ({
   symbol: data.symbol,
   market: data.market,
+  assetTag: data.assetTag ?? 'STOCK',
   shares: data.shares,
   companyName: data.companyName,
   sortOrder: data.sortOrder,

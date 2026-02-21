@@ -230,6 +230,7 @@ const pullHoldings = async () => {
       const newId = await db.holdings.add({
         symbol: remote.symbol,
         market: remote.market,
+        assetTag: remote.assetTag ?? 'STOCK',
         shares: remote.shares,
         companyName: remote.companyName || remote.symbol,
         sortOrder: Number(remote.sortOrder) || 1,
@@ -248,6 +249,7 @@ const pullHoldings = async () => {
     }
 
     await db.holdings.update(local.id, {
+      assetTag: remote.assetTag ?? local.assetTag ?? 'STOCK',
       shares: remote.shares,
       companyName: remote.companyName || local.companyName,
       sortOrder: Number(remote.sortOrder) || local.sortOrder,
