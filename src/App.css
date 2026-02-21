@@ -124,7 +124,12 @@
 
 .expanded-chart-item .ant-card-body {
   display: flex;
+  flex-direction: column;
   justify-content: center;
+}
+
+.allocation-tabs {
+  margin-bottom: 8px;
 }
 
 .expanded-chart-frame {

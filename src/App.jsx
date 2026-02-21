@@ -176,6 +176,7 @@ function App() {
   const [cloudLastSyncedAt, setCloudLastSyncedAt] = useState();
   const [isTrendExpanded, setIsTrendExpanded] = useState(false);
   const [isPieExpanded, setIsPieExpanded] = useState(false);
+  const [activeAllocationTab, setActiveAllocationTab] = useState("assetType");
   const [activeHoldingTab, setActiveHoldingTab] = useState("all");
   const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false);
   const [isAddCashModalOpen, setIsAddCashModalOpen] = useState(false);
@@ -491,6 +492,48 @@ function App() {
     ].filter((item) => item.value > 0);
   }, [rows]);
 
+  const assetTypeAllocation = useMemo(() => {
+    const result = {
+      STOCK: 0,
+      ETF: 0,
+      BOND: 0,
+      CASH: 0,
+    };
+
+    for (const row of rows) {
+      if (typeof row.latestValueTwd !== "number" || row.latestValueTwd <= 0) {
+        continue;
+      }
+      const tag = (row.assetTag || "STOCK").toUpperCase();
+      if (tag === "ETF") {
+        result.ETF += row.latestValueTwd;
+      } else if (tag === "BOND") {
+        result.BOND += row.latestValueTwd;
+      } else {
+        result.STOCK += row.latestValueTwd;
+      }
+    }
+
+    for (const cashRow of cashRows) {
+      const value = Number(cashRow.balanceTwd);
+      if (Number.isFinite(value) && value > 0) {
+        result.CASH += value;
+      }
+    }
+
+    return [
+      { name: "個股", key: "STOCK", value: result.STOCK, color: "#165dff" },
+      { name: "ETF", key: "ETF", value: result.ETF, color: "#36b37e" },
+      { name: "債券", key: "BOND", value: result.BOND, color: "#f7b500" },
+      { name: "現金", key: "CASH", value: result.CASH, color: "#8c8c8c" },
+    ].filter((item) => item.value > 0);
+  }, [cashRows, rows]);
+
+  const allocationChartData = useMemo(
+    () => (activeAllocationTab === "market" ? marketAllocation : assetTypeAllocation),
+    [activeAllocationTab, assetTypeAllocation, marketAllocation],
+  );
+
   const tableColumns = useMemo(
     () => [
       {
@@ -587,12 +630,6 @@ function App() {
         key: "latestValueTwd",
         align: "right",
         render: (value) => formatTwd(value),
-      },
-      {
-        title: "快照時間",
-        dataIndex: "latestCapturedAt",
-        key: "latestCapturedAt",
-        render: (value) => formatDateTime(value),
       },
       {
         title: "操作",
@@ -1136,7 +1173,15 @@ function App() {
                 </Button>
                 <Button
                   type={isPieExpanded ? "primary" : "default"}
-                  onClick={() => setIsPieExpanded((prev) => !prev)}
+                  onClick={() =>
+                    setIsPieExpanded((prev) => {
+                      const next = !prev;
+                      if (next) {
+                        setActiveAllocationTab("assetType");
+                      }
+                      return next;
+                    })
+                  }
                 >
                   分配
                 </Button>
@@ -1166,15 +1211,30 @@ function App() {
 
                 {isPieExpanded && (
                   <div className="expanded-chart-item expanded-chart-item--visible">
-                    <Card title="台股 / 美股資產比例">
-                      {marketAllocation.length === 0 ? (
-                        <Empty description="尚無可計算比例的持股資料" />
+                    <Card title="資產分配">
+                      <Tabs
+                        className="allocation-tabs"
+                        activeKey={activeAllocationTab}
+                        onChange={setActiveAllocationTab}
+                        items={[
+                          { key: "assetType", label: "資產類型比例" },
+                          { key: "market", label: "台股 / 美股比例" },
+                        ]}
+                      />
+                      {allocationChartData.length === 0 ? (
+                        <Empty
+                          description={
+                            activeAllocationTab === "market"
+                              ? "尚無可計算台股 / 美股比例的持股資料"
+                              : "尚無可計算資產類型比例的資料"
+                          }
+                        />
                       ) : (
                         <div className="expanded-chart-frame">
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
-                                data={marketAllocation}
+                                data={allocationChartData}
                                 dataKey="value"
                                 nameKey="name"
                                 cx="50%"
@@ -1184,7 +1244,7 @@ function App() {
                                   `${name} ${(percent * 100).toFixed(0)}%`
                                 }
                               >
-                                {marketAllocation.map((entry) => (
+                                {allocationChartData.map((entry) => (
                                   <Cell key={entry.key} fill={entry.color} />
                                 ))}
                               </Pie>
