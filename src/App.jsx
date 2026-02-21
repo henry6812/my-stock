@@ -38,7 +38,6 @@ import {
   PlusOutlined,
   PieChartOutlined,
   ReloadOutlined,
-  SyncOutlined,
 } from "@ant-design/icons";
 import {
   DndContext,
@@ -79,6 +78,7 @@ import {
   stopSync,
   syncNow as syncNowPortfolio,
   removeCashAccount,
+  getCloudSyncRuntime,
   updateCashAccountBalance,
   updateHoldingTag,
   updateHoldingShares,
@@ -90,6 +90,7 @@ import {
   logoutGoogle,
   observeAuthState,
 } from "./services/firebase/authService";
+import { CLOUD_SYNC_UPDATED_EVENT } from "./services/firebase/cloudSyncService";
 import { getBankDirectory } from "./services/bankProviders/twBankDirectoryProvider";
 import { formatDateTime, formatPrice, formatTwd } from "./utils/formatters";
 import "./App.css";
@@ -172,10 +173,10 @@ function App() {
   const [authReady, setAuthReady] = useState(false);
   const [authUser, setAuthUser] = useState(null);
   const [loadingAuthAction, setLoadingAuthAction] = useState(false);
-  const [loadingManualSync, setLoadingManualSync] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState("idle");
   const [cloudSyncError, setCloudSyncError] = useState("");
   const [cloudLastSyncedAt, setCloudLastSyncedAt] = useState();
+  const [cloudOutboxPending, setCloudOutboxPending] = useState(0);
   const [isTrendExpanded, setIsTrendExpanded] = useState(false);
   const [isPieExpanded, setIsPieExpanded] = useState(false);
   const [activeAllocationTab, setActiveAllocationTab] = useState("assetType");
@@ -230,6 +231,34 @@ function App() {
     setLoadingCashActionById((prev) => ({ ...prev, [id]: isLoading }));
   }, []);
 
+  const refreshCloudRuntime = useCallback(() => {
+    const runtime = getCloudSyncRuntime();
+    setCloudOutboxPending(runtime.outboxPending ?? 0);
+    if (runtime.lastError) {
+      setCloudSyncStatus("error");
+      setCloudSyncError(runtime.lastError);
+      return runtime;
+    }
+    if (!authUser) {
+      setCloudSyncStatus("idle");
+      setCloudSyncError("");
+      return runtime;
+    }
+    if (!runtime.connected) {
+      setCloudSyncStatus("offline");
+      setCloudSyncError("");
+      return runtime;
+    }
+    if (!runtime.listenersReady) {
+      setCloudSyncStatus("syncing");
+      setCloudSyncError("");
+      return runtime;
+    }
+    setCloudSyncStatus("success");
+    setCloudSyncError("");
+    return runtime;
+  }, [authUser]);
+
   const performCloudSync = useCallback(async ({ throwOnError = false } = {}) => {
     if (!authUser) {
       return {
@@ -244,7 +273,7 @@ function App() {
       setCloudSyncStatus("syncing");
       setCloudSyncError("");
       const result = await syncNowPortfolio();
-      setCloudSyncStatus("success");
+      refreshCloudRuntime();
       setCloudLastSyncedAt(new Date().toISOString());
       return result;
     } catch (error) {
@@ -260,7 +289,7 @@ function App() {
         triggeredFullResync: false,
       };
     }
-  }, [authUser]);
+  }, [authUser, refreshCloudRuntime]);
 
   const handleEditClick = useCallback((record) => {
     setEditingHoldingId(record.id);
@@ -861,12 +890,13 @@ function App() {
         setCloudSyncError("");
         await initSync(user.uid);
         await loadAllData();
+        refreshCloudRuntime();
         await performCloudSync();
         await loadAllData();
         if (!alive) {
           return;
         }
-        setCloudSyncStatus("success");
+        refreshCloudRuntime();
         setCloudLastSyncedAt(new Date().toISOString());
       } catch (error) {
         if (!alive) {
@@ -887,7 +917,7 @@ function App() {
       stopSync();
       setCurrentUser(null);
     };
-  }, [loadAllData, performCloudSync]);
+  }, [loadAllData, performCloudSync, refreshCloudRuntime]);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -903,6 +933,23 @@ function App() {
 
     bootstrap();
   }, [loadAllData, message]);
+
+  useEffect(() => {
+    const onCloudUpdated = async () => {
+      try {
+        await loadAllData();
+        refreshCloudRuntime();
+        setCloudLastSyncedAt(new Date().toISOString());
+      } catch {
+        // Keep UI stable; runtime state will surface errors.
+      }
+    };
+
+    window.addEventListener(CLOUD_SYNC_UPDATED_EVENT, onCloudUpdated);
+    return () => {
+      window.removeEventListener(CLOUD_SYNC_UPDATED_EVENT, onCloudUpdated);
+    };
+  }, [loadAllData, refreshCloudRuntime]);
 
   useEffect(() => {
     const loadHoldingTags = async () => {
@@ -923,6 +970,22 @@ function App() {
 
     loadHoldingTags();
   }, []);
+
+  useEffect(() => {
+    if (!authUser) {
+      setCloudOutboxPending(0);
+      return undefined;
+    }
+
+    refreshCloudRuntime();
+    const timer = window.setInterval(() => {
+      refreshCloudRuntime();
+    }, 2000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [authUser, refreshCloudRuntime]);
 
   useEffect(() => {
     if (!isAddCashModalOpen) {
@@ -1023,19 +1086,25 @@ function App() {
       return "未登入（僅本機）";
     }
     if (cloudSyncStatus === "syncing") {
-      return "同步中...";
+      return "即時同步連線中...";
+    }
+    if (cloudSyncStatus === "offline") {
+      return `離線（待同步 ${cloudOutboxPending}）`;
     }
     if (cloudSyncStatus === "error") {
       return `同步失敗${cloudSyncError ? `：${cloudSyncError}` : ""}`;
     }
-    return "已登入";
-  }, [authUser, cloudSyncError, cloudSyncStatus]);
+    if (cloudOutboxPending > 0) {
+      return `即時同步中（待同步 ${cloudOutboxPending}）`;
+    }
+    return "即時同步中";
+  }, [authUser, cloudOutboxPending, cloudSyncError, cloudSyncStatus]);
 
   const cloudLastSyncedText = useMemo(() => {
     if (!authUser) {
       return "";
     }
-    return `上次雲端同步時間：${formatDateTime(cloudLastSyncedAt)}`;
+    return `雲端狀態更新時間：${formatDateTime(cloudLastSyncedAt)}（重新整理可重建同步）`;
   }, [authUser, cloudLastSyncedAt]);
 
   const handleGoogleLogin = async () => {
@@ -1058,26 +1127,6 @@ function App() {
       message.error(error instanceof Error ? error.message : "登出失敗");
     } finally {
       setLoadingAuthAction(false);
-    }
-  };
-
-  const handleManualCloudSync = async () => {
-    if (!authUser) {
-      return;
-    }
-
-    try {
-      setLoadingManualSync(true);
-      const result = await performCloudSync({ throwOnError: true });
-      if (result.pulled > 0 || result.pushed > 0) {
-        await loadAllData();
-      }
-      const fullResyncText = result.triggeredFullResync ? "，已執行帳號切換全量重送" : "";
-      message.success(`雲端同步完成（上傳 ${result.pushed}，下載 ${result.pulled}${fullResyncText}）`);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "手動同步失敗");
-    } finally {
-      setLoadingManualSync(false);
     }
   };
 
@@ -1105,15 +1154,6 @@ function App() {
             </div>
             {authUser ? (
               <Space size={6}>
-                <Tooltip title="手動同步">
-                  <Button
-                    size="small"
-                    icon={<SyncOutlined />}
-                    onClick={handleManualCloudSync}
-                    loading={loadingManualSync}
-                    aria-label="手動同步"
-                  />
-                </Tooltip>
                 <Tooltip title={authUser.email || "Google 帳號"}>
                   <Button
                     size="small"

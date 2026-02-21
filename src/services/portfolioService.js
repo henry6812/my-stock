@@ -4,7 +4,9 @@ import { db, FX_PAIR_USD_TWD, SYNC_KEY_PRICES } from '../db/database'
 import { getUsdTwdRate } from './priceProviders/fxProvider'
 import { getHoldingQuote, sleepForRateLimit } from './priceProviders/finnhubProvider'
 import {
+  getSyncRuntimeState,
   initCloudSync,
+  queueOrApplyMutation,
   setSyncUser,
   stopCloudSync,
   syncNowWithCloud,
@@ -23,6 +25,13 @@ const DEFAULT_HOLDING_TAG_OPTIONS = [
 
 const SYNC_PENDING = 'pending'
 const SYNC_SYNCED = 'synced'
+const CLOUD_COLLECTION = {
+  HOLDINGS: 'holdings',
+  PRICE_SNAPSHOTS: 'price_snapshots',
+  FX_RATES: 'fx_rates',
+  SYNC_META: 'sync_meta',
+  CASH_ACCOUNTS: 'cash_accounts',
+}
 
 const TREND_RANGE_HOURS = {
   '24h': 24,
@@ -33,6 +42,10 @@ const TREND_RANGE_HOURS = {
 const isDeleted = (item) => Boolean(item?.deletedAt)
 
 const getNowIso = () => new Date().toISOString()
+
+const mirrorToCloud = async (collectionName, record) => {
+  await queueOrApplyMutation({ collectionName, record })
+}
 
 const sortHoldingsByOrder = (a, b) => {
   const aOrder = Number(a?.sortOrder)
@@ -115,6 +128,10 @@ const setSyncMeta = async ({ status, errorMessage = '' }) => {
     deletedAt: null,
     syncState: SYNC_PENDING,
   })
+  const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES)
+  if (syncMeta) {
+    await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta)
+  }
   return nowIso
 }
 
@@ -141,6 +158,7 @@ export const stopSync = () => {
 }
 
 export const syncNow = async () => syncNowWithCloud()
+export const getCloudSyncRuntime = () => getSyncRuntimeState()
 
 export const getHoldingTagOptions = async () => ensureHoldingTagOptions()
 
@@ -173,6 +191,10 @@ export const upsertHolding = async ({ symbol, market, shares, assetTag }) => {
       deletedAt: null,
       syncState: SYNC_PENDING,
     })
+    const updatedHolding = await db.holdings.get(existing.id)
+    if (updatedHolding) {
+      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding)
+    }
     return {
       id: existing.id,
       created: false,
@@ -202,6 +224,10 @@ export const upsertHolding = async ({ symbol, market, shares, assetTag }) => {
     deletedAt: null,
     syncState: SYNC_PENDING,
   })
+  const insertedHolding = await db.holdings.get(id)
+  if (insertedHolding) {
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, insertedHolding)
+  }
 
   return {
     id,
@@ -228,6 +254,10 @@ export const updateHoldingTag = async ({ id, assetTag }) => {
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
   })
+  const updatedHolding = await db.holdings.get(parsedId)
+  if (updatedHolding) {
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding)
+  }
 }
 
 export const updateHoldingShares = async ({ id, shares }) => {
@@ -252,6 +282,10 @@ export const updateHoldingShares = async ({ id, shares }) => {
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
   })
+  const updatedHolding = await db.holdings.get(parsedId)
+  if (updatedHolding) {
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding)
+  }
 }
 
 export const removeHolding = async ({ id }) => {
@@ -261,13 +295,14 @@ export const removeHolding = async ({ id }) => {
     throw new Error('Holding not found')
   }
 
+  let nowIso
   await db.transaction('rw', db.holdings, db.price_snapshots, async () => {
     const existing = await db.holdings.get(parsedId)
     if (!existing || isDeleted(existing)) {
       throw new Error('Holding not found')
     }
 
-    const nowIso = getNowIso()
+    nowIso = getNowIso()
 
     await db.holdings.update(parsedId, {
       deletedAt: nowIso,
@@ -296,6 +331,25 @@ export const removeHolding = async ({ id }) => {
       })
     }
   })
+
+  const deletedHolding = await db.holdings.get(parsedId)
+  if (deletedHolding) {
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, deletedHolding)
+  }
+
+  const affectedSnapshots = await db.price_snapshots.where('holdingId').equals(parsedId).toArray()
+  for (const snapshot of affectedSnapshots) {
+    if (snapshot.updatedAt === nowIso || snapshot.deletedAt) {
+      await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot)
+    }
+  }
+
+  const remaining = (await db.holdings.toArray()).filter((item) => !isDeleted(item))
+  for (const holding of remaining) {
+    if (holding.updatedAt === nowIso) {
+      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, holding)
+    }
+  }
 }
 
 export const reorderHoldings = async ({ orderedIds }) => {
@@ -313,6 +367,7 @@ export const reorderHoldings = async ({ orderedIds }) => {
     throw new Error('orderedIds contains duplicate id')
   }
 
+  let nowIso
   await db.transaction('rw', db.holdings, async () => {
     const holdings = (await db.holdings.toArray()).filter((item) => !isDeleted(item))
     const existingIds = holdings.map((item) => item.id)
@@ -328,7 +383,7 @@ export const reorderHoldings = async ({ orderedIds }) => {
       }
     }
 
-    const nowIso = getNowIso()
+    nowIso = getNowIso()
     for (let i = 0; i < normalizedIds.length; i += 1) {
       await db.holdings.update(normalizedIds[i], {
         sortOrder: i + 1,
@@ -337,6 +392,13 @@ export const reorderHoldings = async ({ orderedIds }) => {
       })
     }
   })
+
+  const holdings = await db.holdings.where('id').anyOf(normalizedIds).toArray()
+  for (const holding of holdings) {
+    if (holding.updatedAt === nowIso) {
+      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, holding)
+    }
+  }
 }
 
 export const refreshHoldingPrice = async ({ holdingId }) => {
@@ -365,6 +427,10 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
       deletedAt: null,
       syncState: SYNC_PENDING,
     })
+    const fxRate = await db.fx_rates.get(FX_PAIR_USD_TWD)
+    if (fxRate) {
+      await mirrorToCloud(CLOUD_COLLECTION.FX_RATES, fxRate)
+    }
   }
 
   const nowIso = getNowIso()
@@ -385,6 +451,13 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
     deletedAt: null,
     syncState: SYNC_PENDING,
   })
+  const insertedSnapshot = await db.price_snapshots
+    .where('[holdingId+capturedAt]')
+    .equals([holding.id, nowIso])
+    .first()
+  if (insertedSnapshot) {
+    await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, insertedSnapshot)
+  }
 
   if (quote.name && quote.name !== holding.companyName) {
     await db.holdings.update(holding.id, {
@@ -392,6 +465,10 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     })
+    const updatedHolding = await db.holdings.get(holding.id)
+    if (updatedHolding) {
+      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding)
+    }
   }
 
   await db.sync_meta.put({
@@ -403,6 +480,10 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
     deletedAt: null,
     syncState: SYNC_PENDING,
   })
+  const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES)
+  if (syncMeta) {
+    await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta)
+  }
 
   return {
     updatedAt: nowIso,
@@ -432,6 +513,10 @@ export const refreshPrices = async () => {
         deletedAt: null,
         syncState: SYNC_PENDING,
       })
+      const fxRate = await db.fx_rates.get(FX_PAIR_USD_TWD)
+      if (fxRate) {
+        await mirrorToCloud(CLOUD_COLLECTION.FX_RATES, fxRate)
+      }
     }
 
     const nowIso = getNowIso()
@@ -468,11 +553,18 @@ export const refreshPrices = async () => {
           updatedAt: nowIso,
           syncState: SYNC_PENDING,
         })
+        const updatedHolding = await db.holdings.get(holding.id)
+        if (updatedHolding) {
+          await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding)
+        }
       }
     }
 
     if (snapshots.length > 0) {
       await db.price_snapshots.bulkAdd(snapshots)
+      for (const snapshot of snapshots) {
+        await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot)
+      }
     }
 
     await db.sync_meta.put({
@@ -484,6 +576,10 @@ export const refreshPrices = async () => {
       deletedAt: null,
       syncState: SYNC_PENDING,
     })
+    const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES)
+    if (syncMeta) {
+      await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta)
+    }
 
     return {
       updatedCount: snapshots.length,
@@ -538,6 +634,10 @@ export const upsertCashAccount = async ({
       deletedAt: null,
       syncState: SYNC_PENDING,
     })
+    const updatedCash = await db.cash_accounts.get(existing.id)
+    if (updatedCash) {
+      await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash)
+    }
     return {
       id: existing.id,
       created: false,
@@ -554,6 +654,10 @@ export const upsertCashAccount = async ({
     deletedAt: null,
     syncState: SYNC_PENDING,
   })
+  const insertedCash = await db.cash_accounts.get(id)
+  if (insertedCash) {
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, insertedCash)
+  }
 
   return {
     id,
@@ -582,6 +686,10 @@ export const updateCashAccountBalance = async ({ id, balanceTwd }) => {
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
   })
+  const updatedCash = await db.cash_accounts.get(parsedId)
+  if (updatedCash) {
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash)
+  }
 }
 
 export const removeCashAccount = async ({ id }) => {
@@ -602,6 +710,10 @@ export const removeCashAccount = async ({ id }) => {
     updatedAt: nowIso,
     syncState: SYNC_PENDING,
   })
+  const deletedCash = await db.cash_accounts.get(parsedId)
+  if (deletedCash) {
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, deletedCash)
+  }
 }
 
 export const getCashAccountsView = async () => {

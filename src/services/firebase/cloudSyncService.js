@@ -1,7 +1,8 @@
 import {
   collection,
+  deleteDoc,
   doc,
-  getDocs,
+  onSnapshot,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore'
@@ -27,13 +28,37 @@ import {
 const SYNC_PENDING = 'pending'
 const SYNC_ERROR = 'error'
 const SYNC_SYNCED = 'synced'
-const LOCAL_SYNC_UID_KEY = 'cloud_sync_last_uid'
+
+const COLLECTIONS = {
+  HOLDINGS: 'holdings',
+  PRICE_SNAPSHOTS: 'price_snapshots',
+  FX_RATES: 'fx_rates',
+  SYNC_META: 'sync_meta',
+  CASH_ACCOUNTS: 'cash_accounts',
+}
+
+const OUTBOX_OP_SET = 'set'
+const OUTBOX_OP_DELETE = 'delete'
+export const CLOUD_SYNC_UPDATED_EVENT = 'cloud-sync-updated'
 
 let currentUid = null
-let autoSyncTimer = null
-let onlineHandler = null
 let syncInFlight = null
-let pendingTriggeredFullResync = false
+let outboxFlushInFlight = null
+let realtimeUnsubscribers = []
+let onlineHandler = null
+let offlineHandler = null
+let pendingSnapshotReplay = []
+
+const runtimeState = {
+  connected: typeof navigator !== 'undefined' ? navigator.onLine : true,
+  listenersReady: false,
+  outboxPending: 0,
+  lastCloudApplyAt: null,
+  lastOutboxFlushAt: null,
+  lastError: '',
+}
+
+const getNowIso = () => new Date().toISOString()
 
 const ensureFirestore = () => {
   assertFirebaseConfigured()
@@ -50,459 +75,498 @@ const userCollection = (name) => (
   collection(ensureFirestore(), 'users', currentUid, name)
 )
 
-const compareUpdatedAt = (a, b) => {
-  if (!a && !b) return 0
-  if (!a) return -1
-  if (!b) return 1
-  if (a === b) return 0
-  return a > b ? 1 : -1
-}
-
-const getLastSyncedUid = () => {
-  try {
-    return window.localStorage.getItem(LOCAL_SYNC_UID_KEY)
-  } catch {
-    return null
+const refreshOutboxPendingCount = async () => {
+  if (!currentUid || !db.outbox) {
+    runtimeState.outboxPending = 0
+    return 0
   }
+
+  const count = await db.outbox
+    .where('uid')
+    .equals(currentUid)
+    .and((item) => item.status === SYNC_PENDING || item.status === SYNC_ERROR)
+    .count()
+  runtimeState.outboxPending = count
+  return count
 }
 
-const setLastSyncedUid = (uid) => {
-  try {
-    if (!uid) {
-      window.localStorage.removeItem(LOCAL_SYNC_UID_KEY)
-      return
-    }
-    window.localStorage.setItem(LOCAL_SYNC_UID_KEY, uid)
-  } catch {
-    // Ignore localStorage failures (private mode, quota, etc.)
-  }
-}
-
-const markLegacyRowsPending = async () => {
-  const holdings = await db.holdings.toArray()
-  for (const item of holdings) {
-    if (!item.syncState) {
-      await db.holdings.update(item.id, { syncState: SYNC_PENDING })
+const buildMutationPayload = ({ collectionName, record }) => {
+  if (collectionName === COLLECTIONS.HOLDINGS) {
+    return {
+      docId: buildHoldingKey(record),
+      payload: holdingToRemote(record),
+      op: OUTBOX_OP_SET,
     }
   }
 
-  const snapshots = await db.price_snapshots.toArray()
-  for (const item of snapshots) {
-    if (!item.syncState) {
-      await db.price_snapshots.update(item.id, { syncState: SYNC_PENDING })
+  if (collectionName === COLLECTIONS.PRICE_SNAPSHOTS) {
+    return {
+      docId: buildSnapshotKey(record),
+      payload: snapshotToRemote(record),
+      op: OUTBOX_OP_SET,
     }
   }
 
-  const fxRates = await db.fx_rates.toArray()
-  for (const item of fxRates) {
-    if (!item.syncState) {
-      await db.fx_rates.put({ ...item, syncState: SYNC_PENDING })
+  if (collectionName === COLLECTIONS.FX_RATES) {
+    return {
+      docId: record.pair,
+      payload: fxRateToRemote(record),
+      op: OUTBOX_OP_SET,
     }
   }
 
-  const syncMeta = await db.sync_meta.toArray()
-  for (const item of syncMeta) {
-    if (!item.syncState) {
-      await db.sync_meta.put({ ...item, syncState: SYNC_PENDING })
+  if (collectionName === COLLECTIONS.SYNC_META) {
+    return {
+      docId: record.key,
+      payload: syncMetaToRemote(record),
+      op: OUTBOX_OP_SET,
     }
   }
 
-  const cashAccounts = await db.cash_accounts.toArray()
-  for (const item of cashAccounts) {
-    if (!item.syncState) {
-      await db.cash_accounts.update(item.id, { syncState: SYNC_PENDING })
+  if (collectionName === COLLECTIONS.CASH_ACCOUNTS) {
+    return {
+      docId: buildCashAccountKey(record),
+      payload: cashAccountToRemote(record),
+      op: OUTBOX_OP_SET,
     }
   }
+
+  throw new Error(`Unsupported collection for mutation: ${collectionName}`)
 }
 
-const markAllRowsPendingForResync = async () => {
-  await db.transaction(
-    'rw',
-    db.holdings,
-    db.price_snapshots,
-    db.fx_rates,
-    db.sync_meta,
-    db.cash_accounts,
-    async () => {
-      await db.holdings.toCollection().modify({ syncState: SYNC_PENDING })
-      await db.price_snapshots.toCollection().modify({ syncState: SYNC_PENDING })
-      await db.fx_rates.toCollection().modify({ syncState: SYNC_PENDING })
-      await db.sync_meta.toCollection().modify({ syncState: SYNC_PENDING })
-      await db.cash_accounts.toCollection().modify({ syncState: SYNC_PENDING })
-    },
-  )
-}
-
-const pushHoldings = async () => {
-  const pending = await db.holdings.where('syncState').anyOf(SYNC_PENDING, SYNC_ERROR).toArray()
-  let pushed = 0
-
-  for (const holding of pending) {
-    const id = buildHoldingKey(holding)
-    await setDoc(
-      doc(userCollection('holdings'), id),
-      {
-        ...holdingToRemote(holding),
-        serverUpdatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    )
-    await db.holdings.update(holding.id, { syncState: SYNC_SYNCED })
-    pushed += 1
+const applyRemoteHolding = async (remote) => {
+  if (!remote.symbol || !remote.market) {
+    return
   }
 
-  return pushed
-}
+  const local = await db.holdings.where('[symbol+market]').equals([remote.symbol, remote.market]).first()
+  const nowIso = getNowIso()
 
-const pushSnapshots = async () => {
-  const pending = await db.price_snapshots.where('syncState').anyOf(SYNC_PENDING, SYNC_ERROR).toArray()
-  let pushed = 0
-
-  for (const snapshot of pending) {
-    const id = buildSnapshotKey(snapshot)
-    await setDoc(
-      doc(userCollection('price_snapshots'), id),
-      {
-        ...snapshotToRemote(snapshot),
-        serverUpdatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    )
-    await db.price_snapshots.update(snapshot.id, { syncState: SYNC_SYNCED })
-    pushed += 1
-  }
-
-  return pushed
-}
-
-const pushFxRates = async () => {
-  const pending = await db.fx_rates.where('syncState').anyOf(SYNC_PENDING, SYNC_ERROR).toArray()
-  let pushed = 0
-
-  for (const rate of pending) {
-    await setDoc(
-      doc(userCollection('fx_rates'), rate.pair),
-      {
-        ...fxRateToRemote(rate),
-        serverUpdatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    )
-    await db.fx_rates.put({ ...rate, syncState: SYNC_SYNCED })
-    pushed += 1
-  }
-
-  return pushed
-}
-
-const pushSyncMeta = async () => {
-  const pending = await db.sync_meta.where('syncState').anyOf(SYNC_PENDING, SYNC_ERROR).toArray()
-  let pushed = 0
-
-  for (const meta of pending) {
-    await setDoc(
-      doc(userCollection('sync_meta'), meta.key),
-      {
-        ...syncMetaToRemote(meta),
-        serverUpdatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    )
-    await db.sync_meta.put({ ...meta, syncState: SYNC_SYNCED })
-    pushed += 1
-  }
-
-  return pushed
-}
-
-const pushCashAccounts = async () => {
-  const pending = await db.cash_accounts.where('syncState').anyOf(SYNC_PENDING, SYNC_ERROR).toArray()
-  let pushed = 0
-
-  for (const cashAccount of pending) {
-    const id = buildCashAccountKey(cashAccount)
-    await setDoc(
-      doc(userCollection('cash_accounts'), id),
-      {
-        ...cashAccountToRemote(cashAccount),
-        serverUpdatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    )
-    await db.cash_accounts.update(cashAccount.id, { syncState: SYNC_SYNCED })
-    pushed += 1
-  }
-
-  return pushed
-}
-
-const pushPendingChanges = async () => {
-  const holdingCount = await pushHoldings()
-  const snapshotCount = await pushSnapshots()
-  const fxCount = await pushFxRates()
-  const metaCount = await pushSyncMeta()
-  const cashCount = await pushCashAccounts()
-  return holdingCount + snapshotCount + fxCount + metaCount + cashCount
-}
-
-const pullHoldings = async () => {
-  const localByKey = new Map()
-  const locals = await db.holdings.toArray()
-  for (const item of locals) {
-    localByKey.set(buildHoldingKey(item), item)
-  }
-
-  const remoteDocs = await getDocs(userCollection('holdings'))
-  let pulled = 0
-
-  for (const item of remoteDocs.docs) {
-    const remote = remoteToHolding(item.data())
-    if (!remote.symbol || !remote.market) {
-      continue
-    }
-
-    const key = buildHoldingKey(remote)
-    const local = localByKey.get(key)
-
-    if (!local) {
-      const nowIso = new Date().toISOString()
-      const newId = await db.holdings.add({
-        symbol: remote.symbol,
-        market: remote.market,
-        assetTag: remote.assetTag ?? 'STOCK',
-        shares: remote.shares,
-        companyName: remote.companyName || remote.symbol,
-        sortOrder: Number(remote.sortOrder) || 1,
-        createdAt: remote.createdAt || nowIso,
-        updatedAt: remote.updatedAt || nowIso,
-        deletedAt: remote.deletedAt ?? null,
-        syncState: SYNC_SYNCED,
-      })
-      localByKey.set(key, { ...remote, id: newId })
-      pulled += 1
-      continue
-    }
-
-    if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
-      continue
-    }
-
-    await db.holdings.update(local.id, {
-      assetTag: remote.assetTag ?? local.assetTag ?? 'STOCK',
+  if (!local) {
+    await db.holdings.add({
+      symbol: remote.symbol,
+      market: remote.market,
+      assetTag: remote.assetTag ?? 'STOCK',
       shares: remote.shares,
-      companyName: remote.companyName || local.companyName,
-      sortOrder: Number(remote.sortOrder) || local.sortOrder,
-      createdAt: remote.createdAt || local.createdAt,
-      updatedAt: remote.updatedAt || local.updatedAt,
+      companyName: remote.companyName || remote.symbol,
+      sortOrder: Number(remote.sortOrder) || 1,
+      createdAt: remote.createdAt || nowIso,
+      updatedAt: remote.updatedAt || nowIso,
       deletedAt: remote.deletedAt ?? null,
       syncState: SYNC_SYNCED,
     })
-    pulled += 1
+    return
   }
 
-  return pulled
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
+    return
+  }
+
+  await db.holdings.update(local.id, {
+    assetTag: remote.assetTag ?? local.assetTag ?? 'STOCK',
+    shares: remote.shares,
+    companyName: remote.companyName || local.companyName,
+    sortOrder: Number(remote.sortOrder) || local.sortOrder,
+    createdAt: remote.createdAt || local.createdAt,
+    updatedAt: remote.updatedAt || local.updatedAt,
+    deletedAt: remote.deletedAt ?? null,
+    syncState: SYNC_SYNCED,
+  })
+
+  if (pendingSnapshotReplay.length > 0) {
+    const queue = [...pendingSnapshotReplay]
+    pendingSnapshotReplay = []
+    for (const item of queue) {
+      await applyRemoteSnapshot(item)
+    }
+  }
 }
 
-const pullSnapshots = async () => {
-  const holdings = await db.holdings.toArray()
-  const holdingIdByKey = new Map()
-  for (const holding of holdings) {
-    holdingIdByKey.set(buildHoldingKey(holding), holding.id)
+async function applyRemoteSnapshot(remote) {
+  if (!remote.symbol || !remote.market || !remote.capturedAt) {
+    return
   }
 
-  const remoteDocs = await getDocs(userCollection('price_snapshots'))
-  let pulled = 0
+  const holding = await db.holdings.where('[symbol+market]').equals([remote.symbol, remote.market]).first()
+  if (!holding) {
+    pendingSnapshotReplay.push(remote)
+    return
+  }
 
-  for (const item of remoteDocs.docs) {
-    const remote = remoteToSnapshot(item.data())
-    if (!remote.symbol || !remote.market || !remote.capturedAt) {
-      continue
-    }
+  const local = await db.price_snapshots
+    .where('[holdingId+capturedAt]')
+    .equals([holding.id, remote.capturedAt])
+    .first()
 
-    const holdingId = holdingIdByKey.get(buildHoldingKey(remote))
-    if (!holdingId) {
-      continue
-    }
-
-    const local = await db.price_snapshots
-      .where('[holdingId+capturedAt]')
-      .equals([holdingId, remote.capturedAt])
-      .first()
-
-    if (!local) {
-      await db.price_snapshots.add({
-        holdingId,
-        symbol: remote.symbol,
-        market: remote.market,
-        price: remote.price,
-        currency: remote.currency,
-        fxRateToTwd: remote.fxRateToTwd,
-        valueTwd: remote.valueTwd,
-        capturedAt: remote.capturedAt,
-        updatedAt: remote.updatedAt ?? remote.capturedAt,
-        deletedAt: remote.deletedAt ?? null,
-        syncState: SYNC_SYNCED,
-      })
-      pulled += 1
-      continue
-    }
-
-    if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
-      continue
-    }
-
-    await db.price_snapshots.update(local.id, {
+  if (!local) {
+    await db.price_snapshots.add({
+      holdingId: holding.id,
+      symbol: remote.symbol,
+      market: remote.market,
       price: remote.price,
       currency: remote.currency,
       fxRateToTwd: remote.fxRateToTwd,
       valueTwd: remote.valueTwd,
-      updatedAt: remote.updatedAt ?? local.updatedAt,
+      capturedAt: remote.capturedAt,
+      updatedAt: remote.updatedAt ?? remote.capturedAt,
       deletedAt: remote.deletedAt ?? null,
       syncState: SYNC_SYNCED,
     })
-    pulled += 1
+    return
   }
 
-  return pulled
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
+    return
+  }
+
+  await db.price_snapshots.update(local.id, {
+    price: remote.price,
+    currency: remote.currency,
+    fxRateToTwd: remote.fxRateToTwd,
+    valueTwd: remote.valueTwd,
+    updatedAt: remote.updatedAt ?? local.updatedAt,
+    deletedAt: remote.deletedAt ?? null,
+    syncState: SYNC_SYNCED,
+  })
 }
 
-const pullFxRates = async () => {
-  const remoteDocs = await getDocs(userCollection('fx_rates'))
-  let pulled = 0
-
-  for (const item of remoteDocs.docs) {
-    const remote = remoteToFxRate(item.data())
-    if (!remote.pair) {
-      continue
-    }
-
-    const local = await db.fx_rates.get(remote.pair)
-    if (local && compareUpdatedAt(local.updatedAt, remote.updatedAt) >= 0) {
-      continue
-    }
-
-    await db.fx_rates.put({
-      pair: remote.pair,
-      rate: remote.rate,
-      fetchedAt: remote.fetchedAt,
-      source: remote.source,
-      updatedAt: remote.updatedAt ?? remote.fetchedAt,
-      deletedAt: remote.deletedAt ?? null,
-      syncState: SYNC_SYNCED,
-    })
-    pulled += 1
+const applyRemoteFxRate = async (remote) => {
+  if (!remote.pair) {
+    return
   }
 
-  return pulled
+  const local = await db.fx_rates.get(remote.pair)
+  if (local && local.updatedAt && remote.updatedAt && local.updatedAt >= remote.updatedAt) {
+    return
+  }
+
+  await db.fx_rates.put({
+    pair: remote.pair,
+    rate: remote.rate,
+    fetchedAt: remote.fetchedAt,
+    source: remote.source,
+    updatedAt: remote.updatedAt ?? remote.fetchedAt ?? getNowIso(),
+    deletedAt: remote.deletedAt ?? null,
+    syncState: SYNC_SYNCED,
+  })
 }
 
-const pullSyncMeta = async () => {
-  const remoteDocs = await getDocs(userCollection('sync_meta'))
-  let pulled = 0
-
-  for (const item of remoteDocs.docs) {
-    const remote = remoteToSyncMeta(item.data())
-    if (!remote.key) {
-      continue
-    }
-
-    const local = await db.sync_meta.get(remote.key)
-    if (local && compareUpdatedAt(local.updatedAt, remote.updatedAt) >= 0) {
-      continue
-    }
-
-    await db.sync_meta.put({
-      key: remote.key,
-      lastUpdatedAt: remote.lastUpdatedAt,
-      status: remote.status,
-      errorMessage: remote.errorMessage,
-      updatedAt: remote.updatedAt ?? remote.lastUpdatedAt ?? new Date().toISOString(),
-      deletedAt: remote.deletedAt ?? null,
-      syncState: SYNC_SYNCED,
-    })
-    pulled += 1
+const applyRemoteSyncMeta = async (remote) => {
+  if (!remote.key) {
+    return
   }
 
-  return pulled
+  const local = await db.sync_meta.get(remote.key)
+  if (local && local.updatedAt && remote.updatedAt && local.updatedAt >= remote.updatedAt) {
+    return
+  }
+
+  await db.sync_meta.put({
+    key: remote.key,
+    lastUpdatedAt: remote.lastUpdatedAt,
+    status: remote.status,
+    errorMessage: remote.errorMessage,
+    updatedAt: remote.updatedAt ?? remote.lastUpdatedAt ?? getNowIso(),
+    deletedAt: remote.deletedAt ?? null,
+    syncState: SYNC_SYNCED,
+  })
 }
 
-const pullCashAccounts = async () => {
-  const localByKey = new Map()
-  const locals = await db.cash_accounts.toArray()
-  for (const item of locals) {
-    localByKey.set(buildCashAccountKey(item), item)
+const applyRemoteCashAccount = async (remote) => {
+  if (!remote.bankName || !remote.accountAlias) {
+    return
   }
 
-  const remoteDocs = await getDocs(userCollection('cash_accounts'))
-  let pulled = 0
+  const key = [remote.bankName, remote.accountAlias]
+  const local = await db.cash_accounts.where('[bankName+accountAlias]').equals(key).first()
+  const nowIso = getNowIso()
 
-  for (const item of remoteDocs.docs) {
-    const remote = remoteToCashAccount(item.data())
-    if (!remote.bankName || !remote.accountAlias) {
-      continue
-    }
-
-    const key = buildCashAccountKey(remote)
-    const local = localByKey.get(key)
-
-    if (!local) {
-      const nowIso = new Date().toISOString()
-      const newId = await db.cash_accounts.add({
-        bankCode: remote.bankCode ?? null,
-        bankName: remote.bankName,
-        accountAlias: remote.accountAlias,
-        balanceTwd: Number(remote.balanceTwd) || 0,
-        createdAt: remote.createdAt || nowIso,
-        updatedAt: remote.updatedAt || nowIso,
-        deletedAt: remote.deletedAt ?? null,
-        syncState: SYNC_SYNCED,
-      })
-      localByKey.set(key, { ...remote, id: newId })
-      pulled += 1
-      continue
-    }
-
-    if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
-      continue
-    }
-
-    await db.cash_accounts.update(local.id, {
+  if (!local) {
+    await db.cash_accounts.add({
       bankCode: remote.bankCode ?? null,
       bankName: remote.bankName,
       accountAlias: remote.accountAlias,
       balanceTwd: Number(remote.balanceTwd) || 0,
-      createdAt: remote.createdAt || local.createdAt,
-      updatedAt: remote.updatedAt || local.updatedAt,
+      createdAt: remote.createdAt || nowIso,
+      updatedAt: remote.updatedAt || nowIso,
       deletedAt: remote.deletedAt ?? null,
       syncState: SYNC_SYNCED,
     })
-    pulled += 1
+    return
   }
 
-  return pulled
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
+    return
+  }
+
+  await db.cash_accounts.update(local.id, {
+    bankCode: remote.bankCode ?? null,
+    bankName: remote.bankName,
+    accountAlias: remote.accountAlias,
+    balanceTwd: Number(remote.balanceTwd) || 0,
+    createdAt: remote.createdAt || local.createdAt,
+    updatedAt: remote.updatedAt || local.updatedAt,
+    deletedAt: remote.deletedAt ?? null,
+    syncState: SYNC_SYNCED,
+  })
 }
 
-const pullRemoteChanges = async () => {
-  const holdings = await pullHoldings()
-  const snapshots = await pullSnapshots()
-  const fxRates = await pullFxRates()
-  const syncMeta = await pullSyncMeta()
-  const cashAccounts = await pullCashAccounts()
-  return holdings + snapshots + fxRates + syncMeta + cashAccounts
+const applyRealtimeSnapshot = async (collectionName, snapshot) => {
+  for (const change of snapshot.docChanges()) {
+    if (change.type === 'removed') {
+      continue
+    }
+
+    const data = change.doc.data()
+
+    if (collectionName === COLLECTIONS.HOLDINGS) {
+      await applyRemoteHolding(remoteToHolding(data))
+      continue
+    }
+
+    if (collectionName === COLLECTIONS.PRICE_SNAPSHOTS) {
+      await applyRemoteSnapshot(remoteToSnapshot(data))
+      continue
+    }
+
+    if (collectionName === COLLECTIONS.FX_RATES) {
+      await applyRemoteFxRate(remoteToFxRate(data))
+      continue
+    }
+
+    if (collectionName === COLLECTIONS.SYNC_META) {
+      await applyRemoteSyncMeta(remoteToSyncMeta(data))
+      continue
+    }
+
+    if (collectionName === COLLECTIONS.CASH_ACCOUNTS) {
+      await applyRemoteCashAccount(remoteToCashAccount(data))
+    }
+  }
+
+  runtimeState.lastCloudApplyAt = getNowIso()
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CLOUD_SYNC_UPDATED_EVENT))
+  }
 }
 
-const performSync = async () => {
-  const pushed = await pushPendingChanges()
-  const pulled = await pullRemoteChanges()
-  return { pushed, pulled }
+const sendMutationToCloud = async (mutation) => {
+  const firestore = ensureFirestore()
+  const ref = doc(collection(firestore, 'users', currentUid, mutation.collection), mutation.docId)
+
+  if (mutation.op === OUTBOX_OP_DELETE) {
+    await deleteDoc(ref)
+    return
+  }
+
+  await setDoc(
+    ref,
+    {
+      ...mutation.payload,
+      lastMutationId: mutation.clientMutationId,
+      serverUpdatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
 }
 
-const markPendingAsError = async () => {
-  await db.holdings.where('syncState').equals(SYNC_PENDING).modify({ syncState: SYNC_ERROR })
-  await db.price_snapshots.where('syncState').equals(SYNC_PENDING).modify({ syncState: SYNC_ERROR })
-  await db.fx_rates.where('syncState').equals(SYNC_PENDING).modify({ syncState: SYNC_ERROR })
-  await db.sync_meta.where('syncState').equals(SYNC_PENDING).modify({ syncState: SYNC_ERROR })
-  await db.cash_accounts.where('syncState').equals(SYNC_PENDING).modify({ syncState: SYNC_ERROR })
+export const enqueueMutation = async ({ collectionName, docId, payload, op = OUTBOX_OP_SET }) => {
+  if (!currentUid || !db.outbox) {
+    return { queued: false }
+  }
+
+  await db.outbox.add({
+    uid: currentUid,
+    status: SYNC_PENDING,
+    collection: collectionName,
+    docId,
+    payload,
+    op,
+    attempts: 0,
+    clientMutationId: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    createdAt: getNowIso(),
+    retryAt: null,
+    lastError: '',
+  })
+
+  await refreshOutboxPendingCount()
+  return { queued: true }
+}
+
+export const queueOrApplyMutation = async ({ collectionName, record }) => {
+  if (!currentUid) {
+    return { queued: false, sent: 0 }
+  }
+
+  const mutation = buildMutationPayload({ collectionName, record })
+
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    await enqueueMutation({
+      collectionName,
+      docId: mutation.docId,
+      payload: mutation.payload,
+      op: mutation.op,
+    })
+    return { queued: true, sent: 0 }
+  }
+
+  try {
+    await sendMutationToCloud({
+      collection: collectionName,
+      docId: mutation.docId,
+      payload: mutation.payload,
+      op: mutation.op,
+      clientMutationId: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    })
+    return { queued: false, sent: 1 }
+  } catch (error) {
+    runtimeState.lastError = error instanceof Error ? error.message : String(error)
+    await enqueueMutation({
+      collectionName,
+      docId: mutation.docId,
+      payload: mutation.payload,
+      op: mutation.op,
+    })
+    return { queued: true, sent: 0 }
+  }
+}
+
+export const flushOutbox = async () => {
+  if (!currentUid || !db.outbox) {
+    return { sent: 0, failed: 0 }
+  }
+
+  if (outboxFlushInFlight) {
+    return outboxFlushInFlight
+  }
+
+  outboxFlushInFlight = (async () => {
+    const nowIso = getNowIso()
+    const pending = await db.outbox
+      .where('uid')
+      .equals(currentUid)
+      .and((item) => {
+        if (!(item.status === SYNC_PENDING || item.status === SYNC_ERROR)) {
+          return false
+        }
+        if (!item.retryAt) {
+          return true
+        }
+        return item.retryAt <= nowIso
+      })
+      .sortBy('createdAt')
+
+    let sent = 0
+    let failed = 0
+
+    for (const item of pending) {
+      try {
+        await sendMutationToCloud(item)
+        await db.outbox.delete(item.id)
+        sent += 1
+      } catch (error) {
+        failed += 1
+        const attempts = Number(item.attempts || 0) + 1
+        const backoffMs = Math.min(60_000, attempts * 2_000)
+        const retryAt = new Date(Date.now() + backoffMs).toISOString()
+        await db.outbox.update(item.id, {
+          status: SYNC_ERROR,
+          attempts,
+          retryAt,
+          lastError: error instanceof Error ? error.message : String(error),
+        })
+        runtimeState.lastError = error instanceof Error ? error.message : String(error)
+      }
+    }
+
+    runtimeState.lastOutboxFlushAt = getNowIso()
+    await refreshOutboxPendingCount()
+    return { sent, failed }
+  })()
+
+  try {
+    return await outboxFlushInFlight
+  } finally {
+    outboxFlushInFlight = null
+  }
+}
+
+export const getSyncRuntimeState = () => ({ ...runtimeState })
+
+const stopRealtimeSyncInternal = () => {
+  for (const unsubscribe of realtimeUnsubscribers) {
+    unsubscribe()
+  }
+  realtimeUnsubscribers = []
+
+  if (onlineHandler) {
+    window.removeEventListener('online', onlineHandler)
+    onlineHandler = null
+  }
+
+  if (offlineHandler) {
+    window.removeEventListener('offline', offlineHandler)
+    offlineHandler = null
+  }
+
+  runtimeState.listenersReady = false
+  pendingSnapshotReplay = []
+}
+
+export const stopRealtimeSync = () => {
+  stopRealtimeSyncInternal()
+}
+
+export const startRealtimeSync = async (uid) => {
+  currentUid = uid
+  stopRealtimeSyncInternal()
+
+  if (!uid) {
+    runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
+    runtimeState.outboxPending = 0
+    return
+  }
+
+  runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
+  runtimeState.lastError = ''
+  runtimeState.listenersReady = false
+
+  const waitingFirstSnapshots = new Set([
+    COLLECTIONS.HOLDINGS,
+    COLLECTIONS.PRICE_SNAPSHOTS,
+    COLLECTIONS.FX_RATES,
+    COLLECTIONS.SYNC_META,
+    COLLECTIONS.CASH_ACCOUNTS,
+  ])
+
+  for (const name of waitingFirstSnapshots) {
+    const unsubscribe = onSnapshot(
+      userCollection(name),
+      async (snapshot) => {
+        await applyRealtimeSnapshot(name, snapshot)
+        waitingFirstSnapshots.delete(name)
+        runtimeState.listenersReady = waitingFirstSnapshots.size === 0
+      },
+      (error) => {
+        runtimeState.lastError = error instanceof Error ? error.message : String(error)
+      },
+    )
+    realtimeUnsubscribers.push(unsubscribe)
+  }
+
+  onlineHandler = () => {
+    runtimeState.connected = true
+    flushOutbox().catch(() => {})
+  }
+  offlineHandler = () => {
+    runtimeState.connected = false
+  }
+
+  window.addEventListener('online', onlineHandler)
+  window.addEventListener('offline', offlineHandler)
+
+  await refreshOutboxPendingCount()
+  await flushOutbox()
 }
 
 export const setSyncUser = (uid) => {
@@ -511,7 +575,12 @@ export const setSyncUser = (uid) => {
 
 export const syncNowWithCloud = async () => {
   if (!currentUid) {
-    return { pushed: 0, pulled: 0, durationMs: 0, triggeredFullResync: false }
+    return {
+      pushed: 0,
+      pulled: 0,
+      durationMs: 0,
+      triggeredFullResync: false,
+    }
   }
 
   if (syncInFlight) {
@@ -520,18 +589,12 @@ export const syncNowWithCloud = async () => {
 
   syncInFlight = (async () => {
     const startedAt = Date.now()
-    const triggeredFullResync = Boolean(pendingTriggeredFullResync)
-    pendingTriggeredFullResync = false
-    try {
-      const result = await performSync()
-      return {
-        ...result,
-        durationMs: Date.now() - startedAt,
-        triggeredFullResync,
-      }
-    } catch (error) {
-      await markPendingAsError()
-      throw error
+    const flushResult = await flushOutbox()
+    return {
+      pushed: flushResult.sent,
+      pulled: 0,
+      durationMs: Date.now() - startedAt,
+      triggeredFullResync: false,
     }
   })()
 
@@ -543,49 +606,13 @@ export const syncNowWithCloud = async () => {
 }
 
 export const initCloudSync = async (uid) => {
-  setSyncUser(uid)
-
-  if (!uid) {
-    return
-  }
-
-  const lastSyncedUid = getLastSyncedUid()
-  const shouldTriggerFullResync = lastSyncedUid !== uid
-  if (shouldTriggerFullResync) {
-    await markAllRowsPendingForResync()
-  }
-
-  await markLegacyRowsPending()
-  pendingTriggeredFullResync = shouldTriggerFullResync
-  await syncNowWithCloud()
-  setLastSyncedUid(uid)
-
-  if (onlineHandler) {
-    window.removeEventListener('online', onlineHandler)
-  }
-  onlineHandler = () => {
-    syncNowWithCloud().catch(() => {})
-  }
-  window.addEventListener('online', onlineHandler)
-
-  if (autoSyncTimer) {
-    window.clearInterval(autoSyncTimer)
-    autoSyncTimer = null
-  }
+  await startRealtimeSync(uid)
 }
 
 export const stopCloudSync = () => {
-  if (autoSyncTimer) {
-    window.clearInterval(autoSyncTimer)
-    autoSyncTimer = null
-  }
-
-  if (onlineHandler) {
-    window.removeEventListener('online', onlineHandler)
-    onlineHandler = null
-  }
-
+  stopRealtimeSyncInternal()
   syncInFlight = null
+  outboxFlushInFlight = null
   currentUid = null
-  pendingTriggeredFullResync = false
+  runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
 }
