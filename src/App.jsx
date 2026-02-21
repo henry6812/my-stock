@@ -134,6 +134,21 @@ const formatChangePercent = (value) => {
   return `${sign}${value.toFixed(2)}%`;
 };
 
+const floorToTenThousand = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 0;
+  }
+  return Math.floor(parsed / 10000) * 10000;
+};
+
+const formatStopLabel = (value) => {
+  if (value === 0) {
+    return "0";
+  }
+  return `${Math.round(value / 10000)}萬`;
+};
+
 const RowContext = createContext({
   listeners: undefined,
   setActivatorNodeRef: undefined,
@@ -196,6 +211,7 @@ function App() {
   const [rows, setRows] = useState([]);
   const [cashRows, setCashRows] = useState([]);
   const [totalTwd, setTotalTwd] = useState(0);
+  const [baselineTotalTwd, setBaselineTotalTwd] = useState(0);
   const [totalChangeTwd, setTotalChangeTwd] = useState(undefined);
   const [totalChangePct, setTotalChangePct] = useState(null);
   const [trend, setTrend] = useState([]);
@@ -259,6 +275,7 @@ function App() {
     setRows(portfolio.rows);
     setCashRows(portfolio.cashRows ?? []);
     setTotalTwd(portfolio.totalTwd);
+    setBaselineTotalTwd(portfolio.baselineTotalTwd ?? 0);
     setTotalChangeTwd(portfolio.totalChangeTwd);
     setTotalChangePct(portfolio.totalChangePct ?? null);
     setLastUpdatedAt(portfolio.lastUpdatedAt);
@@ -1236,6 +1253,79 @@ function App() {
     return `雲端狀態更新時間：${formatDateTime(cloudLastSyncedAt)}（重新整理可重建同步）`;
   }, [authUser, cloudLastSyncedAt]);
 
+  const flooredCurrentTwd = useMemo(
+    () => floorToTenThousand(totalTwd),
+    [totalTwd],
+  );
+  const flooredBaselineTwd = useMemo(
+    () => floorToTenThousand(baselineTotalTwd),
+    [baselineTotalTwd],
+  );
+
+  const progressMaxTwd = useMemo(() => {
+    const unit = 10000000;
+    const maxValue = Math.max(
+      flooredCurrentTwd,
+      flooredBaselineTwd,
+      30000000,
+    );
+    return Math.ceil(maxValue / unit) * unit;
+  }, [flooredBaselineTwd, flooredCurrentTwd]);
+
+  const progressStops = useMemo(() => {
+    const unit = 10000000;
+    const stops = [];
+    for (let value = 0; value <= progressMaxTwd; value += unit) {
+      stops.push(value);
+    }
+    return stops;
+  }, [progressMaxTwd]);
+
+  const visibleProgressStops = useMemo(() => {
+    if (!isMobileViewport || progressStops.length <= 5) {
+      return progressStops;
+    }
+    return progressStops.filter(
+      (_, index) =>
+        index === 0 || index === progressStops.length - 1 || index % 2 === 0,
+    );
+  }, [isMobileViewport, progressStops]);
+
+  const currentRatio = useMemo(() => {
+    if (progressMaxTwd <= 0) {
+      return 0;
+    }
+    return Math.min(1, Math.max(0, flooredCurrentTwd / progressMaxTwd));
+  }, [flooredCurrentTwd, progressMaxTwd]);
+
+  const baselineRatio = useMemo(() => {
+    if (progressMaxTwd <= 0) {
+      return 0;
+    }
+    return Math.min(1, Math.max(0, flooredBaselineTwd / progressMaxTwd));
+  }, [flooredBaselineTwd, progressMaxTwd]);
+
+  const isMarkerOverlap = useMemo(
+    () => Math.abs(currentRatio - baselineRatio) <= 0.02,
+    [baselineRatio, currentRatio],
+  );
+  const deltaSegmentLeftRatio = useMemo(
+    () => Math.min(currentRatio, baselineRatio),
+    [baselineRatio, currentRatio],
+  );
+  const deltaSegmentWidthRatio = useMemo(
+    () => Math.abs(currentRatio - baselineRatio),
+    [baselineRatio, currentRatio],
+  );
+  const deltaSegmentClassName = useMemo(() => {
+    if (deltaSegmentWidthRatio === 0) {
+      return "";
+    }
+    return currentRatio >= baselineRatio
+      ? "networth-delta-segment networth-delta-segment--up"
+      : "networth-delta-segment networth-delta-segment--down";
+  }, [baselineRatio, currentRatio, deltaSegmentWidthRatio]);
+
   const handleGoogleLogin = async () => {
     try {
       setLoadingAuthAction(true);
@@ -1432,6 +1522,70 @@ function App() {
                       ? "0.00 (0.00%)"
                       : `${totalChangeTwd > 0 ? "▲" : "▼"} ${formatSignedTwd(totalChangeTwd)} (${formatChangePercent(totalChangePct)})`}
                 </Text>
+                <div className="networth-progress-wrap">
+                  <div className="networth-progress-scale">
+                    {visibleProgressStops.map((stop) => (
+                      <span
+                        key={`stop-${stop}`}
+                        className="networth-progress-scale-label"
+                        style={{
+                          left:
+                            progressMaxTwd > 0
+                              ? `${(stop / progressMaxTwd) * 100}%`
+                              : "0%",
+                        }}
+                      >
+                        {formatStopLabel(stop)}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="networth-progress-track">
+                    <div
+                      className="networth-progress-fill"
+                      style={{ width: `${currentRatio * 100}%` }}
+                    />
+                    {deltaSegmentClassName ? (
+                      <div
+                        className={deltaSegmentClassName}
+                        style={{
+                          left: `${deltaSegmentLeftRatio * 100}%`,
+                          width: `${deltaSegmentWidthRatio * 100}%`,
+                        }}
+                      />
+                    ) : null}
+                    {progressStops
+                      .filter((stop) => stop > 0)
+                      .map((stop) => (
+                        <span
+                          key={`track-stop-${stop}`}
+                          className="networth-track-stop-line"
+                          style={{
+                            left:
+                              progressMaxTwd > 0
+                                ? `${(stop / progressMaxTwd) * 100}%`
+                                : "0%",
+                          }}
+                        />
+                      ))}
+                    <Tooltip title={`昨日23:59：${formatTwd(flooredBaselineTwd)}`}>
+                      <div
+                        className={`networth-marker networth-marker--baseline ${isMarkerOverlap ? "networth-marker--offset" : ""}`}
+                        style={{ left: `${baselineRatio * 100}%` }}
+                      >
+                        <span className="networth-marker-line" />
+                      </div>
+                    </Tooltip>
+                    <Tooltip title={`目前：${formatTwd(flooredCurrentTwd)}`}>
+                      <div
+                        className="networth-marker networth-marker--current"
+                        style={{ left: `${currentRatio * 100}%` }}
+                      >
+                        <span className="networth-marker-caret" />
+                        <span className="networth-marker-line" />
+                      </div>
+                    </Tooltip>
+                  </div>
+                </div>
               </div>
               <div className="asset-summary-actions">
                 <Button

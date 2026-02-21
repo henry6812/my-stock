@@ -102,6 +102,165 @@
   text-align: center;
 }
 
+.networth-progress-wrap {
+  width: min(680px, 32vw);
+  margin: 24px auto 24px;
+}
+
+.networth-progress-scale {
+  position: relative;
+  height: 20px;
+}
+
+.networth-progress-scale-label {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.networth-progress-track {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  /* border: 1px solid #9ca3af; */
+  background: #ececec;
+  overflow: visible;
+}
+
+.networth-progress-fill {
+  height: 100%;
+  border-radius: 999px 4px 4px 999px;
+  background-image: linear-gradient(
+    135deg,
+    #82b6e7 0%,
+    #9f95eb 25%,
+    #8072eb 50%,
+    #9f95eb 75%,
+    #82b6e7 100%
+  );
+  background-size: 160px 100%;
+  background-repeat: repeat-x;
+  animation: networth-fill-flow 10s linear infinite;
+}
+
+.networth-track-stop-line {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 100%;
+  background: #f6f8fc;
+  z-index: 1;
+}
+
+.networth-delta-segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.networth-delta-segment--up {
+  background-color: rgb(15, 186, 78);
+  border: 1px solid rgb(15, 186, 78);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #f6f8fc 0 1px,
+    rgba(15, 176, 74, 0) 1px 3px
+  );
+}
+
+.networth-delta-segment--down {
+  background-color: rgba(193, 23, 23, 0.24);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(193, 23, 23, 0.48) 0 6px,
+    rgba(193, 23, 23, 0.12) 6px 12px
+  );
+}
+
+@keyframes networth-fill-flow {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -160px 0;
+  }
+}
+
+.networth-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  z-index: 4;
+}
+
+.networth-marker--baseline {
+  pointer-events: auto;
+}
+
+.networth-marker--current {
+  pointer-events: auto;
+}
+
+.networth-marker-line {
+  display: block;
+  width: 2px;
+  height: 100%;
+  background: #f6f8fc;
+  position: relative;
+  z-index: 3;
+}
+
+.networth-marker-caret {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #404040;
+  z-index: 4;
+}
+
+.networth-marker--baseline .networth-marker-line {
+  background: #f6f8fc;
+}
+
+.networth-marker-label {
+  position: absolute;
+  left: 50%;
+  top: -30px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #374151;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.networth-marker--offset .networth-marker-label {
+  top: -42px;
+}
+
+.networth-progress-meta {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  text-align: right;
+}
+
 .asset-summary-actions {
   margin-top: 14px;
   display: flex;
@@ -199,6 +358,20 @@
     font-size: 30px;
   }
 
+  .networth-progress-wrap {
+    width: 100%;
+    margin-top: 14px;
+  }
+
+  .networth-progress-scale-label {
+    font-size: 10px;
+  }
+
+  .networth-marker-label {
+    font-size: 10px;
+    padding: 1px 5px;
+  }
+
   .asset-summary-actions {
     width: 100%;
     justify-content: center;
@@ -212,6 +385,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .expanded-chart-item--visible {
+    animation: none;
+  }
+
+  .networth-progress-fill {
     animation: none;
   }
 }
