@@ -29,6 +29,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Bundle is currently ~2.2MB; increase precache limit above default 2MB.
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/openapi\.twse\.com\.tw\/.*$/i,
