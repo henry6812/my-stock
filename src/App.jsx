@@ -40,7 +40,6 @@ import {
   MenuOutlined,
   PlusOutlined,
   PieChartOutlined,
-  ReloadOutlined,
 } from "@ant-design/icons";
 import {
   DndContext,
@@ -219,6 +218,7 @@ function App() {
   const [trend, setTrend] = useState([]);
   const [range, setRange] = useState("24h");
   const [lastUpdatedAt, setLastUpdatedAt] = useState();
+  const [nowTick, setNowTick] = useState(Date.now());
   const [syncError, setSyncError] = useState("");
   const [loadingRefresh, setLoadingRefresh] = useState(false);
   const [loadingAddHolding, setLoadingAddHolding] = useState(false);
@@ -1145,6 +1145,16 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowTick(Date.now());
+    }, 60_000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
     const loadHoldingTags = async () => {
       try {
         const options = await getHoldingTagOptions();
@@ -1327,6 +1337,29 @@ function App() {
     }
     return `雲端狀態更新時間：${formatDateTime(cloudLastSyncedAt)}（重新整理可重建同步）`;
   }, [authUser, cloudLastSyncedAt]);
+
+  const priceUpdatedRelativeText = useMemo(() => {
+    if (!lastUpdatedAt) {
+      return "尚未更新";
+    }
+
+    const updatedMs = dayjs(lastUpdatedAt).valueOf();
+    if (!Number.isFinite(updatedMs)) {
+      return "尚未更新";
+    }
+
+    const diffMinutes = Math.max(0, Math.floor((nowTick - updatedMs) / 60000));
+    if (diffMinutes < 60) {
+      return `${diffMinutes}m 前`;
+    }
+    if (diffMinutes < 1440) {
+      return `${Math.floor(diffMinutes / 60)}h 前`;
+    }
+
+    const days = Math.floor(diffMinutes / 1440);
+    const hours = Math.floor((diffMinutes % 1440) / 60);
+    return `${days}d ${hours}h 前`;
+  }, [lastUpdatedAt, nowTick]);
 
   const flooredCurrentTwd = useMemo(
     () => floorToTenThousand(totalTwd),
@@ -1778,47 +1811,15 @@ function App() {
 
           <Col xs={24}>
             <Card
+              className="holdings-card"
               title={
                 <Space size={8}>
                   <span>持股列表</span>
-                  <Text type="secondary" className="price-updated-at">
-                    價格更新於：{formatDateTime(lastUpdatedAt)}
-                  </Text>
-                </Space>
-              }
-              extra={
-                <Space>
-                  <Space.Compact>
-                    <Button
-                      type="primary"
-                      onClick={() => handleRefreshPrices("ALL")}
-                      loading={loadingRefresh}
-                      icon={<ReloadOutlined />}
-                      aria-label="更新價格（全部）"
-                    >
-                      更新價格
-                    </Button>
-                    <Dropdown
-                      trigger={["click"]}
-                      disabled={loadingRefresh}
-                      menu={{
-                        items: [
-                          { key: "TW", label: "更新台股" },
-                          { key: "US", label: "更新美股" },
-                        ],
-                        onClick: ({ key }) => handleRefreshPrices(key),
-                      }}
-                    >
-                      <Button
-                        type="primary"
-                        icon={<DownOutlined />}
-                        aria-label="選擇更新市場"
-                      />
-                    </Dropdown>
-                  </Space.Compact>
                   <Tooltip title="新增持股">
                     <Button
-                      type="primary"
+                      type="text"
+                      size="small"
+                      className="title-add-btn"
                       onClick={() => setIsAddHoldingModalOpen(true)}
                       disabled={loadingAddHolding}
                       icon={<PlusOutlined />}
@@ -1826,6 +1827,50 @@ function App() {
                     />
                   </Tooltip>
                 </Space>
+              }
+              extra={
+                <div className="price-update-extra">
+                  <Space>
+                    <Space.Compact>
+                      <Button
+                        type="primary"
+                        onClick={() => handleRefreshPrices("ALL")}
+                        loading={loadingRefresh}
+                        aria-label="更新價格（全部）"
+                      >
+                        更新價格
+                      </Button>
+                      <Dropdown
+                        trigger={["click"]}
+                        disabled={loadingRefresh}
+                        overlayClassName="price-update-menu"
+                        menu={{
+                          items: [
+                            { key: "TW", label: "更新台股" },
+                            { key: "US", label: "更新美股" },
+                            { type: "divider" },
+                            {
+                              key: "lastUpdatedInfo",
+                              disabled: true,
+                              label: (
+                                <span className="price-update-menu-meta">
+                                  上次更新價格於 {priceUpdatedRelativeText}
+                                </span>
+                              ),
+                            },
+                          ],
+                          onClick: ({ key }) => handleRefreshPrices(key),
+                        }}
+                      >
+                        <Button
+                          type="primary"
+                          icon={<DownOutlined />}
+                          aria-label="選擇更新市場"
+                        />
+                      </Dropdown>
+                    </Space.Compact>
+                  </Space>
+                </div>
               }
             >
               <Tabs
@@ -1863,17 +1908,21 @@ function App() {
 
           <Col xs={24}>
             <Card
-              title="銀行現金資產"
-              extra={
-                <Tooltip title="新增銀行帳戶">
-                  <Button
-                    type="primary"
-                    onClick={() => setIsAddCashModalOpen(true)}
-                    disabled={loadingAddCashAccount}
-                    icon={<PlusOutlined />}
-                    aria-label="新增銀行帳戶"
-                  />
-                </Tooltip>
+              title={
+                <Space size={8}>
+                  <span>銀行現金資產</span>
+                  <Tooltip title="新增銀行帳戶">
+                    <Button
+                      type="text"
+                      size="small"
+                      className="title-add-btn"
+                      onClick={() => setIsAddCashModalOpen(true)}
+                      disabled={loadingAddCashAccount}
+                      icon={<PlusOutlined />}
+                      aria-label="新增銀行帳戶"
+                    />
+                  </Tooltip>
+                </Space>
               }
             >
               <Table
