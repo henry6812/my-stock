@@ -338,37 +338,40 @@ function App() {
     return runtime;
   }, [authUser]);
 
-  const performCloudSync = useCallback(async ({ throwOnError = false } = {}) => {
-    if (!authUser) {
-      return {
-        pushed: 0,
-        pulled: 0,
-        durationMs: 0,
-        triggeredFullResync: false,
-      };
-    }
-
-    try {
-      setCloudSyncStatus("syncing");
-      setCloudSyncError("");
-      const result = await syncNowPortfolio();
-      refreshCloudRuntime();
-      setCloudLastSyncedAt(new Date().toISOString());
-      return result;
-    } catch (error) {
-      setCloudSyncStatus("error");
-      setCloudSyncError(error instanceof Error ? error.message : "同步失敗");
-      if (throwOnError) {
-        throw error;
+  const performCloudSync = useCallback(
+    async ({ throwOnError = false } = {}) => {
+      if (!authUser) {
+        return {
+          pushed: 0,
+          pulled: 0,
+          durationMs: 0,
+          triggeredFullResync: false,
+        };
       }
-      return {
-        pushed: 0,
-        pulled: 0,
-        durationMs: 0,
-        triggeredFullResync: false,
-      };
-    }
-  }, [authUser, refreshCloudRuntime]);
+
+      try {
+        setCloudSyncStatus("syncing");
+        setCloudSyncError("");
+        const result = await syncNowPortfolio();
+        refreshCloudRuntime();
+        setCloudLastSyncedAt(new Date().toISOString());
+        return result;
+      } catch (error) {
+        setCloudSyncStatus("error");
+        setCloudSyncError(error instanceof Error ? error.message : "同步失敗");
+        if (throwOnError) {
+          throw error;
+        }
+        return {
+          pushed: 0,
+          pulled: 0,
+          durationMs: 0,
+          triggeredFullResync: false,
+        };
+      }
+    },
+    [authUser, refreshCloudRuntime],
+  );
 
   const handleEditClick = useCallback((record) => {
     setEditingHoldingId(record.id);
@@ -404,7 +407,10 @@ function App() {
         setRowLoading(record.id, true);
         await updateHoldingShares({ id: record.id, shares: parsedShares });
         if (editingHoldingTag) {
-          await updateHoldingTag({ id: record.id, assetTag: editingHoldingTag });
+          await updateHoldingTag({
+            id: record.id,
+            assetTag: editingHoldingTag,
+          });
         }
         await loadAllData();
         await performCloudSync();
@@ -475,7 +481,13 @@ function App() {
         setCashRowLoading(record.id, false);
       }
     },
-    [editingCashBalance, loadAllData, message, performCloudSync, setCashRowLoading],
+    [
+      editingCashBalance,
+      loadAllData,
+      message,
+      performCloudSync,
+      setCashRowLoading,
+    ],
   );
 
   const handleRemoveCashAccount = useCallback(
@@ -491,7 +503,9 @@ function App() {
         }
         message.success("銀行帳戶已移除");
       } catch (error) {
-        message.error(error instanceof Error ? error.message : "移除銀行帳戶失敗");
+        message.error(
+          error instanceof Error ? error.message : "移除銀行帳戶失敗",
+        );
       } finally {
         setCashRowLoading(record.id, false);
       }
@@ -650,7 +664,8 @@ function App() {
   }, [cashRows, rows]);
 
   const allocationChartData = useMemo(
-    () => (activeAllocationTab === "market" ? marketAllocation : assetTypeAllocation),
+    () =>
+      activeAllocationTab === "market" ? marketAllocation : assetTypeAllocation,
     [activeAllocationTab, assetTypeAllocation, marketAllocation],
   );
 
@@ -663,54 +678,60 @@ function App() {
       : "cell-delta cell-delta--down";
   }, []);
 
-  const renderPriceDelta = useCallback((record) => {
-    if (!record.hasPreviousSnapshot) {
-      return <div className="cell-delta cell-delta--flat">--</div>;
-    }
+  const renderPriceDelta = useCallback(
+    (record) => {
+      if (!record.hasPreviousSnapshot) {
+        return <div className="cell-delta cell-delta--flat">--</div>;
+      }
 
-    const delta = record.priceChange;
-    if (typeof delta !== "number" || Number.isNaN(delta)) {
-      return <div className="cell-delta cell-delta--flat">--</div>;
-    }
+      const delta = record.priceChange;
+      if (typeof delta !== "number" || Number.isNaN(delta)) {
+        return <div className="cell-delta cell-delta--flat">--</div>;
+      }
 
-    if (delta === 0) {
-      return <div className="cell-delta cell-delta--flat">0.00 (0.00%)</div>;
-    }
+      if (delta === 0) {
+        return <div className="cell-delta cell-delta--flat">0.00 (0.00%)</div>;
+      }
 
-    const arrow = delta > 0 ? "▲" : "▼";
-    return (
-      <div className={getDeltaClassName(delta)}>
-        {arrow} {formatSignedPrice(delta, record.latestCurrency || "TWD")} (
-        {formatChangePercent(record.priceChangePct)})
-      </div>
-    );
-  }, [getDeltaClassName]);
+      const arrow = delta > 0 ? "▲" : "▼";
+      return (
+        <div className={getDeltaClassName(delta)}>
+          {arrow} {formatSignedPrice(delta, record.latestCurrency || "TWD")} (
+          {formatChangePercent(record.priceChangePct)})
+        </div>
+      );
+    },
+    [getDeltaClassName],
+  );
 
-  const renderValueDelta = useCallback((record) => {
-    if (!record.hasPreviousSnapshot) {
-      return <div className="cell-delta cell-delta--flat">--</div>;
-    }
+  const renderValueDelta = useCallback(
+    (record) => {
+      if (!record.hasPreviousSnapshot) {
+        return <div className="cell-delta cell-delta--flat">--</div>;
+      }
 
-    const delta = record.valueChangeTwd;
-    if (typeof delta !== "number" || Number.isNaN(delta)) {
-      return <div className="cell-delta cell-delta--flat">--</div>;
-    }
+      const delta = record.valueChangeTwd;
+      if (typeof delta !== "number" || Number.isNaN(delta)) {
+        return <div className="cell-delta cell-delta--flat">--</div>;
+      }
 
-    if (delta === 0) {
-      return <div className="cell-delta cell-delta--flat">0.00 (0.00%)</div>;
-    }
+      if (delta === 0) {
+        return <div className="cell-delta cell-delta--flat">0.00 (0.00%)</div>;
+      }
 
-    const arrow = delta > 0 ? "▲" : "▼";
-    return (
-      <div className={getDeltaClassName(delta)}>
-        {arrow} {formatSignedTwd(delta)} ({formatChangePercent(record.valueChangePct)})
-      </div>
-    );
-  }, [getDeltaClassName]);
+      const arrow = delta > 0 ? "▲" : "▼";
+      return (
+        <div className={getDeltaClassName(delta)}>
+          {arrow} {formatSignedTwd(delta)} (
+          {formatChangePercent(record.valueChangePct)})
+        </div>
+      );
+    },
+    [getDeltaClassName],
+  );
 
-  const tableColumns = useMemo(
-    () => {
-      const columns = [
+  const tableColumns = useMemo(() => {
+    const columns = [
       {
         title: "",
         key: "drag",
@@ -880,46 +901,50 @@ function App() {
       },
     ];
 
-      return isMobileViewport
-        ? columns.filter((column) => column.key !== "drag")
-        : columns;
-    },
-    [
-      dragDisabled,
-      editingHoldingId,
-      editingHoldingTag,
-      editingShares,
-      handleCancelEdit,
-      handleEditClick,
-      handleRemoveHolding,
-      renderPriceDelta,
-      handleSaveShares,
-      holdingTagOptions,
-      isMobileViewport,
-      loadingActionById,
-      loadingReorder,
-      renderValueDelta,
-    ],
-  );
+    return isMobileViewport
+      ? columns.filter((column) => column.key !== "drag")
+      : columns;
+  }, [
+    dragDisabled,
+    editingHoldingId,
+    editingHoldingTag,
+    editingShares,
+    handleCancelEdit,
+    handleEditClick,
+    handleRemoveHolding,
+    renderPriceDelta,
+    handleSaveShares,
+    holdingTagOptions,
+    isMobileViewport,
+    loadingActionById,
+    loadingReorder,
+    renderValueDelta,
+  ]);
 
   const cashTableColumns = useMemo(
     () => [
       {
-        title: "銀行",
-        dataIndex: "bankName",
-        key: "bankName",
-        render: (_, record) =>
-          record.bankCode ? `${record.bankName} (${record.bankCode})` : record.bankName,
-      },
-      {
-        title: "帳戶別名",
-        dataIndex: "accountAlias",
-        key: "accountAlias",
+        title: "帳戶",
+        key: "account",
+        width: "25%",
+        render: (_, record) => (
+          <div>
+            <div className="holding-main-text">
+              {record.bankCode
+                ? `${record.bankName} (${record.bankCode})`
+                : record.bankName}
+            </div>
+            <Text type="secondary" className="holding-subline">
+              {record.accountAlias}
+            </Text>
+          </div>
+        ),
       },
       {
         title: "現金餘額 (TWD)",
         dataIndex: "balanceTwd",
         key: "balanceTwd",
+        width: "25%",
         align: "right",
         render: (value, record) => {
           if (editingCashAccountId !== record.id) {
@@ -941,12 +966,13 @@ function App() {
         title: "更新時間",
         dataIndex: "updatedAt",
         key: "updatedAt",
+        width: "25%",
         render: (value) => formatDateTime(value),
       },
       {
         title: "操作",
         key: "actions",
-        width: 180,
+        width: "25%",
         render: (_, record) => {
           const rowLoading = Boolean(loadingCashActionById[record.id]);
           const isEditing = editingCashAccountId === record.id;
@@ -1057,7 +1083,9 @@ function App() {
           return;
         }
         setCloudSyncStatus("error");
-        setCloudSyncError(error instanceof Error ? error.message : "同步初始化失敗");
+        setCloudSyncError(
+          error instanceof Error ? error.message : "同步初始化失敗",
+        );
       } finally {
         if (alive) {
           setAuthReady(true);
@@ -1247,7 +1275,9 @@ function App() {
   };
 
   const handleAddCashAccount = async (values) => {
-    const selected = bankOptions.find((item) => item.bankName === values.bankName);
+    const selected = bankOptions.find(
+      (item) => item.bankName === values.bankName,
+    );
 
     try {
       setLoadingAddCashAccount(true);
@@ -1263,7 +1293,9 @@ function App() {
       message.success("銀行現金帳戶已儲存");
       return true;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "新增銀行帳戶失敗");
+      message.error(
+        error instanceof Error ? error.message : "新增銀行帳戶失敗",
+      );
       return false;
     } finally {
       setLoadingAddCashAccount(false);
@@ -1307,11 +1339,7 @@ function App() {
 
   const progressMaxTwd = useMemo(() => {
     const unit = 10000000;
-    const maxValue = Math.max(
-      flooredCurrentTwd,
-      flooredBaselineTwd,
-      30000000,
-    );
+    const maxValue = Math.max(flooredCurrentTwd, flooredBaselineTwd, 30000000);
     return Math.ceil(maxValue / unit) * unit;
   }, [flooredBaselineTwd, flooredCurrentTwd]);
 
@@ -1416,37 +1444,50 @@ function App() {
       setPullDistance(0);
       setIsPullRefreshing(false);
     }
-  }, [authUser, isPullRefreshing, loadAllData, message, performCloudSync, refreshCloudRuntime]);
+  }, [
+    authUser,
+    isPullRefreshing,
+    loadAllData,
+    message,
+    performCloudSync,
+    refreshCloudRuntime,
+  ]);
 
-  const handleTouchStart = useCallback((event) => {
-    if (isPullRefreshing || event.touches.length !== 1) {
-      return;
-    }
-    if (window.scrollY > 0) {
-      pullingRef.current = false;
-      return;
-    }
-    pullStartYRef.current = event.touches[0].clientY;
-    pullingRef.current = true;
-  }, [isPullRefreshing]);
+  const handleTouchStart = useCallback(
+    (event) => {
+      if (isPullRefreshing || event.touches.length !== 1) {
+        return;
+      }
+      if (window.scrollY > 0) {
+        pullingRef.current = false;
+        return;
+      }
+      pullStartYRef.current = event.touches[0].clientY;
+      pullingRef.current = true;
+    },
+    [isPullRefreshing],
+  );
 
-  const handleTouchMove = useCallback((event) => {
-    if (!pullingRef.current || isPullRefreshing) {
-      return;
-    }
-    const delta = event.touches[0].clientY - pullStartYRef.current;
-    if (delta <= 0) {
-      setPullDistance(0);
-      return;
-    }
-    if (window.scrollY > 0) {
-      setPullDistance(0);
-      return;
-    }
-    const next = Math.min(PULL_REFRESH_MAX, Math.round(delta * 0.55));
-    setPullDistance(next);
-    event.preventDefault();
-  }, [isPullRefreshing]);
+  const handleTouchMove = useCallback(
+    (event) => {
+      if (!pullingRef.current || isPullRefreshing) {
+        return;
+      }
+      const delta = event.touches[0].clientY - pullStartYRef.current;
+      if (delta <= 0) {
+        setPullDistance(0);
+        return;
+      }
+      if (window.scrollY > 0) {
+        setPullDistance(0);
+        return;
+      }
+      const next = Math.min(PULL_REFRESH_MAX, Math.round(delta * 0.55));
+      setPullDistance(next);
+      event.preventDefault();
+    },
+    [isPullRefreshing],
+  );
 
   const handleTouchEnd = useCallback(() => {
     if (!pullingRef.current || isPullRefreshing) {
@@ -1513,7 +1554,9 @@ function App() {
       >
         <div
           className={`pull-refresh-indicator ${isPullRefreshing ? "is-refreshing" : ""}`}
-          style={{ height: isPullRefreshing ? PULL_REFRESH_TRIGGER : pullDistance }}
+          style={{
+            height: isPullRefreshing ? PULL_REFRESH_TRIGGER : pullDistance,
+          }}
         >
           <Text type="secondary">
             {isPullRefreshing
@@ -1610,7 +1653,9 @@ function App() {
                           }}
                         />
                       ))}
-                    <Tooltip title={`昨日23:59：${formatTwd(flooredBaselineTwd)}`}>
+                    <Tooltip
+                      title={`昨日23:59：${formatTwd(flooredBaselineTwd)}`}
+                    >
                       <div
                         className={`networth-marker networth-marker--baseline ${isMarkerOverlap ? "networth-marker--offset" : ""}`}
                         style={{ left: `${baselineRatio * 100}%` }}
@@ -1836,6 +1881,7 @@ function App() {
                 dataSource={cashRows}
                 columns={cashTableColumns}
                 pagination={false}
+                tableLayout="fixed"
                 scroll={{ x: 860 }}
                 locale={{
                   emptyText: "尚未新增銀行現金帳戶",
