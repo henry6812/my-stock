@@ -103,6 +103,8 @@ const { Text } = Typography;
 const PULL_REFRESH_MAX = 96;
 const PULL_REFRESH_TRIGGER = 68;
 const NUMBER_ANIMATION_DURATION_MS = 2000;
+const PROGRESS_UNIT_TWD = 10000000;
+const PROGRESS_MIN_MAX_TWD = 30000000;
 
 const formatSignedPrice = (value, currency = "TWD") => {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -160,6 +162,39 @@ const filterRowsByHoldingTab = (targetRows, tab) => {
     return targetRows.filter((row) => row.market === "US");
   }
   return targetRows;
+};
+
+const clampRatio = (value) => Math.min(1, Math.max(0, value));
+
+const getProgressDisplayTargets = (currentTotal, baselineTotal) => {
+  const flooredCurrent = floorToTenThousand(currentTotal);
+  const flooredBaseline = floorToTenThousand(baselineTotal);
+  const maxValue = Math.max(
+    flooredCurrent,
+    flooredBaseline,
+    PROGRESS_MIN_MAX_TWD,
+  );
+  const progressMax =
+    Math.ceil(maxValue / PROGRESS_UNIT_TWD) * PROGRESS_UNIT_TWD || 0;
+
+  if (progressMax <= 0) {
+    return {
+      currentRatio: 0,
+      baselineRatio: 0,
+      deltaLeftRatio: 0,
+      deltaWidthRatio: 0,
+    };
+  }
+
+  const currentRatio = clampRatio(flooredCurrent / progressMax);
+  const baselineRatio = clampRatio(flooredBaseline / progressMax);
+
+  return {
+    currentRatio,
+    baselineRatio,
+    deltaLeftRatio: Math.min(currentRatio, baselineRatio),
+    deltaWidthRatio: Math.abs(currentRatio - baselineRatio),
+  };
 };
 
 const RowContext = createContext({
@@ -271,6 +306,11 @@ function App() {
   const [editingCashBalance, setEditingCashBalance] = useState(null);
   const [loadingCashActionById, setLoadingCashActionById] = useState({});
   const [rowAnimationValues, setRowAnimationValues] = useState({});
+  const [progressDisplayRatio, setProgressDisplayRatio] = useState(0);
+  const [baselineDisplayRatio, setBaselineDisplayRatio] = useState(0);
+  const [deltaDisplayLeftRatio, setDeltaDisplayLeftRatio] = useState(0);
+  const [deltaDisplayWidthRatio, setDeltaDisplayWidthRatio] = useState(0);
+  const [markerDisplayWan, setMarkerDisplayWan] = useState(0);
   const pullStartYRef = useRef(0);
   const pullingRef = useRef(false);
   const activeHoldingTabRef = useRef("all");
@@ -279,8 +319,17 @@ function App() {
   const totalAnimationRef = useRef(null);
   const rowAnimationTargetRef = useRef([]);
   const rowAnimationInstanceRef = useRef(null);
+  const progressAnimationRef = useRef(null);
+  const markerValueAnimationRef = useRef(null);
   const animationLockedUntilRef = useRef(0);
   const latestTotalTwdRef = useRef(0);
+  const latestMarkerWanRef = useRef(0);
+  const latestProgressTargetsRef = useRef({
+    currentRatio: 0,
+    baselineRatio: 0,
+    deltaLeftRatio: 0,
+    deltaWidthRatio: 0,
+  });
 
   const isNumberAnimationLocked = useCallback(
     () => Date.now() < animationLockedUntilRef.current,
@@ -308,6 +357,40 @@ function App() {
         rowAnimationInstanceRef.current = null;
       }
       animationLockedUntilRef.current = 0;
+      return true;
+    },
+    [isNumberAnimationLocked],
+  );
+
+  const stopProgressAnimation = useCallback(
+    (reason = "auto") => {
+      const canStop =
+        reason === "manual" || reason === "force" || !isNumberAnimationLocked();
+      if (!canStop) {
+        return false;
+      }
+
+      if (progressAnimationRef.current) {
+        progressAnimationRef.current.pause();
+        progressAnimationRef.current = null;
+      }
+      return true;
+    },
+    [isNumberAnimationLocked],
+  );
+
+  const stopMarkerValueAnimation = useCallback(
+    (reason = "auto") => {
+      const canStop =
+        reason === "manual" || reason === "force" || !isNumberAnimationLocked();
+      if (!canStop) {
+        return false;
+      }
+
+      if (markerValueAnimationRef.current) {
+        markerValueAnimationRef.current.pause();
+        markerValueAnimationRef.current = null;
+      }
       return true;
     },
     [isNumberAnimationLocked],
@@ -414,6 +497,69 @@ function App() {
     });
   }, []);
 
+  const animateProgress = useCallback((targetRatios) => {
+    const target = {
+      current: 0,
+      baseline: 0,
+      deltaLeft: 0,
+      deltaWidth: 0,
+    };
+    setProgressDisplayRatio(0);
+    setBaselineDisplayRatio(0);
+    setDeltaDisplayLeftRatio(0);
+    setDeltaDisplayWidthRatio(0);
+
+    progressAnimationRef.current = anime({
+      targets: target,
+      current: targetRatios.currentRatio,
+      baseline: targetRatios.baselineRatio,
+      deltaLeft: targetRatios.deltaLeftRatio,
+      deltaWidth: targetRatios.deltaWidthRatio,
+      duration: NUMBER_ANIMATION_DURATION_MS,
+      easing: "easeOutExpo",
+      update: () => {
+        setProgressDisplayRatio(target.current);
+        setBaselineDisplayRatio(target.baseline);
+        setDeltaDisplayLeftRatio(target.deltaLeft);
+        setDeltaDisplayWidthRatio(target.deltaWidth);
+      },
+      complete: () => {
+        setProgressDisplayRatio(latestProgressTargetsRef.current.currentRatio);
+        setBaselineDisplayRatio(latestProgressTargetsRef.current.baselineRatio);
+        setDeltaDisplayLeftRatio(latestProgressTargetsRef.current.deltaLeftRatio);
+        setDeltaDisplayWidthRatio(
+          latestProgressTargetsRef.current.deltaWidthRatio,
+        );
+      },
+    });
+  }, []);
+
+  const animateMarkerValue = useCallback((targetWan) => {
+    const safeTargetWan =
+      Number.isFinite(targetWan) && targetWan > 0 ? Math.floor(targetWan) : 0;
+
+    if (safeTargetWan === 0) {
+      setMarkerDisplayWan(0);
+      return;
+    }
+
+    const target = { wan: 0 };
+    setMarkerDisplayWan(0);
+
+    markerValueAnimationRef.current = anime({
+      targets: target,
+      wan: safeTargetWan,
+      duration: NUMBER_ANIMATION_DURATION_MS,
+      easing: "easeOutExpo",
+      update: () => {
+        setMarkerDisplayWan(Math.floor(target.wan));
+      },
+      complete: () => {
+        setMarkerDisplayWan(latestMarkerWanRef.current);
+      },
+    });
+  }, []);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -438,6 +584,17 @@ function App() {
     setLastUpdatedAt(portfolio.lastUpdatedAt);
     setSyncError(portfolio.syncStatus === "error" ? portfolio.syncError : "");
     setTrend(trendData);
+    const progressTargets = getProgressDisplayTargets(
+      portfolio.totalTwd,
+      portfolio.baselineTotalTwd ?? 0,
+    );
+    const targetMarkerWan = Math.floor(
+      floorToTenThousand(portfolio.totalTwd) / 10000,
+    );
+    latestMarkerWanRef.current = Number.isFinite(targetMarkerWan)
+      ? Math.max(0, targetMarkerWan)
+      : 0;
+    latestProgressTargetsRef.current = progressTargets;
 
     const shouldAnimateNow =
       !didRunInitialAnimationRef.current || shouldAnimateNumbersRef.current;
@@ -445,8 +602,12 @@ function App() {
       didRunInitialAnimationRef.current = true;
       shouldAnimateNumbersRef.current = false;
       stopNumberAnimations("manual");
+      stopProgressAnimation("manual");
+      stopMarkerValueAnimation("manual");
       beginNumberAnimationLock();
       animateTotalValue(portfolio.totalTwd);
+      animateProgress(progressTargets);
+      animateMarkerValue(latestMarkerWanRef.current);
       animateVisibleRows(
         filterRowsByHoldingTab(
           Array.isArray(portfolio.rows) ? portfolio.rows : [],
@@ -456,8 +617,15 @@ function App() {
     } else {
       if (!isNumberAnimationLocked()) {
         stopNumberAnimations("auto");
+        stopProgressAnimation("auto");
+        stopMarkerValueAnimation("auto");
         setDisplayTotalTwd(portfolio.totalTwd);
         setRowAnimationValues({});
+        setProgressDisplayRatio(progressTargets.currentRatio);
+        setBaselineDisplayRatio(progressTargets.baselineRatio);
+        setDeltaDisplayLeftRatio(progressTargets.deltaLeftRatio);
+        setDeltaDisplayWidthRatio(progressTargets.deltaWidthRatio);
+        setMarkerDisplayWan(latestMarkerWanRef.current);
       }
     }
 
@@ -478,12 +646,16 @@ function App() {
     console.info("Total Change (%):", portfolio.totalChangePct);
     console.groupEnd();
   }, [
+    animateProgress,
+    animateMarkerValue,
     animateTotalValue,
     animateVisibleRows,
     beginNumberAnimationLock,
     isNumberAnimationLocked,
     range,
+    stopMarkerValueAnimation,
     stopNumberAnimations,
+    stopProgressAnimation,
   ]);
 
   const setRowLoading = useCallback((id, isLoading) => {
@@ -1354,8 +1526,10 @@ function App() {
   useEffect(
     () => () => {
       stopNumberAnimations("force");
+      stopProgressAnimation("force");
+      stopMarkerValueAnimation("force");
     },
-    [stopNumberAnimations],
+    [stopMarkerValueAnimation, stopNumberAnimations, stopProgressAnimation],
   );
 
   useEffect(() => {
@@ -1573,6 +1747,10 @@ function App() {
   const flooredBaselineTwd = useMemo(
     () => floorToTenThousand(baselineTotalTwd),
     [baselineTotalTwd],
+  );
+  const currentMarkerWanLabel = useMemo(
+    () => `${Math.max(0, markerDisplayWan).toLocaleString("zh-TW")} 萬`,
+    [markerDisplayWan],
   );
 
   const progressMaxTwd = useMemo(() => {
@@ -1866,14 +2044,14 @@ function App() {
                   <div className="networth-progress-track">
                     <div
                       className="networth-progress-fill"
-                      style={{ width: `${currentRatio * 100}%` }}
+                      style={{ width: `${progressDisplayRatio * 100}%` }}
                     />
                     {deltaSegmentClassName ? (
                       <div
                         className={deltaSegmentClassName}
                         style={{
-                          left: `${deltaSegmentLeftRatio * 100}%`,
-                          width: `${deltaSegmentWidthRatio * 100}%`,
+                          left: `${deltaDisplayLeftRatio * 100}%`,
+                          width: `${deltaDisplayWidthRatio * 100}%`,
                         }}
                       />
                     ) : null}
@@ -1896,20 +2074,21 @@ function App() {
                     >
                       <div
                         className={`networth-marker networth-marker--baseline ${isMarkerOverlap ? "networth-marker--offset" : ""}`}
-                        style={{ left: `${baselineRatio * 100}%` }}
+                        style={{ left: `${baselineDisplayRatio * 100}%` }}
                       >
                         <span className="networth-marker-line" />
                       </div>
                     </Tooltip>
-                    <Tooltip title={`目前：${formatTwd(flooredCurrentTwd)}`}>
-                      <div
-                        className="networth-marker networth-marker--current"
-                        style={{ left: `${currentRatio * 100}%` }}
-                      >
-                        <span className="networth-marker-caret" />
-                        <span className="networth-marker-line" />
-                      </div>
-                    </Tooltip>
+                    <div
+                      className="networth-marker networth-marker--current"
+                      style={{ left: `${progressDisplayRatio * 100}%` }}
+                    >
+                      <span className="networth-marker-caret" />
+                      <span className="networth-marker-line" />
+                      <span className="networth-marker-value">
+                        {currentMarkerWanLabel}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

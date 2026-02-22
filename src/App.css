@@ -104,7 +104,8 @@
 
 .networth-progress-wrap {
   width: min(680px, 92vw);
-  margin: 24px auto 24px;
+  margin: 36px auto 36px;
+  padding-bottom: 22px;
 }
 
 .networth-progress-scale {
@@ -114,10 +115,10 @@
 
 .networth-progress-scale-label {
   position: absolute;
-  top: 0;
+  top: 36px;
   transform: translateX(-50%);
   font-size: 11px;
-  color: #6b7280;
+  color: #8c909a;
   white-space: nowrap;
 }
 
@@ -255,6 +256,23 @@
   top: -42px;
 }
 
+.networth-marker-value {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  font-size: 11px;
+  line-height: 1.2;
+  color: #154887;
+  white-space: nowrap;
+  pointer-events: none;
+  background: #dee1fb;
+  border: 1px solid #316eb8;
+  border-radius: 4px;
+  padding: 2px 4px;
+  /* box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08); */
+}
+
 .networth-progress-meta {
   display: block;
   margin-top: 6px;
@@ -377,7 +395,7 @@
 
   .networth-progress-wrap {
     width: 100%;
-    margin-top: 14px;
+    margin-top: 24px;
   }
 
   .networth-progress-scale-label {
