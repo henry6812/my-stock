@@ -13,6 +13,7 @@ import {
   Button,
   Card,
   Col,
+  Drawer,
   Dropdown,
   Empty,
   InputNumber,
@@ -287,6 +288,9 @@ function App() {
   const [activeHoldingTab, setActiveHoldingTab] = useState("all");
   const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false);
   const [isAddCashModalOpen, setIsAddCashModalOpen] = useState(false);
+  const [isAddHoldingSheetOpen, setIsAddHoldingSheetOpen] = useState(false);
+  const [isAddCashSheetOpen, setIsAddCashSheetOpen] = useState(false);
+  const [isUpdateSheetOpen, setIsUpdateSheetOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(
     typeof window !== "undefined" ? window.innerWidth <= 768 : false,
   );
@@ -1608,11 +1612,13 @@ function App() {
       await loadAllData();
       await performCloudSync();
       setIsAddHoldingModalOpen(false);
+      setIsAddHoldingSheetOpen(false);
       message.success("持股已儲存並更新價格");
       return true;
     } catch (error) {
       await loadAllData();
       setIsAddHoldingModalOpen(false);
+      setIsAddHoldingSheetOpen(false);
       message.warning(
         `持股已儲存，但抓價失敗，可稍後按「更新價格」補抓：${error instanceof Error ? error.message : "未知錯誤"}`,
       );
@@ -1679,6 +1685,7 @@ function App() {
       await loadAllData();
       await performCloudSync();
       setIsAddCashModalOpen(false);
+      setIsAddCashSheetOpen(false);
       message.success("銀行現金帳戶已儲存");
       return true;
     } catch (error) {
@@ -1739,6 +1746,24 @@ function App() {
     const hours = Math.floor((diffMinutes % 1440) / 60);
     return `${days}d ${hours}h 前`;
   }, [lastUpdatedAt, nowTick]);
+
+  const updateMenuItems = useMemo(
+    () => [
+      { key: "TW", label: "更新台股" },
+      { key: "US", label: "更新美股" },
+      { type: "divider" },
+      {
+        key: "lastUpdatedInfo",
+        disabled: true,
+        label: (
+          <span className="price-update-menu-meta">
+            上次更新價格於 {priceUpdatedRelativeText}
+          </span>
+        ),
+      },
+    ],
+    [priceUpdatedRelativeText],
+  );
 
   const flooredCurrentTwd = useMemo(
     () => floorToTenThousand(totalTwd),
@@ -2204,7 +2229,13 @@ function App() {
                       type="text"
                       size="small"
                       className="title-add-btn"
-                      onClick={() => setIsAddHoldingModalOpen(true)}
+                      onClick={() => {
+                        if (isMobileViewport) {
+                          setIsAddHoldingSheetOpen(true);
+                        } else {
+                          setIsAddHoldingModalOpen(true);
+                        }
+                      }}
                       disabled={loadingAddHolding}
                       icon={<PlusOutlined />}
                       aria-label="新增持股"
@@ -2224,34 +2255,35 @@ function App() {
                       >
                         更新價格
                       </Button>
-                      <Dropdown
-                        trigger={["click"]}
-                        disabled={loadingRefresh}
-                        overlayClassName="price-update-menu"
-                        menu={{
-                          items: [
-                            { key: "TW", label: "更新台股" },
-                            { key: "US", label: "更新美股" },
-                            { type: "divider" },
-                            {
-                              key: "lastUpdatedInfo",
-                              disabled: true,
-                              label: (
-                                <span className="price-update-menu-meta">
-                                  上次更新價格於 {priceUpdatedRelativeText}
-                                </span>
-                              ),
-                            },
-                          ],
-                          onClick: ({ key }) => handleRefreshPrices(key),
-                        }}
-                      >
+                      {isMobileViewport ? (
                         <Button
                           type="primary"
                           icon={<DownOutlined />}
                           aria-label="選擇更新市場"
+                          disabled={loadingRefresh}
+                          onClick={() => setIsUpdateSheetOpen(true)}
                         />
-                      </Dropdown>
+                      ) : (
+                        <Dropdown
+                          trigger={["click"]}
+                          disabled={loadingRefresh}
+                          overlayClassName="price-update-menu"
+                          menu={{
+                            items: updateMenuItems,
+                            onClick: ({ key }) => {
+                              if (key === "TW" || key === "US") {
+                                handleRefreshPrices(key);
+                              }
+                            },
+                          }}
+                        >
+                          <Button
+                            type="primary"
+                            icon={<DownOutlined />}
+                            aria-label="選擇更新市場"
+                          />
+                        </Dropdown>
+                      )}
                     </Space.Compact>
                   </Space>
                 </div>
@@ -2300,7 +2332,13 @@ function App() {
                       type="text"
                       size="small"
                       className="title-add-btn"
-                      onClick={() => setIsAddCashModalOpen(true)}
+                      onClick={() => {
+                        if (isMobileViewport) {
+                          setIsAddCashSheetOpen(true);
+                        } else {
+                          setIsAddCashModalOpen(true);
+                        }
+                      }}
                       disabled={loadingAddCashAccount}
                       icon={<PlusOutlined />}
                       aria-label="新增銀行帳戶"
@@ -2332,9 +2370,101 @@ function App() {
           </div>
         )}
 
+        <Drawer
+          placement="bottom"
+          open={isMobileViewport && isUpdateSheetOpen}
+          onClose={() => setIsUpdateSheetOpen(false)}
+          height={212}
+          closable={false}
+          maskClosable
+          destroyOnClose={false}
+          className="update-sheet"
+          bodyStyle={{ padding: 16 }}
+        >
+          <div className="update-sheet-actions">
+            <Button
+              block
+              onClick={() => {
+                setIsUpdateSheetOpen(false);
+                handleRefreshPrices("TW");
+              }}
+              disabled={loadingRefresh}
+              loading={loadingRefresh}
+            >
+              更新台股
+            </Button>
+            <Button
+              block
+              onClick={() => {
+                setIsUpdateSheetOpen(false);
+                handleRefreshPrices("US");
+              }}
+              disabled={loadingRefresh}
+              loading={loadingRefresh}
+            >
+              更新美股
+            </Button>
+          </div>
+          <div className="update-sheet-footer">
+            上次更新價格於 {priceUpdatedRelativeText}
+          </div>
+        </Drawer>
+
+        <Drawer
+          placement="bottom"
+          title="新增持股"
+          open={isMobileViewport && isAddHoldingSheetOpen}
+          onClose={() => {
+            if (!loadingAddHolding) {
+              setIsAddHoldingSheetOpen(false);
+            }
+          }}
+          height="72vh"
+          closable={!loadingAddHolding}
+          maskClosable={!loadingAddHolding}
+          keyboard={!loadingAddHolding}
+          destroyOnClose
+          className="form-bottom-sheet holding-sheet"
+          bodyStyle={{ padding: 16 }}
+        >
+          <HoldingForm
+            onSubmit={handleAddHolding}
+            loading={loadingAddHolding}
+            submitText="新增持股"
+            layout="vertical"
+            holdingTagOptions={holdingTagOptions}
+          />
+        </Drawer>
+
+        <Drawer
+          placement="bottom"
+          title="新增銀行帳戶"
+          open={isMobileViewport && isAddCashSheetOpen}
+          onClose={() => {
+            if (!loadingAddCashAccount) {
+              setIsAddCashSheetOpen(false);
+            }
+          }}
+          height="72vh"
+          closable={!loadingAddCashAccount}
+          maskClosable={!loadingAddCashAccount}
+          keyboard={!loadingAddCashAccount}
+          destroyOnClose
+          className="form-bottom-sheet cash-sheet"
+          bodyStyle={{ padding: 16 }}
+        >
+          <CashAccountForm
+            onSubmit={handleAddCashAccount}
+            loading={loadingAddCashAccount}
+            loadingBankOptions={loadingBankOptions}
+            bankOptions={bankOptions}
+            submitText="新增銀行帳戶"
+          />
+        </Drawer>
+
         <Modal
           title="新增持股"
-          open={isAddHoldingModalOpen}
+          open={!isMobileViewport && isAddHoldingModalOpen}
           onCancel={() => {
             if (!loadingAddHolding) {
               setIsAddHoldingModalOpen(false);
@@ -2357,7 +2487,7 @@ function App() {
 
         <Modal
           title="新增銀行帳戶"
-          open={isAddCashModalOpen}
+          open={!isMobileViewport && isAddCashModalOpen}
           onCancel={() => {
             if (!loadingAddCashAccount) {
               setIsAddCashModalOpen(false);

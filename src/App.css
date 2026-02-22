@@ -444,6 +444,48 @@
   font-weight: 400;
 }
 
+.update-sheet .ant-drawer-content {
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+}
+
+.update-sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.update-sheet-footer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #d9d9d9;
+  color: #8c8c8c;
+  font-size: 12px;
+  text-align: center;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.form-bottom-sheet .ant-drawer-content {
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+}
+
+.form-bottom-sheet .ant-drawer-header {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.form-bottom-sheet .ant-drawer-body {
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+
+.form-bottom-sheet .ant-form {
+  max-height: 100%;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
 .title-add-btn.ant-btn {
   width: 28px;
   min-width: 28px;
