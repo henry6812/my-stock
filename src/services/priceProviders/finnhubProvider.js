@@ -1,4 +1,5 @@
 import { getTwQuoteFromTwse } from './twseRwdProvider'
+import { getTwQuoteFromTwseAll } from './twseProvider'
 import { getTwQuoteFromTpex } from './tpexProvider'
 const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1'
 
@@ -53,24 +54,8 @@ const toFinnhubSymbol = (symbol, market) => {
 
 export const getHoldingQuote = async ({ symbol, market }) => {
   if (market === 'TW') {
-    let finnhubError = null
     let twseError = null
-
-    try {
-      const finnhubSymbol = toFinnhubSymbol(symbol, market)
-      const quote = await requestFinnhub('/quote', { symbol: finnhubSymbol })
-      const price = Number(quote?.c)
-      if (Number.isFinite(price) && price > 0) {
-        return {
-          price,
-          name: symbol,
-          currency: 'TWD',
-        }
-      }
-      finnhubError = new Error(`No quote found for symbol: ${finnhubSymbol}`)
-    } catch (error) {
-      finnhubError = error
-    }
+    let twseAllError = null
 
     try {
       return await getTwQuoteFromTwse(symbol)
@@ -79,12 +64,18 @@ export const getHoldingQuote = async ({ symbol, market }) => {
     }
 
     try {
+      return await getTwQuoteFromTwseAll(symbol)
+    } catch (error) {
+      twseAllError = error
+    }
+
+    try {
       return await getTwQuoteFromTpex(symbol)
     } catch (tpexError) {
       const finalMessage = [
         `Taiwan quote fallback failed for ${symbol}.`,
-        `Finnhub: ${finnhubError instanceof Error ? finnhubError.message : String(finnhubError)}`,
         `TWSE: ${twseError instanceof Error ? twseError.message : String(twseError)}`,
+        `TWSE_ALL: ${twseAllError instanceof Error ? twseAllError.message : String(twseAllError)}`,
         `TPEX: ${tpexError instanceof Error ? tpexError.message : String(tpexError)}`,
       ].join(' ')
       throw new Error(finalMessage)

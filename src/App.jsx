@@ -13,6 +13,7 @@ import {
   Button,
   Card,
   Col,
+  Dropdown,
   Empty,
   InputNumber,
   Layout,
@@ -31,6 +32,7 @@ import {
 import {
   AreaChartOutlined,
   CloudSyncOutlined,
+  DownOutlined,
   DeleteOutlined,
   EditOutlined,
   GoogleOutlined,
@@ -1204,15 +1206,39 @@ function App() {
     }
   };
 
-  const handleRefreshPrices = async () => {
+  const handleRefreshPrices = async (market = "ALL") => {
+    const targetMarket =
+      market === "TW" || market === "US" || market === "ALL" ? market : "ALL";
     try {
       setLoadingRefresh(true);
-      const result = await refreshPrices();
+      const result = await refreshPrices({ market: targetMarket });
       await loadAllData();
       await performCloudSync();
-      message.success(
-        `更新完成，已更新 ${result.updatedCount} 檔（${dayjs(result.lastUpdatedAt).format("HH:mm:ss")}）`,
-      );
+      if (result.targetCount === 0) {
+        if (targetMarket === "TW") {
+          message.info("目前沒有可更新的台股持股");
+        } else if (targetMarket === "US") {
+          message.info("目前沒有可更新的美股持股");
+        } else {
+          message.info("目前沒有可更新的持股");
+        }
+        return;
+      }
+
+      const updatedLabel = `${result.updatedCount}/${result.targetCount} 檔`;
+      if (targetMarket === "TW") {
+        message.success(
+          `台股更新完成，已更新 ${updatedLabel}（${dayjs(result.lastUpdatedAt).format("HH:mm:ss")}）`,
+        );
+      } else if (targetMarket === "US") {
+        message.success(
+          `美股更新完成，已更新 ${updatedLabel}（${dayjs(result.lastUpdatedAt).format("HH:mm:ss")}）`,
+        );
+      } else {
+        message.success(
+          `更新完成，已更新 ${updatedLabel}（${dayjs(result.lastUpdatedAt).format("HH:mm:ss")}）`,
+        );
+      }
     } catch (error) {
       message.error(error instanceof Error ? error.message : "更新價格失敗");
     } finally {
@@ -1717,15 +1743,34 @@ function App() {
               }
               extra={
                 <Space>
-                  <Tooltip title="更新價格">
+                  <Space.Compact>
                     <Button
                       type="primary"
-                      onClick={handleRefreshPrices}
+                      onClick={() => handleRefreshPrices("ALL")}
                       loading={loadingRefresh}
                       icon={<ReloadOutlined />}
-                      aria-label="更新價格"
-                    />
-                  </Tooltip>
+                      aria-label="更新價格（全部）"
+                    >
+                      更新價格
+                    </Button>
+                    <Dropdown
+                      trigger={["click"]}
+                      disabled={loadingRefresh}
+                      menu={{
+                        items: [
+                          { key: "TW", label: "更新台股" },
+                          { key: "US", label: "更新美股" },
+                        ],
+                        onClick: ({ key }) => handleRefreshPrices(key),
+                      }}
+                    >
+                      <Button
+                        type="primary"
+                        icon={<DownOutlined />}
+                        aria-label="選擇更新市場"
+                      />
+                    </Dropdown>
+                  </Space.Compact>
                   <Tooltip title="新增持股">
                     <Button
                       type="primary"

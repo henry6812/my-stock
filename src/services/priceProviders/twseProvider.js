@@ -32,3 +32,22 @@ export const getTwClosePrices = async () => {
 
   return result
 }
+
+export const getTwQuoteFromTwseAll = async (symbol) => {
+  const normalizedSymbol = String(symbol ?? '').trim().toUpperCase()
+  if (!normalizedSymbol) {
+    throw new Error('No Taiwan quote found for symbol: invalid symbol')
+  }
+
+  const closePrices = await getTwClosePrices()
+  const hit = closePrices[normalizedSymbol]
+  if (!hit) {
+    throw new Error(`No Taiwan quote found for symbol: ${normalizedSymbol}`)
+  }
+
+  return {
+    price: hit.price,
+    name: hit.name || normalizedSymbol,
+    currency: 'TWD',
+  }
+}

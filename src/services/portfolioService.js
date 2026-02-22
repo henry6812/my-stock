@@ -552,14 +552,28 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
   }
 }
 
-export const refreshPrices = async () => {
+export const refreshPrices = async ({ market: inputMarket = 'ALL' } = {}) => {
+  const normalized = String(inputMarket ?? 'ALL').toUpperCase()
+  const market = (normalized === 'TW' || normalized === 'US' || normalized === 'ALL')
+    ? normalized
+    : 'ALL'
+
   const holdings = await getActiveHoldings()
-  if (holdings.length === 0) {
+  const targetHoldings = market === 'ALL'
+    ? holdings
+    : holdings.filter((item) => item.market === market)
+
+  if (targetHoldings.length === 0) {
     const lastUpdatedAt = await setSyncMeta({ status: 'success' })
-    return { updatedCount: 0, lastUpdatedAt }
+    return {
+      updatedCount: 0,
+      targetCount: 0,
+      market,
+      lastUpdatedAt,
+    }
   }
 
-  const usHoldings = holdings.filter((item) => item.market === MARKET.US)
+  const usHoldings = targetHoldings.filter((item) => item.market === MARKET.US)
 
   try {
     let usdTwdRate = 1
@@ -584,12 +598,12 @@ export const refreshPrices = async () => {
     const nowIso = getNowIso()
     const snapshots = []
 
-    for (let i = 0; i < holdings.length; i += 1) {
+    for (let i = 0; i < targetHoldings.length; i += 1) {
       if (i > 0) {
         await sleepForRateLimit(1_200)
       }
 
-      const holding = holdings[i]
+      const holding = targetHoldings[i]
       const quote = await getHoldingQuote(holding)
       const valueTwd = holding.market === MARKET.US
         ? quote.price * holding.shares * usdTwdRate
@@ -645,6 +659,8 @@ export const refreshPrices = async () => {
 
     return {
       updatedCount: snapshots.length,
+      targetCount: targetHoldings.length,
+      market,
       lastUpdatedAt: nowIso,
     }
   } catch (error) {

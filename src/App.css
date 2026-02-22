@@ -176,10 +176,11 @@
 
 .networth-delta-segment--down {
   background-color: rgba(193, 23, 23, 0.24);
+  border: 1px solid rgba(193, 23, 23, 0.24);
   background-image: repeating-linear-gradient(
     -45deg,
-    rgba(193, 23, 23, 0.48) 0 6px,
-    rgba(193, 23, 23, 0.12) 6px 12px
+    rgba(193, 23, 23, 0.48) 0 1px,
+    rgba(193, 23, 23, 0.12) 1px 3px
   );
 }
 
