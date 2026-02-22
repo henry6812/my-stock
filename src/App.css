@@ -60,13 +60,15 @@
 
 .mobile-main-tabbar {
   position: sticky;
-  bottom: 8px;
+  bottom: 20px;
   z-index: 20;
-  margin-top: 14px;
+  width: fit-content;
+  margin: 18px auto 0;
   display: flex;
   gap: 8px;
   justify-content: center;
-  padding: 8px;
+  padding: 12px 14px;
+  min-height: 56px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid #e5e7eb;
