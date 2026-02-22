@@ -56,6 +56,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import dayjs from "dayjs";
+import anime from "animejs/lib/anime.es.js";
 import {
   Cell,
   Legend,
@@ -101,6 +102,7 @@ const { Header, Content } = Layout;
 const { Text } = Typography;
 const PULL_REFRESH_MAX = 96;
 const PULL_REFRESH_TRIGGER = 68;
+const NUMBER_ANIMATION_DURATION_MS = 2000;
 
 const formatSignedPrice = (value, currency = "TWD") => {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -148,6 +150,16 @@ const formatStopLabel = (value) => {
     return "0";
   }
   return `${Math.round(value / 10000)}萬`;
+};
+
+const filterRowsByHoldingTab = (targetRows, tab) => {
+  if (tab === "tw") {
+    return targetRows.filter((row) => row.market === "TW");
+  }
+  if (tab === "us") {
+    return targetRows.filter((row) => row.market === "US");
+  }
+  return targetRows;
 };
 
 const RowContext = createContext({
@@ -212,6 +224,7 @@ function App() {
   const [rows, setRows] = useState([]);
   const [cashRows, setCashRows] = useState([]);
   const [totalTwd, setTotalTwd] = useState(0);
+  const [displayTotalTwd, setDisplayTotalTwd] = useState(0);
   const [baselineTotalTwd, setBaselineTotalTwd] = useState(0);
   const [totalChangeTwd, setTotalChangeTwd] = useState(undefined);
   const [totalChangePct, setTotalChangePct] = useState(null);
@@ -257,8 +270,149 @@ function App() {
   const [editingCashAccountId, setEditingCashAccountId] = useState(null);
   const [editingCashBalance, setEditingCashBalance] = useState(null);
   const [loadingCashActionById, setLoadingCashActionById] = useState({});
+  const [rowAnimationValues, setRowAnimationValues] = useState({});
   const pullStartYRef = useRef(0);
   const pullingRef = useRef(false);
+  const activeHoldingTabRef = useRef("all");
+  const shouldAnimateNumbersRef = useRef(false);
+  const didRunInitialAnimationRef = useRef(false);
+  const totalAnimationRef = useRef(null);
+  const rowAnimationTargetRef = useRef([]);
+  const rowAnimationInstanceRef = useRef(null);
+  const animationLockedUntilRef = useRef(0);
+  const latestTotalTwdRef = useRef(0);
+
+  const isNumberAnimationLocked = useCallback(
+    () => Date.now() < animationLockedUntilRef.current,
+    [],
+  );
+
+  const beginNumberAnimationLock = useCallback(() => {
+    animationLockedUntilRef.current = Date.now() + NUMBER_ANIMATION_DURATION_MS;
+  }, []);
+
+  const stopNumberAnimations = useCallback(
+    (reason = "auto") => {
+      const canStop =
+        reason === "manual" || reason === "force" || !isNumberAnimationLocked();
+      if (!canStop) {
+        return false;
+      }
+
+      if (totalAnimationRef.current) {
+        totalAnimationRef.current.pause();
+        totalAnimationRef.current = null;
+      }
+      if (rowAnimationInstanceRef.current) {
+        rowAnimationInstanceRef.current.pause();
+        rowAnimationInstanceRef.current = null;
+      }
+      animationLockedUntilRef.current = 0;
+      return true;
+    },
+    [isNumberAnimationLocked],
+  );
+
+  const animateTotalValue = useCallback((targetValue) => {
+    const parsedTarget = Number(targetValue);
+    if (!Number.isFinite(parsedTarget) || parsedTarget <= 0) {
+      setDisplayTotalTwd(Number.isFinite(parsedTarget) ? parsedTarget : 0);
+      return;
+    }
+
+    const target = { value: parsedTarget * 0.99999 };
+    setDisplayTotalTwd(target.value);
+    totalAnimationRef.current = anime({
+      targets: target,
+      value: parsedTarget,
+      duration: NUMBER_ANIMATION_DURATION_MS,
+      easing: "easeOutExpo",
+      update: () => {
+        setDisplayTotalTwd(target.value);
+      },
+      complete: () => {
+        setDisplayTotalTwd(latestTotalTwdRef.current);
+      },
+    });
+  }, []);
+
+  const animateVisibleRows = useCallback((visibleRows) => {
+    if (!Array.isArray(visibleRows) || visibleRows.length === 0) {
+      setRowAnimationValues({});
+      return;
+    }
+
+    const targets = visibleRows
+      .map((row) => {
+        const next = { id: row.id };
+        if (
+          typeof row.latestPrice === "number" &&
+          Number.isFinite(row.latestPrice) &&
+          row.latestPrice > 0
+        ) {
+          next.latestPrice = row.latestPrice * 0.9;
+          next.targetLatestPrice = row.latestPrice;
+        }
+        if (
+          typeof row.latestValueTwd === "number" &&
+          Number.isFinite(row.latestValueTwd) &&
+          row.latestValueTwd > 0
+        ) {
+          next.latestValueTwd = row.latestValueTwd * 0.9;
+          next.targetLatestValueTwd = row.latestValueTwd;
+        }
+        return next;
+      })
+      .filter(
+        (item) =>
+          typeof item.latestPrice === "number" ||
+          typeof item.latestValueTwd === "number",
+      );
+
+    if (targets.length === 0) {
+      setRowAnimationValues({});
+      return;
+    }
+
+    rowAnimationTargetRef.current = targets;
+    setRowAnimationValues(
+      targets.reduce((acc, item) => {
+        acc[item.id] = {
+          latestPrice: item.latestPrice,
+          latestValueTwd: item.latestValueTwd,
+        };
+        return acc;
+      }, {}),
+    );
+
+    rowAnimationInstanceRef.current = anime({
+      targets,
+      duration: NUMBER_ANIMATION_DURATION_MS,
+      easing: "easeOutExpo",
+      latestPrice: (target) =>
+        typeof target.targetLatestPrice === "number"
+          ? target.targetLatestPrice
+          : target.latestPrice,
+      latestValueTwd: (target) =>
+        typeof target.targetLatestValueTwd === "number"
+          ? target.targetLatestValueTwd
+          : target.latestValueTwd,
+      update: () => {
+        setRowAnimationValues(
+          rowAnimationTargetRef.current.reduce((acc, item) => {
+            acc[item.id] = {
+              latestPrice: item.latestPrice,
+              latestValueTwd: item.latestValueTwd,
+            };
+            return acc;
+          }, {}),
+        );
+      },
+      complete: () => {
+        setRowAnimationValues({});
+      },
+    });
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -277,12 +431,35 @@ function App() {
     setRows(portfolio.rows);
     setCashRows(portfolio.cashRows ?? []);
     setTotalTwd(portfolio.totalTwd);
+    latestTotalTwdRef.current = portfolio.totalTwd;
     setBaselineTotalTwd(portfolio.baselineTotalTwd ?? 0);
     setTotalChangeTwd(portfolio.totalChangeTwd);
     setTotalChangePct(portfolio.totalChangePct ?? null);
     setLastUpdatedAt(portfolio.lastUpdatedAt);
     setSyncError(portfolio.syncStatus === "error" ? portfolio.syncError : "");
     setTrend(trendData);
+
+    const shouldAnimateNow =
+      !didRunInitialAnimationRef.current || shouldAnimateNumbersRef.current;
+    if (shouldAnimateNow) {
+      didRunInitialAnimationRef.current = true;
+      shouldAnimateNumbersRef.current = false;
+      stopNumberAnimations("manual");
+      beginNumberAnimationLock();
+      animateTotalValue(portfolio.totalTwd);
+      animateVisibleRows(
+        filterRowsByHoldingTab(
+          Array.isArray(portfolio.rows) ? portfolio.rows : [],
+          activeHoldingTabRef.current,
+        ),
+      );
+    } else {
+      if (!isNumberAnimationLocked()) {
+        stopNumberAnimations("auto");
+        setDisplayTotalTwd(portfolio.totalTwd);
+        setRowAnimationValues({});
+      }
+    }
 
     console.groupCollapsed(
       `[NetWorth Diagnostics] ${dayjs().format("YYYY/MM/DD HH:mm:ss")}`,
@@ -300,7 +477,14 @@ function App() {
     console.info("Total Change (TWD):", portfolio.totalChangeTwd);
     console.info("Total Change (%):", portfolio.totalChangePct);
     console.groupEnd();
-  }, [range]);
+  }, [
+    animateTotalValue,
+    animateVisibleRows,
+    beginNumberAnimationLock,
+    isNumberAnimationLocked,
+    range,
+    stopNumberAnimations,
+  ]);
 
   const setRowLoading = useCallback((id, isLoading) => {
     setLoadingActionById((prev) => ({ ...prev, [id]: isLoading }));
@@ -520,14 +704,12 @@ function App() {
   );
 
   const filteredRows = useMemo(() => {
-    if (activeHoldingTab === "tw") {
-      return rows.filter((row) => row.market === "TW");
-    }
-    if (activeHoldingTab === "us") {
-      return rows.filter((row) => row.market === "US");
-    }
-    return rows;
+    return filterRowsByHoldingTab(rows, activeHoldingTab);
   }, [activeHoldingTab, rows]);
+
+  useEffect(() => {
+    activeHoldingTabRef.current = activeHoldingTab;
+  }, [activeHoldingTab]);
 
   const dragDisabled =
     editingHoldingId !== null || loadingData || loadingReorder;
@@ -762,26 +944,40 @@ function App() {
         dataIndex: "latestPrice",
         key: "latestPrice",
         align: "right",
-        render: (value, record) => (
-          <div className="cell-with-delta">
-            <div className="cell-main-value">
-              {formatPrice(value, record.latestCurrency || "TWD")}
+        render: (value, record) => {
+          const animatedValue = rowAnimationValues[record.id]?.latestPrice;
+          const displayValue =
+            typeof animatedValue === "number" && Number.isFinite(animatedValue)
+              ? animatedValue
+              : value;
+          return (
+            <div className="cell-with-delta">
+              <div className="cell-main-value">
+                {formatPrice(displayValue, record.latestCurrency || "TWD")}
+              </div>
+              {renderPriceDelta(record)}
             </div>
-            {renderPriceDelta(record)}
-          </div>
-        ),
+          );
+        },
       },
       {
         title: "現值 (TWD)",
         dataIndex: "latestValueTwd",
         key: "latestValueTwd",
         align: "right",
-        render: (value, record) => (
-          <div className="cell-with-delta">
-            <div className="cell-main-value">{formatTwd(value)}</div>
-            {renderValueDelta(record)}
-          </div>
-        ),
+        render: (value, record) => {
+          const animatedValue = rowAnimationValues[record.id]?.latestValueTwd;
+          const displayValue =
+            typeof animatedValue === "number" && Number.isFinite(animatedValue)
+              ? animatedValue
+              : value;
+          return (
+            <div className="cell-with-delta">
+              <div className="cell-main-value">{formatTwd(displayValue)}</div>
+              {renderValueDelta(record)}
+            </div>
+          );
+        },
       },
       {
         title: "股數",
@@ -918,6 +1114,7 @@ function App() {
     isMobileViewport,
     loadingActionById,
     loadingReorder,
+    rowAnimationValues,
     renderValueDelta,
   ]);
 
@@ -1154,6 +1351,13 @@ function App() {
     };
   }, []);
 
+  useEffect(
+    () => () => {
+      stopNumberAnimations("force");
+    },
+    [stopNumberAnimations],
+  );
+
   useEffect(() => {
     const loadHoldingTags = async () => {
       try {
@@ -1250,6 +1454,7 @@ function App() {
     try {
       setLoadingRefresh(true);
       const result = await refreshPrices({ market: targetMarket });
+      shouldAnimateNumbersRef.current = true;
       await loadAllData();
       await performCloudSync();
       if (result.targetCount === 0) {
@@ -1624,7 +1829,7 @@ function App() {
               <div className="asset-summary-value">
                 <Statistic
                   title="總現值（TWD）"
-                  value={totalTwd}
+                  value={displayTotalTwd}
                   precision={0}
                   formatter={(value) => formatTwd(Number(value))}
                 />
