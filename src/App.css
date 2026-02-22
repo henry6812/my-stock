@@ -23,6 +23,8 @@
 
 .header-spacer {
   min-height: 1px;
+  display: flex;
+  align-items: center;
 }
 
 .header-logo {
@@ -54,6 +56,21 @@
 
 .cloud-last-sync-time {
   font-size: 12px;
+}
+
+.mobile-main-tabbar {
+  position: sticky;
+  bottom: 8px;
+  z-index: 20;
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e5e7eb;
+  backdrop-filter: blur(6px);
 }
 
 .app-content {
@@ -354,7 +371,8 @@
   }
 
   .header-spacer {
-    display: none;
+    display: flex;
+    justify-content: flex-start;
   }
 
   .header-logo {
@@ -378,6 +396,7 @@
 
   .app-content {
     padding: 12px;
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
   }
 
   .asset-summary-panel {
@@ -555,6 +574,145 @@
   color: #8c8c8c;
 }
 
+.expense-summary-panel {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.expense-summary-panel--plain {
+  width: min(680px, 92vw);
+  margin: 0 auto;
+  padding: 12px 0;
+}
+
+.expense-summary-toggle {
+  align-self: center;
+}
+
+.expense-summary-title {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 24px;
+}
+
+.expense-summary-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.expense-month-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.expense-month-nav-btn.ant-btn {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+  color: #595959;
+}
+
+.expense-month-nav-btn.ant-btn[disabled] {
+  color: #bfbfbf;
+  cursor: not-allowed;
+}
+
+.expense-month-nav-title {
+  min-width: 120px;
+  text-align: center;
+}
+
+.expense-summary-value {
+  text-align: center;
+}
+
+.expense-summary-value .ant-statistic-content {
+  font-size: 38px;
+  font-weight: 700;
+}
+
+.expense-summary-subtext {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.active-budgets-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.active-budgets-title {
+  text-align: left;
+}
+
+.active-budgets-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
+
+.active-budget-card {
+  flex: 0 0 260px;
+}
+
+.active-budget-name {
+  display: block;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.active-budget-remaining {
+  margin-top: 6px;
+  margin-bottom: 8px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1.1;
+}
+
+.active-budget-remaining-prefix {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.active-budget-remaining-value {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.active-budget-remaining--over .active-budget-remaining-prefix,
+.active-budget-remaining--over .active-budget-remaining-value {
+  color: #f5222d;
+}
+
+.active-budget-meta {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
 @media (max-width: 768px) {
   .holdings-card .ant-card-head {
     flex-direction: column;
@@ -571,5 +729,22 @@
 
   .cell-delta {
     font-size: 11px;
+  }
+
+  .expense-summary-title {
+    align-items: center;
+  }
+
+  .expense-summary-panel {
+    min-height: 140px;
+    gap: 10px;
+  }
+
+  .expense-summary-value .ant-statistic-content {
+    font-size: 30px;
+  }
+
+  .active-budget-card {
+    flex-basis: 220px;
   }
 }

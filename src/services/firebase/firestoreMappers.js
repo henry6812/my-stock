@@ -22,6 +22,18 @@ export const buildCashBalanceSnapshotKey = ({ bankCode, bankName, accountAlias, 
   `${buildCashAccountKey({ bankCode, bankName, accountAlias })}_${capturedAt}`
 )
 
+export const buildExpenseEntryKey = (entry) => (
+  entry.remoteKey || `expense_${entry.id}`
+)
+
+export const buildExpenseCategoryKey = (category) => (
+  category.remoteKey || `category_${category.id}`
+)
+
+export const buildBudgetKey = (budget) => (
+  budget.remoteKey || `budget_${budget.id}`
+)
+
 export const holdingToRemote = (holding) => ({
   symbol: holding.symbol,
   market: holding.market,
@@ -91,6 +103,46 @@ export const cashBalanceSnapshotToRemote = (snapshot) => ({
   clientUpdatedAt: snapshot.updatedAt,
 })
 
+export const expenseEntryToRemote = (entry) => ({
+  remoteKey: entry.remoteKey || null,
+  name: entry.name,
+  amountTwd: entry.amountTwd,
+  occurredAt: entry.occurredAt,
+  entryType: entry.entryType,
+  recurrenceType: entry.recurrenceType ?? null,
+  monthlyDay: entry.monthlyDay ?? null,
+  yearlyMonth: entry.yearlyMonth ?? null,
+  yearlyDay: entry.yearlyDay ?? null,
+  recurrenceUntil: entry.recurrenceUntil ?? null,
+  categoryId: entry.categoryId ?? null,
+  budgetId: entry.budgetId ?? null,
+  createdAt: entry.createdAt ?? null,
+  updatedAt: entry.updatedAt,
+  deletedAt: entry.deletedAt ?? null,
+  clientUpdatedAt: entry.updatedAt,
+})
+
+export const expenseCategoryToRemote = (category) => ({
+  remoteKey: category.remoteKey || null,
+  name: category.name,
+  createdAt: category.createdAt ?? null,
+  updatedAt: category.updatedAt,
+  deletedAt: category.deletedAt ?? null,
+  clientUpdatedAt: category.updatedAt,
+})
+
+export const budgetToRemote = (budget) => ({
+  remoteKey: budget.remoteKey || null,
+  name: budget.name,
+  amountTwd: budget.amountTwd,
+  budgetType: budget.budgetType,
+  startDate: budget.startDate,
+  createdAt: budget.createdAt ?? null,
+  updatedAt: budget.updatedAt,
+  deletedAt: budget.deletedAt ?? null,
+  clientUpdatedAt: budget.updatedAt,
+})
+
 export const remoteToHolding = (data) => ({
   symbol: data.symbol,
   market: data.market,
@@ -150,6 +202,43 @@ export const remoteToCashBalanceSnapshot = (data) => ({
   accountAlias: data.accountAlias,
   balanceTwd: data.balanceTwd,
   capturedAt: toIso(data.capturedAt) ?? data.capturedAt,
+  updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
+  deletedAt: toIso(data.deletedAt),
+})
+
+export const remoteToExpenseEntry = (data) => ({
+  remoteKey: data.remoteKey ?? null,
+  name: data.name,
+  amountTwd: Number(data.amountTwd) || 0,
+  occurredAt: data.occurredAt,
+  entryType: data.entryType || 'ONE_TIME',
+  recurrenceType: data.recurrenceType ?? null,
+  monthlyDay: data.monthlyDay ?? null,
+  yearlyMonth: data.yearlyMonth ?? null,
+  yearlyDay: data.yearlyDay ?? null,
+  recurrenceUntil: data.recurrenceUntil ?? null,
+  categoryId: data.categoryId ?? null,
+  budgetId: data.budgetId ?? null,
+  createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
+  updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
+  deletedAt: toIso(data.deletedAt),
+})
+
+export const remoteToExpenseCategory = (data) => ({
+  remoteKey: data.remoteKey ?? null,
+  name: data.name,
+  createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
+  updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
+  deletedAt: toIso(data.deletedAt),
+})
+
+export const remoteToBudget = (data) => ({
+  remoteKey: data.remoteKey ?? null,
+  name: data.name,
+  amountTwd: Number(data.amountTwd) || 0,
+  budgetType: data.budgetType || 'MONTHLY',
+  startDate: data.startDate,
+  createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),
 })

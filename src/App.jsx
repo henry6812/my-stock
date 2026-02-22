@@ -1,4 +1,5 @@
 import {
+  Component,
   createContext,
   useCallback,
   useContext,
@@ -13,15 +14,20 @@ import {
   Button,
   Card,
   Col,
+  DatePicker,
   Drawer,
   Dropdown,
   Empty,
+  Form,
+  Input,
   InputNumber,
   Layout,
   Modal,
   Popconfirm,
+  Progress,
   Row,
   Select,
+  Segmented,
   Space,
   Statistic,
   Table,
@@ -34,9 +40,14 @@ import {
   AreaChartOutlined,
   CloudSyncOutlined,
   DownOutlined,
+  LeftOutlined,
+  RightOutlined,
   DeleteOutlined,
+  DollarOutlined,
   EditOutlined,
+  FundProjectionScreenOutlined,
   GoogleOutlined,
+  HomeOutlined,
   LogoutOutlined,
   MenuOutlined,
   PlusOutlined,
@@ -88,6 +99,13 @@ import {
   updateHoldingShares,
   upsertCashAccount,
   upsertHolding,
+  getExpenseDashboardView,
+  upsertExpenseEntry,
+  removeExpenseEntry,
+  upsertExpenseCategory,
+  removeExpenseCategory,
+  upsertBudget,
+  removeBudget,
 } from "./services/portfolioService";
 import {
   loginWithGoogle,
@@ -255,6 +273,48 @@ function SortableRow({ disabled, ...props }) {
   );
 }
 
+class AppErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, errorMessage: "" };
+  }
+
+  static getDerivedStateFromError(error) {
+    return {
+      hasError: true,
+      errorMessage: error instanceof Error ? error.message : "Unknown runtime error",
+    };
+  }
+
+  componentDidCatch(error) {
+    console.error("[App Runtime Error]", error);
+  }
+
+  render() {
+    if (!this.state.hasError) {
+      return this.props.children;
+    }
+
+    return (
+      <Layout className="app-layout">
+        <Content className="app-content">
+          <Alert
+            type="error"
+            showIcon
+            title="畫面載入失敗"
+            description={
+              <Space direction="vertical" size={8}>
+                <span>{this.state.errorMessage || "發生未知錯誤"}</span>
+                <Button onClick={() => window.location.reload()}>重新整理</Button>
+              </Space>
+            }
+          />
+        </Content>
+      </Layout>
+    );
+  }
+}
+
 function App() {
   const { message } = AntdApp.useApp();
   const [rows, setRows] = useState([]);
@@ -282,12 +342,19 @@ function App() {
   const [cloudOutboxPending, setCloudOutboxPending] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
+  const [activeMainTab, setActiveMainTab] = useState("asset");
   const [isTrendExpanded, setIsTrendExpanded] = useState(false);
   const [isPieExpanded, setIsPieExpanded] = useState(false);
   const [activeAllocationTab, setActiveAllocationTab] = useState("assetType");
   const [activeHoldingTab, setActiveHoldingTab] = useState("all");
   const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false);
   const [isAddCashModalOpen, setIsAddCashModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+  const [isExpenseSheetOpen, setIsExpenseSheetOpen] = useState(false);
+  const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
+  const [isBudgetSheetOpen, setIsBudgetSheetOpen] = useState(false);
   const [isAddHoldingSheetOpen, setIsAddHoldingSheetOpen] = useState(false);
   const [isAddCashSheetOpen, setIsAddCashSheetOpen] = useState(false);
   const [isUpdateSheetOpen, setIsUpdateSheetOpen] = useState(false);
@@ -295,6 +362,9 @@ function App() {
     typeof window !== "undefined" ? window.innerWidth <= 768 : false,
   );
   const [loadingAddCashAccount, setLoadingAddCashAccount] = useState(false);
+  const [loadingExpenseAction, setLoadingExpenseAction] = useState(false);
+  const [loadingCategoryAction, setLoadingCategoryAction] = useState(false);
+  const [loadingBudgetAction, setLoadingBudgetAction] = useState(false);
   const [loadingBankOptions, setLoadingBankOptions] = useState(false);
   const [bankOptions, setBankOptions] = useState([]);
   const [holdingTagOptions, setHoldingTagOptions] = useState([
@@ -309,6 +379,19 @@ function App() {
   const [editingCashAccountId, setEditingCashAccountId] = useState(null);
   const [editingCashBalance, setEditingCashBalance] = useState(null);
   const [loadingCashActionById, setLoadingCashActionById] = useState({});
+  const [expenseRows, setExpenseRows] = useState([]);
+  const [expenseMonthOptions, setExpenseMonthOptions] = useState([]);
+  const [activeExpenseMonth, setActiveExpenseMonth] = useState(dayjs().format("YYYY-MM"));
+  const [expenseTotalMode, setExpenseTotalMode] = useState("month");
+  const [expenseMonthlyTotalTwd, setExpenseMonthlyTotalTwd] = useState(0);
+  const [expenseCumulativeTotalTwd, setExpenseCumulativeTotalTwd] = useState(0);
+  const [expenseFirstDate, setExpenseFirstDate] = useState(null);
+  const [expenseCategoryRows, setExpenseCategoryRows] = useState([]);
+  const [budgetRows, setBudgetRows] = useState([]);
+  const [selectableBudgetOptions, setSelectableBudgetOptions] = useState([]);
+  const [editingExpenseEntry, setEditingExpenseEntry] = useState(null);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [editingBudget, setEditingBudget] = useState(null);
   const [rowAnimationValues, setRowAnimationValues] = useState({});
   const [progressDisplayRatio, setProgressDisplayRatio] = useState(0);
   const [baselineDisplayRatio, setBaselineDisplayRatio] = useState(0);
@@ -334,6 +417,9 @@ function App() {
     deltaLeftRatio: 0,
     deltaWidthRatio: 0,
   });
+  const [expenseForm] = Form.useForm();
+  const [categoryForm] = Form.useForm();
+  const [budgetForm] = Form.useForm();
 
   const isNumberAnimationLocked = useCallback(
     () => Date.now() < animationLockedUntilRef.current,
@@ -662,14 +748,6 @@ function App() {
     stopProgressAnimation,
   ]);
 
-  const setRowLoading = useCallback((id, isLoading) => {
-    setLoadingActionById((prev) => ({ ...prev, [id]: isLoading }));
-  }, []);
-
-  const setCashRowLoading = useCallback((id, isLoading) => {
-    setLoadingCashActionById((prev) => ({ ...prev, [id]: isLoading }));
-  }, []);
-
   const refreshCloudRuntime = useCallback(() => {
     const runtime = getCloudSyncRuntime();
     setCloudOutboxPending(runtime.outboxPending ?? 0);
@@ -732,6 +810,109 @@ function App() {
     },
     [authUser, refreshCloudRuntime],
   );
+
+  const loadExpenseData = useCallback(async (monthInput) => {
+    const payload = monthInput ? { month: monthInput } : { month: activeExpenseMonth };
+    const view = await getExpenseDashboardView(payload);
+    setExpenseRows(view.expenseRows ?? []);
+    setExpenseMonthOptions(view.monthOptions ?? []);
+    setActiveExpenseMonth(view.activeMonth || dayjs().format("YYYY-MM"));
+    setExpenseMonthlyTotalTwd(Number(view.monthlyExpenseTotalTwd) || 0);
+    setExpenseCumulativeTotalTwd(Number(view.cumulativeExpenseTotalTwd) || 0);
+    setExpenseFirstDate(view.firstExpenseDate || null);
+    setExpenseCategoryRows(view.categoryRows ?? []);
+    setBudgetRows(view.budgetRows ?? []);
+    setSelectableBudgetOptions(view.selectableBudgets ?? []);
+  }, [activeExpenseMonth]);
+
+  const handleSubmitExpense = useCallback(async () => {
+    try {
+      const values = await expenseForm.validateFields();
+      setLoadingExpenseAction(true);
+      await upsertExpenseEntry({
+        id: editingExpenseEntry?.id,
+        name: values.name,
+        amountTwd: values.amountTwd,
+        occurredAt: values.occurredAt?.format?.("YYYY-MM-DD") || values.occurredAt,
+        entryType: values.entryType,
+        recurrenceType: values.recurrenceType || null,
+        monthlyDay: values.monthlyDay || null,
+        yearlyMonth: values.yearlyMonth || null,
+        yearlyDay: values.yearlyDay || null,
+        categoryId: values.categoryId || null,
+        budgetId: values.budgetId || null,
+      });
+      await loadExpenseData();
+      await performCloudSync();
+      setIsExpenseModalOpen(false);
+      setIsExpenseSheetOpen(false);
+      setEditingExpenseEntry(null);
+      expenseForm.resetFields();
+      message.success("支出已儲存");
+    } catch (error) {
+      if (error?.errorFields) return;
+      message.error(error instanceof Error ? error.message : "儲存支出失敗");
+    } finally {
+      setLoadingExpenseAction(false);
+    }
+  }, [editingExpenseEntry, expenseForm, loadExpenseData, message, performCloudSync]);
+
+  const handleSubmitCategory = useCallback(async () => {
+    try {
+      const values = await categoryForm.validateFields();
+      setLoadingCategoryAction(true);
+      await upsertExpenseCategory({
+        id: editingCategory?.id,
+        name: values.name,
+      });
+      await loadExpenseData();
+      await performCloudSync();
+      setIsCategoryModalOpen(false);
+      setIsCategorySheetOpen(false);
+      setEditingCategory(null);
+      categoryForm.resetFields();
+      message.success("分類已儲存");
+    } catch (error) {
+      if (error?.errorFields) return;
+      message.error(error instanceof Error ? error.message : "儲存分類失敗");
+    } finally {
+      setLoadingCategoryAction(false);
+    }
+  }, [categoryForm, editingCategory, loadExpenseData, message, performCloudSync]);
+
+  const handleSubmitBudget = useCallback(async () => {
+    try {
+      const values = await budgetForm.validateFields();
+      setLoadingBudgetAction(true);
+      await upsertBudget({
+        id: editingBudget?.id,
+        name: values.name,
+        amountTwd: values.amountTwd,
+        budgetType: values.budgetType,
+        startDate: values.startDate?.format?.("YYYY-MM-DD") || values.startDate,
+      });
+      await loadExpenseData();
+      await performCloudSync();
+      setIsBudgetModalOpen(false);
+      setIsBudgetSheetOpen(false);
+      setEditingBudget(null);
+      budgetForm.resetFields();
+      message.success("預算已儲存");
+    } catch (error) {
+      if (error?.errorFields) return;
+      message.error(error instanceof Error ? error.message : "儲存預算失敗");
+    } finally {
+      setLoadingBudgetAction(false);
+    }
+  }, [budgetForm, editingBudget, loadExpenseData, message, performCloudSync]);
+
+  const setRowLoading = useCallback((id, isLoading) => {
+    setLoadingActionById((prev) => ({ ...prev, [id]: isLoading }));
+  }, []);
+
+  const setCashRowLoading = useCallback((id, isLoading) => {
+    setLoadingCashActionById((prev) => ({ ...prev, [id]: isLoading }));
+  }, []);
 
   const handleEditClick = useCallback((record) => {
     setEditingHoldingId(record.id);
@@ -878,6 +1059,75 @@ function App() {
       setCashRowLoading,
     ],
   );
+
+  const openExpenseForm = useCallback((record = null) => {
+    setEditingExpenseEntry(record);
+    if (isMobileViewport) {
+      setIsExpenseSheetOpen(true);
+    } else {
+      setIsExpenseModalOpen(true);
+    }
+  }, [isMobileViewport]);
+
+  const openCategoryForm = useCallback((record = null) => {
+    setEditingCategory(record);
+    if (isMobileViewport) {
+      setIsCategorySheetOpen(true);
+    } else {
+      setIsCategoryModalOpen(true);
+    }
+  }, [isMobileViewport]);
+
+  const openBudgetForm = useCallback((record = null) => {
+    setEditingBudget(record);
+    if (isMobileViewport) {
+      setIsBudgetSheetOpen(true);
+    } else {
+      setIsBudgetModalOpen(true);
+    }
+  }, [isMobileViewport]);
+
+  const handleRemoveExpense = useCallback(async (record) => {
+    try {
+      setLoadingExpenseAction(true);
+      await removeExpenseEntry({ id: record.id });
+      await loadExpenseData();
+      await performCloudSync();
+      message.success("支出已刪除");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "刪除支出失敗");
+    } finally {
+      setLoadingExpenseAction(false);
+    }
+  }, [loadExpenseData, message, performCloudSync]);
+
+  const handleRemoveCategory = useCallback(async (record) => {
+    try {
+      setLoadingCategoryAction(true);
+      await removeExpenseCategory({ id: record.id });
+      await loadExpenseData();
+      await performCloudSync();
+      message.success("分類已刪除");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "刪除分類失敗");
+    } finally {
+      setLoadingCategoryAction(false);
+    }
+  }, [loadExpenseData, message, performCloudSync]);
+
+  const handleRemoveBudget = useCallback(async (record) => {
+    try {
+      setLoadingBudgetAction(true);
+      await removeBudget({ id: record.id });
+      await loadExpenseData();
+      await performCloudSync();
+      message.success("預算已刪除");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "刪除預算失敗");
+    } finally {
+      setLoadingBudgetAction(false);
+    }
+  }, [loadExpenseData, message, performCloudSync]);
 
   const filteredRows = useMemo(() => {
     return filterRowsByHoldingTab(rows, activeHoldingTab);
@@ -1413,6 +1663,179 @@ function App() {
     ],
   );
 
+  const expenseTableColumns = useMemo(
+    () => [
+      { title: "名稱", dataIndex: "name", key: "name" },
+      {
+        title: "金額",
+        dataIndex: "amountTwd",
+        key: "amountTwd",
+        align: "right",
+        render: (value) => formatTwd(value),
+      },
+      {
+        title: "日期",
+        dataIndex: "occurredAt",
+        key: "occurredAt",
+      },
+      {
+        title: "類型",
+        key: "type",
+        render: (_, record) => {
+          if (record.entryType === "RECURRING") {
+            return record.recurrenceType === "YEARLY" ? "定期（年）" : "定期（月）";
+          }
+          return "單筆";
+        },
+      },
+      {
+        title: "分類",
+        dataIndex: "categoryName",
+        key: "categoryName",
+        render: (value) => (
+          <Tag color={value === "未指定" ? "default" : "processing"}>
+            {value || "未指定"}
+          </Tag>
+        ),
+      },
+      {
+        title: "預算",
+        dataIndex: "budgetName",
+        key: "budgetName",
+        render: (value) => (
+          <Tag color={value === "未指定" ? "default" : "gold"}>
+            {value || "未指定"}
+          </Tag>
+        ),
+      },
+      {
+        title: "操作",
+        key: "actions",
+        render: (_, record) => (
+          <Space>
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openExpenseForm(record)}
+            />
+            <Popconfirm
+              title="刪除這筆支出？"
+              onConfirm={() => handleRemoveExpense(record)}
+              okText="刪除"
+              cancelText="取消"
+            >
+              <Button danger size="small" icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Space>
+        ),
+      },
+    ],
+    [handleRemoveExpense, openExpenseForm],
+  );
+
+  const expenseCategoryColumns = useMemo(
+    () => [
+      {
+        title: "分類名稱",
+        dataIndex: "name",
+        key: "name",
+        render: (value) => <Tag color="processing">{value}</Tag>,
+      },
+      {
+        title: "更新時間",
+        dataIndex: "updatedAt",
+        key: "updatedAt",
+        render: (value) => formatDateTime(value),
+      },
+      {
+        title: "操作",
+        key: "actions",
+        render: (_, record) => (
+          <Space>
+            <Button size="small" icon={<EditOutlined />} onClick={() => openCategoryForm(record)} />
+            <Popconfirm
+              title="刪除此分類？"
+              onConfirm={() => handleRemoveCategory(record)}
+              okText="刪除"
+              cancelText="取消"
+            >
+              <Button danger size="small" icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Space>
+        ),
+      },
+    ],
+    [handleRemoveCategory, openCategoryForm],
+  );
+
+  const budgetColumns = useMemo(
+    () => [
+      { title: "預算名稱", dataIndex: "name", key: "name" },
+      {
+        title: "預算長度",
+        dataIndex: "budgetType",
+        key: "budgetType",
+        render: (value) => {
+          const label =
+            value === "QUARTERLY" ? "季度" : value === "YEARLY" ? "年度" : "月度";
+          const color =
+            value === "QUARTERLY"
+              ? "blue"
+              : value === "YEARLY"
+                ? "purple"
+                : "green";
+          return <Tag color={color}>{label}</Tag>;
+        },
+      },
+      {
+        title: "預算時間",
+        key: "cycle",
+        render: (_, record) =>
+          record.cycleStart && record.cycleEnd
+            ? `${record.cycleStart} ~ ${record.cycleEnd}`
+            : "尚未生效",
+      },
+      {
+        title: "剩餘",
+        key: "remaining",
+        render: (_, record) => (
+          <div style={{ minWidth: 220 }}>
+            <Progress
+              percent={Math.round(Number(record.progressPct || 0))}
+              size="small"
+              strokeColor={
+                Number(record.spentTwd || 0) > Number(record.amountTwd || 0)
+                  ? "#f5222d"
+                  : undefined
+              }
+            />
+            <Text type="secondary">
+              {formatTwd(record.spentTwd)} / {formatTwd(record.amountTwd)}
+            </Text>
+          </div>
+        ),
+      },
+      {
+        title: "操作",
+        key: "actions",
+        render: (_, record) => (
+          <Space>
+            <Button size="small" icon={<EditOutlined />} onClick={() => openBudgetForm(record)} />
+            <Popconfirm
+              title="刪除此預算？"
+              onConfirm={() => handleRemoveBudget(record)}
+              okText="刪除"
+              cancelText="取消"
+            >
+              <Button danger size="small" icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Space>
+        ),
+      },
+    ],
+    [handleRemoveBudget, openBudgetForm],
+  );
+
   const DraggableBodyRow = useCallback(
     (props) => <SortableRow {...props} disabled={dragDisabled} />,
     [dragDisabled],
@@ -1442,10 +1865,10 @@ function App() {
         setCloudSyncStatus("syncing");
         setCloudSyncError("");
         await initSync(user.uid);
-        await loadAllData();
+        await Promise.all([loadAllData(), loadExpenseData()]);
         refreshCloudRuntime();
         await performCloudSync();
-        await loadAllData();
+        await Promise.all([loadAllData(), loadExpenseData()]);
         if (!alive) {
           return;
         }
@@ -1472,13 +1895,13 @@ function App() {
       stopSync();
       setCurrentUser(null);
     };
-  }, [loadAllData, performCloudSync, refreshCloudRuntime]);
+  }, [loadAllData, loadExpenseData, performCloudSync, refreshCloudRuntime]);
 
   useEffect(() => {
     const bootstrap = async () => {
       setLoadingData(true);
       try {
-        await loadAllData();
+        await Promise.all([loadAllData(), loadExpenseData()]);
       } catch (error) {
         message.error(error instanceof Error ? error.message : "載入資料失敗");
       } finally {
@@ -1487,12 +1910,12 @@ function App() {
     };
 
     bootstrap();
-  }, [loadAllData, message]);
+  }, [loadAllData, loadExpenseData, message]);
 
   useEffect(() => {
     const onCloudUpdated = async () => {
       try {
-        await loadAllData();
+        await Promise.all([loadAllData(), loadExpenseData()]);
         refreshCloudRuntime();
         setCloudLastSyncedAt(new Date().toISOString());
       } catch {
@@ -1504,7 +1927,7 @@ function App() {
     return () => {
       window.removeEventListener(CLOUD_SYNC_UPDATED_EVENT, onCloudUpdated);
     };
-  }, [loadAllData, refreshCloudRuntime]);
+  }, [loadAllData, loadExpenseData, refreshCloudRuntime]);
 
   useEffect(() => {
     const onResize = () => {
@@ -1595,6 +2018,59 @@ function App() {
 
     loadBankOptions();
   }, [isAddCashModalOpen, message]);
+
+  useEffect(() => {
+    if (!activeExpenseMonth) return;
+    loadExpenseData(activeExpenseMonth).catch(() => {});
+  }, [activeExpenseMonth, loadExpenseData]);
+
+  useEffect(() => {
+    if (!isExpenseModalOpen && !isExpenseSheetOpen) {
+      return;
+    }
+    expenseForm.setFieldsValue({
+      name: editingExpenseEntry?.name ?? "",
+      amountTwd: editingExpenseEntry?.amountTwd ?? undefined,
+      occurredAt: dayjs(
+        editingExpenseEntry?.originalOccurredAt ||
+          editingExpenseEntry?.occurredAt ||
+          dayjs(),
+      ),
+      entryType: editingExpenseEntry?.entryType || "ONE_TIME",
+      recurrenceType: editingExpenseEntry?.recurrenceType || undefined,
+      monthlyDay: editingExpenseEntry?.monthlyDay ?? undefined,
+      yearlyMonth: editingExpenseEntry?.yearlyMonth ?? undefined,
+      yearlyDay: editingExpenseEntry?.yearlyDay ?? undefined,
+      categoryId: editingExpenseEntry?.categoryId ?? undefined,
+      budgetId: editingExpenseEntry?.budgetId ?? undefined,
+    });
+  }, [
+    editingExpenseEntry,
+    expenseForm,
+    isExpenseModalOpen,
+    isExpenseSheetOpen,
+  ]);
+
+  useEffect(() => {
+    if (!isCategoryModalOpen && !isCategorySheetOpen) {
+      return;
+    }
+    categoryForm.setFieldsValue({
+      name: editingCategory?.name ?? "",
+    });
+  }, [categoryForm, editingCategory, isCategoryModalOpen, isCategorySheetOpen]);
+
+  useEffect(() => {
+    if (!isBudgetModalOpen && !isBudgetSheetOpen) {
+      return;
+    }
+    budgetForm.setFieldsValue({
+      name: editingBudget?.name ?? "",
+      amountTwd: editingBudget?.amountTwd ?? undefined,
+      budgetType: editingBudget?.budgetType ?? "MONTHLY",
+      startDate: dayjs(editingBudget?.startDate || dayjs()),
+    });
+  }, [budgetForm, editingBudget, isBudgetModalOpen, isBudgetSheetOpen]);
 
   const handleAddHolding = async (values) => {
     let upsertResult;
@@ -1821,10 +2297,6 @@ function App() {
     () => Math.abs(currentRatio - baselineRatio) <= 0.02,
     [baselineRatio, currentRatio],
   );
-  const deltaSegmentLeftRatio = useMemo(
-    () => Math.min(currentRatio, baselineRatio),
-    [baselineRatio, currentRatio],
-  );
   const deltaSegmentWidthRatio = useMemo(
     () => Math.abs(currentRatio - baselineRatio),
     [baselineRatio, currentRatio],
@@ -1873,7 +2345,7 @@ function App() {
         await initSync(authUser.uid);
         await performCloudSync();
       }
-      await loadAllData();
+      await Promise.all([loadAllData(), loadExpenseData()]);
       refreshCloudRuntime();
       setCloudLastSyncedAt(new Date().toISOString());
       message.success("已重新連線並更新資料");
@@ -1889,6 +2361,7 @@ function App() {
     authUser,
     isPullRefreshing,
     loadAllData,
+    loadExpenseData,
     message,
     performCloudSync,
     refreshCloudRuntime,
@@ -1943,10 +2416,230 @@ function App() {
     setPullDistance(0);
   }, [handlePullRefresh, isPullRefreshing, pullDistance]);
 
+  const expenseFormNode = (
+    <Form form={expenseForm} layout="vertical" initialValues={{ entryType: "ONE_TIME", occurredAt: dayjs() }}>
+      <Form.Item
+        label="支出名稱"
+        name="name"
+        rules={[{ required: true, message: "請輸入支出名稱" }]}
+      >
+        <Input />
+      </Form.Item>
+      <Form.Item
+        label="支出金額 (TWD)"
+        name="amountTwd"
+        rules={[{ required: true, message: "請輸入支出金額" }]}
+      >
+        <InputNumber min={1} step={100} precision={0} style={{ width: "100%" }} />
+      </Form.Item>
+      <Form.Item
+        label="支出日期"
+        name="occurredAt"
+        rules={[{ required: true, message: "請選擇支出日期" }]}
+      >
+        <DatePicker style={{ width: "100%" }} />
+      </Form.Item>
+      <Form.Item
+        label="類型"
+        name="entryType"
+        rules={[{ required: true, message: "請選擇支出類型" }]}
+      >
+        <Select
+          options={[
+            { label: "單筆支出", value: "ONE_TIME" },
+            { label: "定期支出", value: "RECURRING" },
+          ]}
+        />
+      </Form.Item>
+      <Form.Item noStyle shouldUpdate={(prev, next) => prev.entryType !== next.entryType || prev.recurrenceType !== next.recurrenceType}>
+        {({ getFieldValue }) => {
+          if (getFieldValue("entryType") !== "RECURRING") return null;
+          return (
+            <>
+              <Form.Item
+                label="頻率"
+                name="recurrenceType"
+                rules={[{ required: true, message: "請選擇定期頻率" }]}
+              >
+                <Select
+                  options={[
+                    { label: "每月", value: "MONTHLY" },
+                    { label: "每年", value: "YEARLY" },
+                  ]}
+                />
+              </Form.Item>
+              {getFieldValue("recurrenceType") === "MONTHLY" ? (
+                <Form.Item
+                  label="每月幾號"
+                  name="monthlyDay"
+                  rules={[{ required: true, message: "請輸入每月幾號" }]}
+                >
+                  <InputNumber min={1} max={31} style={{ width: "100%" }} />
+                </Form.Item>
+              ) : null}
+              {getFieldValue("recurrenceType") === "YEARLY" ? (
+                <Space style={{ width: "100%" }} size={12}>
+                  <Form.Item
+                    label="每年幾月"
+                    name="yearlyMonth"
+                    rules={[{ required: true, message: "請輸入月份" }]}
+                    style={{ flex: 1 }}
+                  >
+                    <InputNumber min={1} max={12} style={{ width: "100%" }} />
+                  </Form.Item>
+                  <Form.Item
+                    label="每年幾號"
+                    name="yearlyDay"
+                    rules={[{ required: true, message: "請輸入日期" }]}
+                    style={{ flex: 1 }}
+                  >
+                    <InputNumber min={1} max={31} style={{ width: "100%" }} />
+                  </Form.Item>
+                </Space>
+              ) : null}
+            </>
+          );
+        }}
+      </Form.Item>
+      <Form.Item label="分類" name="categoryId">
+        <Select
+          allowClear
+          options={expenseCategoryRows.map((item) => ({
+            label: item.name,
+            value: item.id,
+          }))}
+        />
+      </Form.Item>
+      <Form.Item label="預算" name="budgetId">
+        <Select
+          allowClear
+          options={selectableBudgetOptions.map((item) => ({
+            label: item.name,
+            value: item.id,
+          }))}
+        />
+      </Form.Item>
+    </Form>
+  );
+
+  const categoryFormNode = (
+    <Form form={categoryForm} layout="vertical">
+      <Form.Item
+        label="分類名稱"
+        name="name"
+        rules={[{ required: true, message: "請輸入分類名稱" }]}
+      >
+        <Input />
+      </Form.Item>
+    </Form>
+  );
+
+  const budgetFormNode = (
+    <Form form={budgetForm} layout="vertical" initialValues={{ budgetType: "MONTHLY", startDate: dayjs() }}>
+      <Form.Item
+        label="預算名稱"
+        name="name"
+        rules={[{ required: true, message: "請輸入預算名稱" }]}
+      >
+        <Input />
+      </Form.Item>
+      <Form.Item
+        label="預算金額"
+        name="amountTwd"
+        rules={[{ required: true, message: "請輸入預算金額" }]}
+      >
+        <InputNumber min={1} step={100} precision={0} style={{ width: "100%" }} />
+      </Form.Item>
+      <Form.Item
+        label="預算類型"
+        name="budgetType"
+        rules={[{ required: true, message: "請選擇預算類型" }]}
+      >
+        <Select
+          options={[
+            { label: "月度預算", value: "MONTHLY" },
+            { label: "季度預算", value: "QUARTERLY" },
+            { label: "年度預算", value: "YEARLY" },
+          ]}
+        />
+      </Form.Item>
+      <Form.Item
+        label="預算起始日"
+        name="startDate"
+        rules={[{ required: true, message: "請選擇起始日" }]}
+      >
+        <DatePicker style={{ width: "100%" }} />
+      </Form.Item>
+    </Form>
+  );
+
+  const expenseMonthNavOptions = useMemo(() => {
+    if (!Array.isArray(expenseMonthOptions)) {
+      return [];
+    }
+    return expenseMonthOptions;
+  }, [expenseMonthOptions]);
+
+  const safeActiveExpenseMonth = useMemo(() => {
+    if (expenseMonthNavOptions.length === 0) {
+      return undefined;
+    }
+    if (expenseMonthNavOptions.includes(activeExpenseMonth)) {
+      return activeExpenseMonth;
+    }
+    return expenseMonthNavOptions[expenseMonthNavOptions.length - 1];
+  }, [activeExpenseMonth, expenseMonthNavOptions]);
+
+  const expenseMonthTitle = useMemo(() => {
+    if (!safeActiveExpenseMonth) {
+      return "-- 總支出";
+    }
+    const [year, month] = safeActiveExpenseMonth.split("-");
+    return `${year}/${Number(month)} 總支出`;
+  }, [safeActiveExpenseMonth]);
+
+  const expenseSummaryValue = expenseTotalMode === "cumulative"
+    ? expenseCumulativeTotalTwd
+    : expenseMonthlyTotalTwd;
+  const expenseActiveMonthIndex = useMemo(
+    () =>
+      safeActiveExpenseMonth
+        ? expenseMonthNavOptions.indexOf(safeActiveExpenseMonth)
+        : -1,
+    [expenseMonthNavOptions, safeActiveExpenseMonth],
+  );
+  const canGoPrevExpenseMonth = expenseActiveMonthIndex > 0;
+  const canGoNextExpenseMonth =
+    expenseActiveMonthIndex >= 0 &&
+    expenseActiveMonthIndex < expenseMonthNavOptions.length - 1;
+  const activeBudgetCards = useMemo(() => {
+    const today = dayjs().format("YYYY-MM-DD");
+
+    return (budgetRows || []).filter((budget) => {
+      if (!budget?.cycleStart || !budget?.cycleEnd) {
+        return false;
+      }
+      return today >= budget.cycleStart && today <= budget.cycleEnd;
+    });
+  }, [budgetRows]);
+
   return (
-    <Layout className="app-layout">
+    <AppErrorBoundary>
+      <Layout className="app-layout">
       <Header className="app-header">
-        <div className="header-spacer" />
+        <div className="header-spacer">
+          {!isMobileViewport && (
+            <Segmented
+              size="middle"
+              value={activeMainTab}
+              onChange={setActiveMainTab}
+              options={[
+                { label: "資產總覽", value: "asset", icon: <HomeOutlined /> },
+                { label: "支出分析", value: "expense", icon: <FundProjectionScreenOutlined /> },
+              ]}
+            />
+          )}
+        </div>
         <img
           src={`${import.meta.env.BASE_URL}vite.svg`}
           alt="My Stock logo"
@@ -2011,7 +2704,7 @@ function App() {
           <Alert
             type="error"
             showIcon
-            message="上次同步發生錯誤"
+            title="上次同步發生錯誤"
             description={syncError}
             style={{ marginBottom: 16 }}
           />
@@ -2020,13 +2713,14 @@ function App() {
           <Alert
             type="info"
             showIcon
-            message="目前為本機模式"
+            title="目前為本機模式"
             description="登入 Google 後可將持股與快照同步到你的其他裝置。"
             style={{ marginBottom: 16 }}
           />
         )}
 
-        <Row gutter={[16, 16]}>
+        {activeMainTab === "asset" ? (
+          <Row gutter={[16, 16]}>
           <Col xs={24}>
             <div className="asset-summary-panel">
               <div className="asset-summary-value">
@@ -2267,7 +2961,7 @@ function App() {
                         <Dropdown
                           trigger={["click"]}
                           disabled={loadingRefresh}
-                          overlayClassName="price-update-menu"
+                          classNames={{ root: "price-update-menu" }}
                           menu={{
                             items: updateMenuItems,
                             onClick: ({ key }) => {
@@ -2360,7 +3054,216 @@ function App() {
               />
             </Card>
           </Col>
-        </Row>
+          </Row>
+        ) : (
+          <Row gutter={[16, 16]}>
+            <Col xs={24}>
+              <div className="expense-summary-panel expense-summary-panel--plain">
+                <Segmented
+                  className="expense-summary-toggle"
+                  size="small"
+                  value={expenseTotalMode}
+                  options={[
+                    { label: "月份", value: "month" },
+                    { label: "累計", value: "cumulative" },
+                  ]}
+                  onChange={(value) => setExpenseTotalMode(value)}
+                />
+                <div className="expense-summary-title">
+                  <div className="expense-summary-meta">
+                    {expenseTotalMode === "month" ? (
+                      <div className="expense-month-nav">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<LeftOutlined />}
+                          className="expense-month-nav-btn"
+                          aria-label="上個月份"
+                          disabled={!canGoPrevExpenseMonth}
+                          onClick={() => {
+                            if (!canGoPrevExpenseMonth) return;
+                            setActiveExpenseMonth(
+                              expenseMonthNavOptions[expenseActiveMonthIndex - 1],
+                            );
+                          }}
+                        />
+                        <div className="expense-month-nav-title">
+                          <Text strong>{expenseMonthTitle}</Text>
+                        </div>
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<RightOutlined />}
+                          className="expense-month-nav-btn"
+                          aria-label="下個月份"
+                          disabled={!canGoNextExpenseMonth}
+                          onClick={() => {
+                            if (!canGoNextExpenseMonth) return;
+                            setActiveExpenseMonth(
+                              expenseMonthNavOptions[expenseActiveMonthIndex + 1],
+                            );
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <Text strong>累計總支出</Text>
+                    )}
+                  </div>
+                </div>
+                <div className="expense-summary-value">
+                  <Statistic
+                    value={expenseSummaryValue}
+                    formatter={(value) => formatTwd(Number(value))}
+                  />
+                  {expenseTotalMode === "cumulative" && (
+                    <Text type="secondary" className="expense-summary-subtext">
+                      {expenseFirstDate
+                        ? `自 ${dayjs(expenseFirstDate).format("YYYY/MM/DD")} 起`
+                        : "尚無支出資料"}
+                    </Text>
+                  )}
+                </div>
+              </div>
+            </Col>
+            <Col xs={24}>
+              <section className="active-budgets-section">
+                <Text strong className="active-budgets-title">
+                  目前生效預算
+                </Text>
+                {activeBudgetCards.length === 0 ? (
+                  <Text type="secondary">目前沒有生效中的預算</Text>
+                ) : (
+                  <div className="active-budgets-row">
+                    {activeBudgetCards.map((budget) => (
+                      <Card key={budget.id} size="small" className="active-budget-card">
+                        <Text
+                          type="secondary"
+                          className="active-budget-name"
+                          title={budget.name}
+                        >
+                          {budget.name}
+                        </Text>
+                        <div
+                          className={`active-budget-remaining ${
+                            Number(budget.remainingTwd) < 0
+                              ? "active-budget-remaining--over"
+                              : ""
+                          }`}
+                        >
+                          <span className="active-budget-remaining-prefix">
+                            {Number(budget.remainingTwd) < 0 ? "超過" : "還有"}
+                          </span>
+                          <span className="active-budget-remaining-value">
+                            {formatTwd(
+                              Number(budget.remainingTwd) < 0
+                                ? Math.abs(Number(budget.remainingTwd))
+                                : Number(budget.remainingTwd) || 0,
+                            )}
+                          </span>
+                        </div>
+                        <Progress
+                          percent={Math.round(Number(budget.progressPct || 0))}
+                          size="small"
+                          showInfo={false}
+                          strokeColor={
+                            Number(budget.spentTwd || 0) >
+                            Number(budget.amountTwd || 0)
+                              ? "#f5222d"
+                              : undefined
+                          }
+                        />
+                        <Text type="secondary" className="active-budget-meta">
+                          {formatTwd(Number(budget.spentTwd) || 0)} /{" "}
+                          {formatTwd(Number(budget.amountTwd) || 0)}
+                        </Text>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </Col>
+            <Col xs={24}>
+              <Card
+                title={
+                  <Space size={8}>
+                    <span>支出列表</span>
+                    <Tooltip title="新增支出">
+                      <Button
+                        type="text"
+                        size="small"
+                        className="title-add-btn"
+                        icon={<PlusOutlined />}
+                        onClick={() => openExpenseForm()}
+                      />
+                    </Tooltip>
+                  </Space>
+                }
+              >
+                <Table
+                  rowKey={(record) => `${record.id}-${record.occurredAt}`}
+                  dataSource={expenseRows}
+                  columns={expenseTableColumns}
+                  pagination={false}
+                  locale={{ emptyText: "尚無支出紀錄" }}
+                  scroll={{ x: 860 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card
+                title={
+                  <Space size={8}>
+                    <span>類別列表</span>
+                    <Tooltip title="新增類別">
+                      <Button
+                        type="text"
+                        size="small"
+                        className="title-add-btn"
+                        icon={<PlusOutlined />}
+                        onClick={() => openCategoryForm()}
+                      />
+                    </Tooltip>
+                  </Space>
+                }
+              >
+                <Table
+                  rowKey="id"
+                  dataSource={expenseCategoryRows}
+                  columns={expenseCategoryColumns}
+                  pagination={false}
+                  locale={{ emptyText: "尚無分類" }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card
+                title={
+                  <Space size={8}>
+                    <span>預算列表</span>
+                    <Tooltip title="新增預算">
+                      <Button
+                        type="text"
+                        size="small"
+                        className="title-add-btn"
+                        icon={<PlusOutlined />}
+                        onClick={() => openBudgetForm()}
+                      />
+                    </Tooltip>
+                  </Space>
+                }
+              >
+                <Table
+                  rowKey="id"
+                  dataSource={budgetRows}
+                  columns={budgetColumns}
+                  pagination={false}
+                  locale={{ emptyText: "尚無預算" }}
+                  scroll={{ x: 860 }}
+                />
+              </Card>
+            </Col>
+          </Row>
+        )}
 
         {authUser && (
           <div style={{ marginTop: 12, textAlign: "center" }}>
@@ -2370,16 +3273,35 @@ function App() {
           </div>
         )}
 
+        {isMobileViewport && (
+          <div className="mobile-main-tabbar">
+            <Button
+              type={activeMainTab === "asset" ? "primary" : "default"}
+              icon={<HomeOutlined />}
+              onClick={() => setActiveMainTab("asset")}
+            >
+              資產總覽
+            </Button>
+            <Button
+              type={activeMainTab === "expense" ? "primary" : "default"}
+              icon={<DollarOutlined />}
+              onClick={() => setActiveMainTab("expense")}
+            >
+              支出分析
+            </Button>
+          </div>
+        )}
+
         <Drawer
           placement="bottom"
           open={isMobileViewport && isUpdateSheetOpen}
           onClose={() => setIsUpdateSheetOpen(false)}
-          height={212}
+          size={212}
           closable={false}
           maskClosable
-          destroyOnClose={false}
+          destroyOnHidden={false}
           className="update-sheet"
-          bodyStyle={{ padding: 16 }}
+          styles={{ body: { padding: 16 } }}
         >
           <div className="update-sheet-actions">
             <Button
@@ -2419,13 +3341,13 @@ function App() {
               setIsAddHoldingSheetOpen(false);
             }
           }}
-          height="72vh"
+          size="72vh"
           closable={!loadingAddHolding}
           maskClosable={!loadingAddHolding}
           keyboard={!loadingAddHolding}
-          destroyOnClose
+          destroyOnHidden
           className="form-bottom-sheet holding-sheet"
-          bodyStyle={{ padding: 16 }}
+          styles={{ body: { padding: 16 } }}
         >
           <HoldingForm
             onSubmit={handleAddHolding}
@@ -2445,13 +3367,13 @@ function App() {
               setIsAddCashSheetOpen(false);
             }
           }}
-          height="72vh"
+          size="72vh"
           closable={!loadingAddCashAccount}
           maskClosable={!loadingAddCashAccount}
           keyboard={!loadingAddCashAccount}
-          destroyOnClose
+          destroyOnHidden
           className="form-bottom-sheet cash-sheet"
-          bodyStyle={{ padding: 16 }}
+          styles={{ body: { padding: 16 } }}
         >
           <CashAccountForm
             onSubmit={handleAddCashAccount}
@@ -2471,8 +3393,8 @@ function App() {
             }
           }}
           footer={null}
-          destroyOnClose
-          maskClosable={!loadingAddHolding}
+          destroyOnHidden
+          mask={{ closable: !loadingAddHolding }}
           keyboard={!loadingAddHolding}
           closable={!loadingAddHolding}
         >
@@ -2494,8 +3416,8 @@ function App() {
             }
           }}
           footer={null}
-          destroyOnClose
-          maskClosable={!loadingAddCashAccount}
+          destroyOnHidden
+          mask={{ closable: !loadingAddCashAccount }}
           keyboard={!loadingAddCashAccount}
           closable={!loadingAddCashAccount}
         >
@@ -2507,8 +3429,138 @@ function App() {
             submitText="新增銀行帳戶"
           />
         </Modal>
+
+        <Drawer
+          placement="bottom"
+          title={editingExpenseEntry ? "編輯支出" : "新增支出"}
+          open={isMobileViewport && isExpenseSheetOpen}
+          onClose={() => {
+            if (!loadingExpenseAction) {
+              setIsExpenseSheetOpen(false);
+              setEditingExpenseEntry(null);
+              expenseForm.resetFields();
+            }
+          }}
+          size="72vh"
+          closable={!loadingExpenseAction}
+          maskClosable={!loadingExpenseAction}
+          keyboard={!loadingExpenseAction}
+          destroyOnHidden
+          className="form-bottom-sheet"
+          styles={{ body: { padding: 16 } }}
+        >
+          {expenseFormNode}
+          <Button type="primary" block loading={loadingExpenseAction} onClick={handleSubmitExpense}>
+            儲存
+          </Button>
+        </Drawer>
+
+        <Drawer
+          placement="bottom"
+          title={editingCategory ? "編輯分類" : "新增分類"}
+          open={isMobileViewport && isCategorySheetOpen}
+          onClose={() => {
+            if (!loadingCategoryAction) {
+              setIsCategorySheetOpen(false);
+              setEditingCategory(null);
+              categoryForm.resetFields();
+            }
+          }}
+          size="42vh"
+          closable={!loadingCategoryAction}
+          maskClosable={!loadingCategoryAction}
+          keyboard={!loadingCategoryAction}
+          destroyOnHidden
+          className="form-bottom-sheet"
+          styles={{ body: { padding: 16 } }}
+        >
+          {categoryFormNode}
+          <Button type="primary" block loading={loadingCategoryAction} onClick={handleSubmitCategory}>
+            儲存
+          </Button>
+        </Drawer>
+
+        <Drawer
+          placement="bottom"
+          title={editingBudget ? "編輯預算" : "新增預算"}
+          open={isMobileViewport && isBudgetSheetOpen}
+          onClose={() => {
+            if (!loadingBudgetAction) {
+              setIsBudgetSheetOpen(false);
+              setEditingBudget(null);
+              budgetForm.resetFields();
+            }
+          }}
+          size="62vh"
+          closable={!loadingBudgetAction}
+          maskClosable={!loadingBudgetAction}
+          keyboard={!loadingBudgetAction}
+          destroyOnHidden
+          className="form-bottom-sheet"
+          styles={{ body: { padding: 16 } }}
+        >
+          {budgetFormNode}
+          <Button type="primary" block loading={loadingBudgetAction} onClick={handleSubmitBudget}>
+            儲存
+          </Button>
+        </Drawer>
+
+        <Modal
+          title={editingExpenseEntry ? "編輯支出" : "新增支出"}
+          open={!isMobileViewport && isExpenseModalOpen}
+          onCancel={() => {
+            if (!loadingExpenseAction) {
+              setIsExpenseModalOpen(false);
+              setEditingExpenseEntry(null);
+              expenseForm.resetFields();
+            }
+          }}
+          onOk={handleSubmitExpense}
+          confirmLoading={loadingExpenseAction}
+          okText="儲存"
+          destroyOnHidden
+        >
+          {expenseFormNode}
+        </Modal>
+
+        <Modal
+          title={editingCategory ? "編輯分類" : "新增分類"}
+          open={!isMobileViewport && isCategoryModalOpen}
+          onCancel={() => {
+            if (!loadingCategoryAction) {
+              setIsCategoryModalOpen(false);
+              setEditingCategory(null);
+              categoryForm.resetFields();
+            }
+          }}
+          onOk={handleSubmitCategory}
+          confirmLoading={loadingCategoryAction}
+          okText="儲存"
+          destroyOnHidden
+        >
+          {categoryFormNode}
+        </Modal>
+
+        <Modal
+          title={editingBudget ? "編輯預算" : "新增預算"}
+          open={!isMobileViewport && isBudgetModalOpen}
+          onCancel={() => {
+            if (!loadingBudgetAction) {
+              setIsBudgetModalOpen(false);
+              setEditingBudget(null);
+              budgetForm.resetFields();
+            }
+          }}
+          onOk={handleSubmitBudget}
+          confirmLoading={loadingBudgetAction}
+          okText="儲存"
+          destroyOnHidden
+        >
+          {budgetFormNode}
+        </Modal>
       </Content>
     </Layout>
+    </AppErrorBoundary>
   );
 }
 

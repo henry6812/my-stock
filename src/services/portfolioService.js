@@ -37,6 +37,9 @@ const CLOUD_COLLECTION = {
   SYNC_META: 'sync_meta',
   CASH_ACCOUNTS: 'cash_accounts',
   CASH_BALANCE_SNAPSHOTS: 'cash_balance_snapshots',
+  EXPENSE_ENTRIES: 'expense_entries',
+  EXPENSE_CATEGORIES: 'expense_categories',
+  BUDGETS: 'budgets',
 }
 
 const TREND_RANGE_DAYS = {
@@ -45,9 +48,37 @@ const TREND_RANGE_DAYS = {
   '30d': 30,
 }
 
+const EXPENSE_ENTRY_TYPE = {
+  ONE_TIME: 'ONE_TIME',
+  RECURRING: 'RECURRING',
+}
+
+const RECURRENCE_TYPE = {
+  MONTHLY: 'MONTHLY',
+  YEARLY: 'YEARLY',
+}
+
+const BUDGET_TYPE = {
+  MONTHLY: 'MONTHLY',
+  QUARTERLY: 'QUARTERLY',
+  YEARLY: 'YEARLY',
+}
+
 const isDeleted = (item) => Boolean(item?.deletedAt)
 
 const getNowIso = () => new Date().toISOString()
+const getNowDate = () => dayjs().format('YYYY-MM-DD')
+const makeRemoteKey = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+
+const normalizeDateOnly = (value) => {
+  const parsed = dayjs(value)
+  if (!parsed.isValid()) {
+    return null
+  }
+  return parsed.format('YYYY-MM-DD')
+}
+
+const toDayjsDateOnly = (value) => dayjs(normalizeDateOnly(value))
 
 const mirrorToCloud = async (collectionName, record) => {
   await queueOrApplyMutation({ collectionName, record })
@@ -1069,4 +1100,677 @@ export const getTrend = async (range) => {
       totalTwd: stockTotalTwd + cashTotalTwd,
     }
   })
+}
+
+const monthRange = (month) => {
+  const parsed = dayjs(`${month}-01`)
+  const start = parsed.startOf('month')
+  const end = parsed.endOf('month')
+  return { start, end }
+}
+
+const clampDayInMonth = (date, day) => {
+  const daysInMonth = date.daysInMonth()
+  return Math.min(Math.max(1, day), daysInMonth)
+}
+
+const resolveRecurringOccurrenceDate = (entry, monthStart) => {
+  if (entry.recurrenceType === RECURRENCE_TYPE.MONTHLY) {
+    const day = Number(entry.monthlyDay || toDayjsDateOnly(entry.occurredAt).date())
+    const d = clampDayInMonth(monthStart, day)
+    return monthStart.date(d)
+  }
+
+  if (entry.recurrenceType === RECURRENCE_TYPE.YEARLY) {
+    const month = Number(entry.yearlyMonth || toDayjsDateOnly(entry.occurredAt).month() + 1)
+    const day = Number(entry.yearlyDay || toDayjsDateOnly(entry.occurredAt).date())
+    const candidateMonth = monthStart.month() + 1
+    if (candidateMonth !== month) {
+      return null
+    }
+    const d = clampDayInMonth(monthStart, day)
+    return monthStart.date(d)
+  }
+
+  return null
+}
+
+const entryIsActiveOnDate = (entry, dateObj) => {
+  const start = toDayjsDateOnly(entry.occurredAt)
+  if (!start.isValid() || dateObj.isBefore(start, 'day')) {
+    return false
+  }
+  if (entry.recurrenceUntil) {
+    const until = toDayjsDateOnly(entry.recurrenceUntil)
+    if (until.isValid() && dateObj.isAfter(until, 'day')) {
+      return false
+    }
+  }
+  return true
+}
+
+const expandRecurringOccurrencesForMonth = (entries, month) => {
+  const { start, end } = monthRange(month)
+  const rows = []
+
+  for (const entry of entries) {
+    if (isDeleted(entry)) {
+      continue
+    }
+
+    if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) {
+      const occurred = toDayjsDateOnly(entry.occurredAt)
+      if (occurred.isValid() && !occurred.isBefore(start, 'day') && !occurred.isAfter(end, 'day')) {
+        rows.push({
+          ...entry,
+          occurrenceDate: occurred.format('YYYY-MM-DD'),
+          isRecurringOccurrence: false,
+        })
+      }
+      continue
+    }
+
+    const occurrence = resolveRecurringOccurrenceDate(entry, start.clone())
+    if (!occurrence || occurrence.isBefore(start, 'day') || occurrence.isAfter(end, 'day')) {
+      continue
+    }
+    if (!entryIsActiveOnDate(entry, occurrence)) {
+      continue
+    }
+    rows.push({
+      ...entry,
+      occurrenceDate: occurrence.format('YYYY-MM-DD'),
+      isRecurringOccurrence: true,
+    })
+  }
+
+  rows.sort((a, b) => {
+    if (a.occurrenceDate === b.occurrenceDate) {
+      return (a.updatedAt || '').localeCompare(b.updatedAt || '')
+    }
+    return a.occurrenceDate > b.occurrenceDate ? -1 : 1
+  })
+
+  return rows
+}
+
+const computeCumulativeExpenseTotal = (entries, endDateInput = getNowDate()) => {
+  const endDate = toDayjsDateOnly(endDateInput)
+  if (!endDate.isValid()) {
+    return 0
+  }
+
+  let total = 0
+
+  for (const entry of entries) {
+    if (isDeleted(entry)) {
+      continue
+    }
+
+    const amount = Number(entry.amountTwd) || 0
+    if (amount <= 0) {
+      continue
+    }
+
+    if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) {
+      const occurred = toDayjsDateOnly(entry.occurredAt)
+      if (occurred.isValid() && !occurred.isAfter(endDate, 'day')) {
+        total += amount
+      }
+      continue
+    }
+
+    const start = toDayjsDateOnly(entry.occurredAt)
+    if (!start.isValid() || start.isAfter(endDate, 'day')) {
+      continue
+    }
+
+    const until = entry.recurrenceUntil
+      ? toDayjsDateOnly(entry.recurrenceUntil)
+      : endDate
+    const limit = until.isValid() && until.isBefore(endDate, 'day') ? until : endDate
+
+    let cursor = start.startOf('month')
+    while (!cursor.isAfter(limit, 'month')) {
+      const occurrence = resolveRecurringOccurrenceDate(entry, cursor.clone())
+      if (
+        occurrence &&
+        !occurrence.isBefore(start, 'day') &&
+        !occurrence.isAfter(limit, 'day') &&
+        entryIsActiveOnDate(entry, occurrence)
+      ) {
+        total += amount
+      }
+      cursor = cursor.add(1, 'month')
+    }
+  }
+
+  return total
+}
+
+const getBudgetCycleRange = (budget, refDateInput = getNowDate()) => {
+  const start = toDayjsDateOnly(budget.startDate)
+  const refDate = toDayjsDateOnly(refDateInput)
+  if (!start.isValid() || !refDate.isValid() || refDate.isBefore(start, 'day')) {
+    return null
+  }
+
+  const monthsPerCycle = budget.budgetType === BUDGET_TYPE.MONTHLY
+    ? 1
+    : budget.budgetType === BUDGET_TYPE.QUARTERLY
+      ? 3
+      : 12
+
+  const monthsDiff = refDate.diff(start, 'month')
+  const cycleIndex = Math.floor(Math.max(0, monthsDiff) / monthsPerCycle)
+  const cycleStart = start.add(cycleIndex * monthsPerCycle, 'month')
+  const cycleEnd = cycleStart.add(monthsPerCycle, 'month').subtract(1, 'day')
+
+  return {
+    cycleStart: cycleStart.format('YYYY-MM-DD'),
+    cycleEnd: cycleEnd.format('YYYY-MM-DD'),
+  }
+}
+
+const computeBudgetRemaining = ({ budget, entries, cycleRange }) => {
+  if (!cycleRange) {
+    return {
+      spentTwd: 0,
+      remainingTwd: Number(budget.amountTwd) || 0,
+      progressPct: 0,
+    }
+  }
+
+  const start = toDayjsDateOnly(cycleRange.cycleStart)
+  const end = toDayjsDateOnly(cycleRange.cycleEnd)
+  let spentTwd = 0
+
+  for (const entry of entries) {
+    if (isDeleted(entry)) continue
+    if (entry.budgetId !== budget.id) continue
+
+    const amount = Number(entry.amountTwd) || 0
+    if (amount <= 0) continue
+
+    if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) {
+      const occurred = toDayjsDateOnly(entry.occurredAt)
+      if (!occurred.isValid()) continue
+      if (occurred.isBefore(start, 'day') || occurred.isAfter(end, 'day')) continue
+      spentTwd += amount
+      continue
+    }
+
+    const recurringStart = toDayjsDateOnly(entry.occurredAt)
+    if (!recurringStart.isValid()) continue
+
+    const until = entry.recurrenceUntil ? toDayjsDateOnly(entry.recurrenceUntil) : end
+    const limit = until.isValid() && until.isBefore(end, 'day') ? until : end
+    if (limit.isBefore(start, 'day')) continue
+
+    let cursor = start.startOf('month')
+    while (!cursor.isAfter(end, 'month')) {
+      const occurrence = resolveRecurringOccurrenceDate(entry, cursor.clone())
+      if (
+        occurrence &&
+        !occurrence.isBefore(start, 'day') &&
+        !occurrence.isAfter(limit, 'day') &&
+        !occurrence.isBefore(recurringStart, 'day') &&
+        entryIsActiveOnDate(entry, occurrence)
+      ) {
+        spentTwd += amount
+      }
+      cursor = cursor.add(1, 'month')
+    }
+  }
+
+  const total = Number(budget.amountTwd) || 0
+  const remaining = total - spentTwd
+  return {
+    spentTwd,
+    remainingTwd: remaining,
+    progressPct: total > 0 ? Math.min(100, Math.max(0, (spentTwd / total) * 100)) : 0,
+  }
+}
+
+export const upsertExpenseCategory = async ({ id, name }) => {
+  const normalizedName = String(name || '').trim()
+  if (!normalizedName) {
+    throw new Error('Category name is required')
+  }
+
+  const nowIso = getNowIso()
+  const parsedId = Number(id)
+  if (Number.isInteger(parsedId) && parsedId > 0) {
+    const existing = await db.expense_categories.get(parsedId)
+    if (!existing || isDeleted(existing)) {
+      throw new Error('Category not found')
+    }
+    await db.expense_categories.update(parsedId, {
+      name: normalizedName,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    })
+    const updated = await db.expense_categories.get(parsedId)
+    if (updated) {
+      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, updated)
+    }
+    return { id: parsedId, created: false }
+  }
+
+  const remoteKey = makeRemoteKey('category')
+  const newId = await db.expense_categories.add({
+    remoteKey,
+    name: normalizedName,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  })
+  const inserted = await db.expense_categories.get(newId)
+  if (inserted) {
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, inserted)
+  }
+  return { id: newId, created: true }
+}
+
+export const removeExpenseCategory = async ({ id }) => {
+  const parsedId = Number(id)
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error('Category not found')
+  }
+  const existing = await db.expense_categories.get(parsedId)
+  if (!existing || isDeleted(existing)) {
+    throw new Error('Category not found')
+  }
+  const nowIso = getNowIso()
+  await db.expense_categories.update(parsedId, {
+    deletedAt: nowIso,
+    updatedAt: nowIso,
+    syncState: SYNC_PENDING,
+  })
+
+  const entries = await db.expense_entries.where('categoryId').equals(parsedId).toArray()
+  for (const entry of entries) {
+    await db.expense_entries.update(entry.id, {
+      categoryId: null,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    })
+  }
+
+  const deleted = await db.expense_categories.get(parsedId)
+  if (deleted) {
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, deleted)
+  }
+  const updatedEntries = await db.expense_entries.where('categoryId').equals(null).toArray()
+  for (const entry of updatedEntries) {
+    if (entry.updatedAt === nowIso) {
+      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, entry)
+    }
+  }
+}
+
+export const upsertBudget = async ({ id, name, amountTwd, budgetType, startDate }) => {
+  const normalizedName = String(name || '').trim()
+  const normalizedStartDate = normalizeDateOnly(startDate)
+  const normalizedType = String(budgetType || '').toUpperCase()
+  const parsedAmount = Number(amountTwd)
+  if (!normalizedName) throw new Error('Budget name is required')
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) throw new Error('Budget amount must be positive')
+  if (![BUDGET_TYPE.MONTHLY, BUDGET_TYPE.QUARTERLY, BUDGET_TYPE.YEARLY].includes(normalizedType)) {
+    throw new Error('Invalid budget type')
+  }
+  if (!normalizedStartDate) throw new Error('Budget start date is required')
+
+  const nowIso = getNowIso()
+  const parsedId = Number(id)
+  if (Number.isInteger(parsedId) && parsedId > 0) {
+    const existing = await db.budgets.get(parsedId)
+    if (!existing || isDeleted(existing)) throw new Error('Budget not found')
+    await db.budgets.update(parsedId, {
+      name: normalizedName,
+      amountTwd: parsedAmount,
+      budgetType: normalizedType,
+      startDate: normalizedStartDate,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    })
+    const updated = await db.budgets.get(parsedId)
+    if (updated) {
+      await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, updated)
+    }
+    return { id: parsedId, created: false }
+  }
+
+  const remoteKey = makeRemoteKey('budget')
+  const newId = await db.budgets.add({
+    remoteKey,
+    name: normalizedName,
+    amountTwd: parsedAmount,
+    budgetType: normalizedType,
+    startDate: normalizedStartDate,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  })
+  const inserted = await db.budgets.get(newId)
+  if (inserted) {
+    await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, inserted)
+  }
+  return { id: newId, created: true }
+}
+
+export const removeBudget = async ({ id }) => {
+  const parsedId = Number(id)
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error('Budget not found')
+  }
+  const existing = await db.budgets.get(parsedId)
+  if (!existing || isDeleted(existing)) {
+    throw new Error('Budget not found')
+  }
+  const nowIso = getNowIso()
+  await db.budgets.update(parsedId, {
+    deletedAt: nowIso,
+    updatedAt: nowIso,
+    syncState: SYNC_PENDING,
+  })
+  const entries = await db.expense_entries.where('budgetId').equals(parsedId).toArray()
+  for (const entry of entries) {
+    await db.expense_entries.update(entry.id, {
+      budgetId: null,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    })
+  }
+  const deleted = await db.budgets.get(parsedId)
+  if (deleted) {
+    await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, deleted)
+  }
+  const maybeUpdatedEntries = await db.expense_entries.where('budgetId').equals(null).toArray()
+  for (const entry of maybeUpdatedEntries) {
+    if (entry.updatedAt === nowIso) {
+      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, entry)
+    }
+  }
+}
+
+export const upsertExpenseEntry = async (input) => {
+  const nowIso = getNowIso()
+  const name = String(input?.name || '').trim()
+  const amountTwd = Number(input?.amountTwd)
+  const occurredAt = normalizeDateOnly(input?.occurredAt) || getNowDate()
+  const entryType = String(input?.entryType || EXPENSE_ENTRY_TYPE.ONE_TIME).toUpperCase()
+  const recurrenceType = input?.recurrenceType ? String(input.recurrenceType).toUpperCase() : null
+  const monthlyDay = input?.monthlyDay ? Number(input.monthlyDay) : null
+  const yearlyMonth = input?.yearlyMonth ? Number(input.yearlyMonth) : null
+  const yearlyDay = input?.yearlyDay ? Number(input.yearlyDay) : null
+  const categoryId = input?.categoryId ? Number(input.categoryId) : null
+  const budgetId = input?.budgetId ? Number(input.budgetId) : null
+
+  if (!name) throw new Error('Expense name is required')
+  if (!Number.isFinite(amountTwd) || amountTwd <= 0) throw new Error('Expense amount must be positive')
+  if (!occurredAt) throw new Error('Expense date is required')
+  if (![EXPENSE_ENTRY_TYPE.ONE_TIME, EXPENSE_ENTRY_TYPE.RECURRING].includes(entryType)) {
+    throw new Error('Invalid expense type')
+  }
+  if (entryType === EXPENSE_ENTRY_TYPE.RECURRING) {
+    if (![RECURRENCE_TYPE.MONTHLY, RECURRENCE_TYPE.YEARLY].includes(recurrenceType)) {
+      throw new Error('Invalid recurrence type')
+    }
+    if (recurrenceType === RECURRENCE_TYPE.MONTHLY && (!Number.isInteger(monthlyDay) || monthlyDay < 1 || monthlyDay > 31)) {
+      throw new Error('Monthly day must be between 1 and 31')
+    }
+    if (recurrenceType === RECURRENCE_TYPE.YEARLY) {
+      if (!Number.isInteger(yearlyMonth) || yearlyMonth < 1 || yearlyMonth > 12) {
+        throw new Error('Yearly month must be between 1 and 12')
+      }
+      if (!Number.isInteger(yearlyDay) || yearlyDay < 1 || yearlyDay > 31) {
+        throw new Error('Yearly day must be between 1 and 31')
+      }
+    }
+  }
+
+  const parsedId = Number(input?.id)
+  if (Number.isInteger(parsedId) && parsedId > 0) {
+    const existing = await db.expense_entries.get(parsedId)
+    if (!existing || isDeleted(existing)) {
+      throw new Error('Expense not found')
+    }
+
+    const today = getNowDate()
+    const editingRecurringFutureOnly = existing.entryType === EXPENSE_ENTRY_TYPE.RECURRING
+      && existing.recurrenceUntil == null
+      && toDayjsDateOnly(existing.occurredAt).isBefore(toDayjsDateOnly(today), 'day')
+      && entryType === EXPENSE_ENTRY_TYPE.RECURRING
+
+    if (editingRecurringFutureOnly) {
+      const until = dayjs(today).subtract(1, 'day').format('YYYY-MM-DD')
+      await db.expense_entries.update(parsedId, {
+        recurrenceUntil: until,
+        updatedAt: nowIso,
+        syncState: SYNC_PENDING,
+      })
+      const closed = await db.expense_entries.get(parsedId)
+      if (closed) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, closed)
+
+      const newId = await db.expense_entries.add({
+        remoteKey: makeRemoteKey('expense'),
+        name,
+        amountTwd,
+        occurredAt: today,
+        entryType,
+        recurrenceType: recurrenceType ?? null,
+        monthlyDay: recurrenceType === RECURRENCE_TYPE.MONTHLY ? monthlyDay : null,
+        yearlyMonth: recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyMonth : null,
+        yearlyDay: recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyDay : null,
+        recurrenceUntil: null,
+        categoryId: Number.isInteger(categoryId) ? categoryId : null,
+        budgetId: Number.isInteger(budgetId) ? budgetId : null,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        deletedAt: null,
+        syncState: SYNC_PENDING,
+      })
+      const inserted = await db.expense_entries.get(newId)
+      if (inserted) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, inserted)
+      return { id: newId, created: true }
+    }
+
+    await db.expense_entries.update(parsedId, {
+      name,
+      amountTwd,
+      occurredAt,
+      entryType,
+      recurrenceType: entryType === EXPENSE_ENTRY_TYPE.RECURRING ? recurrenceType : null,
+      monthlyDay: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.MONTHLY ? monthlyDay : null,
+      yearlyMonth: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyMonth : null,
+      yearlyDay: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyDay : null,
+      categoryId: Number.isInteger(categoryId) ? categoryId : null,
+      budgetId: Number.isInteger(budgetId) ? budgetId : null,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    })
+    const updated = await db.expense_entries.get(parsedId)
+    if (updated) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, updated)
+    return { id: parsedId, created: false }
+  }
+
+  const remoteKey = makeRemoteKey('expense')
+  const newId = await db.expense_entries.add({
+    remoteKey,
+    name,
+    amountTwd,
+    occurredAt,
+    entryType,
+    recurrenceType: entryType === EXPENSE_ENTRY_TYPE.RECURRING ? recurrenceType : null,
+    monthlyDay: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.MONTHLY ? monthlyDay : null,
+    yearlyMonth: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyMonth : null,
+    yearlyDay: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyDay : null,
+    recurrenceUntil: null,
+    categoryId: Number.isInteger(categoryId) ? categoryId : null,
+    budgetId: Number.isInteger(budgetId) ? budgetId : null,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  })
+  const inserted = await db.expense_entries.get(newId)
+  if (inserted) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, inserted)
+  return { id: newId, created: true }
+}
+
+export const removeExpenseEntry = async ({ id }) => {
+  const parsedId = Number(id)
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error('Expense not found')
+  }
+  const existing = await db.expense_entries.get(parsedId)
+  if (!existing || isDeleted(existing)) {
+    throw new Error('Expense not found')
+  }
+  const nowIso = getNowIso()
+  await db.expense_entries.update(parsedId, {
+    deletedAt: nowIso,
+    updatedAt: nowIso,
+    syncState: SYNC_PENDING,
+  })
+  const deleted = await db.expense_entries.get(parsedId)
+  if (deleted) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, deleted)
+}
+
+export const getExpenseMonthOptions = async () => {
+  const entries = (await db.expense_entries.toArray()).filter((item) => !isDeleted(item))
+  const nowMonth = dayjs().format('YYYY-MM')
+  let firstMonth = null
+  let lastMonth = null
+
+  for (const entry of entries) {
+    const occurred = normalizeDateOnly(entry.occurredAt)
+    if (!occurred) continue
+    const monthValue = occurred.slice(0, 7)
+    if (!firstMonth || monthValue < firstMonth) {
+      firstMonth = monthValue
+    }
+    if (!lastMonth || monthValue > lastMonth) {
+      lastMonth = monthValue
+    }
+
+    if (entry.entryType === EXPENSE_ENTRY_TYPE.RECURRING && entry.recurrenceUntil) {
+      const until = normalizeDateOnly(entry.recurrenceUntil)
+      if (until) {
+        const untilMonth = until.slice(0, 7)
+        if (!lastMonth || untilMonth > lastMonth) {
+          lastMonth = untilMonth
+        }
+      }
+    }
+  }
+
+  if (!firstMonth) {
+    return [nowMonth]
+  }
+
+  const options = []
+  let cursor = dayjs(`${firstMonth}-01`)
+  const endMonth = lastMonth && lastMonth > nowMonth ? lastMonth : nowMonth
+  const end = dayjs(`${endMonth}-01`)
+
+  while (!cursor.isAfter(end, 'month')) {
+    options.push(cursor.format('YYYY-MM'))
+    cursor = cursor.add(1, 'month')
+  }
+
+  return options
+}
+
+export const getExpenseDashboardView = async (input = {}) => {
+  const monthOptions = await getExpenseMonthOptions()
+  const currentMonth = dayjs().format('YYYY-MM')
+  const activeMonth = monthOptions.includes(input.month)
+    ? input.month
+    : (monthOptions.includes(currentMonth) ? currentMonth : monthOptions[monthOptions.length - 1])
+  const entries = (await db.expense_entries.toArray()).filter((item) => !isDeleted(item))
+  const categories = (await db.expense_categories.toArray()).filter((item) => !isDeleted(item))
+  const budgets = (await db.budgets.toArray()).filter((item) => !isDeleted(item))
+
+  const expenseRows = expandRecurringOccurrencesForMonth(entries, activeMonth).map((item) => ({
+    id: item.id,
+    name: item.name,
+    amountTwd: Number(item.amountTwd) || 0,
+    occurredAt: item.occurrenceDate,
+    originalOccurredAt: item.occurredAt,
+    entryType: item.entryType,
+    recurrenceType: item.recurrenceType ?? null,
+    monthlyDay: item.monthlyDay ?? null,
+    yearlyMonth: item.yearlyMonth ?? null,
+    yearlyDay: item.yearlyDay ?? null,
+    categoryId: item.categoryId ?? null,
+    budgetId: item.budgetId ?? null,
+    isRecurringOccurrence: Boolean(item.isRecurringOccurrence),
+    updatedAt: item.updatedAt,
+  }))
+
+  const categoryMap = new Map(categories.map((item) => [item.id, item.name]))
+  const budgetMap = new Map(budgets.map((item) => [item.id, item.name]))
+  const decoratedExpenseRows = expenseRows.map((row) => ({
+    ...row,
+    categoryName: row.categoryId ? categoryMap.get(row.categoryId) || '未指定' : '未指定',
+    budgetName: row.budgetId ? budgetMap.get(row.budgetId) || '未指定' : '未指定',
+  }))
+  const monthlyExpenseTotalTwd = decoratedExpenseRows.reduce(
+    (sum, row) => sum + (Number(row.amountTwd) || 0),
+    0,
+  )
+  const cumulativeExpenseTotalTwd = computeCumulativeExpenseTotal(entries, getNowDate())
+  const firstExpenseDate = entries
+    .map((entry) => normalizeDateOnly(entry.occurredAt))
+    .filter(Boolean)
+    .sort()[0] || null
+
+  const today = getNowDate()
+  const budgetRows = budgets.map((budget) => {
+    const cycleRange = getBudgetCycleRange(budget, today)
+    const stats = computeBudgetRemaining({
+      budget,
+      entries,
+      cycleRange,
+    })
+    return {
+      id: budget.id,
+      name: budget.name,
+      amountTwd: Number(budget.amountTwd) || 0,
+      budgetType: budget.budgetType,
+      startDate: budget.startDate,
+      cycleStart: cycleRange?.cycleStart || null,
+      cycleEnd: cycleRange?.cycleEnd || null,
+      spentTwd: stats.spentTwd,
+      remainingTwd: stats.remainingTwd,
+      progressPct: stats.progressPct,
+      updatedAt: budget.updatedAt,
+    }
+  })
+
+  const selectableBudgets = budgetRows.filter((budget) => {
+    if (!budget.cycleStart || !budget.cycleEnd) return false
+    return today >= budget.cycleStart && today <= budget.cycleEnd
+  })
+
+  return {
+    monthOptions,
+    activeMonth,
+    monthlyExpenseTotalTwd,
+    cumulativeExpenseTotalTwd,
+    firstExpenseDate,
+    expenseRows: decoratedExpenseRows,
+    categoryRows: categories
+      .map((item) => ({ id: item.id, name: item.name, updatedAt: item.updatedAt }))
+      .sort((a, b) => (a.updatedAt || '').localeCompare(b.updatedAt || ''))
+      .reverse(),
+    budgetRows: budgetRows
+      .sort((a, b) => (a.updatedAt || '').localeCompare(b.updatedAt || ''))
+      .reverse(),
+    selectableBudgets: selectableBudgets.map((item) => ({ id: item.id, name: item.name })),
+  }
 }

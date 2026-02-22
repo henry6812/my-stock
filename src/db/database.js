@@ -152,6 +152,46 @@ class StockDatabase extends Dexie {
         app_config: '&key',
         outbox: '++id,uid,status,collection,docId,createdAt,retryAt',
       })
+
+    this.version(8)
+      .stores({
+        holdings: '++id,[symbol+market],symbol,market,assetTag,sortOrder,updatedAt,deletedAt,syncState',
+        price_snapshots: '++id,holdingId,symbol,market,capturedAt,[holdingId+capturedAt],updatedAt,deletedAt,syncState',
+        fx_rates: '&pair,fetchedAt,updatedAt,deletedAt,syncState',
+        sync_meta: '&key,lastUpdatedAt,updatedAt,deletedAt,syncState',
+        expense_entries: '++id,remoteKey,occurredAt,entryType,budgetId,categoryId,updatedAt,deletedAt,syncState',
+        expense_categories: '++id,remoteKey,name,updatedAt,deletedAt,syncState',
+        budgets: '++id,remoteKey,budgetType,startDate,updatedAt,deletedAt,syncState',
+        cash_accounts: '++id,[bankName+accountAlias],bankName,accountAlias,updatedAt,deletedAt,syncState',
+        cash_balance_snapshots: '++id,cashAccountId,bankName,accountAlias,capturedAt,[cashAccountId+capturedAt],updatedAt,deletedAt,syncState',
+        app_config: '&key',
+        outbox: '++id,uid,status,collection,docId,createdAt,retryAt',
+      })
+      .upgrade(async (tx) => {
+        const nowIso = new Date().toISOString()
+        const expenseEntries = await tx.table('expense_entries').toArray()
+        for (const entry of expenseEntries) {
+          const occurredAt = entry.occurredAt || entry.createdAt || nowIso.slice(0, 10)
+          await tx.table('expense_entries').update(entry.id, {
+            remoteKey: entry.remoteKey || `expense_${entry.id}`,
+            name: entry.name || entry.title || '未命名支出',
+            amountTwd: Number(entry.amountTwd ?? entry.amount ?? 0) || 0,
+            occurredAt,
+            entryType: entry.entryType || 'ONE_TIME',
+            recurrenceType: entry.recurrenceType || null,
+            monthlyDay: entry.monthlyDay ?? null,
+            yearlyMonth: entry.yearlyMonth ?? null,
+            yearlyDay: entry.yearlyDay ?? null,
+            recurrenceUntil: entry.recurrenceUntil ?? null,
+            categoryId: entry.categoryId ?? null,
+            budgetId: entry.budgetId ?? null,
+            createdAt: entry.createdAt || nowIso,
+            updatedAt: entry.updatedAt || entry.occurredAt || nowIso,
+            deletedAt: entry.deletedAt ?? null,
+            syncState: entry.syncState || 'pending',
+          })
+        }
+      })
   }
 }
 

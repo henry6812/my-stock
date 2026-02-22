@@ -11,15 +11,24 @@ import { firestoreDb, assertFirebaseConfigured } from './firebaseApp'
 import {
   buildCashBalanceSnapshotKey,
   buildCashAccountKey,
+  buildBudgetKey,
+  buildExpenseCategoryKey,
+  buildExpenseEntryKey,
   buildHoldingKey,
   buildSnapshotKey,
+  budgetToRemote,
   cashBalanceSnapshotToRemote,
   cashAccountToRemote,
+  expenseCategoryToRemote,
+  expenseEntryToRemote,
   fxRateToRemote,
   holdingToRemote,
   isRemoteNewer,
+  remoteToBudget,
   remoteToCashBalanceSnapshot,
   remoteToCashAccount,
+  remoteToExpenseCategory,
+  remoteToExpenseEntry,
   remoteToFxRate,
   remoteToHolding,
   remoteToSnapshot,
@@ -39,6 +48,9 @@ const COLLECTIONS = {
   SYNC_META: 'sync_meta',
   CASH_ACCOUNTS: 'cash_accounts',
   CASH_BALANCE_SNAPSHOTS: 'cash_balance_snapshots',
+  EXPENSE_ENTRIES: 'expense_entries',
+  EXPENSE_CATEGORIES: 'expense_categories',
+  BUDGETS: 'budgets',
 }
 
 const OUTBOX_OP_SET = 'set'
@@ -140,6 +152,30 @@ const buildMutationPayload = ({ collectionName, record }) => {
     return {
       docId: buildCashBalanceSnapshotKey(record),
       payload: cashBalanceSnapshotToRemote(record),
+      op: OUTBOX_OP_SET,
+    }
+  }
+
+  if (collectionName === COLLECTIONS.EXPENSE_ENTRIES) {
+    return {
+      docId: buildExpenseEntryKey(record),
+      payload: expenseEntryToRemote(record),
+      op: OUTBOX_OP_SET,
+    }
+  }
+
+  if (collectionName === COLLECTIONS.EXPENSE_CATEGORIES) {
+    return {
+      docId: buildExpenseCategoryKey(record),
+      payload: expenseCategoryToRemote(record),
+      op: OUTBOX_OP_SET,
+    }
+  }
+
+  if (collectionName === COLLECTIONS.BUDGETS) {
+    return {
+      docId: buildBudgetKey(record),
+      payload: budgetToRemote(record),
       op: OUTBOX_OP_SET,
     }
   }
@@ -382,6 +418,129 @@ const applyRemoteCashBalanceSnapshot = async (remote) => {
   })
 }
 
+const applyRemoteExpenseEntry = async (remote) => {
+  if (!remote.remoteKey || !remote.name) {
+    return
+  }
+
+  const local = await db.expense_entries.where('remoteKey').equals(remote.remoteKey).first()
+  const nowIso = getNowIso()
+
+  if (!local) {
+    await db.expense_entries.add({
+      remoteKey: remote.remoteKey,
+      name: remote.name,
+      amountTwd: Number(remote.amountTwd) || 0,
+      occurredAt: remote.occurredAt || nowIso.slice(0, 10),
+      entryType: remote.entryType || 'ONE_TIME',
+      recurrenceType: remote.recurrenceType ?? null,
+      monthlyDay: remote.monthlyDay ?? null,
+      yearlyMonth: remote.yearlyMonth ?? null,
+      yearlyDay: remote.yearlyDay ?? null,
+      recurrenceUntil: remote.recurrenceUntil ?? null,
+      categoryId: remote.categoryId ?? null,
+      budgetId: remote.budgetId ?? null,
+      createdAt: remote.createdAt || nowIso,
+      updatedAt: remote.updatedAt || nowIso,
+      deletedAt: remote.deletedAt ?? null,
+      syncState: SYNC_SYNCED,
+    })
+    return
+  }
+
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
+    return
+  }
+
+  await db.expense_entries.update(local.id, {
+    name: remote.name,
+    amountTwd: Number(remote.amountTwd) || 0,
+    occurredAt: remote.occurredAt || local.occurredAt,
+    entryType: remote.entryType || local.entryType || 'ONE_TIME',
+    recurrenceType: remote.recurrenceType ?? null,
+    monthlyDay: remote.monthlyDay ?? null,
+    yearlyMonth: remote.yearlyMonth ?? null,
+    yearlyDay: remote.yearlyDay ?? null,
+    recurrenceUntil: remote.recurrenceUntil ?? null,
+    categoryId: remote.categoryId ?? null,
+    budgetId: remote.budgetId ?? null,
+    createdAt: remote.createdAt || local.createdAt,
+    updatedAt: remote.updatedAt || local.updatedAt,
+    deletedAt: remote.deletedAt ?? null,
+    syncState: SYNC_SYNCED,
+  })
+}
+
+const applyRemoteExpenseCategory = async (remote) => {
+  if (!remote.remoteKey || !remote.name) {
+    return
+  }
+
+  const local = await db.expense_categories.where('remoteKey').equals(remote.remoteKey).first()
+  const nowIso = getNowIso()
+  if (!local) {
+    await db.expense_categories.add({
+      remoteKey: remote.remoteKey,
+      name: remote.name,
+      createdAt: remote.createdAt || nowIso,
+      updatedAt: remote.updatedAt || nowIso,
+      deletedAt: remote.deletedAt ?? null,
+      syncState: SYNC_SYNCED,
+    })
+    return
+  }
+
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
+    return
+  }
+
+  await db.expense_categories.update(local.id, {
+    name: remote.name,
+    createdAt: remote.createdAt || local.createdAt,
+    updatedAt: remote.updatedAt || local.updatedAt,
+    deletedAt: remote.deletedAt ?? null,
+    syncState: SYNC_SYNCED,
+  })
+}
+
+const applyRemoteBudget = async (remote) => {
+  if (!remote.remoteKey || !remote.name) {
+    return
+  }
+
+  const local = await db.budgets.where('remoteKey').equals(remote.remoteKey).first()
+  const nowIso = getNowIso()
+  if (!local) {
+    await db.budgets.add({
+      remoteKey: remote.remoteKey,
+      name: remote.name,
+      amountTwd: Number(remote.amountTwd) || 0,
+      budgetType: remote.budgetType || 'MONTHLY',
+      startDate: remote.startDate || nowIso.slice(0, 10),
+      createdAt: remote.createdAt || nowIso,
+      updatedAt: remote.updatedAt || nowIso,
+      deletedAt: remote.deletedAt ?? null,
+      syncState: SYNC_SYNCED,
+    })
+    return
+  }
+
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
+    return
+  }
+
+  await db.budgets.update(local.id, {
+    name: remote.name,
+    amountTwd: Number(remote.amountTwd) || 0,
+    budgetType: remote.budgetType || 'MONTHLY',
+    startDate: remote.startDate || local.startDate,
+    createdAt: remote.createdAt || local.createdAt,
+    updatedAt: remote.updatedAt || local.updatedAt,
+    deletedAt: remote.deletedAt ?? null,
+    syncState: SYNC_SYNCED,
+  })
+}
+
 const applyRealtimeSnapshot = async (collectionName, snapshot) => {
   for (const change of snapshot.docChanges()) {
     if (change.type === 'removed') {
@@ -417,6 +576,21 @@ const applyRealtimeSnapshot = async (collectionName, snapshot) => {
 
     if (collectionName === COLLECTIONS.CASH_BALANCE_SNAPSHOTS) {
       await applyRemoteCashBalanceSnapshot(remoteToCashBalanceSnapshot(data))
+      continue
+    }
+
+    if (collectionName === COLLECTIONS.EXPENSE_ENTRIES) {
+      await applyRemoteExpenseEntry(remoteToExpenseEntry(data))
+      continue
+    }
+
+    if (collectionName === COLLECTIONS.EXPENSE_CATEGORIES) {
+      await applyRemoteExpenseCategory(remoteToExpenseCategory(data))
+      continue
+    }
+
+    if (collectionName === COLLECTIONS.BUDGETS) {
+      await applyRemoteBudget(remoteToBudget(data))
     }
   }
 
@@ -615,6 +789,9 @@ export const startRealtimeSync = async (uid) => {
     COLLECTIONS.SYNC_META,
     COLLECTIONS.CASH_ACCOUNTS,
     COLLECTIONS.CASH_BALANCE_SNAPSHOTS,
+    COLLECTIONS.EXPENSE_ENTRIES,
+    COLLECTIONS.EXPENSE_CATEGORIES,
+    COLLECTIONS.BUDGETS,
   ])
 
   for (const name of waitingFirstSnapshots) {
