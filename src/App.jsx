@@ -2918,7 +2918,7 @@ function App() {
               title={
                 <Space size={8}>
                   <span>持股列表</span>
-                  <Tooltip title="新增持股">
+                  {isMobileViewport ? (
                     <Button
                       type="text"
                       size="small"
@@ -2934,7 +2934,25 @@ function App() {
                       icon={<PlusOutlined />}
                       aria-label="新增持股"
                     />
-                  </Tooltip>
+                  ) : (
+                    <Tooltip title="新增持股">
+                      <Button
+                        type="text"
+                        size="small"
+                        className="title-add-btn"
+                        onClick={() => {
+                          if (isMobileViewport) {
+                            setIsAddHoldingSheetOpen(true);
+                          } else {
+                            setIsAddHoldingModalOpen(true);
+                          }
+                        }}
+                        disabled={loadingAddHolding}
+                        icon={<PlusOutlined />}
+                        aria-label="新增持股"
+                      />
+                    </Tooltip>
+                  )}
                 </Space>
               }
               extra={
@@ -3021,7 +3039,7 @@ function App() {
               title={
                 <Space size={8}>
                   <span>銀行現金資產</span>
-                  <Tooltip title="新增銀行帳戶">
+                  {isMobileViewport ? (
                     <Button
                       type="text"
                       size="small"
@@ -3037,7 +3055,25 @@ function App() {
                       icon={<PlusOutlined />}
                       aria-label="新增銀行帳戶"
                     />
-                  </Tooltip>
+                  ) : (
+                    <Tooltip title="新增銀行帳戶">
+                      <Button
+                        type="text"
+                        size="small"
+                        className="title-add-btn"
+                        onClick={() => {
+                          if (isMobileViewport) {
+                            setIsAddCashSheetOpen(true);
+                          } else {
+                            setIsAddCashModalOpen(true);
+                          }
+                        }}
+                        disabled={loadingAddCashAccount}
+                        icon={<PlusOutlined />}
+                        aria-label="新增銀行帳戶"
+                      />
+                    </Tooltip>
+                  )}
                 </Space>
               }
             >
@@ -3187,7 +3223,7 @@ function App() {
                 title={
                   <Space size={8}>
                     <span>支出列表</span>
-                    <Tooltip title="新增支出">
+                    {isMobileViewport ? (
                       <Button
                         type="text"
                         size="small"
@@ -3195,7 +3231,17 @@ function App() {
                         icon={<PlusOutlined />}
                         onClick={() => openExpenseForm()}
                       />
-                    </Tooltip>
+                    ) : (
+                      <Tooltip title="新增支出">
+                        <Button
+                          type="text"
+                          size="small"
+                          className="title-add-btn"
+                          icon={<PlusOutlined />}
+                          onClick={() => openExpenseForm()}
+                        />
+                      </Tooltip>
+                    )}
                   </Space>
                 }
               >
@@ -3214,7 +3260,7 @@ function App() {
                 title={
                   <Space size={8}>
                     <span>類別列表</span>
-                    <Tooltip title="新增類別">
+                    {isMobileViewport ? (
                       <Button
                         type="text"
                         size="small"
@@ -3222,7 +3268,17 @@ function App() {
                         icon={<PlusOutlined />}
                         onClick={() => openCategoryForm()}
                       />
-                    </Tooltip>
+                    ) : (
+                      <Tooltip title="新增類別">
+                        <Button
+                          type="text"
+                          size="small"
+                          className="title-add-btn"
+                          icon={<PlusOutlined />}
+                          onClick={() => openCategoryForm()}
+                        />
+                      </Tooltip>
+                    )}
                   </Space>
                 }
               >
@@ -3240,7 +3296,7 @@ function App() {
                 title={
                   <Space size={8}>
                     <span>預算列表</span>
-                    <Tooltip title="新增預算">
+                    {isMobileViewport ? (
                       <Button
                         type="text"
                         size="small"
@@ -3248,7 +3304,17 @@ function App() {
                         icon={<PlusOutlined />}
                         onClick={() => openBudgetForm()}
                       />
-                    </Tooltip>
+                    ) : (
+                      <Tooltip title="新增預算">
+                        <Button
+                          type="text"
+                          size="small"
+                          className="title-add-btn"
+                          icon={<PlusOutlined />}
+                          onClick={() => openBudgetForm()}
+                        />
+                      </Tooltip>
+                    )}
                   </Space>
                 }
               >
