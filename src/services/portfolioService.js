@@ -147,6 +147,15 @@ const getLatestCashBalanceSnapshotAtOrBefore = async (cashAccountId, baselineAtI
   return snapshots.find((item) => !isDeleted(item))
 }
 
+const getEarliestCashBalanceSnapshotAfter = async (cashAccountId, baselineAtIso) => {
+  const snapshots = await db.cash_balance_snapshots
+    .where('[cashAccountId+capturedAt]')
+    .between([cashAccountId, baselineAtIso], [cashAccountId, Dexie.maxKey], false, true)
+    .toArray()
+
+  return snapshots.find((item) => !isDeleted(item))
+}
+
 const getBaselineAtIso = () => dayjs().tz('Asia/Taipei').subtract(1, 'day').endOf('day').utc().toISOString()
 
 const recordCashBalanceSnapshot = async ({ cashAccount, balanceTwd, capturedAt = getNowIso() }) => {
@@ -744,10 +753,21 @@ export const updateCashAccountBalance = async ({ id, balanceTwd }) => {
     throw new Error('Cash account not found')
   }
 
-  const nowIso = getNowIso()
+  const nowTs = Date.now()
+  const beforeIso = new Date(nowTs - 1).toISOString()
+  const afterIso = new Date(nowTs).toISOString()
+
+  // Capture "before" value first so baseline fallback can infer delta correctly
+  // for legacy accounts that had no historical cash snapshots.
+  await recordCashBalanceSnapshot({
+    cashAccount: existing,
+    balanceTwd: existing.balanceTwd,
+    capturedAt: beforeIso,
+  })
+
   await db.cash_accounts.update(parsedId, {
     balanceTwd: parsedBalance,
-    updatedAt: nowIso,
+    updatedAt: afterIso,
     syncState: SYNC_PENDING,
   })
   const updatedCash = await db.cash_accounts.get(parsedId)
@@ -756,7 +776,7 @@ export const updateCashAccountBalance = async ({ id, balanceTwd }) => {
     await recordCashBalanceSnapshot({
       cashAccount: updatedCash,
       balanceTwd: parsedBalance,
-      capturedAt: nowIso,
+      capturedAt: afterIso,
     })
   }
 }
@@ -903,6 +923,14 @@ export const getPortfolioView = async () => {
     const baselineSnapshot = await getLatestCashBalanceSnapshotAtOrBefore(cashAccount.id, baselineAt)
     if (typeof baselineSnapshot?.balanceTwd === 'number') {
       baselineCashTotalTwd += baselineSnapshot.balanceTwd
+      continue
+    }
+
+    // Legacy fallback: if there is no snapshot at/before baseline, use the first
+    // snapshot after baseline as an approximation of baseline value.
+    const firstSnapshotAfterBaseline = await getEarliestCashBalanceSnapshotAfter(cashAccount.id, baselineAt)
+    if (typeof firstSnapshotAfterBaseline?.balanceTwd === 'number') {
+      baselineCashTotalTwd += firstSnapshotAfterBaseline.balanceTwd
       continue
     }
 
