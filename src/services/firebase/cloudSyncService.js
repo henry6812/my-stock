@@ -37,9 +37,10 @@ import {
   syncMetaToRemote,
 } from './firestoreMappers'
 
-const SYNC_PENDING = 'pending'
-const SYNC_ERROR = 'error'
 const SYNC_SYNCED = 'synced'
+export const CLOUD_SYNC_UPDATED_EVENT = 'cloud-sync-updated'
+const LOCAL_SYNC_UID_KEY = 'cloud_sync_last_uid'
+const SYNC_READY_TIMEOUT_MS = 15_000
 
 const COLLECTIONS = {
   HOLDINGS: 'holdings',
@@ -53,18 +54,12 @@ const COLLECTIONS = {
   BUDGETS: 'budgets',
 }
 
-const OUTBOX_OP_SET = 'set'
-const OUTBOX_OP_DELETE = 'delete'
-export const CLOUD_SYNC_UPDATED_EVENT = 'cloud-sync-updated'
-
 let currentUid = null
 let syncInFlight = null
-let outboxFlushInFlight = null
 let realtimeUnsubscribers = []
 let onlineHandler = null
 let offlineHandler = null
-let pendingSnapshotReplay = []
-let pendingCashBalanceSnapshotReplay = []
+let firstSnapshotTracker = null
 
 const runtimeState = {
   connected: typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -76,6 +71,32 @@ const runtimeState = {
 }
 
 const getNowIso = () => new Date().toISOString()
+
+const getLastSyncedUid = () => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+  try {
+    return window.localStorage.getItem(LOCAL_SYNC_UID_KEY)
+  } catch {
+    return null
+  }
+}
+
+const setLastSyncedUid = (uid) => {
+  if (typeof window === 'undefined') {
+    return
+  }
+  try {
+    if (uid) {
+      window.localStorage.setItem(LOCAL_SYNC_UID_KEY, uid)
+      return
+    }
+    window.localStorage.removeItem(LOCAL_SYNC_UID_KEY)
+  } catch {
+    // ignore localStorage failures
+  }
+}
 
 const ensureFirestore = () => {
   assertFirebaseConfigured()
@@ -92,105 +113,114 @@ const userCollection = (name) => (
   collection(ensureFirestore(), 'users', currentUid, name)
 )
 
-const refreshOutboxPendingCount = async () => {
-  if (!currentUid || !db.outbox) {
-    runtimeState.outboxPending = 0
-    return 0
+const emitCloudUpdated = () => {
+  runtimeState.lastCloudApplyAt = getNowIso()
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CLOUD_SYNC_UPDATED_EVENT))
+  }
+}
+
+const markFirstSnapshotReady = (name) => {
+  if (!firstSnapshotTracker?.pending) {
+    return
+  }
+  firstSnapshotTracker.pending.delete(name)
+  if (firstSnapshotTracker.pending.size === 0) {
+    runtimeState.listenersReady = true
+    const waiters = firstSnapshotTracker.waiters.splice(0)
+    waiters.forEach((resolve) => resolve())
+  }
+}
+
+const waitForFirstSnapshotsReady = async (timeoutMs = SYNC_READY_TIMEOUT_MS) => {
+  if (runtimeState.listenersReady) {
+    return
   }
 
-  const count = await db.outbox
-    .where('uid')
-    .equals(currentUid)
-    .and((item) => item.status === SYNC_PENDING || item.status === SYNC_ERROR)
-    .count()
-  runtimeState.outboxPending = count
-  return count
+  await new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`Cloud sync timeout after ${timeoutMs}ms`))
+    }, timeoutMs)
+
+    const done = () => {
+      clearTimeout(timeoutId)
+      resolve()
+    }
+
+    if (runtimeState.listenersReady) {
+      done()
+      return
+    }
+
+    if (!firstSnapshotTracker) {
+      done()
+      return
+    }
+    firstSnapshotTracker.waiters.push(done)
+  })
+}
+
+const clearLocalCloudBackedData = async () => {
+  await db.transaction(
+    'rw',
+    db.holdings,
+    db.price_snapshots,
+    db.fx_rates,
+    db.sync_meta,
+    db.cash_accounts,
+    db.cash_balance_snapshots,
+    db.expense_entries,
+    db.expense_categories,
+    db.budgets,
+    async () => {
+      await db.holdings.clear()
+      await db.price_snapshots.clear()
+      await db.fx_rates.clear()
+      await db.sync_meta.clear()
+      await db.cash_accounts.clear()
+      await db.cash_balance_snapshots.clear()
+      await db.expense_entries.clear()
+      await db.expense_categories.clear()
+      await db.budgets.clear()
+    },
+  )
 }
 
 const buildMutationPayload = ({ collectionName, record }) => {
   if (collectionName === COLLECTIONS.HOLDINGS) {
-    return {
-      docId: buildHoldingKey(record),
-      payload: holdingToRemote(record),
-      op: OUTBOX_OP_SET,
-    }
+    return { docId: buildHoldingKey(record), payload: holdingToRemote(record) }
   }
-
   if (collectionName === COLLECTIONS.PRICE_SNAPSHOTS) {
-    return {
-      docId: buildSnapshotKey(record),
-      payload: snapshotToRemote(record),
-      op: OUTBOX_OP_SET,
-    }
+    return { docId: buildSnapshotKey(record), payload: snapshotToRemote(record) }
   }
-
   if (collectionName === COLLECTIONS.FX_RATES) {
-    return {
-      docId: record.pair,
-      payload: fxRateToRemote(record),
-      op: OUTBOX_OP_SET,
-    }
+    return { docId: record.pair, payload: fxRateToRemote(record) }
   }
-
   if (collectionName === COLLECTIONS.SYNC_META) {
-    return {
-      docId: record.key,
-      payload: syncMetaToRemote(record),
-      op: OUTBOX_OP_SET,
-    }
+    return { docId: record.key, payload: syncMetaToRemote(record) }
   }
-
   if (collectionName === COLLECTIONS.CASH_ACCOUNTS) {
-    return {
-      docId: buildCashAccountKey(record),
-      payload: cashAccountToRemote(record),
-      op: OUTBOX_OP_SET,
-    }
+    return { docId: buildCashAccountKey(record), payload: cashAccountToRemote(record) }
   }
-
   if (collectionName === COLLECTIONS.CASH_BALANCE_SNAPSHOTS) {
-    return {
-      docId: buildCashBalanceSnapshotKey(record),
-      payload: cashBalanceSnapshotToRemote(record),
-      op: OUTBOX_OP_SET,
-    }
+    return { docId: buildCashBalanceSnapshotKey(record), payload: cashBalanceSnapshotToRemote(record) }
   }
-
   if (collectionName === COLLECTIONS.EXPENSE_ENTRIES) {
-    return {
-      docId: buildExpenseEntryKey(record),
-      payload: expenseEntryToRemote(record),
-      op: OUTBOX_OP_SET,
-    }
+    return { docId: buildExpenseEntryKey(record), payload: expenseEntryToRemote(record) }
   }
-
   if (collectionName === COLLECTIONS.EXPENSE_CATEGORIES) {
-    return {
-      docId: buildExpenseCategoryKey(record),
-      payload: expenseCategoryToRemote(record),
-      op: OUTBOX_OP_SET,
-    }
+    return { docId: buildExpenseCategoryKey(record), payload: expenseCategoryToRemote(record) }
   }
-
   if (collectionName === COLLECTIONS.BUDGETS) {
-    return {
-      docId: buildBudgetKey(record),
-      payload: budgetToRemote(record),
-      op: OUTBOX_OP_SET,
-    }
+    return { docId: buildBudgetKey(record), payload: budgetToRemote(record) }
   }
-
   throw new Error(`Unsupported collection for mutation: ${collectionName}`)
 }
 
 const applyRemoteHolding = async (remote) => {
-  if (!remote.symbol || !remote.market) {
-    return
-  }
-
+  if (!remote.symbol || !remote.market) return
   const local = await db.holdings.where('[symbol+market]').equals([remote.symbol, remote.market]).first()
   const nowIso = getNowIso()
-
   if (!local) {
     await db.holdings.add({
       symbol: remote.symbol,
@@ -206,11 +236,7 @@ const applyRemoteHolding = async (remote) => {
     })
     return
   }
-
-  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
-    return
-  }
-
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.holdings.update(local.id, {
     assetTag: remote.assetTag ?? local.assetTag ?? 'STOCK',
     shares: remote.shares,
@@ -221,32 +247,13 @@ const applyRemoteHolding = async (remote) => {
     deletedAt: remote.deletedAt ?? null,
     syncState: SYNC_SYNCED,
   })
-
-  if (pendingSnapshotReplay.length > 0) {
-    const queue = [...pendingSnapshotReplay]
-    pendingSnapshotReplay = []
-    for (const item of queue) {
-      await applyRemoteSnapshot(item)
-    }
-  }
 }
 
-async function applyRemoteSnapshot(remote) {
-  if (!remote.symbol || !remote.market || !remote.capturedAt) {
-    return
-  }
-
+const applyRemoteSnapshot = async (remote) => {
+  if (!remote.symbol || !remote.market || !remote.capturedAt) return
   const holding = await db.holdings.where('[symbol+market]').equals([remote.symbol, remote.market]).first()
-  if (!holding) {
-    pendingSnapshotReplay.push(remote)
-    return
-  }
-
-  const local = await db.price_snapshots
-    .where('[holdingId+capturedAt]')
-    .equals([holding.id, remote.capturedAt])
-    .first()
-
+  if (!holding) return
+  const local = await db.price_snapshots.where('[holdingId+capturedAt]').equals([holding.id, remote.capturedAt]).first()
   if (!local) {
     await db.price_snapshots.add({
       holdingId: holding.id,
@@ -263,11 +270,7 @@ async function applyRemoteSnapshot(remote) {
     })
     return
   }
-
-  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
-    return
-  }
-
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.price_snapshots.update(local.id, {
     price: remote.price,
     currency: remote.currency,
@@ -280,15 +283,9 @@ async function applyRemoteSnapshot(remote) {
 }
 
 const applyRemoteFxRate = async (remote) => {
-  if (!remote.pair) {
-    return
-  }
-
+  if (!remote.pair) return
   const local = await db.fx_rates.get(remote.pair)
-  if (local && local.updatedAt && remote.updatedAt && local.updatedAt >= remote.updatedAt) {
-    return
-  }
-
+  if (local?.updatedAt && remote.updatedAt && local.updatedAt >= remote.updatedAt) return
   await db.fx_rates.put({
     pair: remote.pair,
     rate: remote.rate,
@@ -301,15 +298,9 @@ const applyRemoteFxRate = async (remote) => {
 }
 
 const applyRemoteSyncMeta = async (remote) => {
-  if (!remote.key) {
-    return
-  }
-
+  if (!remote.key) return
   const local = await db.sync_meta.get(remote.key)
-  if (local && local.updatedAt && remote.updatedAt && local.updatedAt >= remote.updatedAt) {
-    return
-  }
-
+  if (local?.updatedAt && remote.updatedAt && local.updatedAt >= remote.updatedAt) return
   await db.sync_meta.put({
     key: remote.key,
     lastUpdatedAt: remote.lastUpdatedAt,
@@ -322,14 +313,10 @@ const applyRemoteSyncMeta = async (remote) => {
 }
 
 const applyRemoteCashAccount = async (remote) => {
-  if (!remote.bankName || !remote.accountAlias) {
-    return
-  }
-
+  if (!remote.bankName || !remote.accountAlias) return
   const key = [remote.bankName, remote.accountAlias]
   const local = await db.cash_accounts.where('[bankName+accountAlias]').equals(key).first()
   const nowIso = getNowIso()
-
   if (!local) {
     await db.cash_accounts.add({
       bankCode: remote.bankCode ?? null,
@@ -343,11 +330,7 @@ const applyRemoteCashAccount = async (remote) => {
     })
     return
   }
-
-  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
-    return
-  }
-
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.cash_accounts.update(local.id, {
     bankCode: remote.bankCode ?? null,
     bankName: remote.bankName,
@@ -358,36 +341,13 @@ const applyRemoteCashAccount = async (remote) => {
     deletedAt: remote.deletedAt ?? null,
     syncState: SYNC_SYNCED,
   })
-
-  if (pendingCashBalanceSnapshotReplay.length > 0) {
-    const queue = [...pendingCashBalanceSnapshotReplay]
-    pendingCashBalanceSnapshotReplay = []
-    for (const item of queue) {
-      await applyRemoteCashBalanceSnapshot(item)
-    }
-  }
 }
 
 const applyRemoteCashBalanceSnapshot = async (remote) => {
-  if (!remote.bankName || !remote.accountAlias || !remote.capturedAt) {
-    return
-  }
-
-  const cashAccount = await db.cash_accounts
-    .where('[bankName+accountAlias]')
-    .equals([remote.bankName, remote.accountAlias])
-    .first()
-
-  if (!cashAccount) {
-    pendingCashBalanceSnapshotReplay.push(remote)
-    return
-  }
-
-  const local = await db.cash_balance_snapshots
-    .where('[cashAccountId+capturedAt]')
-    .equals([cashAccount.id, remote.capturedAt])
-    .first()
-
+  if (!remote.bankName || !remote.accountAlias || !remote.capturedAt) return
+  const cashAccount = await db.cash_accounts.where('[bankName+accountAlias]').equals([remote.bankName, remote.accountAlias]).first()
+  if (!cashAccount) return
+  const local = await db.cash_balance_snapshots.where('[cashAccountId+capturedAt]').equals([cashAccount.id, remote.capturedAt]).first()
   if (!local) {
     await db.cash_balance_snapshots.add({
       cashAccountId: cashAccount.id,
@@ -402,11 +362,7 @@ const applyRemoteCashBalanceSnapshot = async (remote) => {
     })
     return
   }
-
-  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
-    return
-  }
-
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.cash_balance_snapshots.update(local.id, {
     bankCode: remote.bankCode ?? local.bankCode ?? null,
     bankName: remote.bankName,
@@ -419,13 +375,9 @@ const applyRemoteCashBalanceSnapshot = async (remote) => {
 }
 
 const applyRemoteExpenseEntry = async (remote) => {
-  if (!remote.remoteKey || !remote.name) {
-    return
-  }
-
+  if (!remote.remoteKey || !remote.name) return
   const local = await db.expense_entries.where('remoteKey').equals(remote.remoteKey).first()
   const nowIso = getNowIso()
-
   if (!local) {
     await db.expense_entries.add({
       remoteKey: remote.remoteKey,
@@ -447,11 +399,7 @@ const applyRemoteExpenseEntry = async (remote) => {
     })
     return
   }
-
-  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
-    return
-  }
-
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.expense_entries.update(local.id, {
     name: remote.name,
     amountTwd: Number(remote.amountTwd) || 0,
@@ -472,10 +420,7 @@ const applyRemoteExpenseEntry = async (remote) => {
 }
 
 const applyRemoteExpenseCategory = async (remote) => {
-  if (!remote.remoteKey || !remote.name) {
-    return
-  }
-
+  if (!remote.remoteKey || !remote.name) return
   const local = await db.expense_categories.where('remoteKey').equals(remote.remoteKey).first()
   const nowIso = getNowIso()
   if (!local) {
@@ -489,11 +434,7 @@ const applyRemoteExpenseCategory = async (remote) => {
     })
     return
   }
-
-  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
-    return
-  }
-
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.expense_categories.update(local.id, {
     name: remote.name,
     createdAt: remote.createdAt || local.createdAt,
@@ -504,10 +445,7 @@ const applyRemoteExpenseCategory = async (remote) => {
 }
 
 const applyRemoteBudget = async (remote) => {
-  if (!remote.remoteKey || !remote.name) {
-    return
-  }
-
+  if (!remote.remoteKey || !remote.name) return
   const local = await db.budgets.where('remoteKey').equals(remote.remoteKey).first()
   const nowIso = getNowIso()
   if (!local) {
@@ -524,11 +462,7 @@ const applyRemoteBudget = async (remote) => {
     })
     return
   }
-
-  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) {
-    return
-  }
-
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.budgets.update(local.id, {
     name: remote.name,
     amountTwd: Number(remote.amountTwd) || 0,
@@ -546,286 +480,195 @@ const applyRealtimeSnapshot = async (collectionName, snapshot) => {
     if (change.type === 'removed') {
       continue
     }
-
     const data = change.doc.data()
-
     if (collectionName === COLLECTIONS.HOLDINGS) {
       await applyRemoteHolding(remoteToHolding(data))
       continue
     }
-
     if (collectionName === COLLECTIONS.PRICE_SNAPSHOTS) {
       await applyRemoteSnapshot(remoteToSnapshot(data))
       continue
     }
-
     if (collectionName === COLLECTIONS.FX_RATES) {
       await applyRemoteFxRate(remoteToFxRate(data))
       continue
     }
-
     if (collectionName === COLLECTIONS.SYNC_META) {
       await applyRemoteSyncMeta(remoteToSyncMeta(data))
       continue
     }
-
     if (collectionName === COLLECTIONS.CASH_ACCOUNTS) {
       await applyRemoteCashAccount(remoteToCashAccount(data))
       continue
     }
-
     if (collectionName === COLLECTIONS.CASH_BALANCE_SNAPSHOTS) {
       await applyRemoteCashBalanceSnapshot(remoteToCashBalanceSnapshot(data))
       continue
     }
-
     if (collectionName === COLLECTIONS.EXPENSE_ENTRIES) {
       await applyRemoteExpenseEntry(remoteToExpenseEntry(data))
       continue
     }
-
     if (collectionName === COLLECTIONS.EXPENSE_CATEGORIES) {
       await applyRemoteExpenseCategory(remoteToExpenseCategory(data))
       continue
     }
-
     if (collectionName === COLLECTIONS.BUDGETS) {
       await applyRemoteBudget(remoteToBudget(data))
     }
   }
-
-  runtimeState.lastCloudApplyAt = getNowIso()
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(CLOUD_SYNC_UPDATED_EVENT))
-  }
+  emitCloudUpdated()
 }
 
-const sendMutationToCloud = async (mutation) => {
-  const firestore = ensureFirestore()
-  const ref = doc(collection(firestore, 'users', currentUid, mutation.collection), mutation.docId)
-
-  if (mutation.op === OUTBOX_OP_DELETE) {
-    await deleteDoc(ref)
-    return
-  }
-
-  await setDoc(
-    ref,
-    {
-      ...mutation.payload,
-      lastMutationId: mutation.clientMutationId,
-      serverUpdatedAt: serverTimestamp(),
-    },
-    { merge: true },
-  )
-}
-
-export const enqueueMutation = async ({ collectionName, docId, payload, op = OUTBOX_OP_SET }) => {
-  if (!currentUid || !db.outbox) {
-    return { queued: false }
-  }
-
-  await db.outbox.add({
-    uid: currentUid,
-    status: SYNC_PENDING,
-    collection: collectionName,
-    docId,
-    payload,
-    op,
-    attempts: 0,
-    clientMutationId: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
-    createdAt: getNowIso(),
-    retryAt: null,
-    lastError: '',
-  })
-
-  await refreshOutboxPendingCount()
-  return { queued: true }
-}
-
-export const queueOrApplyMutation = async ({ collectionName, record }) => {
-  if (!currentUid) {
-    return { queued: false, sent: 0 }
-  }
-
-  const mutation = buildMutationPayload({ collectionName, record })
-
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    await enqueueMutation({
-      collectionName,
-      docId: mutation.docId,
-      payload: mutation.payload,
-      op: mutation.op,
-    })
-    return { queued: true, sent: 0 }
-  }
-
-  try {
-    await sendMutationToCloud({
-      collection: collectionName,
-      docId: mutation.docId,
-      payload: mutation.payload,
-      op: mutation.op,
-      clientMutationId: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
-    })
-    return { queued: false, sent: 1 }
-  } catch (error) {
-    runtimeState.lastError = error instanceof Error ? error.message : String(error)
-    await enqueueMutation({
-      collectionName,
-      docId: mutation.docId,
-      payload: mutation.payload,
-      op: mutation.op,
-    })
-    return { queued: true, sent: 0 }
-  }
-}
-
-export const flushOutbox = async () => {
-  if (!currentUid || !db.outbox) {
-    return { sent: 0, failed: 0 }
-  }
-
-  if (outboxFlushInFlight) {
-    return outboxFlushInFlight
-  }
-
-  outboxFlushInFlight = (async () => {
-    const nowIso = getNowIso()
-    const pending = await db.outbox
-      .where('uid')
-      .equals(currentUid)
-      .and((item) => {
-        if (!(item.status === SYNC_PENDING || item.status === SYNC_ERROR)) {
-          return false
-        }
-        if (!item.retryAt) {
-          return true
-        }
-        return item.retryAt <= nowIso
-      })
-      .sortBy('createdAt')
-
-    let sent = 0
-    let failed = 0
-
-    for (const item of pending) {
+const subscribeCollection = (name) => new Promise((resolve, reject) => {
+  let first = true
+  const unsubscribe = onSnapshot(
+    userCollection(name),
+    async (snapshot) => {
       try {
-        await sendMutationToCloud(item)
-        await db.outbox.delete(item.id)
-        sent += 1
+        await applyRealtimeSnapshot(name, snapshot)
+        if (first) {
+          first = false
+          markFirstSnapshotReady(name)
+          resolve()
+        }
       } catch (error) {
-        failed += 1
-        const attempts = Number(item.attempts || 0) + 1
-        const backoffMs = Math.min(60_000, attempts * 2_000)
-        const retryAt = new Date(Date.now() + backoffMs).toISOString()
-        await db.outbox.update(item.id, {
-          status: SYNC_ERROR,
-          attempts,
-          retryAt,
-          lastError: error instanceof Error ? error.message : String(error),
-        })
         runtimeState.lastError = error instanceof Error ? error.message : String(error)
+        if (first) {
+          first = false
+          reject(error)
+        }
       }
-    }
-
-    runtimeState.lastOutboxFlushAt = getNowIso()
-    await refreshOutboxPendingCount()
-    return { sent, failed }
-  })()
-
-  try {
-    return await outboxFlushInFlight
-  } finally {
-    outboxFlushInFlight = null
-  }
-}
-
-export const getSyncRuntimeState = () => ({ ...runtimeState })
+    },
+    (error) => {
+      runtimeState.lastError = error instanceof Error ? error.message : String(error)
+      if (first) {
+        first = false
+        reject(error)
+      }
+    },
+  )
+  realtimeUnsubscribers.push(unsubscribe)
+})
 
 const stopRealtimeSyncInternal = () => {
   for (const unsubscribe of realtimeUnsubscribers) {
     unsubscribe()
   }
   realtimeUnsubscribers = []
-
   if (onlineHandler) {
     window.removeEventListener('online', onlineHandler)
     onlineHandler = null
   }
-
   if (offlineHandler) {
     window.removeEventListener('offline', offlineHandler)
     offlineHandler = null
   }
-
   runtimeState.listenersReady = false
-  pendingSnapshotReplay = []
-  pendingCashBalanceSnapshotReplay = []
+  firstSnapshotTracker = null
 }
+
+export const writeCollectionDoc = async ({ collectionName, docId, payload, merge = true }) => {
+  const firestore = ensureFirestore()
+  const ref = doc(collection(firestore, 'users', currentUid, collectionName), docId)
+  await setDoc(
+    ref,
+    {
+      ...payload,
+      serverUpdatedAt: serverTimestamp(),
+    },
+    { merge },
+  )
+}
+
+export const deleteCollectionDoc = async ({ collectionName, docId }) => {
+  const firestore = ensureFirestore()
+  const ref = doc(collection(firestore, 'users', currentUid, collectionName), docId)
+  await deleteDoc(ref)
+}
+
+export const writeCollectionRecord = async ({ collectionName, record }) => {
+  const mutation = buildMutationPayload({ collectionName, record })
+  await writeCollectionDoc({
+    collectionName,
+    docId: mutation.docId,
+    payload: mutation.payload,
+    merge: true,
+  })
+}
+
+export const getSyncRuntimeState = () => ({ ...runtimeState })
 
 export const stopRealtimeSync = () => {
   stopRealtimeSyncInternal()
 }
 
 export const startRealtimeSync = async (uid) => {
-  currentUid = uid
+  const lastSyncedUid = getLastSyncedUid()
+  const shouldClearOnSwitch = Boolean(uid && uid !== lastSyncedUid)
+
   stopRealtimeSyncInternal()
 
+  if (shouldClearOnSwitch) {
+    await clearLocalCloudBackedData()
+  }
+
+  currentUid = uid
+  runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
+  runtimeState.outboxPending = 0
+
   if (!uid) {
-    runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
-    runtimeState.outboxPending = 0
     return
   }
 
-  runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
   runtimeState.lastError = ''
   runtimeState.listenersReady = false
+  firstSnapshotTracker = {
+    pending: new Set([
+      COLLECTIONS.HOLDINGS,
+      COLLECTIONS.PRICE_SNAPSHOTS,
+      COLLECTIONS.FX_RATES,
+      COLLECTIONS.SYNC_META,
+      COLLECTIONS.CASH_ACCOUNTS,
+      COLLECTIONS.CASH_BALANCE_SNAPSHOTS,
+      COLLECTIONS.EXPENSE_ENTRIES,
+      COLLECTIONS.EXPENSE_CATEGORIES,
+      COLLECTIONS.BUDGETS,
+    ]),
+    waiters: [],
+  }
 
-  const waitingFirstSnapshots = new Set([
-    COLLECTIONS.HOLDINGS,
-    COLLECTIONS.PRICE_SNAPSHOTS,
-    COLLECTIONS.FX_RATES,
-    COLLECTIONS.SYNC_META,
-    COLLECTIONS.CASH_ACCOUNTS,
-    COLLECTIONS.CASH_BALANCE_SNAPSHOTS,
-    COLLECTIONS.EXPENSE_ENTRIES,
-    COLLECTIONS.EXPENSE_CATEGORIES,
-    COLLECTIONS.BUDGETS,
+  // Subscribe dependencies first so dependent snapshots can resolve links.
+  await Promise.allSettled([
+    subscribeCollection(COLLECTIONS.HOLDINGS),
+    subscribeCollection(COLLECTIONS.CASH_ACCOUNTS),
   ])
 
-  for (const name of waitingFirstSnapshots) {
-    const unsubscribe = onSnapshot(
-      userCollection(name),
-      async (snapshot) => {
-        await applyRealtimeSnapshot(name, snapshot)
-        waitingFirstSnapshots.delete(name)
-        runtimeState.listenersReady = waitingFirstSnapshots.size === 0
-      },
-      (error) => {
-        runtimeState.lastError = error instanceof Error ? error.message : String(error)
-      },
-    )
-    realtimeUnsubscribers.push(unsubscribe)
-  }
+  await Promise.allSettled([
+    subscribeCollection(COLLECTIONS.PRICE_SNAPSHOTS),
+    subscribeCollection(COLLECTIONS.FX_RATES),
+    subscribeCollection(COLLECTIONS.SYNC_META),
+    subscribeCollection(COLLECTIONS.CASH_BALANCE_SNAPSHOTS),
+    subscribeCollection(COLLECTIONS.EXPENSE_ENTRIES),
+    subscribeCollection(COLLECTIONS.EXPENSE_CATEGORIES),
+    subscribeCollection(COLLECTIONS.BUDGETS),
+  ])
 
   onlineHandler = () => {
     runtimeState.connected = true
-    flushOutbox().catch(() => {})
   }
   offlineHandler = () => {
     runtimeState.connected = false
   }
-
   window.addEventListener('online', onlineHandler)
   window.addEventListener('offline', offlineHandler)
 
-  await refreshOutboxPendingCount()
-  await flushOutbox()
+  await waitForFirstSnapshotsReady()
+  setLastSyncedUid(uid)
 }
 
-export const setSyncUser = (uid) => {
-  currentUid = uid
+export const setSyncUser = () => {
+  // Deprecated in cloud-only flow. Keep as no-op for compatibility.
 }
 
 export const syncNowWithCloud = async () => {
@@ -837,19 +680,19 @@ export const syncNowWithCloud = async () => {
       triggeredFullResync: false,
     }
   }
-
   if (syncInFlight) {
     return syncInFlight
   }
 
   syncInFlight = (async () => {
     const startedAt = Date.now()
-    const flushResult = await flushOutbox()
+    const uid = currentUid
+    await startRealtimeSync(uid)
     return {
-      pushed: flushResult.sent,
+      pushed: 0,
       pulled: 0,
       durationMs: Date.now() - startedAt,
-      triggeredFullResync: false,
+      triggeredFullResync: true,
     }
   })()
 
@@ -867,7 +710,7 @@ export const initCloudSync = async (uid) => {
 export const stopCloudSync = () => {
   stopRealtimeSyncInternal()
   syncInFlight = null
-  outboxFlushInFlight = null
   currentUid = null
   runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
+  runtimeState.outboxPending = 0
 }

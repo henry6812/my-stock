@@ -1,15 +1,19 @@
-import Dexie from 'dexie'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { db, FX_PAIR_USD_TWD, SYNC_KEY_PRICES } from '../db/database'
+import {
+  db,
+  DB_MAX_KEY,
+  DB_MIN_KEY,
+  FX_PAIR_USD_TWD,
+  SYNC_KEY_PRICES,
+} from '../db/database'
 import { getUsdTwdRate } from './priceProviders/fxProvider'
 import { getHoldingQuote, sleepForRateLimit } from './priceProviders/finnhubProvider'
 import {
   getSyncRuntimeState,
   initCloudSync,
-  queueOrApplyMutation,
-  setSyncUser,
+  writeCollectionRecord,
   stopCloudSync,
   syncNowWithCloud,
 } from './firebase/cloudSyncService'
@@ -81,7 +85,7 @@ const normalizeDateOnly = (value) => {
 const toDayjsDateOnly = (value) => dayjs(normalizeDateOnly(value))
 
 const mirrorToCloud = async (collectionName, record) => {
-  await queueOrApplyMutation({ collectionName, record })
+  await writeCollectionRecord({ collectionName, record })
 }
 
 const sortHoldingsByOrder = (a, b) => {
@@ -147,7 +151,7 @@ const resolveHoldingTag = ({ inputTag, options }) => {
 const getLatestTwoSnapshotsByHoldingId = async (holdingId) => {
   const snapshots = await db.price_snapshots
     .where('[holdingId+capturedAt]')
-    .between([holdingId, Dexie.minKey], [holdingId, Dexie.maxKey])
+    .between([holdingId, DB_MIN_KEY], [holdingId, DB_MAX_KEY])
     .reverse()
     .toArray()
 
@@ -161,7 +165,7 @@ const getLatestTwoSnapshotsByHoldingId = async (holdingId) => {
 const getLatestSnapshotAtOrBefore = async (holdingId, baselineAtIso) => {
   const snapshots = await db.price_snapshots
     .where('[holdingId+capturedAt]')
-    .between([holdingId, Dexie.minKey], [holdingId, baselineAtIso], true, true)
+    .between([holdingId, DB_MIN_KEY], [holdingId, baselineAtIso], true, true)
     .reverse()
     .toArray()
 
@@ -171,7 +175,7 @@ const getLatestSnapshotAtOrBefore = async (holdingId, baselineAtIso) => {
 const getLatestCashBalanceSnapshotAtOrBefore = async (cashAccountId, baselineAtIso) => {
   const snapshots = await db.cash_balance_snapshots
     .where('[cashAccountId+capturedAt]')
-    .between([cashAccountId, Dexie.minKey], [cashAccountId, baselineAtIso], true, true)
+    .between([cashAccountId, DB_MIN_KEY], [cashAccountId, baselineAtIso], true, true)
     .reverse()
     .toArray()
 
@@ -181,7 +185,7 @@ const getLatestCashBalanceSnapshotAtOrBefore = async (cashAccountId, baselineAtI
 const getEarliestCashBalanceSnapshotAfter = async (cashAccountId, baselineAtIso) => {
   const snapshots = await db.cash_balance_snapshots
     .where('[cashAccountId+capturedAt]')
-    .between([cashAccountId, baselineAtIso], [cashAccountId, Dexie.maxKey], false, true)
+    .between([cashAccountId, baselineAtIso], [cashAccountId, DB_MAX_KEY], false, true)
     .toArray()
 
   return snapshots.find((item) => !isDeleted(item))
@@ -239,7 +243,7 @@ const getActiveCashAccounts = async () => {
 }
 
 export const setCurrentUser = (uid) => {
-  setSyncUser(uid ?? null)
+  void uid
 }
 
 export const initSync = async (uid) => {
@@ -1041,7 +1045,7 @@ export const getTrend = async (range) => {
   for (const holding of allHoldings) {
     const snapshots = await db.price_snapshots
       .where('[holdingId+capturedAt]')
-      .between([holding.id, Dexie.minKey], [holding.id, Dexie.maxKey], true, true)
+      .between([holding.id, DB_MIN_KEY], [holding.id, DB_MAX_KEY], true, true)
       .toArray()
     stockSnapshotsByHolding.set(holding.id, snapshots)
   }
@@ -1050,7 +1054,7 @@ export const getTrend = async (range) => {
   for (const cashAccount of allCashAccounts) {
     const snapshots = await db.cash_balance_snapshots
       .where('[cashAccountId+capturedAt]')
-      .between([cashAccount.id, Dexie.minKey], [cashAccount.id, Dexie.maxKey], true, true)
+      .between([cashAccount.id, DB_MIN_KEY], [cashAccount.id, DB_MAX_KEY], true, true)
       .toArray()
     cashSnapshotsByAccount.set(cashAccount.id, snapshots)
   }

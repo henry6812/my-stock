@@ -92,7 +92,6 @@ import {
   getHoldingTagOptions,
   removeHolding,
   reorderHoldings,
-  setCurrentUser,
   stopSync,
   syncNow as syncNowPortfolio,
   removeCashAccount,
@@ -343,7 +342,6 @@ function App() {
   const [cloudSyncStatus, setCloudSyncStatus] = useState("idle");
   const [cloudSyncError, setCloudSyncError] = useState("");
   const [cloudLastSyncedAt, setCloudLastSyncedAt] = useState();
-  const [cloudOutboxPending, setCloudOutboxPending] = useState(0);
   const [pullDistance, setPullDistance] = useState(0);
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const [activeMainTab, setActiveMainTab] = useState("asset");
@@ -759,7 +757,6 @@ function App() {
 
   const refreshCloudRuntime = useCallback(() => {
     const runtime = getCloudSyncRuntime();
-    setCloudOutboxPending(runtime.outboxPending ?? 0);
     if (runtime.lastError) {
       setCloudSyncStatus("error");
       setCloudSyncError(runtime.lastError);
@@ -1859,7 +1856,6 @@ function App() {
       }
 
       setAuthUser(user);
-      setCurrentUser(user?.uid ?? null);
 
       if (!user) {
         stopSync();
@@ -1902,7 +1898,6 @@ function App() {
       alive = false;
       unsubscribe();
       stopSync();
-      setCurrentUser(null);
     };
   }, [loadAllData, loadExpenseData, performCloudSync, refreshCloudRuntime]);
 
@@ -1990,7 +1985,6 @@ function App() {
 
   useEffect(() => {
     if (!authUser) {
-      setCloudOutboxPending(0);
       return undefined;
     }
 
@@ -2194,16 +2188,13 @@ function App() {
       return "即時同步連線中...";
     }
     if (cloudSyncStatus === "offline") {
-      return `離線（待同步 ${cloudOutboxPending}）`;
+      return "離線（無法同步）";
     }
     if (cloudSyncStatus === "error") {
       return `同步失敗${cloudSyncError ? `：${cloudSyncError}` : ""}`;
     }
-    if (cloudOutboxPending > 0) {
-      return `即時同步中（待同步 ${cloudOutboxPending}）`;
-    }
     return "即時同步中";
-  }, [authUser, cloudOutboxPending, cloudSyncError, cloudSyncStatus]);
+  }, [authUser, cloudSyncError, cloudSyncStatus]);
 
   const cloudLastSyncedText = useMemo(() => {
     if (!authUser) {
