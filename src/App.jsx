@@ -15,6 +15,7 @@ import {
   Card,
   Col,
   DatePicker,
+  Divider,
   Drawer,
   Dropdown,
   Empty,
@@ -49,6 +50,7 @@ import {
   GoogleOutlined,
   HomeOutlined,
   LogoutOutlined,
+  MailOutlined,
   MenuOutlined,
   PlusOutlined,
   PieChartOutlined,
@@ -79,6 +81,7 @@ import {
 } from "recharts";
 import HoldingForm from "./components/HoldingForm";
 import CashAccountForm from "./components/CashAccountForm";
+import MobileFormSheetLayout from "./components/MobileFormSheetLayout";
 import TrendChart from "./components/TrendChart";
 import {
   getPortfolioView,
@@ -108,6 +111,7 @@ import {
   removeBudget,
 } from "./services/portfolioService";
 import {
+  loginWithEmailPassword,
   loginWithGoogle,
   logoutGoogle,
   observeAuthState,
@@ -349,6 +353,7 @@ function App() {
   const [activeHoldingTab, setActiveHoldingTab] = useState("all");
   const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false);
   const [isAddCashModalOpen, setIsAddCashModalOpen] = useState(false);
+  const [isEmailLoginModalOpen, setIsEmailLoginModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
@@ -357,11 +362,13 @@ function App() {
   const [isBudgetSheetOpen, setIsBudgetSheetOpen] = useState(false);
   const [isAddHoldingSheetOpen, setIsAddHoldingSheetOpen] = useState(false);
   const [isAddCashSheetOpen, setIsAddCashSheetOpen] = useState(false);
+  const [isEmailLoginSheetOpen, setIsEmailLoginSheetOpen] = useState(false);
   const [isUpdateSheetOpen, setIsUpdateSheetOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(
     typeof window !== "undefined" ? window.innerWidth <= 768 : false,
   );
   const [loadingAddCashAccount, setLoadingAddCashAccount] = useState(false);
+  const [loadingEmailLogin, setLoadingEmailLogin] = useState(false);
   const [loadingExpenseAction, setLoadingExpenseAction] = useState(false);
   const [loadingCategoryAction, setLoadingCategoryAction] = useState(false);
   const [loadingBudgetAction, setLoadingBudgetAction] = useState(false);
@@ -420,6 +427,8 @@ function App() {
   const [expenseForm] = Form.useForm();
   const [categoryForm] = Form.useForm();
   const [budgetForm] = Form.useForm();
+  const [emailLoginForm] = Form.useForm();
+  const isAuthDialogSubmitting = loadingEmailLogin || loadingAuthAction;
 
   const isNumberAnimationLocked = useCallback(
     () => Date.now() < animationLockedUntilRef.current,
@@ -1996,7 +2005,10 @@ function App() {
   }, [authUser, refreshCloudRuntime]);
 
   useEffect(() => {
-    if (!isAddCashModalOpen) {
+    if (!isAddCashModalOpen && !isAddCashSheetOpen) {
+      return;
+    }
+    if (loadingBankOptions) {
       return;
     }
 
@@ -2017,7 +2029,7 @@ function App() {
     };
 
     loadBankOptions();
-  }, [isAddCashModalOpen, message]);
+  }, [isAddCashModalOpen, isAddCashSheetOpen, message]);
 
   useEffect(() => {
     if (!activeExpenseMonth) return;
@@ -2310,7 +2322,7 @@ function App() {
       : "networth-delta-segment networth-delta-segment--down";
   }, [baselineRatio, currentRatio, deltaSegmentWidthRatio]);
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = useCallback(async () => {
     try {
       setLoadingAuthAction(true);
       await loginWithGoogle();
@@ -2319,7 +2331,40 @@ function App() {
     } finally {
       setLoadingAuthAction(false);
     }
-  };
+  }, [message]);
+
+  const handleGoogleLoginFromAuthDialog = useCallback(async () => {
+    try {
+      await handleGoogleLogin();
+      setIsEmailLoginModalOpen(false);
+      setIsEmailLoginSheetOpen(false);
+      emailLoginForm.resetFields();
+    } catch {
+      // error toast handled in handleGoogleLogin
+    }
+  }, [emailLoginForm, handleGoogleLogin]);
+
+  const handleEmailLoginSubmit = useCallback(async () => {
+    try {
+      const values = await emailLoginForm.validateFields();
+      setLoadingEmailLogin(true);
+      await loginWithEmailPassword({
+        email: values.email,
+        password: values.password,
+      });
+      setIsEmailLoginModalOpen(false);
+      setIsEmailLoginSheetOpen(false);
+      emailLoginForm.resetFields();
+      message.success("Email 登入成功");
+    } catch (error) {
+      if (error?.errorFields) {
+        return;
+      }
+      message.error(error instanceof Error ? error.message : "Email 登入失敗");
+    } finally {
+      setLoadingEmailLogin(false);
+    }
+  }, [emailLoginForm, message]);
 
   const handleGoogleLogout = async () => {
     try {
@@ -2416,14 +2461,33 @@ function App() {
     setPullDistance(0);
   }, [handlePullRefresh, isPullRefreshing, pullDistance]);
 
+  const getSheetPopupContainer = useCallback(
+    (trigger) =>
+      trigger?.closest?.(".form-bottom-sheet .ant-drawer-body") || document.body,
+    [],
+  );
+
   const expenseFormNode = (
-    <Form form={expenseForm} layout="vertical" initialValues={{ entryType: "ONE_TIME", occurredAt: dayjs() }}>
+    <Form
+      form={expenseForm}
+      name={isMobileViewport ? "expense_mobile_form" : "expense_form"}
+      layout="vertical"
+      initialValues={{ entryType: "ONE_TIME", occurredAt: dayjs() }}
+      autoComplete={isMobileViewport ? "off" : undefined}
+      data-lpignore={isMobileViewport ? "true" : undefined}
+    >
       <Form.Item
         label="支出名稱"
         name="name"
         rules={[{ required: true, message: "請輸入支出名稱" }]}
       >
-        <Input />
+        <Input
+          autoComplete={isMobileViewport ? "new-password" : undefined}
+          autoCorrect={isMobileViewport ? "off" : undefined}
+          autoCapitalize={isMobileViewport ? "none" : undefined}
+          spellCheck={isMobileViewport ? false : undefined}
+          data-lpignore={isMobileViewport ? "true" : undefined}
+        />
       </Form.Item>
       <Form.Item
         label="支出金額 (TWD)"
@@ -2437,7 +2501,7 @@ function App() {
         name="occurredAt"
         rules={[{ required: true, message: "請選擇支出日期" }]}
       >
-        <DatePicker style={{ width: "100%" }} />
+        <DatePicker style={{ width: "100%" }} getPopupContainer={getSheetPopupContainer} />
       </Form.Item>
       <Form.Item
         label="類型"
@@ -2445,6 +2509,7 @@ function App() {
         rules={[{ required: true, message: "請選擇支出類型" }]}
       >
         <Select
+          getPopupContainer={getSheetPopupContainer}
           options={[
             { label: "單筆支出", value: "ONE_TIME" },
             { label: "定期支出", value: "RECURRING" },
@@ -2462,6 +2527,7 @@ function App() {
                 rules={[{ required: true, message: "請選擇定期頻率" }]}
               >
                 <Select
+                  getPopupContainer={getSheetPopupContainer}
                   options={[
                     { label: "每月", value: "MONTHLY" },
                     { label: "每年", value: "YEARLY" },
@@ -2504,6 +2570,7 @@ function App() {
       <Form.Item label="分類" name="categoryId">
         <Select
           allowClear
+          getPopupContainer={getSheetPopupContainer}
           options={expenseCategoryRows.map((item) => ({
             label: item.name,
             value: item.id,
@@ -2513,6 +2580,7 @@ function App() {
       <Form.Item label="預算" name="budgetId">
         <Select
           allowClear
+          getPopupContainer={getSheetPopupContainer}
           options={selectableBudgetOptions.map((item) => ({
             label: item.name,
             value: item.id,
@@ -2523,7 +2591,13 @@ function App() {
   );
 
   const categoryFormNode = (
-    <Form form={categoryForm} layout="vertical">
+    <Form
+      form={categoryForm}
+      name={isMobileViewport ? "category_mobile_form" : "category_form"}
+      layout="vertical"
+      autoComplete={isMobileViewport ? "off" : undefined}
+      data-lpignore={isMobileViewport ? "true" : undefined}
+    >
       <Form.Item
         label="分類名稱"
         name="name"
@@ -2535,7 +2609,14 @@ function App() {
   );
 
   const budgetFormNode = (
-    <Form form={budgetForm} layout="vertical" initialValues={{ budgetType: "MONTHLY", startDate: dayjs() }}>
+    <Form
+      form={budgetForm}
+      name={isMobileViewport ? "budget_mobile_form" : "budget_form"}
+      layout="vertical"
+      initialValues={{ budgetType: "MONTHLY", startDate: dayjs() }}
+      autoComplete={isMobileViewport ? "off" : undefined}
+      data-lpignore={isMobileViewport ? "true" : undefined}
+    >
       <Form.Item
         label="預算名稱"
         name="name"
@@ -2556,6 +2637,7 @@ function App() {
         rules={[{ required: true, message: "請選擇預算類型" }]}
       >
         <Select
+          getPopupContainer={getSheetPopupContainer}
           options={[
             { label: "月度預算", value: "MONTHLY" },
             { label: "季度預算", value: "QUARTERLY" },
@@ -2568,9 +2650,60 @@ function App() {
         name="startDate"
         rules={[{ required: true, message: "請選擇起始日" }]}
       >
-        <DatePicker style={{ width: "100%" }} />
+        <DatePicker style={{ width: "100%" }} getPopupContainer={getSheetPopupContainer} />
       </Form.Item>
     </Form>
+  );
+
+  const emailLoginFormNode = (
+    <Form form={emailLoginForm} layout="vertical">
+      <Form.Item
+        label="Email"
+        name="email"
+        rules={[
+          { required: true, message: "請輸入 Email" },
+          { type: "email", message: "Email 格式不正確" },
+        ]}
+      >
+        <Input placeholder="you@example.com" autoComplete="email" />
+      </Form.Item>
+      <Form.Item
+        label="密碼"
+        name="password"
+        rules={[{ required: true, message: "請輸入密碼" }]}
+      >
+        <Input.Password placeholder="Password" autoComplete="current-password" />
+      </Form.Item>
+    </Form>
+  );
+
+  const authLoginContentNode = (
+    <>
+      {emailLoginFormNode}
+      <Space direction="vertical" size={10} style={{ width: "100%" }}>
+        <Button
+          type="primary"
+          block
+          loading={loadingEmailLogin}
+          disabled={loadingAuthAction}
+          onClick={handleEmailLoginSubmit}
+        >
+          信箱登入
+        </Button>
+        <Divider plain style={{ margin: "4px 0" }}>
+          或
+        </Divider>
+        <Button
+          block
+          icon={<GoogleOutlined />}
+          loading={loadingAuthAction}
+          disabled={loadingEmailLogin}
+          onClick={handleGoogleLoginFromAuthDialog}
+        >
+          使用 Google 登入
+        </Button>
+      </Space>
+    </>
   );
 
   const expenseMonthNavOptions = useMemo(() => {
@@ -2668,11 +2801,17 @@ function App() {
             ) : (
               <Button
                 size="small"
-                icon={<GoogleOutlined />}
-                onClick={handleGoogleLogin}
-                loading={loadingAuthAction}
+                icon={<MailOutlined />}
+                onClick={() => {
+                  if (isMobileViewport) {
+                    setIsEmailLoginSheetOpen(true);
+                  } else {
+                    setIsEmailLoginModalOpen(true);
+                  }
+                }}
+                loading={isAuthDialogSubmitting}
               >
-                Google 登入
+                登入
               </Button>
             )}
           </Space>
@@ -2714,7 +2853,7 @@ function App() {
             type="info"
             showIcon
             title="目前為本機模式"
-            description="登入 Google 後可將持股與快照同步到你的其他裝置。"
+            description="登入 Google 或 Email 後可將持股與快照同步到你的其他裝置。"
             style={{ marginBottom: 16 }}
           />
         )}
@@ -3360,9 +3499,46 @@ function App() {
 
         <Drawer
           placement="bottom"
+          title="登入"
+          open={isMobileViewport && isEmailLoginSheetOpen}
+          onClose={() => {
+            if (!isAuthDialogSubmitting) {
+              setIsEmailLoginSheetOpen(false);
+            }
+          }}
+          size="90vh"
+          closable={!isAuthDialogSubmitting}
+          maskClosable={!isAuthDialogSubmitting}
+          keyboard={!isAuthDialogSubmitting}
+          destroyOnHidden
+          className="form-bottom-sheet"
+          styles={{ body: { padding: 16 } }}
+        >
+          {authLoginContentNode}
+        </Drawer>
+
+        <Modal
+          title="登入"
+          open={!isMobileViewport && isEmailLoginModalOpen}
+          onCancel={() => {
+            if (!isAuthDialogSubmitting) {
+              setIsEmailLoginModalOpen(false);
+            }
+          }}
+          footer={null}
+          destroyOnHidden
+          mask={{ closable: !isAuthDialogSubmitting }}
+          keyboard={!isAuthDialogSubmitting}
+          closable={!isAuthDialogSubmitting}
+        >
+          {authLoginContentNode}
+        </Modal>
+
+        <Drawer
+          placement="bottom"
           open={isMobileViewport && isUpdateSheetOpen}
           onClose={() => setIsUpdateSheetOpen(false)}
-          size={212}
+          size="90vh"
           closable={false}
           maskClosable
           destroyOnHidden={false}
@@ -3398,57 +3574,43 @@ function App() {
           </div>
         </Drawer>
 
-        <Drawer
-          placement="bottom"
+        <MobileFormSheetLayout
           title="新增持股"
           open={isMobileViewport && isAddHoldingSheetOpen}
-          onClose={() => {
-            if (!loadingAddHolding) {
-              setIsAddHoldingSheetOpen(false);
-            }
-          }}
-          size="72vh"
-          closable={!loadingAddHolding}
-          maskClosable={!loadingAddHolding}
-          keyboard={!loadingAddHolding}
-          destroyOnHidden
-          className="form-bottom-sheet holding-sheet"
-          styles={{ body: { padding: 16 } }}
+          onClose={() => setIsAddHoldingSheetOpen(false)}
+          loading={loadingAddHolding}
+          submitText="新增持股"
+          submitFormId="mobile-holding-form"
+          className="holding-sheet"
         >
           <HoldingForm
             onSubmit={handleAddHolding}
-            loading={loadingAddHolding}
-            submitText="新增持股"
             layout="vertical"
+            formId="mobile-holding-form"
+            popupContainer={getSheetPopupContainer}
+            disableAutofill
             holdingTagOptions={holdingTagOptions}
           />
-        </Drawer>
+        </MobileFormSheetLayout>
 
-        <Drawer
-          placement="bottom"
+        <MobileFormSheetLayout
           title="新增銀行帳戶"
           open={isMobileViewport && isAddCashSheetOpen}
-          onClose={() => {
-            if (!loadingAddCashAccount) {
-              setIsAddCashSheetOpen(false);
-            }
-          }}
-          size="72vh"
-          closable={!loadingAddCashAccount}
-          maskClosable={!loadingAddCashAccount}
-          keyboard={!loadingAddCashAccount}
-          destroyOnHidden
-          className="form-bottom-sheet cash-sheet"
-          styles={{ body: { padding: 16 } }}
+          onClose={() => setIsAddCashSheetOpen(false)}
+          loading={loadingAddCashAccount}
+          submitText="新增銀行帳戶"
+          submitFormId="mobile-cash-form"
+          className="cash-sheet"
         >
           <CashAccountForm
             onSubmit={handleAddCashAccount}
-            loading={loadingAddCashAccount}
             loadingBankOptions={loadingBankOptions}
             bankOptions={bankOptions}
-            submitText="新增銀行帳戶"
+            formId="mobile-cash-form"
+            popupContainer={getSheetPopupContainer}
+            disableAutofill
           />
-        </Drawer>
+        </MobileFormSheetLayout>
 
         <Modal
           title="新增持股"
@@ -3458,7 +3620,24 @@ function App() {
               setIsAddHoldingModalOpen(false);
             }
           }}
-          footer={null}
+          footer={[
+            <Button
+              key="cancel"
+              onClick={() => setIsAddHoldingModalOpen(false)}
+              disabled={loadingAddHolding}
+            >
+              取消
+            </Button>,
+            <Button
+              key="submit"
+              type="primary"
+              htmlType="submit"
+              form="desktop-holding-form"
+              loading={loadingAddHolding}
+            >
+              新增持股
+            </Button>,
+          ]}
           destroyOnHidden
           mask={{ closable: !loadingAddHolding }}
           keyboard={!loadingAddHolding}
@@ -3466,9 +3645,9 @@ function App() {
         >
           <HoldingForm
             onSubmit={handleAddHolding}
-            loading={loadingAddHolding}
-            submitText="新增持股"
             layout="vertical"
+            formId="desktop-holding-form"
+            popupContainer={getSheetPopupContainer}
             holdingTagOptions={holdingTagOptions}
           />
         </Modal>
@@ -3481,7 +3660,24 @@ function App() {
               setIsAddCashModalOpen(false);
             }
           }}
-          footer={null}
+          footer={[
+            <Button
+              key="cancel"
+              onClick={() => setIsAddCashModalOpen(false)}
+              disabled={loadingAddCashAccount}
+            >
+              取消
+            </Button>,
+            <Button
+              key="submit"
+              type="primary"
+              htmlType="submit"
+              form="desktop-cash-form"
+              loading={loadingAddCashAccount}
+            >
+              新增銀行帳戶
+            </Button>,
+          ]}
           destroyOnHidden
           mask={{ closable: !loadingAddCashAccount }}
           keyboard={!loadingAddCashAccount}
@@ -3489,87 +3685,57 @@ function App() {
         >
           <CashAccountForm
             onSubmit={handleAddCashAccount}
-            loading={loadingAddCashAccount}
             loadingBankOptions={loadingBankOptions}
             bankOptions={bankOptions}
-            submitText="新增銀行帳戶"
+            formId="desktop-cash-form"
+            popupContainer={getSheetPopupContainer}
           />
         </Modal>
 
-        <Drawer
-          placement="bottom"
+        <MobileFormSheetLayout
           title={editingExpenseEntry ? "編輯支出" : "新增支出"}
           open={isMobileViewport && isExpenseSheetOpen}
           onClose={() => {
-            if (!loadingExpenseAction) {
-              setIsExpenseSheetOpen(false);
-              setEditingExpenseEntry(null);
-              expenseForm.resetFields();
-            }
+            setIsExpenseSheetOpen(false);
+            setEditingExpenseEntry(null);
+            expenseForm.resetFields();
           }}
-          size="72vh"
-          closable={!loadingExpenseAction}
-          maskClosable={!loadingExpenseAction}
-          keyboard={!loadingExpenseAction}
-          destroyOnHidden
-          className="form-bottom-sheet"
-          styles={{ body: { padding: 16 } }}
+          loading={loadingExpenseAction}
+          submitText="儲存"
+          onSubmit={handleSubmitExpense}
         >
           {expenseFormNode}
-          <Button type="primary" block loading={loadingExpenseAction} onClick={handleSubmitExpense}>
-            儲存
-          </Button>
-        </Drawer>
+        </MobileFormSheetLayout>
 
-        <Drawer
-          placement="bottom"
+        <MobileFormSheetLayout
           title={editingCategory ? "編輯分類" : "新增分類"}
           open={isMobileViewport && isCategorySheetOpen}
           onClose={() => {
-            if (!loadingCategoryAction) {
-              setIsCategorySheetOpen(false);
-              setEditingCategory(null);
-              categoryForm.resetFields();
-            }
+            setIsCategorySheetOpen(false);
+            setEditingCategory(null);
+            categoryForm.resetFields();
           }}
-          size="42vh"
-          closable={!loadingCategoryAction}
-          maskClosable={!loadingCategoryAction}
-          keyboard={!loadingCategoryAction}
-          destroyOnHidden
-          className="form-bottom-sheet"
-          styles={{ body: { padding: 16 } }}
+          loading={loadingCategoryAction}
+          submitText="儲存"
+          onSubmit={handleSubmitCategory}
         >
           {categoryFormNode}
-          <Button type="primary" block loading={loadingCategoryAction} onClick={handleSubmitCategory}>
-            儲存
-          </Button>
-        </Drawer>
+        </MobileFormSheetLayout>
 
-        <Drawer
-          placement="bottom"
+        <MobileFormSheetLayout
           title={editingBudget ? "編輯預算" : "新增預算"}
           open={isMobileViewport && isBudgetSheetOpen}
           onClose={() => {
-            if (!loadingBudgetAction) {
-              setIsBudgetSheetOpen(false);
-              setEditingBudget(null);
-              budgetForm.resetFields();
-            }
+            setIsBudgetSheetOpen(false);
+            setEditingBudget(null);
+            budgetForm.resetFields();
           }}
-          size="62vh"
-          closable={!loadingBudgetAction}
-          maskClosable={!loadingBudgetAction}
-          keyboard={!loadingBudgetAction}
-          destroyOnHidden
-          className="form-bottom-sheet"
-          styles={{ body: { padding: 16 } }}
+          loading={loadingBudgetAction}
+          submitText="儲存"
+          onSubmit={handleSubmitBudget}
         >
           {budgetFormNode}
-          <Button type="primary" block loading={loadingBudgetAction} onClick={handleSubmitBudget}>
-            儲存
-          </Button>
-        </Drawer>
+        </MobileFormSheetLayout>
 
         <Modal
           title={editingExpenseEntry ? "編輯支出" : "新增支出"}
