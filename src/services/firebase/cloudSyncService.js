@@ -383,6 +383,7 @@ const applyRemoteExpenseEntry = async (remote) => {
       remoteKey: remote.remoteKey,
       name: remote.name,
       payer: remote.payer ?? null,
+      expenseKind: remote.expenseKind ?? null,
       amountTwd: Number(remote.amountTwd) || 0,
       occurredAt: remote.occurredAt || nowIso.slice(0, 10),
       entryType: remote.entryType || 'ONE_TIME',
@@ -404,6 +405,7 @@ const applyRemoteExpenseEntry = async (remote) => {
   await db.expense_entries.update(local.id, {
     name: remote.name,
     payer: remote.payer ?? null,
+    expenseKind: remote.expenseKind ?? null,
     amountTwd: Number(remote.amountTwd) || 0,
     occurredAt: remote.occurredAt || local.occurredAt,
     entryType: remote.entryType || local.entryType || 'ONE_TIME',

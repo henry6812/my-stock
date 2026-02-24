@@ -839,6 +839,7 @@ function App() {
         id: editingExpenseEntry?.id,
         name: values.name,
         payer: values.payer || null,
+        expenseKind: values.expenseKind || null,
         amountTwd: values.amountTwd,
         occurredAt: values.occurredAt?.format?.("YYYY-MM-DD") || values.occurredAt,
         entryType: values.entryType,
@@ -1672,15 +1673,18 @@ function App() {
 
   const expenseTableColumns = useMemo(
     () => [
-      { title: "名稱", dataIndex: "name", key: "name" },
       {
-        title: "支出人",
-        dataIndex: "payerName",
-        key: "payerName",
-        render: (value) => (
-          <Tag color={value === "未指定" ? "default" : "cyan"}>
-            {value || "未指定"}
-          </Tag>
+        title: "名稱",
+        dataIndex: "name",
+        key: "name",
+        render: (_, record) => (
+          <div>
+            <div className="holding-main-text">{record.name}</div>
+            <Text type="secondary" className="holding-subline">
+              由{record.payerName || "未指定"}支出的
+              {record.expenseKindName || "未指定"}開銷
+            </Text>
+          </div>
         ),
       },
       {
@@ -2047,7 +2051,11 @@ function App() {
     }
     expenseForm.setFieldsValue({
       name: editingExpenseEntry?.name ?? "",
-      payer: editingExpenseEntry?.payer ?? undefined,
+      payer:
+        editingExpenseEntry?.payer === "共同"
+          ? "共同帳戶"
+          : (editingExpenseEntry?.payer ?? undefined),
+      expenseKind: editingExpenseEntry?.expenseKind ?? undefined,
       amountTwd: editingExpenseEntry?.amountTwd ?? undefined,
       occurredAt: dayjs(
         editingExpenseEntry?.originalOccurredAt ||
@@ -2499,7 +2507,17 @@ function App() {
           options={[
             { label: "Po", value: "Po" },
             { label: "Wei", value: "Wei" },
-            { label: "共同", value: "共同" },
+            { label: "共同帳戶", value: "共同帳戶" },
+          ]}
+        />
+      </Form.Item>
+      <Form.Item label="種類" name="expenseKind">
+        <Select
+          allowClear
+          getPopupContainer={getSheetPopupContainer}
+          options={[
+            { label: "家庭", value: "家庭" },
+            { label: "個人", value: "個人" },
           ]}
         />
       </Form.Item>
