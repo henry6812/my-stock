@@ -1189,10 +1189,30 @@ const expandRecurringOccurrencesForMonth = (entries, month) => {
   }
 
   rows.sort((a, b) => {
-    if (a.occurrenceDate === b.occurrenceDate) {
-      return (a.updatedAt || '').localeCompare(b.updatedAt || '')
+    const aCreatedAt = a.createdAt || ''
+    const bCreatedAt = b.createdAt || ''
+    if (aCreatedAt !== bCreatedAt) {
+      return bCreatedAt.localeCompare(aCreatedAt)
     }
-    return a.occurrenceDate > b.occurrenceDate ? -1 : 1
+
+    const aUpdatedAt = a.updatedAt || ''
+    const bUpdatedAt = b.updatedAt || ''
+    if (aUpdatedAt !== bUpdatedAt) {
+      return bUpdatedAt.localeCompare(aUpdatedAt)
+    }
+
+    const aOccurrence = a.occurrenceDate || ''
+    const bOccurrence = b.occurrenceDate || ''
+    if (aOccurrence !== bOccurrence) {
+      return bOccurrence.localeCompare(aOccurrence)
+    }
+
+    const aId = Number(a.id)
+    const bId = Number(b.id)
+    if (Number.isFinite(aId) && Number.isFinite(bId) && aId !== bId) {
+      return bId - aId
+    }
+    return 0
   })
 
   return rows
