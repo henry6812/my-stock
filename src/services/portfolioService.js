@@ -68,6 +68,8 @@ const BUDGET_TYPE = {
   YEARLY: 'YEARLY',
 }
 
+const EXPENSE_PAYER_OPTIONS = ['Po', 'Wei', '共同']
+
 const isDeleted = (item) => Boolean(item?.deletedAt)
 
 const getNowIso = () => new Date().toISOString()
@@ -1523,6 +1525,8 @@ export const removeBudget = async ({ id }) => {
 export const upsertExpenseEntry = async (input) => {
   const nowIso = getNowIso()
   const name = String(input?.name || '').trim()
+  const payerRaw = String(input?.payer || '').trim()
+  const payer = EXPENSE_PAYER_OPTIONS.includes(payerRaw) ? payerRaw : null
   const amountTwd = Number(input?.amountTwd)
   const occurredAt = normalizeDateOnly(input?.occurredAt) || getNowDate()
   const entryType = String(input?.entryType || EXPENSE_ENTRY_TYPE.ONE_TIME).toUpperCase()
@@ -1582,6 +1586,7 @@ export const upsertExpenseEntry = async (input) => {
       const newId = await db.expense_entries.add({
         remoteKey: makeRemoteKey('expense'),
         name,
+        payer,
         amountTwd,
         occurredAt: today,
         entryType,
@@ -1604,6 +1609,7 @@ export const upsertExpenseEntry = async (input) => {
 
     await db.expense_entries.update(parsedId, {
       name,
+      payer,
       amountTwd,
       occurredAt,
       entryType,
@@ -1625,6 +1631,7 @@ export const upsertExpenseEntry = async (input) => {
   const newId = await db.expense_entries.add({
     remoteKey,
     name,
+    payer,
     amountTwd,
     occurredAt,
     entryType,
@@ -1722,6 +1729,7 @@ export const getExpenseDashboardView = async (input = {}) => {
   const expenseRows = expandRecurringOccurrencesForMonth(entries, activeMonth).map((item) => ({
     id: item.id,
     name: item.name,
+    payer: item.payer ?? null,
     amountTwd: Number(item.amountTwd) || 0,
     occurredAt: item.occurrenceDate,
     originalOccurredAt: item.occurredAt,
@@ -1740,6 +1748,7 @@ export const getExpenseDashboardView = async (input = {}) => {
   const budgetMap = new Map(budgets.map((item) => [item.id, item.name]))
   const decoratedExpenseRows = expenseRows.map((row) => ({
     ...row,
+    payerName: row.payer ? row.payer : '未指定',
     categoryName: row.categoryId ? categoryMap.get(row.categoryId) || '未指定' : '未指定',
     budgetName: row.budgetId ? budgetMap.get(row.budgetId) || '未指定' : '未指定',
   }))

@@ -106,6 +106,7 @@ export const cashBalanceSnapshotToRemote = (snapshot) => ({
 export const expenseEntryToRemote = (entry) => ({
   remoteKey: entry.remoteKey || null,
   name: entry.name,
+  payer: entry.payer ?? null,
   amountTwd: entry.amountTwd,
   occurredAt: entry.occurredAt,
   entryType: entry.entryType,
@@ -209,6 +210,7 @@ export const remoteToCashBalanceSnapshot = (data) => ({
 export const remoteToExpenseEntry = (data) => ({
   remoteKey: data.remoteKey ?? null,
   name: data.name,
+  payer: data.payer ?? null,
   amountTwd: Number(data.amountTwd) || 0,
   occurredAt: data.occurredAt,
   entryType: data.entryType || 'ONE_TIME',

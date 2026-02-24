@@ -838,6 +838,7 @@ function App() {
       await upsertExpenseEntry({
         id: editingExpenseEntry?.id,
         name: values.name,
+        payer: values.payer || null,
         amountTwd: values.amountTwd,
         occurredAt: values.occurredAt?.format?.("YYYY-MM-DD") || values.occurredAt,
         entryType: values.entryType,
@@ -1673,6 +1674,16 @@ function App() {
     () => [
       { title: "名稱", dataIndex: "name", key: "name" },
       {
+        title: "支出人",
+        dataIndex: "payerName",
+        key: "payerName",
+        render: (value) => (
+          <Tag color={value === "未指定" ? "default" : "cyan"}>
+            {value || "未指定"}
+          </Tag>
+        ),
+      },
+      {
         title: "金額",
         dataIndex: "amountTwd",
         key: "amountTwd",
@@ -2036,6 +2047,7 @@ function App() {
     }
     expenseForm.setFieldsValue({
       name: editingExpenseEntry?.name ?? "",
+      payer: editingExpenseEntry?.payer ?? undefined,
       amountTwd: editingExpenseEntry?.amountTwd ?? undefined,
       occurredAt: dayjs(
         editingExpenseEntry?.originalOccurredAt ||
@@ -2478,6 +2490,17 @@ function App() {
           autoCapitalize={isMobileViewport ? "none" : undefined}
           spellCheck={isMobileViewport ? false : undefined}
           data-lpignore={isMobileViewport ? "true" : undefined}
+        />
+      </Form.Item>
+      <Form.Item label="支出人" name="payer">
+        <Select
+          allowClear
+          getPopupContainer={getSheetPopupContainer}
+          options={[
+            { label: "Po", value: "Po" },
+            { label: "Wei", value: "Wei" },
+            { label: "共同", value: "共同" },
+          ]}
         />
       </Form.Item>
       <Form.Item
