@@ -769,6 +769,11 @@
   text-align: left;
 }
 
+.active-recurring-title-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+
 .active-budgets-row {
   width: 100%;
   display: flex;
@@ -795,6 +800,25 @@
 
 .active-recurring-card {
   flex: 0 0 260px;
+}
+
+.active-recurring-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.active-recurring-card-actions {
+  display: inline-flex;
+  align-items: center;
+}
+
+.active-recurring-stop-btn.ant-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
 }
 
 .active-budget-name {

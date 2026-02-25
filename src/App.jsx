@@ -26,6 +26,7 @@ import {
   Modal,
   Popconfirm,
   Progress,
+  Radio,
   Row,
   Select,
   Segmented,
@@ -103,6 +104,7 @@ import {
   upsertHolding,
   getExpenseDashboardView,
   upsertExpenseEntry,
+  stopRecurringExpense,
   removeExpenseEntry,
   upsertExpenseCategory,
   removeExpenseCategory,
@@ -407,8 +409,13 @@ function App() {
   const [recurringExpenseRows, setRecurringExpenseRows] = useState([]);
   const [selectableBudgetOptions, setSelectableBudgetOptions] = useState([]);
   const [editingExpenseEntry, setEditingExpenseEntry] = useState(null);
+  const [expenseFormMode, setExpenseFormMode] = useState("normal");
   const [editingCategory, setEditingCategory] = useState(null);
   const [editingBudget, setEditingBudget] = useState(null);
+  const [stoppingRecurringById, setStoppingRecurringById] = useState({});
+  const [isStopRecurringModalOpen, setIsStopRecurringModalOpen] = useState(false);
+  const [selectedRecurringToStop, setSelectedRecurringToStop] = useState(null);
+  const [stopKeepToday, setStopKeepToday] = useState(true);
   const [rowAnimationValues, setRowAnimationValues] = useState({});
   const [progressDisplayRatio, setProgressDisplayRatio] = useState(0);
   const [baselineDisplayRatio, setBaselineDisplayRatio] = useState(0);
@@ -848,6 +855,8 @@ function App() {
     try {
       const values = await expenseForm.validateFields();
       setLoadingExpenseAction(true);
+      const isRecurringCreateMode =
+        expenseFormMode === "recurring-create" && !editingExpenseEntry;
       await upsertExpenseEntry({
         id: editingExpenseEntry?.id,
         name: values.name,
@@ -855,7 +864,7 @@ function App() {
         expenseKind: values.expenseKind || null,
         amountTwd: values.amountTwd,
         occurredAt: values.occurredAt?.format?.("YYYY-MM-DD") || values.occurredAt,
-        entryType: values.entryType,
+        entryType: isRecurringCreateMode ? "RECURRING" : values.entryType,
         recurrenceType: values.recurrenceType || null,
         monthlyDay: values.monthlyDay || null,
         yearlyMonth: values.yearlyMonth || null,
@@ -868,6 +877,7 @@ function App() {
       setIsExpenseModalOpen(false);
       setIsExpenseSheetOpen(false);
       setEditingExpenseEntry(null);
+      setExpenseFormMode("normal");
       expenseForm.resetFields();
       message.success("支出已儲存");
     } catch (error) {
@@ -876,7 +886,14 @@ function App() {
     } finally {
       setLoadingExpenseAction(false);
     }
-  }, [editingExpenseEntry, expenseForm, loadExpenseData, message, performCloudSync]);
+  }, [
+    editingExpenseEntry,
+    expenseForm,
+    expenseFormMode,
+    loadExpenseData,
+    message,
+    performCloudSync,
+  ]);
 
   const handleSubmitCategory = useCallback(async () => {
     try {
@@ -1081,14 +1098,23 @@ function App() {
     ],
   );
 
-  const openExpenseForm = useCallback((record = null) => {
+  const openExpenseForm = useCallback((record = null, options = {}) => {
     setEditingExpenseEntry(record);
+    setExpenseFormMode(options.mode || "normal");
     if (isMobileViewport) {
       setIsExpenseSheetOpen(true);
     } else {
       setIsExpenseModalOpen(true);
     }
   }, [isMobileViewport]);
+
+  const openRecurringCreateForm = useCallback(() => {
+    openExpenseForm(null, { mode: "recurring-create" });
+  }, [openExpenseForm]);
+
+  const openRecurringEditForm = useCallback((record) => {
+    openExpenseForm(record, { mode: "normal" });
+  }, [openExpenseForm]);
 
   const openCategoryForm = useCallback((record = null) => {
     setEditingCategory(record);
@@ -1121,6 +1147,49 @@ function App() {
       setLoadingExpenseAction(false);
     }
   }, [loadExpenseData, message, performCloudSync]);
+
+  const openStopRecurringModal = useCallback((row) => {
+    setSelectedRecurringToStop(row);
+    setStopKeepToday(true);
+    setIsStopRecurringModalOpen(true);
+  }, []);
+
+  const closeStopRecurringModal = useCallback(() => {
+    const targetId = Number(selectedRecurringToStop?.id);
+    if (Number.isInteger(targetId) && stoppingRecurringById[targetId]) {
+      return;
+    }
+    setIsStopRecurringModalOpen(false);
+    setSelectedRecurringToStop(null);
+    setStopKeepToday(true);
+  }, [selectedRecurringToStop, stoppingRecurringById]);
+
+  const confirmStopRecurring = useCallback(async () => {
+    const targetId = Number(selectedRecurringToStop?.id);
+    if (!Number.isInteger(targetId) || targetId <= 0) {
+      message.error("找不到要取消的定期支出");
+      return;
+    }
+
+    setStoppingRecurringById((prev) => ({ ...prev, [targetId]: true }));
+    try {
+      await stopRecurringExpense({ id: targetId, keepToday: stopKeepToday });
+      await loadExpenseData();
+      await performCloudSync();
+      message.success("定期支出已取消");
+      setIsStopRecurringModalOpen(false);
+      setSelectedRecurringToStop(null);
+      setStopKeepToday(true);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "取消定期支出失敗");
+    } finally {
+      setStoppingRecurringById((prev) => {
+        const next = { ...prev };
+        delete next[targetId];
+        return next;
+      });
+    }
+  }, [loadExpenseData, message, performCloudSync, selectedRecurringToStop, stopKeepToday]);
 
   const handleRemoveCategory = useCallback(async (record) => {
     try {
@@ -1745,23 +1814,28 @@ function App() {
       {
         title: "操作",
         key: "actions",
-        render: (_, record) => (
-          <Space>
-            <Button
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => openExpenseForm(record)}
-            />
-            <Popconfirm
-              title="刪除這筆支出？"
-              onConfirm={() => handleRemoveExpense(record)}
-              okText="刪除"
-              cancelText="取消"
-            >
-              <Button danger size="small" icon={<DeleteOutlined />} />
-            </Popconfirm>
-          </Space>
-        ),
+        render: (_, record) => {
+          if (record.isRecurringOccurrence) {
+            return <Text type="secondary">由定期規則產生</Text>;
+          }
+          return (
+            <Space>
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => openExpenseForm(record)}
+              />
+              <Popconfirm
+                title="刪除這筆支出？"
+                onConfirm={() => handleRemoveExpense(record)}
+                okText="刪除"
+                cancelText="取消"
+              >
+                <Button danger size="small" icon={<DeleteOutlined />} />
+              </Popconfirm>
+            </Space>
+          );
+        },
       },
     ],
     [handleRemoveExpense, openExpenseForm],
@@ -2062,6 +2136,8 @@ function App() {
     if (!isExpenseModalOpen && !isExpenseSheetOpen) {
       return;
     }
+    const isRecurringCreateMode =
+      expenseFormMode === "recurring-create" && !editingExpenseEntry;
     expenseForm.setFieldsValue({
       name: editingExpenseEntry?.name ?? "",
       payer:
@@ -2075,7 +2151,9 @@ function App() {
           editingExpenseEntry?.occurredAt ||
           dayjs(),
       ),
-      entryType: editingExpenseEntry?.entryType || "ONE_TIME",
+      entryType: isRecurringCreateMode
+        ? "RECURRING"
+        : (editingExpenseEntry?.entryType || "ONE_TIME"),
       recurrenceType: editingExpenseEntry?.recurrenceType || undefined,
       monthlyDay: editingExpenseEntry?.monthlyDay ?? undefined,
       yearlyMonth: editingExpenseEntry?.yearlyMonth ?? undefined,
@@ -2085,6 +2163,7 @@ function App() {
     });
   }, [
     editingExpenseEntry,
+    expenseFormMode,
     expenseForm,
     isExpenseModalOpen,
     isExpenseSheetOpen,
@@ -2554,6 +2633,7 @@ function App() {
         rules={[{ required: true, message: "請選擇支出類型" }]}
       >
         <Select
+          disabled={expenseFormMode === "recurring-create"}
           getPopupContainer={getSheetPopupContainer}
           options={[
             { label: "單筆支出", value: "ONE_TIME" },
@@ -3404,22 +3484,70 @@ function App() {
             </Col>
             <Col xs={24}>
               <section className="active-recurring-section">
-                <Text strong className="active-recurring-title">
-                  當前定期支出
-                </Text>
+                <Space size={8} className="active-recurring-title-wrap">
+                  <Text strong className="active-recurring-title">
+                    當前定期支出
+                  </Text>
+                  {isMobileViewport ? (
+                    <Button
+                      type="text"
+                      size="small"
+                      className="title-add-btn"
+                      icon={<PlusOutlined />}
+                      onClick={openRecurringCreateForm}
+                      aria-label="新增定期支出"
+                    />
+                  ) : (
+                    <Tooltip title="新增定期支出">
+                      <Button
+                        type="text"
+                        size="small"
+                        className="title-add-btn"
+                        icon={<PlusOutlined />}
+                        onClick={openRecurringCreateForm}
+                        aria-label="新增定期支出"
+                      />
+                    </Tooltip>
+                  )}
+                </Space>
                 {recurringExpenseRows.length === 0 ? (
                   <Text type="secondary">目前沒有定期支出</Text>
                 ) : (
                   <div className="active-recurring-row">
                     {recurringExpenseRows.map((item) => (
                       <Card key={item.id} size="small" className="active-recurring-card">
-                        <Text
-                          type="secondary"
-                          className="active-budget-name"
-                          title={item.name}
-                        >
-                          {item.name}
-                        </Text>
+                        <div className="active-recurring-card-head">
+                          <Text
+                            type="secondary"
+                            className="active-budget-name"
+                            title={item.name}
+                          >
+                            {item.name}
+                          </Text>
+                          <Space size={4} className="active-recurring-card-actions">
+                            <Tooltip title="編輯定期支出">
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<EditOutlined />}
+                                className="active-recurring-stop-btn"
+                                onClick={() => openRecurringEditForm(item)}
+                                aria-label="編輯定期支出"
+                              />
+                            </Tooltip>
+                            <Tooltip title="取消定期支出">
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                className="active-recurring-stop-btn"
+                                loading={Boolean(stoppingRecurringById[item.id])}
+                                onClick={() => openStopRecurringModal(item)}
+                                aria-label="取消定期支出"
+                              />
+                            </Tooltip>
+                          </Space>
+                        </div>
                         <div className="active-recurring-amount">
                           <span className="active-budget-remaining-value">
                             {formatTwd(Number(item.amountTwd) || 0)}
@@ -3605,6 +3733,39 @@ function App() {
         </Drawer>
 
         <Modal
+          title="取消定期支出"
+          open={isStopRecurringModalOpen}
+          onCancel={closeStopRecurringModal}
+          onOk={confirmStopRecurring}
+          okText="確認取消"
+          cancelText="取消"
+          confirmLoading={Boolean(
+            Number.isInteger(Number(selectedRecurringToStop?.id))
+              ? stoppingRecurringById[Number(selectedRecurringToStop?.id)]
+              : false,
+          )}
+        >
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <Text type="secondary">
+              已發生的紀錄會保留，未來將不再產生這筆定期支出。
+            </Text>
+            <Radio.Group
+              value={stopKeepToday}
+              onChange={(event) => setStopKeepToday(Boolean(event.target.value))}
+            >
+              <Space direction="vertical">
+                <Radio value>
+                  保留今天，從明天起停止
+                </Radio>
+                <Radio value={false}>
+                  連今天一起停止
+                </Radio>
+              </Space>
+            </Radio.Group>
+          </Space>
+        </Modal>
+
+        <Modal
           title="登入"
           open={!isMobileViewport && isEmailLoginModalOpen}
           onCancel={() => {
@@ -3780,11 +3941,16 @@ function App() {
         </Modal>
 
         <MobileFormSheetLayout
-          title={editingExpenseEntry ? "編輯支出" : "新增支出"}
+          title={
+            expenseFormMode === "recurring-create"
+              ? "新增定期支出"
+              : (editingExpenseEntry ? "編輯支出" : "新增支出")
+          }
           open={isMobileViewport && isExpenseSheetOpen}
           onClose={() => {
             setIsExpenseSheetOpen(false);
             setEditingExpenseEntry(null);
+            setExpenseFormMode("normal");
             expenseForm.resetFields();
           }}
           loading={loadingExpenseAction}
@@ -3825,12 +3991,17 @@ function App() {
         </MobileFormSheetLayout>
 
         <Modal
-          title={editingExpenseEntry ? "編輯支出" : "新增支出"}
+          title={
+            expenseFormMode === "recurring-create"
+              ? "新增定期支出"
+              : (editingExpenseEntry ? "編輯支出" : "新增支出")
+          }
           open={!isMobileViewport && isExpenseModalOpen}
           onCancel={() => {
             if (!loadingExpenseAction) {
               setIsExpenseModalOpen(false);
               setEditingExpenseEntry(null);
+              setExpenseFormMode("normal");
               expenseForm.resetFields();
             }
           }}

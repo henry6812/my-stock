@@ -1678,6 +1678,37 @@ export const removeExpenseEntry = async ({ id }) => {
   if (deleted) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, deleted)
 }
 
+export const stopRecurringExpense = async ({ id, keepToday }) => {
+  const parsedId = Number(id)
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error('Expense not found')
+  }
+
+  const existing = await db.expense_entries.get(parsedId)
+  if (!existing || isDeleted(existing)) {
+    throw new Error('Expense not found')
+  }
+  if (existing.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) {
+    throw new Error('Expense is not recurring')
+  }
+
+  const nowIso = getNowIso()
+  const today = dayjs(getNowDate())
+  const cutoffDate = keepToday ? today : today.subtract(1, 'day')
+  const recurrenceUntil = cutoffDate.format('YYYY-MM-DD')
+
+  await db.expense_entries.update(parsedId, {
+    recurrenceUntil,
+    updatedAt: nowIso,
+    syncState: SYNC_PENDING,
+  })
+
+  const updated = await db.expense_entries.get(parsedId)
+  if (updated) {
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, updated)
+  }
+}
+
 export const getExpenseMonthOptions = async () => {
   const entries = (await db.expense_entries.toArray()).filter((item) => !isDeleted(item))
   const nowMonth = dayjs().format('YYYY-MM')
@@ -1800,16 +1831,29 @@ export const getExpenseDashboardView = async (input = {}) => {
   })
 
   const recurringExpenseRows = entries
-    .filter((entry) => entry.entryType === EXPENSE_ENTRY_TYPE.RECURRING)
+    .filter((entry) => {
+      if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) return false
+      const startDate = normalizeDateOnly(entry.occurredAt)
+      if (!startDate || startDate > today) return false
+      const untilDate = normalizeDateOnly(entry.recurrenceUntil)
+      if (untilDate && untilDate < today) return false
+      return true
+    })
     .map((entry) => ({
       id: entry.id,
       name: entry.name,
+      payer: entry.payer ?? null,
+      expenseKind: entry.expenseKind ?? null,
       amountTwd: Number(entry.amountTwd) || 0,
+      entryType: entry.entryType ?? EXPENSE_ENTRY_TYPE.RECURRING,
       recurrenceType: entry.recurrenceType ?? null,
       monthlyDay: entry.monthlyDay ?? null,
       yearlyMonth: entry.yearlyMonth ?? null,
       yearlyDay: entry.yearlyDay ?? null,
       recurrenceUntil: entry.recurrenceUntil ?? null,
+      occurredAt: entry.occurredAt ?? null,
+      categoryId: entry.categoryId ?? null,
+      budgetId: entry.budgetId ?? null,
       updatedAt: entry.updatedAt ?? null,
       createdAt: entry.createdAt ?? null,
     }))
