@@ -1833,8 +1833,6 @@ export const getExpenseDashboardView = async (input = {}) => {
   const recurringExpenseRows = entries
     .filter((entry) => {
       if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) return false
-      const startDate = normalizeDateOnly(entry.occurredAt)
-      if (!startDate || startDate > today) return false
       const untilDate = normalizeDateOnly(entry.recurrenceUntil)
       if (untilDate && untilDate < today) return false
       return true
