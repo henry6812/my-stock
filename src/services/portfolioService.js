@@ -1799,6 +1799,28 @@ export const getExpenseDashboardView = async (input = {}) => {
     return today >= budget.cycleStart && today <= budget.cycleEnd
   })
 
+  const recurringExpenseRows = entries
+    .filter((entry) => entry.entryType === EXPENSE_ENTRY_TYPE.RECURRING)
+    .map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      amountTwd: Number(entry.amountTwd) || 0,
+      recurrenceType: entry.recurrenceType ?? null,
+      monthlyDay: entry.monthlyDay ?? null,
+      yearlyMonth: entry.yearlyMonth ?? null,
+      yearlyDay: entry.yearlyDay ?? null,
+      recurrenceUntil: entry.recurrenceUntil ?? null,
+      updatedAt: entry.updatedAt ?? null,
+      createdAt: entry.createdAt ?? null,
+    }))
+    .sort((a, b) => {
+      const updatedCompare = (b.updatedAt || '').localeCompare(a.updatedAt || '')
+      if (updatedCompare !== 0) return updatedCompare
+      const createdCompare = (b.createdAt || '').localeCompare(a.createdAt || '')
+      if (createdCompare !== 0) return createdCompare
+      return Number(b.id || 0) - Number(a.id || 0)
+    })
+
   return {
     monthOptions,
     activeMonth,
@@ -1814,5 +1836,6 @@ export const getExpenseDashboardView = async (input = {}) => {
       .sort((a, b) => (a.updatedAt || '').localeCompare(b.updatedAt || ''))
       .reverse(),
     selectableBudgets: selectableBudgets.map((item) => ({ id: item.id, name: item.name })),
+    recurringExpenseRows,
   }
 }

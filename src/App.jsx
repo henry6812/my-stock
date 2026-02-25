@@ -176,6 +176,17 @@ const formatStopLabel = (value) => {
   return `${Math.round(value / 10000)}萬`;
 };
 
+const formatRecurringScheduleText = (row) => {
+  if (!row) return "--";
+  if (row.recurrenceType === "MONTHLY") {
+    return `每月 ${row.monthlyDay || "--"} 日扣款`;
+  }
+  if (row.recurrenceType === "YEARLY") {
+    return `每年 ${row.yearlyMonth || "--"} 月${row.yearlyDay ? `${row.yearlyDay} 日` : ""}扣款`;
+  }
+  return "--";
+};
+
 const filterRowsByHoldingTab = (targetRows, tab) => {
   if (tab === "tw") {
     return targetRows.filter((row) => row.market === "TW");
@@ -393,6 +404,7 @@ function App() {
   const [expenseFirstDate, setExpenseFirstDate] = useState(null);
   const [expenseCategoryRows, setExpenseCategoryRows] = useState([]);
   const [budgetRows, setBudgetRows] = useState([]);
+  const [recurringExpenseRows, setRecurringExpenseRows] = useState([]);
   const [selectableBudgetOptions, setSelectableBudgetOptions] = useState([]);
   const [editingExpenseEntry, setEditingExpenseEntry] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
@@ -828,6 +840,7 @@ function App() {
     setExpenseFirstDate(view.firstExpenseDate || null);
     setExpenseCategoryRows(view.categoryRows ?? []);
     setBudgetRows(view.budgetRows ?? []);
+    setRecurringExpenseRows(view.recurringExpenseRows ?? []);
     setSelectableBudgetOptions(view.selectableBudgets ?? []);
   }, [activeExpenseMonth]);
 
@@ -3382,6 +3395,48 @@ function App() {
                         <Text type="secondary" className="active-budget-meta">
                           {formatTwd(Number(budget.spentTwd) || 0)} /{" "}
                           {formatTwd(Number(budget.amountTwd) || 0)}
+                        </Text>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </Col>
+            <Col xs={24}>
+              <section className="active-recurring-section">
+                <Text strong className="active-recurring-title">
+                  當前定期支出
+                </Text>
+                {recurringExpenseRows.length === 0 ? (
+                  <Text type="secondary">目前沒有定期支出</Text>
+                ) : (
+                  <div className="active-recurring-row">
+                    {recurringExpenseRows.map((item) => (
+                      <Card key={item.id} size="small" className="active-recurring-card">
+                        <Text
+                          type="secondary"
+                          className="active-budget-name"
+                          title={item.name}
+                        >
+                          {item.name}
+                        </Text>
+                        <div className="active-recurring-amount">
+                          <span className="active-budget-remaining-value">
+                            {formatTwd(Number(item.amountTwd) || 0)}
+                          </span>
+                          <span className="active-budget-remaining-prefix">
+                            /{item.recurrenceType === "YEARLY"
+                              ? "每年"
+                              : item.recurrenceType === "MONTHLY"
+                                ? "每月"
+                                : "--"}
+                          </span>
+                        </div>
+                        <Text type="secondary" className="active-budget-meta">
+                          {formatRecurringScheduleText(item)}
+                          {item.recurrenceUntil
+                            ? `（至 ${dayjs(item.recurrenceUntil).format("YYYY/MM/DD")}）`
+                            : ""}
                         </Text>
                       </Card>
                     ))}
