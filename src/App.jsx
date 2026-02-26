@@ -2886,7 +2886,7 @@ function App() {
       <Layout className="app-layout">
       <Header className="app-header">
         <div className="header-spacer">
-          {!isMobileViewport && (
+          {authUser && !isMobileViewport && (
             <Segmented
               size="middle"
               value={activeMainTab}
@@ -2904,14 +2904,14 @@ function App() {
           className="header-logo"
         />
         <div className="header-auth">
-          <Space size={8}>
-            <div className="header-sync-meta">
-              <Text type={cloudSyncStatus === "error" ? "danger" : "secondary"}>
-                <CloudSyncOutlined style={{ marginRight: 6 }} />
-                {authReady ? cloudSyncText : "讀取登入狀態中..."}
-              </Text>
-            </div>
-            {authUser ? (
+          {authUser && (
+            <Space size={8}>
+              <div className="header-sync-meta">
+                <Text type={cloudSyncStatus === "error" ? "danger" : "secondary"}>
+                  <CloudSyncOutlined style={{ marginRight: 6 }} />
+                  {authReady ? cloudSyncText : "讀取登入狀態中..."}
+                </Text>
+              </div>
               <Space size={6}>
                 <Tooltip title={authUser.email || "Google 帳號"}>
                   <Button
@@ -2923,23 +2923,8 @@ function App() {
                   />
                 </Tooltip>
               </Space>
-            ) : (
-              <Button
-                size="small"
-                icon={<MailOutlined />}
-                onClick={() => {
-                  if (isMobileViewport) {
-                    setIsEmailLoginSheetOpen(true);
-                  } else {
-                    setIsEmailLoginModalOpen(true);
-                  }
-                }}
-                loading={isAuthDialogSubmitting}
-              >
-                登入
-              </Button>
-            )}
-          </Space>
+            </Space>
+          )}
         </div>
       </Header>
 
