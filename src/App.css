@@ -579,7 +579,9 @@
   height: 42px;
 }
 
-.form-bottom-sheet .cash-bank-autocomplete.ant-select-single .ant-select-selector {
+.form-bottom-sheet
+  .cash-bank-autocomplete.ant-select-single
+  .ant-select-selector {
   height: 44px;
   min-height: 44px;
   display: flex;
@@ -587,7 +589,9 @@
   padding: 0 11px;
 }
 
-.form-bottom-sheet .cash-bank-autocomplete.ant-select-single .ant-select-selection-search-input {
+.form-bottom-sheet
+  .cash-bank-autocomplete.ant-select-single
+  .ant-select-selection-search-input {
   height: 42px;
   line-height: 42px;
 }
@@ -736,6 +740,19 @@
   text-align: center;
 }
 
+.expense-summary-value-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.expense-summary-trend-btn.ant-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+}
+
 .expense-summary-value .ant-statistic-content {
   font-size: 38px;
   font-weight: 700;
@@ -756,6 +773,74 @@
 
 .active-budgets-title {
   text-align: left;
+}
+
+.expense-analytics-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.expense-analytics-title {
+  text-align: left;
+}
+
+.expense-analytics-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
+
+.expense-analytics-card {
+  flex: 0 0 260px;
+}
+
+.expense-analytics-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.expense-analytics-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+}
+
+.expense-chart-preview {
+  width: 100%;
+  height: 150px;
+}
+
+.expense-chart-preview-summary {
+  display: block;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.expense-chart-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.expense-chart-modal-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.expense-chart-modal-content {
+  width: 100%;
+  height: 420px;
 }
 
 .active-recurring-section {
@@ -904,7 +989,16 @@
     flex-basis: 220px;
   }
 
+  .expense-analytics-card {
+    flex-basis: 220px;
+  }
+
   .active-recurring-card {
     flex-basis: 220px;
   }
+
+  .expense-chart-modal-content {
+    height: 340px;
+  }
+
 }

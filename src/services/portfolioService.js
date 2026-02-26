@@ -1275,6 +1275,203 @@ const computeCumulativeExpenseTotal = (entries, endDateInput = getNowDate()) => 
   return total
 }
 
+const normalizePayerKey = (payer) => {
+  const normalized = String(payer || '').trim().toLowerCase()
+  if (normalized === 'po') return 'po'
+  if (normalized === 'wei') return 'wei'
+  return normalized
+}
+
+const expandExpenseOccurrencesUntilDate = (entries, endDateInput = getNowDate()) => {
+  const endDate = toDayjsDateOnly(endDateInput)
+  if (!endDate.isValid()) {
+    return []
+  }
+
+  const rows = []
+
+  for (const entry of entries) {
+    if (isDeleted(entry)) continue
+    const amount = Number(entry.amountTwd) || 0
+    if (amount <= 0) continue
+
+    if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) {
+      const occurred = toDayjsDateOnly(entry.occurredAt)
+      if (occurred.isValid() && !occurred.isAfter(endDate, 'day')) {
+        rows.push({
+          id: entry.id,
+          amountTwd: amount,
+          occurredAt: occurred.format('YYYY-MM-DD'),
+          payer: entry.payer ?? null,
+          expenseKind: entry.expenseKind ?? null,
+          categoryId: entry.categoryId ?? null,
+        })
+      }
+      continue
+    }
+
+    const recurringStart = toDayjsDateOnly(entry.occurredAt)
+    if (!recurringStart.isValid() || recurringStart.isAfter(endDate, 'day')) {
+      continue
+    }
+    const until = entry.recurrenceUntil ? toDayjsDateOnly(entry.recurrenceUntil) : endDate
+    const limit = until.isValid() && until.isBefore(endDate, 'day') ? until : endDate
+    if (limit.isBefore(recurringStart, 'day')) {
+      continue
+    }
+
+    let cursor = recurringStart.startOf('month')
+    while (!cursor.isAfter(limit, 'month')) {
+      const occurrence = resolveRecurringOccurrenceDate(entry, cursor.clone())
+      if (
+        occurrence &&
+        !occurrence.isBefore(recurringStart, 'day') &&
+        !occurrence.isAfter(limit, 'day') &&
+        entryIsActiveOnDate(entry, occurrence)
+      ) {
+        rows.push({
+          id: entry.id,
+          amountTwd: amount,
+          occurredAt: occurrence.format('YYYY-MM-DD'),
+          payer: entry.payer ?? null,
+          expenseKind: entry.expenseKind ?? null,
+          categoryId: entry.categoryId ?? null,
+        })
+      }
+      cursor = cursor.add(1, 'month')
+    }
+  }
+
+  return rows
+}
+
+const buildMonthlyTotalsSeries = (occurrences, endDateInput = getNowDate()) => {
+  const end = toDayjsDateOnly(endDateInput)
+  const validOccurred = occurrences
+    .map((item) => normalizeDateOnly(item.occurredAt))
+    .filter(Boolean)
+  const firstMonth = validOccurred.length > 0
+    ? validOccurred.sort()[0].slice(0, 7)
+    : end.format('YYYY-MM')
+  const endMonth = end.format('YYYY-MM')
+  const totals = new Map()
+
+  for (const occurrence of occurrences) {
+    const month = normalizeDateOnly(occurrence.occurredAt)?.slice(0, 7)
+    if (!month) continue
+    totals.set(month, (totals.get(month) || 0) + (Number(occurrence.amountTwd) || 0))
+  }
+
+  const series = []
+  let cursor = dayjs(`${firstMonth}-01`)
+  const limit = dayjs(`${endMonth}-01`)
+  while (!cursor.isAfter(limit, 'month')) {
+    const month = cursor.format('YYYY-MM')
+    series.push({
+      month,
+      totalTwd: Number(totals.get(month) || 0),
+    })
+    cursor = cursor.add(1, 'month')
+  }
+  return series
+}
+
+const getOccurrencesForMonth = (entries, month) => (
+  expandRecurringOccurrencesForMonth(entries, month).map((item) => ({
+    id: item.id,
+    amountTwd: Number(item.amountTwd) || 0,
+    occurredAt: item.occurrenceDate,
+    payer: item.payer ?? null,
+    expenseKind: item.expenseKind ?? null,
+    categoryId: item.categoryId ?? null,
+  }))
+)
+
+const buildExpenseAnalytics = ({
+  occurrences,
+  categoryMap,
+  trendMode = 'all',
+  month,
+  today = getNowDate(),
+}) => {
+  const kindBucket = {
+    家庭: 0,
+    個人: 0,
+    未指定: 0,
+  }
+  const payerRankingBucket = {
+    wei_personal: 0,
+    po_personal: 0,
+    family_total: 0,
+  }
+  const familyBalanceBucket = {
+    po_family: 0,
+    wei_family: 0,
+    other_family: 0,
+  }
+  const categoryBucket = new Map()
+
+  for (const occurrence of occurrences) {
+    const amount = Number(occurrence.amountTwd) || 0
+    if (amount <= 0) continue
+    const kind = occurrence.expenseKind === '家庭' || occurrence.expenseKind === '個人'
+      ? occurrence.expenseKind
+      : '未指定'
+    const payerKey = normalizePayerKey(occurrence.payer)
+
+    kindBucket[kind] += amount
+
+    if (kind === '個人') {
+      if (payerKey === 'wei') payerRankingBucket.wei_personal += amount
+      if (payerKey === 'po') payerRankingBucket.po_personal += amount
+    }
+    if (kind === '家庭') {
+      payerRankingBucket.family_total += amount
+      if (payerKey === 'po') familyBalanceBucket.po_family += amount
+      else if (payerKey === 'wei') familyBalanceBucket.wei_family += amount
+      else familyBalanceBucket.other_family += amount
+    }
+
+    const categoryName = occurrence.categoryId
+      ? (categoryMap.get(occurrence.categoryId) || '未分類')
+      : '未分類'
+    categoryBucket.set(categoryName, (categoryBucket.get(categoryName) || 0) + amount)
+  }
+
+  const monthlyTotalsAllHistory = trendMode === 'month'
+    ? [{
+      month,
+      totalTwd: occurrences.reduce((sum, item) => sum + (Number(item.amountTwd) || 0), 0),
+    }]
+    : buildMonthlyTotalsSeries(occurrences, today)
+
+  return {
+    monthlyTotalsAllHistory,
+    kindBreakdown: [
+      { key: '家庭', value: kindBucket.家庭 },
+      { key: '個人', value: kindBucket.個人 },
+      { key: '未指定', value: kindBucket.未指定 },
+    ],
+    payerRanking: [
+      { key: 'wei_personal', label: 'Wei 個人', value: payerRankingBucket.wei_personal },
+      { key: 'po_personal', label: 'Po 個人', value: payerRankingBucket.po_personal },
+      { key: 'family_total', label: '所有家庭', value: payerRankingBucket.family_total },
+    ],
+    familyBalance: [
+      { key: 'po_family', label: 'Po 家庭', value: familyBalanceBucket.po_family },
+      { key: 'wei_family', label: 'Wei 家庭', value: familyBalanceBucket.wei_family },
+      { key: 'other_family', label: '其他家庭', value: familyBalanceBucket.other_family },
+    ],
+    categoryBreakdown: Array.from(categoryBucket.entries())
+      .map(([name, value]) => ({
+        key: name,
+        name,
+        value,
+      }))
+      .sort((a, b) => b.value - a.value),
+  }
+}
+
 const getBudgetCycleRange = (budget, refDateInput = getNowDate()) => {
   const start = toDayjsDateOnly(budget.startDate)
   const refDate = toDayjsDateOnly(refDateInput)
@@ -1863,6 +2060,22 @@ export const getExpenseDashboardView = async (input = {}) => {
       return Number(b.id || 0) - Number(a.id || 0)
     })
 
+  const allHistoryOccurrences = expandExpenseOccurrencesUntilDate(entries, today)
+  const monthOccurrences = getOccurrencesForMonth(entries, activeMonth)
+  const expenseAnalyticsAllHistory = buildExpenseAnalytics({
+    occurrences: allHistoryOccurrences,
+    categoryMap,
+    trendMode: 'all',
+    today,
+  })
+  const expenseAnalyticsByMonth = buildExpenseAnalytics({
+    occurrences: monthOccurrences,
+    categoryMap,
+    trendMode: 'month',
+    month: activeMonth,
+    today,
+  })
+
   return {
     monthOptions,
     activeMonth,
@@ -1879,5 +2092,8 @@ export const getExpenseDashboardView = async (input = {}) => {
       .reverse(),
     selectableBudgets: selectableBudgets.map((item) => ({ id: item.id, name: item.name })),
     recurringExpenseRows,
+    expenseAnalytics: expenseAnalyticsAllHistory,
+    expenseAnalyticsAllHistory,
+    expenseAnalyticsByMonth,
   }
 }

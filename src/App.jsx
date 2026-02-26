@@ -47,6 +47,7 @@ import {
   DeleteOutlined,
   DollarOutlined,
   EditOutlined,
+  ExpandOutlined,
   FundProjectionScreenOutlined,
   GoogleOutlined,
   HomeOutlined,
@@ -73,12 +74,19 @@ import { CSS } from "@dnd-kit/utilities";
 import dayjs from "dayjs";
 import anime from "animejs/lib/anime.es.js";
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
   Cell,
   Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 import HoldingForm from "./components/HoldingForm";
 import CashAccountForm from "./components/CashAccountForm";
@@ -129,6 +137,13 @@ const PULL_REFRESH_TRIGGER = 68;
 const NUMBER_ANIMATION_DURATION_MS = 2000;
 const PROGRESS_UNIT_TWD = 10000000;
 const PROGRESS_MIN_MAX_TWD = 30000000;
+const DEFAULT_EXPENSE_ANALYTICS = {
+  monthlyTotalsAllHistory: [],
+  kindBreakdown: [],
+  payerRanking: [],
+  familyBalance: [],
+  categoryBreakdown: [],
+};
 
 const formatSignedPrice = (value, currency = "TWD") => {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -407,6 +422,15 @@ function App() {
   const [expenseCategoryRows, setExpenseCategoryRows] = useState([]);
   const [budgetRows, setBudgetRows] = useState([]);
   const [recurringExpenseRows, setRecurringExpenseRows] = useState([]);
+  const [expenseAnalyticsAllHistory, setExpenseAnalyticsAllHistory] = useState(
+    DEFAULT_EXPENSE_ANALYTICS,
+  );
+  const [expenseAnalyticsByMonth, setExpenseAnalyticsByMonth] = useState(
+    DEFAULT_EXPENSE_ANALYTICS,
+  );
+  const [expenseTrendRange, setExpenseTrendRange] = useState("6m");
+  const [isExpenseChartModalOpen, setIsExpenseChartModalOpen] = useState(false);
+  const [activeExpenseChartKey, setActiveExpenseChartKey] = useState("trend");
   const [selectableBudgetOptions, setSelectableBudgetOptions] = useState([]);
   const [editingExpenseEntry, setEditingExpenseEntry] = useState(null);
   const [expenseFormMode, setExpenseFormMode] = useState("normal");
@@ -848,6 +872,14 @@ function App() {
     setExpenseCategoryRows(view.categoryRows ?? []);
     setBudgetRows(view.budgetRows ?? []);
     setRecurringExpenseRows(view.recurringExpenseRows ?? []);
+    setExpenseAnalyticsAllHistory(
+      view.expenseAnalyticsAllHistory ??
+      view.expenseAnalytics ??
+      DEFAULT_EXPENSE_ANALYTICS,
+    );
+    setExpenseAnalyticsByMonth(
+      view.expenseAnalyticsByMonth ?? DEFAULT_EXPENSE_ANALYTICS,
+    );
     setSelectableBudgetOptions(view.selectableBudgets ?? []);
   }, [activeExpenseMonth]);
 
@@ -2881,6 +2913,278 @@ function App() {
     });
   }, [budgetRows]);
 
+  const effectiveExpenseAnalytics = useMemo(
+    () => (
+      expenseTotalMode === "cumulative"
+        ? expenseAnalyticsAllHistory
+        : expenseAnalyticsByMonth
+    ),
+    [expenseAnalyticsAllHistory, expenseAnalyticsByMonth, expenseTotalMode],
+  );
+
+  const trendMonths = useMemo(() => {
+    const source = Array.isArray(expenseAnalyticsAllHistory?.monthlyTotalsAllHistory)
+      ? expenseAnalyticsAllHistory.monthlyTotalsAllHistory
+      : [];
+    const size = expenseTrendRange === "1y" ? 12 : 6;
+    return source
+      .slice(-size)
+      .map((item) => ({
+        ...item,
+        monthLabel: dayjs(`${item.month}-01`).format("YY/MM"),
+      }));
+  }, [expenseAnalyticsAllHistory, expenseTrendRange]);
+
+  const kindAnalysisData = useMemo(
+    () =>
+      (effectiveExpenseAnalytics?.kindBreakdown ?? [])
+        .filter((item) => Number(item.value) > 0)
+        .map((item) => ({
+          name: item.key,
+          value: Number(item.value) || 0,
+          color:
+            item.key === "家庭"
+              ? "#1677ff"
+              : item.key === "個人"
+                ? "#52c41a"
+                : "#8c8c8c",
+        })),
+    [effectiveExpenseAnalytics],
+  );
+
+  const payerRankingData = useMemo(
+    () =>
+      (effectiveExpenseAnalytics?.payerRanking ?? []).map((item) => ({
+        name: item.label,
+        value: Number(item.value) || 0,
+      })),
+    [effectiveExpenseAnalytics],
+  );
+
+  const familyBalanceData = useMemo(
+    () =>
+      (effectiveExpenseAnalytics?.familyBalance ?? [])
+        .filter((item) => item.key === "po_family" || item.key === "wei_family")
+        .filter((item) => Number(item.value) > 0)
+        .map((item) => ({
+          name: item.label,
+          value: Number(item.value) || 0,
+          color:
+            item.key === "po_family"
+              ? "#fa8c16"
+              : item.key === "wei_family"
+                ? "#13c2c2"
+                : "#8c8c8c",
+        })),
+    [effectiveExpenseAnalytics],
+  );
+
+  const categoryAnalysisData = useMemo(
+    () =>
+      (effectiveExpenseAnalytics?.categoryBreakdown ?? [])
+        .filter((item) => Number(item.value) > 0)
+        .slice(0, 8)
+        .map((item, index) => ({
+          name: item.name,
+          value: Number(item.value) || 0,
+          color: ["#1677ff", "#52c41a", "#faad14", "#eb2f96", "#13c2c2", "#722ed1", "#fa8c16", "#2f54eb"][index % 8],
+        })),
+    [effectiveExpenseAnalytics],
+  );
+
+  const expenseChartPreviewSummary = useMemo(() => {
+    const latestTrend = trendMonths[trendMonths.length - 1];
+    const familyValue = kindAnalysisData.find((item) => item.name === "家庭")?.value || 0;
+    const personalValue = kindAnalysisData.find((item) => item.name === "個人")?.value || 0;
+    const weiPersonal = payerRankingData.find((item) => item.name === "Wei 個人")?.value || 0;
+    const poPersonal = payerRankingData.find((item) => item.name === "Po 個人")?.value || 0;
+    const familyTotal = payerRankingData.find((item) => item.name === "所有家庭")?.value || 0;
+    const poFamily = familyBalanceData.find((item) => item.name === "Po 家庭")?.value || 0;
+    const weiFamily = familyBalanceData.find((item) => item.name === "Wei 家庭")?.value || 0;
+    const topCategory = categoryAnalysisData[0];
+
+    return {
+      trend: latestTrend ? `最新：${formatTwd(latestTrend.totalTwd)}` : "尚無資料",
+      kind: `家庭 ${formatTwd(familyValue)} / 個人 ${formatTwd(personalValue)}`,
+      ranking: `Wei ${formatTwd(weiPersonal)} · Po ${formatTwd(poPersonal)} · 家庭 ${formatTwd(familyTotal)}`,
+      family_balance: `Po ${formatTwd(poFamily)} / Wei ${formatTwd(weiFamily)}`,
+      category: topCategory ? `${topCategory.name}：${formatTwd(topCategory.value)}` : "尚無資料",
+    };
+  }, [categoryAnalysisData, familyBalanceData, kindAnalysisData, payerRankingData, trendMonths]);
+
+  const expenseChartCards = useMemo(
+    () => [
+      { key: "kind", title: "種類分析" },
+      { key: "ranking", title: "支出人排行" },
+      { key: "family_balance", title: "家庭開銷平衡" },
+      { key: "category", title: "支出種類分析" },
+    ],
+    [],
+  );
+
+  const renderExpenseChartPreview = useCallback(
+    (chartKey) => {
+      if (chartKey === "trend") {
+        if (trendMonths.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={trendMonths} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="monthLabel" tick={{ fontSize: 10 }} />
+              <YAxis hide />
+              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <Line type="monotone" dataKey="totalTwd" stroke="#1677ff" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        );
+      }
+      if (chartKey === "kind") {
+        if (kindAnalysisData.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={kindAnalysisData} dataKey="value" nameKey="name" innerRadius="35%" outerRadius="70%">
+                {kindAnalysisData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} />
+                ))}
+              </Pie>
+              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+            </PieChart>
+          </ResponsiveContainer>
+        );
+      }
+      if (chartKey === "ranking") {
+        const hasValue = payerRankingData.some((item) => item.value > 0);
+        if (!hasValue) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={payerRankingData} layout="vertical" margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+              <XAxis type="number" hide />
+              <YAxis type="category" dataKey="name" width={68} tick={{ fontSize: 10 }} />
+              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <Bar dataKey="value" fill="#1677ff" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        );
+      }
+      if (chartKey === "family_balance") {
+        if (familyBalanceData.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={familyBalanceData} dataKey="value" nameKey="name" innerRadius="35%" outerRadius="70%">
+                {familyBalanceData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} />
+                ))}
+              </Pie>
+              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+            </PieChart>
+          </ResponsiveContainer>
+        );
+      }
+      if (categoryAnalysisData.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={categoryAnalysisData} dataKey="value" nameKey="name" innerRadius="35%" outerRadius="70%">
+              {categoryAnalysisData.map((entry) => (
+                <Cell key={entry.name} fill={entry.color} />
+              ))}
+            </Pie>
+            <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+          </PieChart>
+        </ResponsiveContainer>
+      );
+    },
+    [categoryAnalysisData, familyBalanceData, kindAnalysisData, payerRankingData, trendMonths],
+  );
+
+  const renderExpenseChartModalContent = useCallback(
+    (chartKey) => {
+      if (chartKey === "trend") {
+        if (trendMonths.length === 0) return <Empty description="尚無支出資料" />;
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={trendMonths} margin={{ top: 8, right: 24, left: 8, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="monthLabel" />
+              <YAxis tickFormatter={(value) => `${Math.round(Number(value) / 10000)}萬`} />
+              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <Line type="monotone" dataKey="totalTwd" stroke="#1677ff" strokeWidth={3} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        );
+      }
+      if (chartKey === "kind") {
+        if (kindAnalysisData.length === 0) return <Empty description="尚無支出資料" />;
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={kindAnalysisData} dataKey="value" nameKey="name" outerRadius="72%" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                {kindAnalysisData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} />
+                ))}
+              </Pie>
+              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        );
+      }
+      if (chartKey === "ranking") {
+        const hasValue = payerRankingData.some((item) => item.value > 0);
+        if (!hasValue) return <Empty description="尚無支出資料" />;
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={payerRankingData} layout="vertical" margin={{ top: 8, right: 24, left: 36, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`} />
+              <YAxis type="category" dataKey="name" width={88} />
+              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <Bar dataKey="value" fill="#1677ff" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        );
+      }
+      if (chartKey === "family_balance") {
+        if (familyBalanceData.length === 0) return <Empty description="尚無家庭開銷資料" />;
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={familyBalanceData} dataKey="value" nameKey="name" outerRadius="72%" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                {familyBalanceData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} />
+                ))}
+              </Pie>
+              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        );
+      }
+      if (categoryAnalysisData.length === 0) return <Empty description="尚無分類資料" />;
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={categoryAnalysisData} dataKey="value" nameKey="name" outerRadius="72%" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+              {categoryAnalysisData.map((entry) => (
+                <Cell key={entry.name} fill={entry.color} />
+              ))}
+            </Pie>
+            <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      );
+    },
+    [categoryAnalysisData, familyBalanceData, kindAnalysisData, payerRankingData, trendMonths],
+  );
+
+  const activeExpenseChartTitle = useMemo(
+    () => expenseChartCards.find((item) => item.key === activeExpenseChartKey)?.title || "支出圖表",
+    [activeExpenseChartKey, expenseChartCards],
+  );
+
   return (
     <AppErrorBoundary>
       <Layout className="app-layout">
@@ -3398,10 +3702,27 @@ function App() {
                   </div>
                 </div>
                 <div className="expense-summary-value">
-                  <Statistic
-                    value={expenseSummaryValue}
-                    formatter={(value) => formatTwd(Number(value))}
-                  />
+                  <div className="expense-summary-value-main">
+                    <Statistic
+                      value={expenseSummaryValue}
+                      formatter={(value) => formatTwd(Number(value))}
+                    />
+                    {expenseTotalMode === "cumulative" ? (
+                      <Tooltip title="查看支出走勢">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<AreaChartOutlined />}
+                          className="expense-summary-trend-btn"
+                          aria-label="查看支出走勢"
+                          onClick={() => {
+                            setActiveExpenseChartKey("trend");
+                            setIsExpenseChartModalOpen(true);
+                          }}
+                        />
+                      </Tooltip>
+                    ) : null}
+                  </div>
                   {expenseTotalMode === "cumulative" && (
                     <Text type="secondary" className="expense-summary-subtext">
                       {expenseFirstDate
@@ -3411,6 +3732,62 @@ function App() {
                   )}
                 </div>
               </div>
+            </Col>
+            <Col xs={24}>
+              <section className="expense-analytics-section">
+                <Text strong className="expense-analytics-title">
+                  支出圖表
+                </Text>
+                <div className="expense-analytics-row">
+                  {expenseChartCards.map((chart) => (
+                    <Card
+                      key={chart.key}
+                      size="small"
+                      className="expense-analytics-card"
+                    >
+                      <div className="expense-analytics-card-head">
+                        <Text strong className="active-recurring-title">
+                          {chart.title}
+                        </Text>
+                        <Space size={4} className="active-recurring-card-actions">
+                          {chart.key === "trend" ? (
+                            <Segmented
+                              size="small"
+                              value={expenseTrendRange}
+                              options={[
+                                { label: "近六個月", value: "6m" },
+                                { label: "近一年", value: "1y" },
+                              ]}
+                              onChange={(value) => setExpenseTrendRange(value)}
+                            />
+                          ) : null}
+                          <Tooltip title="展開圖表">
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<ExpandOutlined />}
+                              className="active-recurring-stop-btn"
+                              aria-label={`展開${chart.title}`}
+                              onClick={() => {
+                                setActiveExpenseChartKey(chart.key);
+                                setIsExpenseChartModalOpen(true);
+                              }}
+                            />
+                          </Tooltip>
+                        </Space>
+                      </div>
+                      <div className="expense-analytics-card-body">
+                        <div className="expense-chart-preview">
+                          {renderExpenseChartPreview(chart.key)}
+                        </div>
+                        <Text type="secondary" className="expense-chart-preview-summary">
+                          {expenseChartPreviewSummary[chart.key] || "尚無資料"}
+                        </Text>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </section>
             </Col>
             <Col xs={24}>
               <section className="active-budgets-section">
@@ -3718,6 +4095,34 @@ function App() {
         >
           {authLoginContentNode}
         </Drawer>
+
+        <Modal
+          title={activeExpenseChartTitle}
+          open={isExpenseChartModalOpen}
+          onCancel={() => setIsExpenseChartModalOpen(false)}
+          footer={null}
+          width={isMobileViewport ? "94vw" : 960}
+          destroyOnHidden
+        >
+          <div className="expense-chart-modal-body">
+            {activeExpenseChartKey === "trend" ? (
+              <div className="expense-chart-modal-toolbar">
+                <Segmented
+                  size="middle"
+                  value={expenseTrendRange}
+                  options={[
+                    { label: "近六個月", value: "6m" },
+                    { label: "近一年", value: "1y" },
+                  ]}
+                  onChange={(value) => setExpenseTrendRange(value)}
+                />
+              </div>
+            ) : null}
+            <div className="expense-chart-modal-content">
+              {renderExpenseChartModalContent(activeExpenseChartKey)}
+            </div>
+          </div>
+        </Modal>
 
         <Modal
           title="取消定期支出"
