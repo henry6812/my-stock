@@ -2973,17 +2973,19 @@ function App() {
             style={{ marginBottom: 16 }}
           />
         )}
-        {!authUser && authReady && (
-          <Alert
-            type="info"
-            showIcon
-            title="目前為本機模式"
-            description="登入 Google 或 Email 後可將持股與快照同步到你的其他裝置。"
-            style={{ marginBottom: 16 }}
-          />
-        )}
-
-        {activeMainTab === "asset" ? (
+        {!authUser ? (
+          <Card
+            style={{ maxWidth: 420, margin: "24px auto 0" }}
+            title="登入"
+          >
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <Text type="secondary">
+                請先登入以查看資產與支出內容。
+              </Text>
+              {authLoginContentNode}
+            </Space>
+          </Card>
+        ) : activeMainTab === "asset" ? (
           <Row gutter={[16, 16]}>
           <Col xs={24}>
             <div className="asset-summary-panel">
@@ -3693,7 +3695,7 @@ function App() {
           </div>
         )}
 
-        {isMobileViewport && (
+        {authUser && isMobileViewport && (
           <div className="mobile-main-tabbar">
             <Button
               type={activeMainTab === "asset" ? "primary" : "default"}
