@@ -313,7 +313,8 @@ class AppErrorBoundary extends Component {
   static getDerivedStateFromError(error) {
     return {
       hasError: true,
-      errorMessage: error instanceof Error ? error.message : "Unknown runtime error",
+      errorMessage:
+        error instanceof Error ? error.message : "Unknown runtime error",
     };
   }
 
@@ -336,7 +337,9 @@ class AppErrorBoundary extends Component {
             description={
               <Space direction="vertical" size={8}>
                 <span>{this.state.errorMessage || "發生未知錯誤"}</span>
-                <Button onClick={() => window.location.reload()}>重新整理</Button>
+                <Button onClick={() => window.location.reload()}>
+                  重新整理
+                </Button>
               </Space>
             }
           />
@@ -414,7 +417,9 @@ function App() {
   const [loadingCashActionById, setLoadingCashActionById] = useState({});
   const [expenseRows, setExpenseRows] = useState([]);
   const [expenseMonthOptions, setExpenseMonthOptions] = useState([]);
-  const [activeExpenseMonth, setActiveExpenseMonth] = useState(dayjs().format("YYYY-MM"));
+  const [activeExpenseMonth, setActiveExpenseMonth] = useState(
+    dayjs().format("YYYY-MM"),
+  );
   const [expenseTotalMode, setExpenseTotalMode] = useState("month");
   const [expenseMonthlyTotalTwd, setExpenseMonthlyTotalTwd] = useState(0);
   const [expenseCumulativeTotalTwd, setExpenseCumulativeTotalTwd] = useState(0);
@@ -422,10 +427,7 @@ function App() {
   const [expenseCategoryRows, setExpenseCategoryRows] = useState([]);
   const [budgetRows, setBudgetRows] = useState([]);
   const [recurringExpenseRows, setRecurringExpenseRows] = useState([]);
-  const [expenseAnalyticsAllHistory, setExpenseAnalyticsAllHistory] = useState(
-    DEFAULT_EXPENSE_ANALYTICS,
-  );
-  const [expenseAnalyticsByMonth, setExpenseAnalyticsByMonth] = useState(
+  const [expenseAnalytics, setExpenseAnalytics] = useState(
     DEFAULT_EXPENSE_ANALYTICS,
   );
   const [expenseTrendRange, setExpenseTrendRange] = useState("6m");
@@ -437,7 +439,8 @@ function App() {
   const [editingCategory, setEditingCategory] = useState(null);
   const [editingBudget, setEditingBudget] = useState(null);
   const [stoppingRecurringById, setStoppingRecurringById] = useState({});
-  const [isStopRecurringModalOpen, setIsStopRecurringModalOpen] = useState(false);
+  const [isStopRecurringModalOpen, setIsStopRecurringModalOpen] =
+    useState(false);
   const [selectedRecurringToStop, setSelectedRecurringToStop] = useState(null);
   const [stopKeepToday, setStopKeepToday] = useState(true);
   const [rowAnimationValues, setRowAnimationValues] = useState({});
@@ -666,7 +669,9 @@ function App() {
       complete: () => {
         setProgressDisplayRatio(latestProgressTargetsRef.current.currentRatio);
         setBaselineDisplayRatio(latestProgressTargetsRef.current.baselineRatio);
-        setDeltaDisplayLeftRatio(latestProgressTargetsRef.current.deltaLeftRatio);
+        setDeltaDisplayLeftRatio(
+          latestProgressTargetsRef.current.deltaLeftRatio,
+        );
         setDeltaDisplayWidthRatio(
           latestProgressTargetsRef.current.deltaWidthRatio,
         );
@@ -860,28 +865,26 @@ function App() {
     [authUser, refreshCloudRuntime],
   );
 
-  const loadExpenseData = useCallback(async (monthInput) => {
-    const payload = monthInput ? { month: monthInput } : { month: activeExpenseMonth };
-    const view = await getExpenseDashboardView(payload);
-    setExpenseRows(view.expenseRows ?? []);
-    setExpenseMonthOptions(view.monthOptions ?? []);
-    setActiveExpenseMonth(view.activeMonth || dayjs().format("YYYY-MM"));
-    setExpenseMonthlyTotalTwd(Number(view.monthlyExpenseTotalTwd) || 0);
-    setExpenseCumulativeTotalTwd(Number(view.cumulativeExpenseTotalTwd) || 0);
-    setExpenseFirstDate(view.firstExpenseDate || null);
-    setExpenseCategoryRows(view.categoryRows ?? []);
-    setBudgetRows(view.budgetRows ?? []);
-    setRecurringExpenseRows(view.recurringExpenseRows ?? []);
-    setExpenseAnalyticsAllHistory(
-      view.expenseAnalyticsAllHistory ??
-      view.expenseAnalytics ??
-      DEFAULT_EXPENSE_ANALYTICS,
-    );
-    setExpenseAnalyticsByMonth(
-      view.expenseAnalyticsByMonth ?? DEFAULT_EXPENSE_ANALYTICS,
-    );
-    setSelectableBudgetOptions(view.selectableBudgets ?? []);
-  }, [activeExpenseMonth]);
+  const loadExpenseData = useCallback(
+    async (monthInput) => {
+      const payload = monthInput
+        ? { month: monthInput }
+        : { month: activeExpenseMonth };
+      const view = await getExpenseDashboardView(payload);
+      setExpenseRows(view.expenseRows ?? []);
+      setExpenseMonthOptions(view.monthOptions ?? []);
+      setActiveExpenseMonth(view.activeMonth || dayjs().format("YYYY-MM"));
+      setExpenseMonthlyTotalTwd(Number(view.monthlyExpenseTotalTwd) || 0);
+      setExpenseCumulativeTotalTwd(Number(view.cumulativeExpenseTotalTwd) || 0);
+      setExpenseFirstDate(view.firstExpenseDate || null);
+      setExpenseCategoryRows(view.categoryRows ?? []);
+      setBudgetRows(view.budgetRows ?? []);
+      setRecurringExpenseRows(view.recurringExpenseRows ?? []);
+      setExpenseAnalytics(view.expenseAnalytics ?? DEFAULT_EXPENSE_ANALYTICS);
+      setSelectableBudgetOptions(view.selectableBudgets ?? []);
+    },
+    [activeExpenseMonth],
+  );
 
   const handleSubmitExpense = useCallback(async () => {
     try {
@@ -895,7 +898,8 @@ function App() {
         payer: values.payer || null,
         expenseKind: values.expenseKind || null,
         amountTwd: values.amountTwd,
-        occurredAt: values.occurredAt?.format?.("YYYY-MM-DD") || values.occurredAt,
+        occurredAt:
+          values.occurredAt?.format?.("YYYY-MM-DD") || values.occurredAt,
         entryType: isRecurringCreateMode ? "RECURRING" : values.entryType,
         recurrenceType: values.recurrenceType || null,
         monthlyDay: values.monthlyDay || null,
@@ -948,7 +952,13 @@ function App() {
     } finally {
       setLoadingCategoryAction(false);
     }
-  }, [categoryForm, editingCategory, loadExpenseData, message, performCloudSync]);
+  }, [
+    categoryForm,
+    editingCategory,
+    loadExpenseData,
+    message,
+    performCloudSync,
+  ]);
 
   const handleSubmitBudget = useCallback(async () => {
     try {
@@ -1130,55 +1140,70 @@ function App() {
     ],
   );
 
-  const openExpenseForm = useCallback((record = null, options = {}) => {
-    setEditingExpenseEntry(record);
-    setExpenseFormMode(options.mode || "normal");
-    if (isMobileViewport) {
-      setIsExpenseSheetOpen(true);
-    } else {
-      setIsExpenseModalOpen(true);
-    }
-  }, [isMobileViewport]);
+  const openExpenseForm = useCallback(
+    (record = null, options = {}) => {
+      setEditingExpenseEntry(record);
+      setExpenseFormMode(options.mode || "normal");
+      if (isMobileViewport) {
+        setIsExpenseSheetOpen(true);
+      } else {
+        setIsExpenseModalOpen(true);
+      }
+    },
+    [isMobileViewport],
+  );
 
   const openRecurringCreateForm = useCallback(() => {
     openExpenseForm(null, { mode: "recurring-create" });
   }, [openExpenseForm]);
 
-  const openRecurringEditForm = useCallback((record) => {
-    openExpenseForm(record, { mode: "normal" });
-  }, [openExpenseForm]);
+  const openRecurringEditForm = useCallback(
+    (record) => {
+      openExpenseForm(record, { mode: "normal" });
+    },
+    [openExpenseForm],
+  );
 
-  const openCategoryForm = useCallback((record = null) => {
-    setEditingCategory(record);
-    if (isMobileViewport) {
-      setIsCategorySheetOpen(true);
-    } else {
-      setIsCategoryModalOpen(true);
-    }
-  }, [isMobileViewport]);
+  const openCategoryForm = useCallback(
+    (record = null) => {
+      setEditingCategory(record);
+      if (isMobileViewport) {
+        setIsCategorySheetOpen(true);
+      } else {
+        setIsCategoryModalOpen(true);
+      }
+    },
+    [isMobileViewport],
+  );
 
-  const openBudgetForm = useCallback((record = null) => {
-    setEditingBudget(record);
-    if (isMobileViewport) {
-      setIsBudgetSheetOpen(true);
-    } else {
-      setIsBudgetModalOpen(true);
-    }
-  }, [isMobileViewport]);
+  const openBudgetForm = useCallback(
+    (record = null) => {
+      setEditingBudget(record);
+      if (isMobileViewport) {
+        setIsBudgetSheetOpen(true);
+      } else {
+        setIsBudgetModalOpen(true);
+      }
+    },
+    [isMobileViewport],
+  );
 
-  const handleRemoveExpense = useCallback(async (record) => {
-    try {
-      setLoadingExpenseAction(true);
-      await removeExpenseEntry({ id: record.id });
-      await loadExpenseData();
-      await performCloudSync();
-      message.success("支出已刪除");
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "刪除支出失敗");
-    } finally {
-      setLoadingExpenseAction(false);
-    }
-  }, [loadExpenseData, message, performCloudSync]);
+  const handleRemoveExpense = useCallback(
+    async (record) => {
+      try {
+        setLoadingExpenseAction(true);
+        await removeExpenseEntry({ id: record.id });
+        await loadExpenseData();
+        await performCloudSync();
+        message.success("支出已刪除");
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "刪除支出失敗");
+      } finally {
+        setLoadingExpenseAction(false);
+      }
+    },
+    [loadExpenseData, message, performCloudSync],
+  );
 
   const openStopRecurringModal = useCallback((row) => {
     setSelectedRecurringToStop(row);
@@ -1213,7 +1238,9 @@ function App() {
       setSelectedRecurringToStop(null);
       setStopKeepToday(true);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "取消定期支出失敗");
+      message.error(
+        error instanceof Error ? error.message : "取消定期支出失敗",
+      );
     } finally {
       setStoppingRecurringById((prev) => {
         const next = { ...prev };
@@ -1221,35 +1248,47 @@ function App() {
         return next;
       });
     }
-  }, [loadExpenseData, message, performCloudSync, selectedRecurringToStop, stopKeepToday]);
+  }, [
+    loadExpenseData,
+    message,
+    performCloudSync,
+    selectedRecurringToStop,
+    stopKeepToday,
+  ]);
 
-  const handleRemoveCategory = useCallback(async (record) => {
-    try {
-      setLoadingCategoryAction(true);
-      await removeExpenseCategory({ id: record.id });
-      await loadExpenseData();
-      await performCloudSync();
-      message.success("分類已刪除");
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "刪除分類失敗");
-    } finally {
-      setLoadingCategoryAction(false);
-    }
-  }, [loadExpenseData, message, performCloudSync]);
+  const handleRemoveCategory = useCallback(
+    async (record) => {
+      try {
+        setLoadingCategoryAction(true);
+        await removeExpenseCategory({ id: record.id });
+        await loadExpenseData();
+        await performCloudSync();
+        message.success("分類已刪除");
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "刪除分類失敗");
+      } finally {
+        setLoadingCategoryAction(false);
+      }
+    },
+    [loadExpenseData, message, performCloudSync],
+  );
 
-  const handleRemoveBudget = useCallback(async (record) => {
-    try {
-      setLoadingBudgetAction(true);
-      await removeBudget({ id: record.id });
-      await loadExpenseData();
-      await performCloudSync();
-      message.success("預算已刪除");
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "刪除預算失敗");
-    } finally {
-      setLoadingBudgetAction(false);
-    }
-  }, [loadExpenseData, message, performCloudSync]);
+  const handleRemoveBudget = useCallback(
+    async (record) => {
+      try {
+        setLoadingBudgetAction(true);
+        await removeBudget({ id: record.id });
+        await loadExpenseData();
+        await performCloudSync();
+        message.success("預算已刪除");
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "刪除預算失敗");
+      } finally {
+        setLoadingBudgetAction(false);
+      }
+    },
+    [loadExpenseData, message, performCloudSync],
+  );
 
   const filteredRows = useMemo(() => {
     return filterRowsByHoldingTab(rows, activeHoldingTab);
@@ -1818,7 +1857,9 @@ function App() {
         key: "type",
         render: (_, record) => {
           if (record.entryType === "RECURRING") {
-            return record.recurrenceType === "YEARLY" ? "定期（年）" : "定期（月）";
+            return record.recurrenceType === "YEARLY"
+              ? "定期（年）"
+              : "定期（月）";
           }
           return "單筆";
         },
@@ -1892,7 +1933,11 @@ function App() {
         key: "actions",
         render: (_, record) => (
           <Space>
-            <Button size="small" icon={<EditOutlined />} onClick={() => openCategoryForm(record)} />
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openCategoryForm(record)}
+            />
             <Popconfirm
               title="刪除此分類？"
               onConfirm={() => handleRemoveCategory(record)}
@@ -1917,7 +1962,11 @@ function App() {
         key: "budgetType",
         render: (value) => {
           const label =
-            value === "QUARTERLY" ? "季度" : value === "YEARLY" ? "年度" : "月度";
+            value === "QUARTERLY"
+              ? "季度"
+              : value === "YEARLY"
+                ? "年度"
+                : "月度";
           const color =
             value === "QUARTERLY"
               ? "blue"
@@ -1960,7 +2009,11 @@ function App() {
         key: "actions",
         render: (_, record) => (
           <Space>
-            <Button size="small" icon={<EditOutlined />} onClick={() => openBudgetForm(record)} />
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openBudgetForm(record)}
+            />
             <Popconfirm
               title="刪除此預算？"
               onConfirm={() => handleRemoveBudget(record)}
@@ -2185,7 +2238,7 @@ function App() {
       ),
       entryType: isRecurringCreateMode
         ? "RECURRING"
-        : (editingExpenseEntry?.entryType || "ONE_TIME"),
+        : editingExpenseEntry?.entryType || "ONE_TIME",
       recurrenceType: editingExpenseEntry?.recurrenceType || undefined,
       monthlyDay: editingExpenseEntry?.monthlyDay ?? undefined,
       yearlyMonth: editingExpenseEntry?.yearlyMonth ?? undefined,
@@ -2598,7 +2651,8 @@ function App() {
 
   const getSheetPopupContainer = useCallback(
     (trigger) =>
-      trigger?.closest?.(".form-bottom-sheet .ant-drawer-body") || document.body,
+      trigger?.closest?.(".form-bottom-sheet .ant-drawer-body") ||
+      document.body,
     [],
   );
 
@@ -2650,14 +2704,22 @@ function App() {
         name="amountTwd"
         rules={[{ required: true, message: "請輸入支出金額" }]}
       >
-        <InputNumber min={1} step={100} precision={0} style={{ width: "100%" }} />
+        <InputNumber
+          min={1}
+          step={100}
+          precision={0}
+          style={{ width: "100%" }}
+        />
       </Form.Item>
       <Form.Item
         label="支出日期"
         name="occurredAt"
         rules={[{ required: true, message: "請選擇支出日期" }]}
       >
-        <DatePicker style={{ width: "100%" }} getPopupContainer={getSheetPopupContainer} />
+        <DatePicker
+          style={{ width: "100%" }}
+          getPopupContainer={getSheetPopupContainer}
+        />
       </Form.Item>
       <Form.Item
         label="類型"
@@ -2673,7 +2735,13 @@ function App() {
           ]}
         />
       </Form.Item>
-      <Form.Item noStyle shouldUpdate={(prev, next) => prev.entryType !== next.entryType || prev.recurrenceType !== next.recurrenceType}>
+      <Form.Item
+        noStyle
+        shouldUpdate={(prev, next) =>
+          prev.entryType !== next.entryType ||
+          prev.recurrenceType !== next.recurrenceType
+        }
+      >
         {({ getFieldValue }) => {
           if (getFieldValue("entryType") !== "RECURRING") return null;
           return (
@@ -2786,7 +2854,12 @@ function App() {
         name="amountTwd"
         rules={[{ required: true, message: "請輸入預算金額" }]}
       >
-        <InputNumber min={1} step={100} precision={0} style={{ width: "100%" }} />
+        <InputNumber
+          min={1}
+          step={100}
+          precision={0}
+          style={{ width: "100%" }}
+        />
       </Form.Item>
       <Form.Item
         label="預算類型"
@@ -2807,7 +2880,10 @@ function App() {
         name="startDate"
         rules={[{ required: true, message: "請選擇起始日" }]}
       >
-        <DatePicker style={{ width: "100%" }} getPopupContainer={getSheetPopupContainer} />
+        <DatePicker
+          style={{ width: "100%" }}
+          getPopupContainer={getSheetPopupContainer}
+        />
       </Form.Item>
     </Form>
   );
@@ -2829,7 +2905,10 @@ function App() {
         name="password"
         rules={[{ required: true, message: "請輸入密碼" }]}
       >
-        <Input.Password placeholder="Password" autoComplete="current-password" />
+        <Input.Password
+          placeholder="Password"
+          autoComplete="current-password"
+        />
       </Form.Item>
     </Form>
   );
@@ -2888,9 +2967,10 @@ function App() {
     return `${year}/${Number(month)} 總支出`;
   }, [safeActiveExpenseMonth]);
 
-  const expenseSummaryValue = expenseTotalMode === "cumulative"
-    ? expenseCumulativeTotalTwd
-    : expenseMonthlyTotalTwd;
+  const expenseSummaryValue =
+    expenseTotalMode === "cumulative"
+      ? expenseCumulativeTotalTwd
+      : expenseMonthlyTotalTwd;
   const expenseActiveMonthIndex = useMemo(
     () =>
       safeActiveExpenseMonth
@@ -2913,31 +2993,20 @@ function App() {
     });
   }, [budgetRows]);
 
-  const effectiveExpenseAnalytics = useMemo(
-    () => (
-      expenseTotalMode === "cumulative"
-        ? expenseAnalyticsAllHistory
-        : expenseAnalyticsByMonth
-    ),
-    [expenseAnalyticsAllHistory, expenseAnalyticsByMonth, expenseTotalMode],
-  );
-
   const trendMonths = useMemo(() => {
-    const source = Array.isArray(expenseAnalyticsAllHistory?.monthlyTotalsAllHistory)
-      ? expenseAnalyticsAllHistory.monthlyTotalsAllHistory
+    const source = Array.isArray(expenseAnalytics?.monthlyTotalsAllHistory)
+      ? expenseAnalytics.monthlyTotalsAllHistory
       : [];
     const size = expenseTrendRange === "1y" ? 12 : 6;
-    return source
-      .slice(-size)
-      .map((item) => ({
-        ...item,
-        monthLabel: dayjs(`${item.month}-01`).format("YY/MM"),
-      }));
-  }, [expenseAnalyticsAllHistory, expenseTrendRange]);
+    return source.slice(-size).map((item) => ({
+      ...item,
+      monthLabel: dayjs(`${item.month}-01`).format("YY/MM"),
+    }));
+  }, [expenseAnalytics, expenseTrendRange]);
 
   const kindAnalysisData = useMemo(
     () =>
-      (effectiveExpenseAnalytics?.kindBreakdown ?? [])
+      (expenseAnalytics?.kindBreakdown ?? [])
         .filter((item) => Number(item.value) > 0)
         .map((item) => ({
           name: item.key,
@@ -2949,21 +3018,21 @@ function App() {
                 ? "#52c41a"
                 : "#8c8c8c",
         })),
-    [effectiveExpenseAnalytics],
+    [expenseAnalytics],
   );
 
   const payerRankingData = useMemo(
     () =>
-      (effectiveExpenseAnalytics?.payerRanking ?? []).map((item) => ({
+      (expenseAnalytics?.payerRanking ?? []).map((item) => ({
         name: item.label,
         value: Number(item.value) || 0,
       })),
-    [effectiveExpenseAnalytics],
+    [expenseAnalytics],
   );
 
   const familyBalanceData = useMemo(
     () =>
-      (effectiveExpenseAnalytics?.familyBalance ?? [])
+      (expenseAnalytics?.familyBalance ?? [])
         .filter((item) => item.key === "po_family" || item.key === "wei_family")
         .filter((item) => Number(item.value) > 0)
         .map((item) => ({
@@ -2976,48 +3045,83 @@ function App() {
                 ? "#13c2c2"
                 : "#8c8c8c",
         })),
-    [effectiveExpenseAnalytics],
+    [expenseAnalytics],
   );
 
   const categoryAnalysisData = useMemo(
     () =>
-      (effectiveExpenseAnalytics?.categoryBreakdown ?? [])
+      (expenseAnalytics?.categoryBreakdown ?? [])
         .filter((item) => Number(item.value) > 0)
         .slice(0, 8)
         .map((item, index) => ({
           name: item.name,
           value: Number(item.value) || 0,
-          color: ["#1677ff", "#52c41a", "#faad14", "#eb2f96", "#13c2c2", "#722ed1", "#fa8c16", "#2f54eb"][index % 8],
+          color: [
+            "#1677ff",
+            "#52c41a",
+            "#faad14",
+            "#eb2f96",
+            "#13c2c2",
+            "#722ed1",
+            "#fa8c16",
+            "#2f54eb",
+          ][index % 8],
         })),
-    [effectiveExpenseAnalytics],
+    [expenseAnalytics],
   );
 
   const expenseChartPreviewSummary = useMemo(() => {
     const latestTrend = trendMonths[trendMonths.length - 1];
-    const familyValue = kindAnalysisData.find((item) => item.name === "家庭")?.value || 0;
-    const personalValue = kindAnalysisData.find((item) => item.name === "個人")?.value || 0;
-    const weiPersonal = payerRankingData.find((item) => item.name === "Wei 個人")?.value || 0;
-    const poPersonal = payerRankingData.find((item) => item.name === "Po 個人")?.value || 0;
-    const familyTotal = payerRankingData.find((item) => item.name === "所有家庭")?.value || 0;
-    const poFamily = familyBalanceData.find((item) => item.name === "Po 家庭")?.value || 0;
-    const weiFamily = familyBalanceData.find((item) => item.name === "Wei 家庭")?.value || 0;
+    const familyValue =
+      kindAnalysisData.find((item) => item.name === "家庭")?.value || 0;
+    const personalValue =
+      kindAnalysisData.find((item) => item.name === "個人")?.value || 0;
+    const weiPersonal =
+      payerRankingData.find((item) => item.name === "Wei 個人")?.value || 0;
+    const poPersonal =
+      payerRankingData.find((item) => item.name === "Po 個人")?.value || 0;
+    const familyTotal =
+      payerRankingData.find((item) => item.name === "所有家庭")?.value || 0;
+    const poFamily =
+      familyBalanceData.find((item) => item.name === "Po 家庭")?.value || 0;
+    const weiFamily =
+      familyBalanceData.find((item) => item.name === "Wei 家庭")?.value || 0;
     const topCategory = categoryAnalysisData[0];
+    const kindTotal = familyValue + personalValue;
+    const familyBalanceTotal = poFamily + weiFamily;
+    const categoryTotal = categoryAnalysisData.reduce(
+      (sum, item) => sum + (Number(item.value) || 0),
+      0,
+    );
+
+    const formatPercent = (value, total) =>
+      total > 0 ? `${((value / total) * 100).toFixed(1)}%` : "--";
 
     return {
-      trend: latestTrend ? `最新：${formatTwd(latestTrend.totalTwd)}` : "尚無資料",
-      kind: `家庭 ${formatTwd(familyValue)} / 個人 ${formatTwd(personalValue)}`,
+      trend: latestTrend
+        ? `最新：${formatTwd(latestTrend.totalTwd)}`
+        : "尚無資料",
+      kind: `家庭 ${formatPercent(familyValue, kindTotal)} / 個人 ${formatPercent(personalValue, kindTotal)}`,
       ranking: `Wei ${formatTwd(weiPersonal)} · Po ${formatTwd(poPersonal)} · 家庭 ${formatTwd(familyTotal)}`,
-      family_balance: `Po ${formatTwd(poFamily)} / Wei ${formatTwd(weiFamily)}`,
-      category: topCategory ? `${topCategory.name}：${formatTwd(topCategory.value)}` : "尚無資料",
+      family_balance: `Po ${formatPercent(poFamily, familyBalanceTotal)} / Wei ${formatPercent(weiFamily, familyBalanceTotal)}`,
+      category: topCategory
+        ? `${topCategory.name}：${formatPercent(Number(topCategory.value) || 0, categoryTotal)}`
+        : "尚無資料",
     };
-  }, [categoryAnalysisData, familyBalanceData, kindAnalysisData, payerRankingData, trendMonths]);
+  }, [
+    categoryAnalysisData,
+    familyBalanceData,
+    kindAnalysisData,
+    payerRankingData,
+    trendMonths,
+  ]);
 
   const expenseChartCards = useMemo(
     () => [
-      { key: "kind", title: "種類分析" },
+      { key: "kind", title: "家庭/個人比例" },
       { key: "ranking", title: "支出人排行" },
       { key: "family_balance", title: "家庭開銷平衡" },
-      { key: "category", title: "支出種類分析" },
+      { key: "category", title: "類別分析" },
     ],
     [],
   );
@@ -3025,30 +3129,51 @@ function App() {
   const renderExpenseChartPreview = useCallback(
     (chartKey) => {
       if (chartKey === "trend") {
-        if (trendMonths.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+        if (trendMonths.length === 0)
+          return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trendMonths} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+            <LineChart
+              data={trendMonths}
+              margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
+            >
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="monthLabel" tick={{ fontSize: 10 }} />
               <YAxis hide />
-              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
-              <Line type="monotone" dataKey="totalTwd" stroke="#1677ff" strokeWidth={2} dot={false} />
+              <RechartsTooltip
+                formatter={(value) => formatTwd(Number(value))}
+              />
+              <Line
+                type="monotone"
+                dataKey="totalTwd"
+                stroke="#1677ff"
+                strokeWidth={2}
+                dot={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         );
       }
       if (chartKey === "kind") {
-        if (kindAnalysisData.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+        if (kindAnalysisData.length === 0)
+          return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
         return (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={kindAnalysisData} dataKey="value" nameKey="name" innerRadius="35%" outerRadius="70%">
+              <Pie
+                data={kindAnalysisData}
+                dataKey="value"
+                nameKey="name"
+                innerRadius="35%"
+                outerRadius="70%"
+              >
                 {kindAnalysisData.map((entry) => (
                   <Cell key={entry.name} fill={entry.color} />
                 ))}
               </Pie>
-              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <RechartsTooltip
+                formatter={(value) => formatTwd(Number(value))}
+              />
             </PieChart>
           </ResponsiveContainer>
         );
@@ -3058,35 +3183,62 @@ function App() {
         if (!hasValue) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={payerRankingData} layout="vertical" margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+            <BarChart
+              data={payerRankingData}
+              layout="vertical"
+              margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
+            >
               <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" width={68} tick={{ fontSize: 10 }} />
-              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={68}
+                tick={{ fontSize: 10 }}
+              />
+              <RechartsTooltip
+                formatter={(value) => formatTwd(Number(value))}
+              />
               <Bar dataKey="value" fill="#1677ff" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         );
       }
       if (chartKey === "family_balance") {
-        if (familyBalanceData.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+        if (familyBalanceData.length === 0)
+          return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
         return (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={familyBalanceData} dataKey="value" nameKey="name" innerRadius="35%" outerRadius="70%">
+              <Pie
+                data={familyBalanceData}
+                dataKey="value"
+                nameKey="name"
+                innerRadius="35%"
+                outerRadius="70%"
+              >
                 {familyBalanceData.map((entry) => (
                   <Cell key={entry.name} fill={entry.color} />
                 ))}
               </Pie>
-              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <RechartsTooltip
+                formatter={(value) => formatTwd(Number(value))}
+              />
             </PieChart>
           </ResponsiveContainer>
         );
       }
-      if (categoryAnalysisData.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+      if (categoryAnalysisData.length === 0)
+        return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
       return (
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={categoryAnalysisData} dataKey="value" nameKey="name" innerRadius="35%" outerRadius="70%">
+            <Pie
+              data={categoryAnalysisData}
+              dataKey="value"
+              nameKey="name"
+              innerRadius="35%"
+              outerRadius="70%"
+            >
               {categoryAnalysisData.map((entry) => (
                 <Cell key={entry.name} fill={entry.color} />
               ))}
@@ -3096,36 +3248,69 @@ function App() {
         </ResponsiveContainer>
       );
     },
-    [categoryAnalysisData, familyBalanceData, kindAnalysisData, payerRankingData, trendMonths],
+    [
+      categoryAnalysisData,
+      familyBalanceData,
+      kindAnalysisData,
+      payerRankingData,
+      trendMonths,
+    ],
   );
 
   const renderExpenseChartModalContent = useCallback(
     (chartKey) => {
       if (chartKey === "trend") {
-        if (trendMonths.length === 0) return <Empty description="尚無支出資料" />;
+        if (trendMonths.length === 0)
+          return <Empty description="尚無支出資料" />;
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trendMonths} margin={{ top: 8, right: 24, left: 8, bottom: 8 }}>
+            <LineChart
+              data={trendMonths}
+              margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+            >
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="monthLabel" />
-              <YAxis tickFormatter={(value) => `${Math.round(Number(value) / 10000)}萬`} />
-              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
-              <Line type="monotone" dataKey="totalTwd" stroke="#1677ff" strokeWidth={3} dot={{ r: 3 }} />
+              <YAxis
+                tickFormatter={(value) =>
+                  `${Math.round(Number(value) / 10000)}萬`
+                }
+              />
+              <RechartsTooltip
+                formatter={(value) => formatTwd(Number(value))}
+              />
+              <Line
+                type="monotone"
+                dataKey="totalTwd"
+                stroke="#1677ff"
+                strokeWidth={3}
+                dot={{ r: 3 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         );
       }
       if (chartKey === "kind") {
-        if (kindAnalysisData.length === 0) return <Empty description="尚無支出資料" />;
+        if (kindAnalysisData.length === 0)
+          return <Empty description="尚無支出資料" />;
         return (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={kindAnalysisData} dataKey="value" nameKey="name" outerRadius="72%" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+              <Pie
+                data={kindAnalysisData}
+                dataKey="value"
+                nameKey="name"
+                outerRadius="72%"
+                label={({ name, percent }) =>
+                  `${name} ${(percent * 100).toFixed(0)}%`
+                }
+              >
                 {kindAnalysisData.map((entry) => (
                   <Cell key={entry.name} fill={entry.color} />
                 ))}
               </Pie>
-              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <RechartsTooltip
+                formatter={(value) => formatTwd(Number(value))}
+              />
               <Legend />
             </PieChart>
           </ResponsiveContainer>
@@ -3136,37 +3321,68 @@ function App() {
         if (!hasValue) return <Empty description="尚無支出資料" />;
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={payerRankingData} layout="vertical" margin={{ top: 8, right: 24, left: 36, bottom: 8 }}>
+            <BarChart
+              data={payerRankingData}
+              layout="vertical"
+              margin={{ top: 8, right: 24, left: 36, bottom: 8 }}
+            >
               <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`} />
+              <XAxis
+                type="number"
+                tickFormatter={(value) =>
+                  `${Math.round(Number(value) / 1000)}k`
+                }
+              />
               <YAxis type="category" dataKey="name" width={88} />
-              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <RechartsTooltip
+                formatter={(value) => formatTwd(Number(value))}
+              />
               <Bar dataKey="value" fill="#1677ff" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         );
       }
       if (chartKey === "family_balance") {
-        if (familyBalanceData.length === 0) return <Empty description="尚無家庭開銷資料" />;
+        if (familyBalanceData.length === 0)
+          return <Empty description="尚無家庭開銷資料" />;
         return (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={familyBalanceData} dataKey="value" nameKey="name" outerRadius="72%" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+              <Pie
+                data={familyBalanceData}
+                dataKey="value"
+                nameKey="name"
+                outerRadius="72%"
+                label={({ name, percent }) =>
+                  `${name} ${(percent * 100).toFixed(0)}%`
+                }
+              >
                 {familyBalanceData.map((entry) => (
                   <Cell key={entry.name} fill={entry.color} />
                 ))}
               </Pie>
-              <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
+              <RechartsTooltip
+                formatter={(value) => formatTwd(Number(value))}
+              />
               <Legend />
             </PieChart>
           </ResponsiveContainer>
         );
       }
-      if (categoryAnalysisData.length === 0) return <Empty description="尚無分類資料" />;
+      if (categoryAnalysisData.length === 0)
+        return <Empty description="尚無分類資料" />;
       return (
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={categoryAnalysisData} dataKey="value" nameKey="name" outerRadius="72%" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+            <Pie
+              data={categoryAnalysisData}
+              dataKey="value"
+              nameKey="name"
+              outerRadius="72%"
+              label={({ name, percent }) =>
+                `${name} ${(percent * 100).toFixed(0)}%`
+              }
+            >
               {categoryAnalysisData.map((entry) => (
                 <Cell key={entry.name} fill={entry.color} />
               ))}
@@ -3177,692 +3393,720 @@ function App() {
         </ResponsiveContainer>
       );
     },
-    [categoryAnalysisData, familyBalanceData, kindAnalysisData, payerRankingData, trendMonths],
+    [
+      categoryAnalysisData,
+      familyBalanceData,
+      kindAnalysisData,
+      payerRankingData,
+      trendMonths,
+    ],
   );
 
   const activeExpenseChartTitle = useMemo(
-    () => expenseChartCards.find((item) => item.key === activeExpenseChartKey)?.title || "支出圖表",
+    () =>
+      expenseChartCards.find((item) => item.key === activeExpenseChartKey)
+        ?.title || "支出圖表",
     [activeExpenseChartKey, expenseChartCards],
   );
 
   return (
     <AppErrorBoundary>
       <Layout className="app-layout">
-      <Header className="app-header">
-        <div className="header-spacer">
-          {authUser && !isMobileViewport && (
-            <Segmented
-              size="middle"
-              value={activeMainTab}
-              onChange={setActiveMainTab}
-              options={[
-                { label: "資產總覽", value: "asset", icon: <HomeOutlined /> },
-                { label: "支出分析", value: "expense", icon: <FundProjectionScreenOutlined /> },
-              ]}
+        <Header className="app-header">
+          <div className="header-spacer">
+            {authUser && !isMobileViewport && (
+              <Segmented
+                size="middle"
+                value={activeMainTab}
+                onChange={setActiveMainTab}
+                options={[
+                  { label: "資產總覽", value: "asset", icon: <HomeOutlined /> },
+                  {
+                    label: "支出分析",
+                    value: "expense",
+                    icon: <FundProjectionScreenOutlined />,
+                  },
+                ]}
+              />
+            )}
+          </div>
+          <img
+            src={`${import.meta.env.BASE_URL}vite.svg`}
+            alt="My Stock logo"
+            className="header-logo"
+          />
+          <div className="header-auth">
+            {authUser && (
+              <Space size={8}>
+                <div className="header-sync-meta">
+                  <Text
+                    type={cloudSyncStatus === "error" ? "danger" : "secondary"}
+                  >
+                    <CloudSyncOutlined style={{ marginRight: 6 }} />
+                    {authReady ? cloudSyncText : "讀取登入狀態中..."}
+                  </Text>
+                </div>
+                <Space size={6}>
+                  <Tooltip title={authUser.email || "Google 帳號"}>
+                    <Button
+                      size="small"
+                      icon={<LogoutOutlined />}
+                      onClick={handleGoogleLogout}
+                      loading={loadingAuthAction}
+                      aria-label="Google 登出"
+                    />
+                  </Tooltip>
+                </Space>
+              </Space>
+            )}
+          </div>
+        </Header>
+
+        <Content
+          className="app-content"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
+        >
+          <div
+            className={`pull-refresh-indicator ${isPullRefreshing ? "is-refreshing" : ""}`}
+            style={{
+              height: isPullRefreshing ? PULL_REFRESH_TRIGGER : pullDistance,
+            }}
+          >
+            <Text type="secondary">
+              {isPullRefreshing
+                ? "重新連線中..."
+                : pullDistance >= PULL_REFRESH_TRIGGER
+                  ? "放開以重新連線"
+                  : "下拉可重新連線"}
+            </Text>
+          </div>
+          {syncError && (
+            <Alert
+              type="error"
+              showIcon
+              title="上次同步發生錯誤"
+              description={syncError}
+              style={{ marginBottom: 16 }}
             />
           )}
-        </div>
-        <img
-          src={`${import.meta.env.BASE_URL}vite.svg`}
-          alt="My Stock logo"
-          className="header-logo"
-        />
-        <div className="header-auth">
-          {authUser && (
-            <Space size={8}>
-              <div className="header-sync-meta">
-                <Text type={cloudSyncStatus === "error" ? "danger" : "secondary"}>
-                  <CloudSyncOutlined style={{ marginRight: 6 }} />
-                  {authReady ? cloudSyncText : "讀取登入狀態中..."}
-                </Text>
-              </div>
-              <Space size={6}>
-                <Tooltip title={authUser.email || "Google 帳號"}>
-                  <Button
-                    size="small"
-                    icon={<LogoutOutlined />}
-                    onClick={handleGoogleLogout}
-                    loading={loadingAuthAction}
-                    aria-label="Google 登出"
-                  />
-                </Tooltip>
+          {!authUser ? (
+            <Card style={{ maxWidth: 420, margin: "24px auto 0" }} title="登入">
+              <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                <Text type="secondary">請先登入以查看資產與支出內容。</Text>
+                {authLoginContentNode}
               </Space>
-            </Space>
-          )}
-        </div>
-      </Header>
-
-      <Content
-        className="app-content"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
-      >
-        <div
-          className={`pull-refresh-indicator ${isPullRefreshing ? "is-refreshing" : ""}`}
-          style={{
-            height: isPullRefreshing ? PULL_REFRESH_TRIGGER : pullDistance,
-          }}
-        >
-          <Text type="secondary">
-            {isPullRefreshing
-              ? "重新連線中..."
-              : pullDistance >= PULL_REFRESH_TRIGGER
-                ? "放開以重新連線"
-                : "下拉可重新連線"}
-          </Text>
-        </div>
-        {syncError && (
-          <Alert
-            type="error"
-            showIcon
-            title="上次同步發生錯誤"
-            description={syncError}
-            style={{ marginBottom: 16 }}
-          />
-        )}
-        {!authUser ? (
-          <Card
-            style={{ maxWidth: 420, margin: "24px auto 0" }}
-            title="登入"
-          >
-            <Space direction="vertical" size={12} style={{ width: "100%" }}>
-              <Text type="secondary">
-                請先登入以查看資產與支出內容。
-              </Text>
-              {authLoginContentNode}
-            </Space>
-          </Card>
-        ) : activeMainTab === "asset" ? (
-          <Row gutter={[16, 16]}>
-          <Col xs={24}>
-            <div className="asset-summary-panel">
-              <div className="asset-summary-value">
-                <Statistic
-                  title="總現值（TWD）"
-                  value={displayTotalTwd}
-                  precision={0}
-                  formatter={(value) => formatTwd(Number(value))}
-                />
-                <Text
-                  className={`asset-total-delta ${
-                    typeof totalChangeTwd === "number"
-                      ? getDeltaClassName(totalChangeTwd)
-                      : "cell-delta cell-delta--flat"
-                  }`}
-                >
-                  {typeof totalChangeTwd !== "number"
-                    ? "--"
-                    : totalChangeTwd === 0
-                      ? "0.00 (0.00%)"
-                      : `${totalChangeTwd > 0 ? "▲" : "▼"} ${formatSignedTwd(totalChangeTwd)} (${formatChangePercent(totalChangePct)})`}
-                </Text>
-                <div className="networth-progress-wrap">
-                  <div className="networth-progress-scale">
-                    {visibleProgressStops.map((stop) => (
-                      <span
-                        key={`stop-${stop}`}
-                        className="networth-progress-scale-label"
-                        style={{
-                          left:
-                            progressMaxTwd > 0
-                              ? `${(stop / progressMaxTwd) * 100}%`
-                              : "0%",
-                        }}
-                      >
-                        {formatStopLabel(stop)}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="networth-progress-track">
-                    <div
-                      className="networth-progress-fill"
-                      style={{ width: `${progressDisplayRatio * 100}%` }}
+            </Card>
+          ) : activeMainTab === "asset" ? (
+            <Row gutter={[16, 16]}>
+              <Col xs={24}>
+                <div className="asset-summary-panel">
+                  <div className="asset-summary-value">
+                    <Statistic
+                      title="總現值（TWD）"
+                      value={displayTotalTwd}
+                      precision={0}
+                      formatter={(value) => formatTwd(Number(value))}
                     />
-                    {deltaSegmentClassName ? (
-                      <div
-                        className={deltaSegmentClassName}
-                        style={{
-                          left: `${deltaDisplayLeftRatio * 100}%`,
-                          width: `${deltaDisplayWidthRatio * 100}%`,
-                        }}
-                      />
-                    ) : null}
-                    {progressStops
-                      .filter((stop) => stop > 0)
-                      .map((stop) => (
-                        <span
-                          key={`track-stop-${stop}`}
-                          className="networth-track-stop-line"
-                          style={{
-                            left:
-                              progressMaxTwd > 0
-                                ? `${(stop / progressMaxTwd) * 100}%`
-                                : "0%",
-                          }}
-                        />
-                      ))}
-                    <Tooltip
-                      title={`昨日23:59：${formatTwd(flooredBaselineTwd)}`}
+                    <Text
+                      className={`asset-total-delta ${
+                        typeof totalChangeTwd === "number"
+                          ? getDeltaClassName(totalChangeTwd)
+                          : "cell-delta cell-delta--flat"
+                      }`}
                     >
-                      <div
-                        className={`networth-marker networth-marker--baseline ${isMarkerOverlap ? "networth-marker--offset" : ""}`}
-                        style={{ left: `${baselineDisplayRatio * 100}%` }}
-                      >
-                        <span className="networth-marker-line" />
+                      {typeof totalChangeTwd !== "number"
+                        ? "--"
+                        : totalChangeTwd === 0
+                          ? "0.00 (0.00%)"
+                          : `${totalChangeTwd > 0 ? "▲" : "▼"} ${formatSignedTwd(totalChangeTwd)} (${formatChangePercent(totalChangePct)})`}
+                    </Text>
+                    <div className="networth-progress-wrap">
+                      <div className="networth-progress-scale">
+                        {visibleProgressStops.map((stop) => (
+                          <span
+                            key={`stop-${stop}`}
+                            className="networth-progress-scale-label"
+                            style={{
+                              left:
+                                progressMaxTwd > 0
+                                  ? `${(stop / progressMaxTwd) * 100}%`
+                                  : "0%",
+                            }}
+                          >
+                            {formatStopLabel(stop)}
+                          </span>
+                        ))}
                       </div>
-                    </Tooltip>
-                    <div
-                      className="networth-marker networth-marker--current"
-                      style={{ left: `${progressDisplayRatio * 100}%` }}
-                    >
-                      <span className="networth-marker-caret" />
-                      <span className="networth-marker-line" />
-                      <span className="networth-marker-value">
-                        {currentMarkerWanLabel}
-                      </span>
+                      <div className="networth-progress-track">
+                        <div
+                          className="networth-progress-fill"
+                          style={{ width: `${progressDisplayRatio * 100}%` }}
+                        />
+                        {deltaSegmentClassName ? (
+                          <div
+                            className={deltaSegmentClassName}
+                            style={{
+                              left: `${deltaDisplayLeftRatio * 100}%`,
+                              width: `${deltaDisplayWidthRatio * 100}%`,
+                            }}
+                          />
+                        ) : null}
+                        {progressStops
+                          .filter((stop) => stop > 0)
+                          .map((stop) => (
+                            <span
+                              key={`track-stop-${stop}`}
+                              className="networth-track-stop-line"
+                              style={{
+                                left:
+                                  progressMaxTwd > 0
+                                    ? `${(stop / progressMaxTwd) * 100}%`
+                                    : "0%",
+                              }}
+                            />
+                          ))}
+                        <Tooltip
+                          title={`昨日23:59：${formatTwd(flooredBaselineTwd)}`}
+                        >
+                          <div
+                            className={`networth-marker networth-marker--baseline ${isMarkerOverlap ? "networth-marker--offset" : ""}`}
+                            style={{ left: `${baselineDisplayRatio * 100}%` }}
+                          >
+                            <span className="networth-marker-line" />
+                          </div>
+                        </Tooltip>
+                        <div
+                          className="networth-marker networth-marker--current"
+                          style={{ left: `${progressDisplayRatio * 100}%` }}
+                        >
+                          <span className="networth-marker-caret" />
+                          <span className="networth-marker-line" />
+                          <span className="networth-marker-value">
+                            {currentMarkerWanLabel}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-              <div className="asset-summary-actions">
-                <Button
-                  type={isTrendExpanded ? "primary" : "default"}
-                  onClick={() => setIsTrendExpanded((prev) => !prev)}
-                  icon={<AreaChartOutlined />}
-                >
-                  趨勢
-                </Button>
-                <Button
-                  type={isPieExpanded ? "primary" : "default"}
-                  onClick={() =>
-                    setIsPieExpanded((prev) => {
-                      const next = !prev;
-                      if (next) {
-                        setActiveAllocationTab("assetType");
-                      }
-                      return next;
-                    })
-                  }
-                  icon={<PieChartOutlined />}
-                >
-                  分配
-                </Button>
-              </div>
-            </div>
-          </Col>
-
-          {(isTrendExpanded || isPieExpanded) && (
-            <Col xs={24}>
-              <div
-                className={`expanded-chart-grid ${isTrendExpanded !== isPieExpanded ? "expanded-chart-grid--single" : ""}`}
-              >
-                {isTrendExpanded && (
-                  <div className="expanded-chart-item expanded-chart-item--visible">
-                    <Card title="現值變化走勢">
-                      <div className="expanded-chart-frame">
-                        <TrendChart
-                          range={range}
-                          onRangeChange={(value) => setRange(value)}
-                          data={trend}
-                          height="100%"
-                        />
-                      </div>
-                    </Card>
-                  </div>
-                )}
-
-                {isPieExpanded && (
-                  <div className="expanded-chart-item expanded-chart-item--visible">
-                    <Card title="資產分配">
-                      <Tabs
-                        className="allocation-tabs"
-                        activeKey={activeAllocationTab}
-                        onChange={setActiveAllocationTab}
-                        items={[
-                          { key: "assetType", label: "資產類型比例" },
-                          { key: "market", label: "台股 / 美股比例" },
-                        ]}
-                      />
-                      {allocationChartData.length === 0 ? (
-                        <Empty
-                          description={
-                            activeAllocationTab === "market"
-                              ? "尚無可計算台股 / 美股比例的持股資料"
-                              : "尚無可計算資產類型比例的資料"
-                          }
-                        />
-                      ) : (
-                        <div className="expanded-chart-frame">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={allocationChartData}
-                                dataKey="value"
-                                nameKey="name"
-                                cx="50%"
-                                cy="50%"
-                                outerRadius="68%"
-                                label={({ name, percent }) =>
-                                  `${name} ${(percent * 100).toFixed(0)}%`
-                                }
-                              >
-                                {allocationChartData.map((entry) => (
-                                  <Cell key={entry.key} fill={entry.color} />
-                                ))}
-                              </Pie>
-                              <RechartsTooltip
-                                formatter={(value) => formatTwd(Number(value))}
-                              />
-                              <Legend />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                      )}
-                    </Card>
-                  </div>
-                )}
-              </div>
-            </Col>
-          )}
-
-          <Col xs={24}>
-            <Card
-              className="holdings-card"
-              title={
-                <Space size={8}>
-                  <span>持股列表</span>
-                  {isMobileViewport ? (
+                  <div className="asset-summary-actions">
                     <Button
-                      type="text"
-                      size="small"
-                      className="title-add-btn"
-                      onClick={() => {
-                        if (isMobileViewport) {
-                          setIsAddHoldingSheetOpen(true);
-                        } else {
-                          setIsAddHoldingModalOpen(true);
-                        }
-                      }}
-                      disabled={loadingAddHolding}
-                      icon={<PlusOutlined />}
-                      aria-label="新增持股"
-                    />
-                  ) : (
-                    <Tooltip title="新增持股">
-                      <Button
-                        type="text"
-                        size="small"
-                        className="title-add-btn"
-                        onClick={() => {
-                          if (isMobileViewport) {
-                            setIsAddHoldingSheetOpen(true);
-                          } else {
-                            setIsAddHoldingModalOpen(true);
+                      type={isTrendExpanded ? "primary" : "default"}
+                      onClick={() => setIsTrendExpanded((prev) => !prev)}
+                      icon={<AreaChartOutlined />}
+                    >
+                      趨勢
+                    </Button>
+                    <Button
+                      type={isPieExpanded ? "primary" : "default"}
+                      onClick={() =>
+                        setIsPieExpanded((prev) => {
+                          const next = !prev;
+                          if (next) {
+                            setActiveAllocationTab("assetType");
                           }
-                        }}
-                        disabled={loadingAddHolding}
-                        icon={<PlusOutlined />}
-                        aria-label="新增持股"
-                      />
-                    </Tooltip>
-                  )}
-                </Space>
-              }
-              extra={
-                <div className="price-update-extra">
-                  <Space>
-                    <Space.Compact>
-                      <Button
-                        type="primary"
-                        onClick={() => handleRefreshPrices("ALL")}
-                        loading={loadingRefresh}
-                        aria-label="更新價格（全部）"
-                      >
-                        更新價格
-                      </Button>
+                          return next;
+                        })
+                      }
+                      icon={<PieChartOutlined />}
+                    >
+                      分配
+                    </Button>
+                  </div>
+                </div>
+              </Col>
+
+              {(isTrendExpanded || isPieExpanded) && (
+                <Col xs={24}>
+                  <div
+                    className={`expanded-chart-grid ${isTrendExpanded !== isPieExpanded ? "expanded-chart-grid--single" : ""}`}
+                  >
+                    {isTrendExpanded && (
+                      <div className="expanded-chart-item expanded-chart-item--visible">
+                        <Card title="現值變化走勢">
+                          <div className="expanded-chart-frame">
+                            <TrendChart
+                              range={range}
+                              onRangeChange={(value) => setRange(value)}
+                              data={trend}
+                              height="100%"
+                            />
+                          </div>
+                        </Card>
+                      </div>
+                    )}
+
+                    {isPieExpanded && (
+                      <div className="expanded-chart-item expanded-chart-item--visible">
+                        <Card title="資產分配">
+                          <Tabs
+                            className="allocation-tabs"
+                            activeKey={activeAllocationTab}
+                            onChange={setActiveAllocationTab}
+                            items={[
+                              { key: "assetType", label: "資產類型比例" },
+                              { key: "market", label: "台股 / 美股比例" },
+                            ]}
+                          />
+                          {allocationChartData.length === 0 ? (
+                            <Empty
+                              description={
+                                activeAllocationTab === "market"
+                                  ? "尚無可計算台股 / 美股比例的持股資料"
+                                  : "尚無可計算資產類型比例的資料"
+                              }
+                            />
+                          ) : (
+                            <div className="expanded-chart-frame">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={allocationChartData}
+                                    dataKey="value"
+                                    nameKey="name"
+                                    cx="50%"
+                                    cy="50%"
+                                    outerRadius="68%"
+                                    label={({ name, percent }) =>
+                                      `${name} ${(percent * 100).toFixed(0)}%`
+                                    }
+                                  >
+                                    {allocationChartData.map((entry) => (
+                                      <Cell
+                                        key={entry.key}
+                                        fill={entry.color}
+                                      />
+                                    ))}
+                                  </Pie>
+                                  <RechartsTooltip
+                                    formatter={(value) =>
+                                      formatTwd(Number(value))
+                                    }
+                                  />
+                                  <Legend />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          )}
+                        </Card>
+                      </div>
+                    )}
+                  </div>
+                </Col>
+              )}
+
+              <Col xs={24}>
+                <Card
+                  className="holdings-card"
+                  title={
+                    <Space size={8}>
+                      <span>持股列表</span>
                       {isMobileViewport ? (
                         <Button
-                          type="primary"
-                          icon={<DownOutlined />}
-                          aria-label="選擇更新市場"
-                          disabled={loadingRefresh}
-                          onClick={() => setIsUpdateSheetOpen(true)}
+                          type="text"
+                          size="small"
+                          className="title-add-btn"
+                          onClick={() => {
+                            if (isMobileViewport) {
+                              setIsAddHoldingSheetOpen(true);
+                            } else {
+                              setIsAddHoldingModalOpen(true);
+                            }
+                          }}
+                          disabled={loadingAddHolding}
+                          icon={<PlusOutlined />}
+                          aria-label="新增持股"
                         />
                       ) : (
-                        <Dropdown
-                          trigger={["click"]}
-                          disabled={loadingRefresh}
-                          classNames={{ root: "price-update-menu" }}
-                          menu={{
-                            items: updateMenuItems,
-                            onClick: ({ key }) => {
-                              if (key === "TW" || key === "US") {
-                                handleRefreshPrices(key);
+                        <Tooltip title="新增持股">
+                          <Button
+                            type="text"
+                            size="small"
+                            className="title-add-btn"
+                            onClick={() => {
+                              if (isMobileViewport) {
+                                setIsAddHoldingSheetOpen(true);
+                              } else {
+                                setIsAddHoldingModalOpen(true);
                               }
-                            },
-                          }}
-                        >
+                            }}
+                            disabled={loadingAddHolding}
+                            icon={<PlusOutlined />}
+                            aria-label="新增持股"
+                          />
+                        </Tooltip>
+                      )}
+                    </Space>
+                  }
+                  extra={
+                    <div className="price-update-extra">
+                      <Space>
+                        <Space.Compact>
                           <Button
                             type="primary"
-                            icon={<DownOutlined />}
-                            aria-label="選擇更新市場"
+                            onClick={() => handleRefreshPrices("ALL")}
+                            loading={loadingRefresh}
+                            aria-label="更新價格（全部）"
+                          >
+                            更新價格
+                          </Button>
+                          {isMobileViewport ? (
+                            <Button
+                              type="primary"
+                              icon={<DownOutlined />}
+                              aria-label="選擇更新市場"
+                              disabled={loadingRefresh}
+                              onClick={() => setIsUpdateSheetOpen(true)}
+                            />
+                          ) : (
+                            <Dropdown
+                              trigger={["click"]}
+                              disabled={loadingRefresh}
+                              classNames={{ root: "price-update-menu" }}
+                              menu={{
+                                items: updateMenuItems,
+                                onClick: ({ key }) => {
+                                  if (key === "TW" || key === "US") {
+                                    handleRefreshPrices(key);
+                                  }
+                                },
+                              }}
+                            >
+                              <Button
+                                type="primary"
+                                icon={<DownOutlined />}
+                                aria-label="選擇更新市場"
+                              />
+                            </Dropdown>
+                          )}
+                        </Space.Compact>
+                      </Space>
+                    </div>
+                  }
+                >
+                  <Tabs
+                    activeKey={activeHoldingTab}
+                    onChange={setActiveHoldingTab}
+                    items={tabItems}
+                    style={{ marginBottom: 12 }}
+                  />
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={filteredRows.map((row) => row.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <Table
+                        rowKey="id"
+                        dataSource={filteredRows}
+                        columns={tableColumns}
+                        pagination={false}
+                        loading={loadingData || loadingReorder}
+                        scroll={{ x: isMobileViewport ? 860 : 980 }}
+                        components={{
+                          body: {
+                            row: DraggableBodyRow,
+                          },
+                        }}
+                      />
+                    </SortableContext>
+                  </DndContext>
+                </Card>
+              </Col>
+
+              <Col xs={24}>
+                <Card
+                  title={
+                    <Space size={8}>
+                      <span>銀行現金資產</span>
+                      {isMobileViewport ? (
+                        <Button
+                          type="text"
+                          size="small"
+                          className="title-add-btn"
+                          onClick={() => {
+                            if (isMobileViewport) {
+                              setIsAddCashSheetOpen(true);
+                            } else {
+                              setIsAddCashModalOpen(true);
+                            }
+                          }}
+                          disabled={loadingAddCashAccount}
+                          icon={<PlusOutlined />}
+                          aria-label="新增銀行帳戶"
+                        />
+                      ) : (
+                        <Tooltip title="新增銀行帳戶">
+                          <Button
+                            type="text"
+                            size="small"
+                            className="title-add-btn"
+                            onClick={() => {
+                              if (isMobileViewport) {
+                                setIsAddCashSheetOpen(true);
+                              } else {
+                                setIsAddCashModalOpen(true);
+                              }
+                            }}
+                            disabled={loadingAddCashAccount}
+                            icon={<PlusOutlined />}
+                            aria-label="新增銀行帳戶"
                           />
-                        </Dropdown>
+                        </Tooltip>
                       )}
-                    </Space.Compact>
-                  </Space>
-                </div>
-              }
-            >
-              <Tabs
-                activeKey={activeHoldingTab}
-                onChange={setActiveHoldingTab}
-                items={tabItems}
-                style={{ marginBottom: 12 }}
-              />
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={filteredRows.map((row) => row.id)}
-                  strategy={verticalListSortingStrategy}
+                    </Space>
+                  }
                 >
                   <Table
                     rowKey="id"
-                    dataSource={filteredRows}
-                    columns={tableColumns}
+                    dataSource={cashRows}
+                    columns={cashTableColumns}
                     pagination={false}
-                    loading={loadingData || loadingReorder}
-                    scroll={{ x: isMobileViewport ? 860 : 980 }}
-                    components={{
-                      body: {
-                        row: DraggableBodyRow,
-                      },
+                    tableLayout="fixed"
+                    scroll={{ x: 860 }}
+                    locale={{
+                      emptyText: "尚未新增銀行現金帳戶",
                     }}
                   />
-                </SortableContext>
-              </DndContext>
-            </Card>
-          </Col>
-
-          <Col xs={24}>
-            <Card
-              title={
-                <Space size={8}>
-                  <span>銀行現金資產</span>
-                  {isMobileViewport ? (
-                    <Button
-                      type="text"
-                      size="small"
-                      className="title-add-btn"
-                      onClick={() => {
-                        if (isMobileViewport) {
-                          setIsAddCashSheetOpen(true);
-                        } else {
-                          setIsAddCashModalOpen(true);
-                        }
-                      }}
-                      disabled={loadingAddCashAccount}
-                      icon={<PlusOutlined />}
-                      aria-label="新增銀行帳戶"
-                    />
-                  ) : (
-                    <Tooltip title="新增銀行帳戶">
-                      <Button
-                        type="text"
-                        size="small"
-                        className="title-add-btn"
-                        onClick={() => {
-                          if (isMobileViewport) {
-                            setIsAddCashSheetOpen(true);
-                          } else {
-                            setIsAddCashModalOpen(true);
-                          }
-                        }}
-                        disabled={loadingAddCashAccount}
-                        icon={<PlusOutlined />}
-                        aria-label="新增銀行帳戶"
-                      />
-                    </Tooltip>
-                  )}
-                </Space>
-              }
-            >
-              <Table
-                rowKey="id"
-                dataSource={cashRows}
-                columns={cashTableColumns}
-                pagination={false}
-                tableLayout="fixed"
-                scroll={{ x: 860 }}
-                locale={{
-                  emptyText: "尚未新增銀行現金帳戶",
-                }}
-              />
-            </Card>
-          </Col>
-          </Row>
-        ) : (
-          <Row gutter={[16, 16]}>
-            <Col xs={24}>
-              <div className="expense-summary-panel expense-summary-panel--plain">
-                <Segmented
-                  className="expense-summary-toggle"
-                  size="small"
-                  value={expenseTotalMode}
-                  options={[
-                    { label: "月份", value: "month" },
-                    { label: "累計", value: "cumulative" },
-                  ]}
-                  onChange={(value) => setExpenseTotalMode(value)}
-                />
-                <div className="expense-summary-title">
-                  <div className="expense-summary-meta">
-                    {expenseTotalMode === "month" ? (
-                      <div className="expense-month-nav">
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<LeftOutlined />}
-                          className="expense-month-nav-btn"
-                          aria-label="上個月份"
-                          disabled={!canGoPrevExpenseMonth}
-                          onClick={() => {
-                            if (!canGoPrevExpenseMonth) return;
-                            setActiveExpenseMonth(
-                              expenseMonthNavOptions[expenseActiveMonthIndex - 1],
-                            );
-                          }}
-                        />
-                        <div className="expense-month-nav-title">
-                          <Text strong>{expenseMonthTitle}</Text>
+                </Card>
+              </Col>
+            </Row>
+          ) : (
+            <Row gutter={[16, 16]}>
+              <Col xs={24}>
+                <div className="expense-summary-panel expense-summary-panel--plain">
+                  <Segmented
+                    className="expense-summary-toggle"
+                    size="small"
+                    value={expenseTotalMode}
+                    options={[
+                      { label: "月份", value: "month" },
+                      { label: "累計", value: "cumulative" },
+                    ]}
+                    onChange={(value) => setExpenseTotalMode(value)}
+                  />
+                  <div className="expense-summary-title">
+                    <div className="expense-summary-meta">
+                      {expenseTotalMode === "month" ? (
+                        <div className="expense-month-nav">
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<LeftOutlined />}
+                            className="expense-month-nav-btn"
+                            aria-label="上個月份"
+                            disabled={!canGoPrevExpenseMonth}
+                            onClick={() => {
+                              if (!canGoPrevExpenseMonth) return;
+                              setActiveExpenseMonth(
+                                expenseMonthNavOptions[
+                                  expenseActiveMonthIndex - 1
+                                ],
+                              );
+                            }}
+                          />
+                          <div className="expense-month-nav-title">
+                            <Text strong>{expenseMonthTitle}</Text>
+                          </div>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<RightOutlined />}
+                            className="expense-month-nav-btn"
+                            aria-label="下個月份"
+                            disabled={!canGoNextExpenseMonth}
+                            onClick={() => {
+                              if (!canGoNextExpenseMonth) return;
+                              setActiveExpenseMonth(
+                                expenseMonthNavOptions[
+                                  expenseActiveMonthIndex + 1
+                                ],
+                              );
+                            }}
+                          />
                         </div>
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<RightOutlined />}
-                          className="expense-month-nav-btn"
-                          aria-label="下個月份"
-                          disabled={!canGoNextExpenseMonth}
-                          onClick={() => {
-                            if (!canGoNextExpenseMonth) return;
-                            setActiveExpenseMonth(
-                              expenseMonthNavOptions[expenseActiveMonthIndex + 1],
-                            );
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <Text strong>累計總支出</Text>
+                      ) : (
+                        <Text strong>累計總支出</Text>
+                      )}
+                    </div>
+                  </div>
+                  <div className="expense-summary-value">
+                    <div className="expense-summary-value-main">
+                      <Statistic
+                        value={expenseSummaryValue}
+                        formatter={(value) => formatTwd(Number(value))}
+                      />
+                      {expenseTotalMode === "cumulative" ? (
+                        <Tooltip title="查看支出走勢">
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<AreaChartOutlined />}
+                            className="expense-summary-trend-btn"
+                            aria-label="查看支出走勢"
+                            onClick={() => {
+                              setActiveExpenseChartKey("trend");
+                              setIsExpenseChartModalOpen(true);
+                            }}
+                          />
+                        </Tooltip>
+                      ) : null}
+                    </div>
+                    {expenseTotalMode === "cumulative" && (
+                      <Text
+                        type="secondary"
+                        className="expense-summary-subtext"
+                      >
+                        {expenseFirstDate
+                          ? `自 ${dayjs(expenseFirstDate).format("YYYY/MM/DD")} 起`
+                          : "尚無支出資料"}
+                      </Text>
                     )}
                   </div>
                 </div>
-                <div className="expense-summary-value">
-                  <div className="expense-summary-value-main">
-                    <Statistic
-                      value={expenseSummaryValue}
-                      formatter={(value) => formatTwd(Number(value))}
-                    />
-                    {expenseTotalMode === "cumulative" ? (
-                      <Tooltip title="查看支出走勢">
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<AreaChartOutlined />}
-                          className="expense-summary-trend-btn"
-                          aria-label="查看支出走勢"
-                          onClick={() => {
-                            setActiveExpenseChartKey("trend");
-                            setIsExpenseChartModalOpen(true);
-                          }}
-                        />
-                      </Tooltip>
-                    ) : null}
-                  </div>
-                  {expenseTotalMode === "cumulative" && (
-                    <Text type="secondary" className="expense-summary-subtext">
-                      {expenseFirstDate
-                        ? `自 ${dayjs(expenseFirstDate).format("YYYY/MM/DD")} 起`
-                        : "尚無支出資料"}
-                    </Text>
-                  )}
-                </div>
-              </div>
-            </Col>
-            <Col xs={24}>
-              <section className="expense-analytics-section">
-                <Text strong className="expense-analytics-title">
-                  支出圖表
-                </Text>
-                <div className="expense-analytics-row">
-                  {expenseChartCards.map((chart) => (
-                    <Card
-                      key={chart.key}
-                      size="small"
-                      className="expense-analytics-card"
-                    >
-                      <div className="expense-analytics-card-head">
-                        <Text strong className="active-recurring-title">
-                          {chart.title}
-                        </Text>
-                        <Space size={4} className="active-recurring-card-actions">
-                          {chart.key === "trend" ? (
-                            <Segmented
-                              size="small"
-                              value={expenseTrendRange}
-                              options={[
-                                { label: "近六個月", value: "6m" },
-                                { label: "近一年", value: "1y" },
-                              ]}
-                              onChange={(value) => setExpenseTrendRange(value)}
-                            />
-                          ) : null}
-                          <Tooltip title="展開圖表">
-                            <Button
-                              type="text"
-                              size="small"
-                              icon={<ExpandOutlined />}
-                              className="active-recurring-stop-btn"
-                              aria-label={`展開${chart.title}`}
-                              onClick={() => {
-                                setActiveExpenseChartKey(chart.key);
-                                setIsExpenseChartModalOpen(true);
-                              }}
-                            />
-                          </Tooltip>
-                        </Space>
-                      </div>
-                      <div className="expense-analytics-card-body">
-                        <div className="expense-chart-preview">
-                          {renderExpenseChartPreview(chart.key)}
+              </Col>
+              <Col xs={24}>
+                <section className="expense-analytics-section">
+                  <Text strong className="expense-analytics-title">
+                    支出圖表
+                  </Text>
+                  <div className="expense-analytics-row">
+                    {expenseChartCards.map((chart) => (
+                      <Card
+                        key={chart.key}
+                        size="small"
+                        className="expense-analytics-card"
+                      >
+                        <div className="expense-analytics-card-head">
+                          <Text strong className="active-recurring-title">
+                            {chart.title}
+                          </Text>
+                          <Space
+                            size={4}
+                            className="active-recurring-card-actions"
+                          >
+                            {chart.key === "trend" ? (
+                              <Segmented
+                                size="small"
+                                value={expenseTrendRange}
+                                options={[
+                                  { label: "近六個月", value: "6m" },
+                                  { label: "近一年", value: "1y" },
+                                ]}
+                                onChange={(value) =>
+                                  setExpenseTrendRange(value)
+                                }
+                              />
+                            ) : null}
+                            <Tooltip title="展開圖表">
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<ExpandOutlined />}
+                                className="active-recurring-stop-btn"
+                                aria-label={`展開${chart.title}`}
+                                onClick={() => {
+                                  setActiveExpenseChartKey(chart.key);
+                                  setIsExpenseChartModalOpen(true);
+                                }}
+                              />
+                            </Tooltip>
+                          </Space>
                         </div>
-                        <Text type="secondary" className="expense-chart-preview-summary">
-                          {expenseChartPreviewSummary[chart.key] || "尚無資料"}
-                        </Text>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </section>
-            </Col>
-            <Col xs={24}>
-              <section className="active-budgets-section">
-                <Text strong className="active-budgets-title">
-                  目前生效預算
-                </Text>
-                {activeBudgetCards.length === 0 ? (
-                  <Text type="secondary">目前沒有生效中的預算</Text>
-                ) : (
-                  <div className="active-budgets-row">
-                    {activeBudgetCards.map((budget) => (
-                      <Card key={budget.id} size="small" className="active-budget-card">
-                        <Text
-                          type="secondary"
-                          className="active-budget-name"
-                          title={budget.name}
-                        >
-                          {budget.name}
-                        </Text>
-                        <div
-                          className={`active-budget-remaining ${
-                            Number(budget.remainingTwd) < 0
-                              ? "active-budget-remaining--over"
-                              : ""
-                          }`}
-                        >
-                          <span className="active-budget-remaining-prefix">
-                            {Number(budget.remainingTwd) < 0 ? "超過" : "還有"}
-                          </span>
-                          <span className="active-budget-remaining-value">
-                            {formatTwd(
-                              Number(budget.remainingTwd) < 0
-                                ? Math.abs(Number(budget.remainingTwd))
-                                : Number(budget.remainingTwd) || 0,
-                            )}
-                          </span>
+                        <div className="expense-analytics-card-body">
+                          <div className="expense-chart-preview">
+                            {renderExpenseChartPreview(chart.key)}
+                          </div>
+                          <Text
+                            type="secondary"
+                            className="expense-chart-preview-summary"
+                          >
+                            {expenseChartPreviewSummary[chart.key] ||
+                              "尚無資料"}
+                          </Text>
                         </div>
-                        <Progress
-                          percent={Math.round(Number(budget.progressPct || 0))}
-                          size="small"
-                          showInfo={false}
-                          strokeColor={
-                            Number(budget.spentTwd || 0) >
-                            Number(budget.amountTwd || 0)
-                              ? "#f5222d"
-                              : undefined
-                          }
-                        />
-                        <Text type="secondary" className="active-budget-meta">
-                          {formatTwd(Number(budget.spentTwd) || 0)} /{" "}
-                          {formatTwd(Number(budget.amountTwd) || 0)}
-                        </Text>
                       </Card>
                     ))}
                   </div>
-                )}
-              </section>
-            </Col>
-            <Col xs={24}>
-              <section className="active-recurring-section">
-                <Space size={8} className="active-recurring-title-wrap">
-                  <Text strong className="active-recurring-title">
-                    當前定期支出
+                </section>
+              </Col>
+              <Col xs={24}>
+                <section className="active-budgets-section">
+                  <Text strong className="active-budgets-title">
+                    目前生效預算
                   </Text>
-                  {isMobileViewport ? (
-                    <Button
-                      type="text"
-                      size="small"
-                      className="title-add-btn"
-                      icon={<PlusOutlined />}
-                      onClick={openRecurringCreateForm}
-                      aria-label="新增定期支出"
-                    />
+                  {activeBudgetCards.length === 0 ? (
+                    <Text type="secondary">目前沒有生效中的預算</Text>
                   ) : (
-                    <Tooltip title="新增定期支出">
+                    <div className="active-budgets-row">
+                      {activeBudgetCards.map((budget) => (
+                        <Card
+                          key={budget.id}
+                          size="small"
+                          className="active-budget-card"
+                        >
+                          <Text
+                            type="secondary"
+                            className="active-budget-name"
+                            title={budget.name}
+                          >
+                            {budget.name}
+                          </Text>
+                          <div
+                            className={`active-budget-remaining ${
+                              Number(budget.remainingTwd) < 0
+                                ? "active-budget-remaining--over"
+                                : ""
+                            }`}
+                          >
+                            <span className="active-budget-remaining-prefix">
+                              {Number(budget.remainingTwd) < 0
+                                ? "超過"
+                                : "還有"}
+                            </span>
+                            <span className="active-budget-remaining-value">
+                              {formatTwd(
+                                Number(budget.remainingTwd) < 0
+                                  ? Math.abs(Number(budget.remainingTwd))
+                                  : Number(budget.remainingTwd) || 0,
+                              )}
+                            </span>
+                          </div>
+                          <Progress
+                            percent={Math.round(
+                              Number(budget.progressPct || 0),
+                            )}
+                            size="small"
+                            showInfo={false}
+                            strokeColor={
+                              Number(budget.spentTwd || 0) >
+                              Number(budget.amountTwd || 0)
+                                ? "#f5222d"
+                                : undefined
+                            }
+                          />
+                          <Text type="secondary" className="active-budget-meta">
+                            {formatTwd(Number(budget.spentTwd) || 0)} /{" "}
+                            {formatTwd(Number(budget.amountTwd) || 0)}
+                          </Text>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </Col>
+              <Col xs={24}>
+                <section className="active-recurring-section">
+                  <Space size={8} className="active-recurring-title-wrap">
+                    <Text strong className="active-recurring-title">
+                      當前定期支出
+                    </Text>
+                    {isMobileViewport ? (
                       <Button
                         type="text"
                         size="small"
@@ -3871,86 +4115,97 @@ function App() {
                         onClick={openRecurringCreateForm}
                         aria-label="新增定期支出"
                       />
-                    </Tooltip>
-                  )}
-                </Space>
-                {recurringExpenseRows.length === 0 ? (
-                  <Text type="secondary">目前沒有定期支出</Text>
-                ) : (
-                  <div className="active-recurring-row">
-                    {recurringExpenseRows.map((item) => (
-                      <Card key={item.id} size="small" className="active-recurring-card">
-                        <div className="active-recurring-card-head">
-                          <Text
-                            type="secondary"
-                            className="active-budget-name"
-                            title={item.name}
-                          >
-                            {item.name}
-                          </Text>
-                          <Space size={4} className="active-recurring-card-actions">
-                            <Tooltip title="編輯定期支出">
-                              <Button
-                                type="text"
-                                size="small"
-                                icon={<EditOutlined />}
-                                className="active-recurring-stop-btn"
-                                onClick={() => openRecurringEditForm(item)}
-                                aria-label="編輯定期支出"
-                              />
-                            </Tooltip>
-                            <Tooltip title="取消定期支出">
-                              <Button
-                                type="text"
-                                size="small"
-                                icon={<DeleteOutlined />}
-                                className="active-recurring-stop-btn"
-                                loading={Boolean(stoppingRecurringById[item.id])}
-                                onClick={() => openStopRecurringModal(item)}
-                                aria-label="取消定期支出"
-                              />
-                            </Tooltip>
-                          </Space>
-                        </div>
-                        <div className="active-recurring-amount">
-                          <span className="active-budget-remaining-value">
-                            {formatTwd(Number(item.amountTwd) || 0)}
-                          </span>
-                          <span className="active-budget-remaining-prefix">
-                            /{item.recurrenceType === "YEARLY"
-                              ? "每年"
-                              : item.recurrenceType === "MONTHLY"
-                                ? "每月"
-                                : "--"}
-                          </span>
-                        </div>
-                        <Text type="secondary" className="active-budget-meta">
-                          {formatRecurringScheduleText(item)}
-                          {item.recurrenceUntil
-                            ? `（至 ${dayjs(item.recurrenceUntil).format("YYYY/MM/DD")}）`
-                            : ""}
-                        </Text>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </Col>
-            <Col xs={24}>
-              <Card
-                title={
-                  <Space size={8}>
-                    <span>支出列表</span>
-                    {isMobileViewport ? (
-                      <Button
-                        type="text"
-                        size="small"
-                        className="title-add-btn"
-                        icon={<PlusOutlined />}
-                        onClick={() => openExpenseForm()}
-                      />
                     ) : (
-                      <Tooltip title="新增支出">
+                      <Tooltip title="新增定期支出">
+                        <Button
+                          type="text"
+                          size="small"
+                          className="title-add-btn"
+                          icon={<PlusOutlined />}
+                          onClick={openRecurringCreateForm}
+                          aria-label="新增定期支出"
+                        />
+                      </Tooltip>
+                    )}
+                  </Space>
+                  {recurringExpenseRows.length === 0 ? (
+                    <Text type="secondary">目前沒有定期支出</Text>
+                  ) : (
+                    <div className="active-recurring-row">
+                      {recurringExpenseRows.map((item) => (
+                        <Card
+                          key={item.id}
+                          size="small"
+                          className="active-recurring-card"
+                        >
+                          <div className="active-recurring-card-head">
+                            <Text
+                              type="secondary"
+                              className="active-budget-name"
+                              title={item.name}
+                            >
+                              {item.name}
+                            </Text>
+                            <Space
+                              size={4}
+                              className="active-recurring-card-actions"
+                            >
+                              <Tooltip title="編輯定期支出">
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<EditOutlined />}
+                                  className="active-recurring-stop-btn"
+                                  onClick={() => openRecurringEditForm(item)}
+                                  aria-label="編輯定期支出"
+                                />
+                              </Tooltip>
+                              <Tooltip title="取消定期支出">
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<DeleteOutlined />}
+                                  className="active-recurring-stop-btn"
+                                  loading={Boolean(
+                                    stoppingRecurringById[item.id],
+                                  )}
+                                  onClick={() => openStopRecurringModal(item)}
+                                  aria-label="取消定期支出"
+                                />
+                              </Tooltip>
+                            </Space>
+                          </div>
+                          <div className="active-recurring-amount">
+                            <span className="active-budget-remaining-value">
+                              {formatTwd(Number(item.amountTwd) || 0)}
+                            </span>
+                            <span className="active-budget-remaining-prefix">
+                              /
+                              {item.recurrenceType === "YEARLY"
+                                ? "每年"
+                                : item.recurrenceType === "MONTHLY"
+                                  ? "每月"
+                                  : "--"}
+                            </span>
+                          </div>
+                          <Text type="secondary" className="active-budget-meta">
+                            {formatRecurringScheduleText(item)}
+                            {item.recurrenceUntil
+                              ? `（至 ${dayjs(item.recurrenceUntil).format("YYYY/MM/DD")}）`
+                              : ""}
+                          </Text>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </Col>
+              <Col xs={24}>
+                <Card
+                  title={
+                    <Space size={8}>
+                      <span>支出列表</span>
+                      {isMobileViewport ? (
                         <Button
                           type="text"
                           size="small"
@@ -3958,36 +4213,36 @@ function App() {
                           icon={<PlusOutlined />}
                           onClick={() => openExpenseForm()}
                         />
-                      </Tooltip>
-                    )}
-                  </Space>
-                }
-              >
-                <Table
-                  rowKey={(record) => `${record.id}-${record.occurredAt}`}
-                  dataSource={expenseRows}
-                  columns={expenseTableColumns}
-                  pagination={false}
-                  locale={{ emptyText: "尚無支出紀錄" }}
-                  scroll={{ x: 860 }}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Card
-                title={
-                  <Space size={8}>
-                    <span>類別列表</span>
-                    {isMobileViewport ? (
-                      <Button
-                        type="text"
-                        size="small"
-                        className="title-add-btn"
-                        icon={<PlusOutlined />}
-                        onClick={() => openCategoryForm()}
-                      />
-                    ) : (
-                      <Tooltip title="新增類別">
+                      ) : (
+                        <Tooltip title="新增支出">
+                          <Button
+                            type="text"
+                            size="small"
+                            className="title-add-btn"
+                            icon={<PlusOutlined />}
+                            onClick={() => openExpenseForm()}
+                          />
+                        </Tooltip>
+                      )}
+                    </Space>
+                  }
+                >
+                  <Table
+                    rowKey={(record) => `${record.id}-${record.occurredAt}`}
+                    dataSource={expenseRows}
+                    columns={expenseTableColumns}
+                    pagination={false}
+                    locale={{ emptyText: "尚無支出紀錄" }}
+                    scroll={{ x: 860 }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} lg={12}>
+                <Card
+                  title={
+                    <Space size={8}>
+                      <span>類別列表</span>
+                      {isMobileViewport ? (
                         <Button
                           type="text"
                           size="small"
@@ -3995,35 +4250,35 @@ function App() {
                           icon={<PlusOutlined />}
                           onClick={() => openCategoryForm()}
                         />
-                      </Tooltip>
-                    )}
-                  </Space>
-                }
-              >
-                <Table
-                  rowKey="id"
-                  dataSource={expenseCategoryRows}
-                  columns={expenseCategoryColumns}
-                  pagination={false}
-                  locale={{ emptyText: "尚無分類" }}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Card
-                title={
-                  <Space size={8}>
-                    <span>預算列表</span>
-                    {isMobileViewport ? (
-                      <Button
-                        type="text"
-                        size="small"
-                        className="title-add-btn"
-                        icon={<PlusOutlined />}
-                        onClick={() => openBudgetForm()}
-                      />
-                    ) : (
-                      <Tooltip title="新增預算">
+                      ) : (
+                        <Tooltip title="新增類別">
+                          <Button
+                            type="text"
+                            size="small"
+                            className="title-add-btn"
+                            icon={<PlusOutlined />}
+                            onClick={() => openCategoryForm()}
+                          />
+                        </Tooltip>
+                      )}
+                    </Space>
+                  }
+                >
+                  <Table
+                    rowKey="id"
+                    dataSource={expenseCategoryRows}
+                    columns={expenseCategoryColumns}
+                    pagination={false}
+                    locale={{ emptyText: "尚無分類" }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} lg={12}>
+                <Card
+                  title={
+                    <Space size={8}>
+                      <span>預算列表</span>
+                      {isMobileViewport ? (
                         <Button
                           type="text"
                           size="small"
@@ -4031,417 +4286,428 @@ function App() {
                           icon={<PlusOutlined />}
                           onClick={() => openBudgetForm()}
                         />
-                      </Tooltip>
-                    )}
-                  </Space>
+                      ) : (
+                        <Tooltip title="新增預算">
+                          <Button
+                            type="text"
+                            size="small"
+                            className="title-add-btn"
+                            icon={<PlusOutlined />}
+                            onClick={() => openBudgetForm()}
+                          />
+                        </Tooltip>
+                      )}
+                    </Space>
+                  }
+                >
+                  <Table
+                    rowKey="id"
+                    dataSource={budgetRows}
+                    columns={budgetColumns}
+                    pagination={false}
+                    locale={{ emptyText: "尚無預算" }}
+                    scroll={{ x: 860 }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          )}
+
+          {authUser && (
+            <div style={{ marginTop: 12, textAlign: "center" }}>
+              <Text type="secondary" className="cloud-last-sync-time">
+                {cloudLastSyncedText}
+              </Text>
+            </div>
+          )}
+
+          {authUser && isMobileViewport && (
+            <div className="mobile-main-tabbar">
+              <Button
+                type={activeMainTab === "asset" ? "primary" : "default"}
+                icon={<HomeOutlined />}
+                onClick={() => setActiveMainTab("asset")}
+              >
+                資產總覽
+              </Button>
+              <Button
+                type={activeMainTab === "expense" ? "primary" : "default"}
+                icon={<DollarOutlined />}
+                onClick={() => setActiveMainTab("expense")}
+              >
+                支出分析
+              </Button>
+            </div>
+          )}
+
+          <Drawer
+            placement="bottom"
+            title="登入"
+            open={isMobileViewport && isEmailLoginSheetOpen}
+            onClose={() => {
+              if (!isAuthDialogSubmitting) {
+                setIsEmailLoginSheetOpen(false);
+              }
+            }}
+            size="90vh"
+            closable={!isAuthDialogSubmitting}
+            maskClosable={!isAuthDialogSubmitting}
+            keyboard={!isAuthDialogSubmitting}
+            destroyOnHidden
+            className="form-bottom-sheet"
+            styles={{ body: { padding: 16 } }}
+          >
+            {authLoginContentNode}
+          </Drawer>
+
+          <Modal
+            title={activeExpenseChartTitle}
+            open={isExpenseChartModalOpen}
+            onCancel={() => setIsExpenseChartModalOpen(false)}
+            footer={null}
+            width={isMobileViewport ? "94vw" : 960}
+            destroyOnHidden
+          >
+            <div className="expense-chart-modal-body">
+              {activeExpenseChartKey === "trend" ? (
+                <div className="expense-chart-modal-toolbar">
+                  <Segmented
+                    size="middle"
+                    value={expenseTrendRange}
+                    options={[
+                      { label: "近六個月", value: "6m" },
+                      { label: "近一年", value: "1y" },
+                    ]}
+                    onChange={(value) => setExpenseTrendRange(value)}
+                  />
+                </div>
+              ) : null}
+              <div className="expense-chart-modal-content">
+                {renderExpenseChartModalContent(activeExpenseChartKey)}
+              </div>
+            </div>
+          </Modal>
+
+          <Modal
+            title="取消定期支出"
+            open={isStopRecurringModalOpen}
+            onCancel={closeStopRecurringModal}
+            onOk={confirmStopRecurring}
+            okText="確認取消"
+            cancelText="取消"
+            confirmLoading={Boolean(
+              Number.isInteger(Number(selectedRecurringToStop?.id))
+                ? stoppingRecurringById[Number(selectedRecurringToStop?.id)]
+                : false,
+            )}
+          >
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <Text type="secondary">
+                已發生的紀錄會保留，未來將不再產生這筆定期支出。
+              </Text>
+              <Radio.Group
+                value={stopKeepToday}
+                onChange={(event) =>
+                  setStopKeepToday(Boolean(event.target.value))
                 }
               >
-                <Table
-                  rowKey="id"
-                  dataSource={budgetRows}
-                  columns={budgetColumns}
-                  pagination={false}
-                  locale={{ emptyText: "尚無預算" }}
-                  scroll={{ x: 860 }}
-                />
-              </Card>
-            </Col>
-          </Row>
-        )}
+                <Space direction="vertical">
+                  <Radio value>保留今天，從明天起停止</Radio>
+                  <Radio value={false}>連今天一起停止</Radio>
+                </Space>
+              </Radio.Group>
+            </Space>
+          </Modal>
 
-        {authUser && (
-          <div style={{ marginTop: 12, textAlign: "center" }}>
-            <Text type="secondary" className="cloud-last-sync-time">
-              {cloudLastSyncedText}
-            </Text>
-          </div>
-        )}
+          <Modal
+            title="登入"
+            open={!isMobileViewport && isEmailLoginModalOpen}
+            onCancel={() => {
+              if (!isAuthDialogSubmitting) {
+                setIsEmailLoginModalOpen(false);
+              }
+            }}
+            footer={null}
+            destroyOnHidden
+            mask={{ closable: !isAuthDialogSubmitting }}
+            keyboard={!isAuthDialogSubmitting}
+            closable={!isAuthDialogSubmitting}
+          >
+            {authLoginContentNode}
+          </Modal>
 
-        {authUser && isMobileViewport && (
-          <div className="mobile-main-tabbar">
-            <Button
-              type={activeMainTab === "asset" ? "primary" : "default"}
-              icon={<HomeOutlined />}
-              onClick={() => setActiveMainTab("asset")}
-            >
-              資產總覽
-            </Button>
-            <Button
-              type={activeMainTab === "expense" ? "primary" : "default"}
-              icon={<DollarOutlined />}
-              onClick={() => setActiveMainTab("expense")}
-            >
-              支出分析
-            </Button>
-          </div>
-        )}
-
-        <Drawer
-          placement="bottom"
-          title="登入"
-          open={isMobileViewport && isEmailLoginSheetOpen}
-          onClose={() => {
-            if (!isAuthDialogSubmitting) {
-              setIsEmailLoginSheetOpen(false);
-            }
-          }}
-          size="90vh"
-          closable={!isAuthDialogSubmitting}
-          maskClosable={!isAuthDialogSubmitting}
-          keyboard={!isAuthDialogSubmitting}
-          destroyOnHidden
-          className="form-bottom-sheet"
-          styles={{ body: { padding: 16 } }}
-        >
-          {authLoginContentNode}
-        </Drawer>
-
-        <Modal
-          title={activeExpenseChartTitle}
-          open={isExpenseChartModalOpen}
-          onCancel={() => setIsExpenseChartModalOpen(false)}
-          footer={null}
-          width={isMobileViewport ? "94vw" : 960}
-          destroyOnHidden
-        >
-          <div className="expense-chart-modal-body">
-            {activeExpenseChartKey === "trend" ? (
-              <div className="expense-chart-modal-toolbar">
-                <Segmented
-                  size="middle"
-                  value={expenseTrendRange}
-                  options={[
-                    { label: "近六個月", value: "6m" },
-                    { label: "近一年", value: "1y" },
-                  ]}
-                  onChange={(value) => setExpenseTrendRange(value)}
-                />
-              </div>
-            ) : null}
-            <div className="expense-chart-modal-content">
-              {renderExpenseChartModalContent(activeExpenseChartKey)}
+          <Drawer
+            placement="bottom"
+            open={isMobileViewport && isUpdateSheetOpen}
+            onClose={() => setIsUpdateSheetOpen(false)}
+            size="90vh"
+            closable={false}
+            maskClosable
+            destroyOnHidden={false}
+            className="update-sheet"
+            styles={{ body: { padding: 16 } }}
+          >
+            <div className="update-sheet-actions">
+              <Button
+                block
+                onClick={() => {
+                  setIsUpdateSheetOpen(false);
+                  handleRefreshPrices("TW");
+                }}
+                disabled={loadingRefresh}
+                loading={loadingRefresh}
+              >
+                更新台股
+              </Button>
+              <Button
+                block
+                onClick={() => {
+                  setIsUpdateSheetOpen(false);
+                  handleRefreshPrices("US");
+                }}
+                disabled={loadingRefresh}
+                loading={loadingRefresh}
+              >
+                更新美股
+              </Button>
             </div>
-          </div>
-        </Modal>
+            <div className="update-sheet-footer">
+              上次更新價格於 {priceUpdatedRelativeText}
+            </div>
+          </Drawer>
 
-        <Modal
-          title="取消定期支出"
-          open={isStopRecurringModalOpen}
-          onCancel={closeStopRecurringModal}
-          onOk={confirmStopRecurring}
-          okText="確認取消"
-          cancelText="取消"
-          confirmLoading={Boolean(
-            Number.isInteger(Number(selectedRecurringToStop?.id))
-              ? stoppingRecurringById[Number(selectedRecurringToStop?.id)]
-              : false,
-          )}
-        >
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            <Text type="secondary">
-              已發生的紀錄會保留，未來將不再產生這筆定期支出。
-            </Text>
-            <Radio.Group
-              value={stopKeepToday}
-              onChange={(event) => setStopKeepToday(Boolean(event.target.value))}
-            >
-              <Space direction="vertical">
-                <Radio value>
-                  保留今天，從明天起停止
-                </Radio>
-                <Radio value={false}>
-                  連今天一起停止
-                </Radio>
-              </Space>
-            </Radio.Group>
-          </Space>
-        </Modal>
+          <MobileFormSheetLayout
+            title="新增持股"
+            open={isMobileViewport && isAddHoldingSheetOpen}
+            onClose={() => setIsAddHoldingSheetOpen(false)}
+            loading={loadingAddHolding}
+            submitText="新增持股"
+            submitFormId="mobile-holding-form"
+            className="holding-sheet"
+          >
+            <HoldingForm
+              onSubmit={handleAddHolding}
+              layout="vertical"
+              formId="mobile-holding-form"
+              popupContainer={getSheetPopupContainer}
+              disableAutofill
+              holdingTagOptions={holdingTagOptions}
+            />
+          </MobileFormSheetLayout>
 
-        <Modal
-          title="登入"
-          open={!isMobileViewport && isEmailLoginModalOpen}
-          onCancel={() => {
-            if (!isAuthDialogSubmitting) {
-              setIsEmailLoginModalOpen(false);
+          <MobileFormSheetLayout
+            title="新增銀行帳戶"
+            open={isMobileViewport && isAddCashSheetOpen}
+            onClose={() => setIsAddCashSheetOpen(false)}
+            loading={loadingAddCashAccount}
+            submitText="新增銀行帳戶"
+            submitFormId="mobile-cash-form"
+            className="cash-sheet"
+          >
+            <CashAccountForm
+              onSubmit={handleAddCashAccount}
+              loadingBankOptions={loadingBankOptions}
+              bankOptions={bankOptions}
+              formId="mobile-cash-form"
+              popupContainer={getSheetPopupContainer}
+              disableAutofill
+            />
+          </MobileFormSheetLayout>
+
+          <Modal
+            title="新增持股"
+            open={!isMobileViewport && isAddHoldingModalOpen}
+            onCancel={() => {
+              if (!loadingAddHolding) {
+                setIsAddHoldingModalOpen(false);
+              }
+            }}
+            footer={[
+              <Button
+                key="cancel"
+                onClick={() => setIsAddHoldingModalOpen(false)}
+                disabled={loadingAddHolding}
+              >
+                取消
+              </Button>,
+              <Button
+                key="submit"
+                type="primary"
+                htmlType="submit"
+                form="desktop-holding-form"
+                loading={loadingAddHolding}
+              >
+                新增持股
+              </Button>,
+            ]}
+            destroyOnHidden
+            mask={{ closable: !loadingAddHolding }}
+            keyboard={!loadingAddHolding}
+            closable={!loadingAddHolding}
+          >
+            <HoldingForm
+              onSubmit={handleAddHolding}
+              layout="vertical"
+              formId="desktop-holding-form"
+              popupContainer={getSheetPopupContainer}
+              holdingTagOptions={holdingTagOptions}
+            />
+          </Modal>
+
+          <Modal
+            title="新增銀行帳戶"
+            open={!isMobileViewport && isAddCashModalOpen}
+            onCancel={() => {
+              if (!loadingAddCashAccount) {
+                setIsAddCashModalOpen(false);
+              }
+            }}
+            footer={[
+              <Button
+                key="cancel"
+                onClick={() => setIsAddCashModalOpen(false)}
+                disabled={loadingAddCashAccount}
+              >
+                取消
+              </Button>,
+              <Button
+                key="submit"
+                type="primary"
+                htmlType="submit"
+                form="desktop-cash-form"
+                loading={loadingAddCashAccount}
+              >
+                新增銀行帳戶
+              </Button>,
+            ]}
+            destroyOnHidden
+            mask={{ closable: !loadingAddCashAccount }}
+            keyboard={!loadingAddCashAccount}
+            closable={!loadingAddCashAccount}
+          >
+            <CashAccountForm
+              onSubmit={handleAddCashAccount}
+              loadingBankOptions={loadingBankOptions}
+              bankOptions={bankOptions}
+              formId="desktop-cash-form"
+              popupContainer={getSheetPopupContainer}
+            />
+          </Modal>
+
+          <MobileFormSheetLayout
+            title={
+              expenseFormMode === "recurring-create"
+                ? "新增定期支出"
+                : editingExpenseEntry
+                  ? "編輯支出"
+                  : "新增支出"
             }
-          }}
-          footer={null}
-          destroyOnHidden
-          mask={{ closable: !isAuthDialogSubmitting }}
-          keyboard={!isAuthDialogSubmitting}
-          closable={!isAuthDialogSubmitting}
-        >
-          {authLoginContentNode}
-        </Modal>
-
-        <Drawer
-          placement="bottom"
-          open={isMobileViewport && isUpdateSheetOpen}
-          onClose={() => setIsUpdateSheetOpen(false)}
-          size="90vh"
-          closable={false}
-          maskClosable
-          destroyOnHidden={false}
-          className="update-sheet"
-          styles={{ body: { padding: 16 } }}
-        >
-          <div className="update-sheet-actions">
-            <Button
-              block
-              onClick={() => {
-                setIsUpdateSheetOpen(false);
-                handleRefreshPrices("TW");
-              }}
-              disabled={loadingRefresh}
-              loading={loadingRefresh}
-            >
-              更新台股
-            </Button>
-            <Button
-              block
-              onClick={() => {
-                setIsUpdateSheetOpen(false);
-                handleRefreshPrices("US");
-              }}
-              disabled={loadingRefresh}
-              loading={loadingRefresh}
-            >
-              更新美股
-            </Button>
-          </div>
-          <div className="update-sheet-footer">
-            上次更新價格於 {priceUpdatedRelativeText}
-          </div>
-        </Drawer>
-
-        <MobileFormSheetLayout
-          title="新增持股"
-          open={isMobileViewport && isAddHoldingSheetOpen}
-          onClose={() => setIsAddHoldingSheetOpen(false)}
-          loading={loadingAddHolding}
-          submitText="新增持股"
-          submitFormId="mobile-holding-form"
-          className="holding-sheet"
-        >
-          <HoldingForm
-            onSubmit={handleAddHolding}
-            layout="vertical"
-            formId="mobile-holding-form"
-            popupContainer={getSheetPopupContainer}
-            disableAutofill
-            holdingTagOptions={holdingTagOptions}
-          />
-        </MobileFormSheetLayout>
-
-        <MobileFormSheetLayout
-          title="新增銀行帳戶"
-          open={isMobileViewport && isAddCashSheetOpen}
-          onClose={() => setIsAddCashSheetOpen(false)}
-          loading={loadingAddCashAccount}
-          submitText="新增銀行帳戶"
-          submitFormId="mobile-cash-form"
-          className="cash-sheet"
-        >
-          <CashAccountForm
-            onSubmit={handleAddCashAccount}
-            loadingBankOptions={loadingBankOptions}
-            bankOptions={bankOptions}
-            formId="mobile-cash-form"
-            popupContainer={getSheetPopupContainer}
-            disableAutofill
-          />
-        </MobileFormSheetLayout>
-
-        <Modal
-          title="新增持股"
-          open={!isMobileViewport && isAddHoldingModalOpen}
-          onCancel={() => {
-            if (!loadingAddHolding) {
-              setIsAddHoldingModalOpen(false);
-            }
-          }}
-          footer={[
-            <Button
-              key="cancel"
-              onClick={() => setIsAddHoldingModalOpen(false)}
-              disabled={loadingAddHolding}
-            >
-              取消
-            </Button>,
-            <Button
-              key="submit"
-              type="primary"
-              htmlType="submit"
-              form="desktop-holding-form"
-              loading={loadingAddHolding}
-            >
-              新增持股
-            </Button>,
-          ]}
-          destroyOnHidden
-          mask={{ closable: !loadingAddHolding }}
-          keyboard={!loadingAddHolding}
-          closable={!loadingAddHolding}
-        >
-          <HoldingForm
-            onSubmit={handleAddHolding}
-            layout="vertical"
-            formId="desktop-holding-form"
-            popupContainer={getSheetPopupContainer}
-            holdingTagOptions={holdingTagOptions}
-          />
-        </Modal>
-
-        <Modal
-          title="新增銀行帳戶"
-          open={!isMobileViewport && isAddCashModalOpen}
-          onCancel={() => {
-            if (!loadingAddCashAccount) {
-              setIsAddCashModalOpen(false);
-            }
-          }}
-          footer={[
-            <Button
-              key="cancel"
-              onClick={() => setIsAddCashModalOpen(false)}
-              disabled={loadingAddCashAccount}
-            >
-              取消
-            </Button>,
-            <Button
-              key="submit"
-              type="primary"
-              htmlType="submit"
-              form="desktop-cash-form"
-              loading={loadingAddCashAccount}
-            >
-              新增銀行帳戶
-            </Button>,
-          ]}
-          destroyOnHidden
-          mask={{ closable: !loadingAddCashAccount }}
-          keyboard={!loadingAddCashAccount}
-          closable={!loadingAddCashAccount}
-        >
-          <CashAccountForm
-            onSubmit={handleAddCashAccount}
-            loadingBankOptions={loadingBankOptions}
-            bankOptions={bankOptions}
-            formId="desktop-cash-form"
-            popupContainer={getSheetPopupContainer}
-          />
-        </Modal>
-
-        <MobileFormSheetLayout
-          title={
-            expenseFormMode === "recurring-create"
-              ? "新增定期支出"
-              : (editingExpenseEntry ? "編輯支出" : "新增支出")
-          }
-          open={isMobileViewport && isExpenseSheetOpen}
-          onClose={() => {
-            setIsExpenseSheetOpen(false);
-            setEditingExpenseEntry(null);
-            setExpenseFormMode("normal");
-            expenseForm.resetFields();
-          }}
-          loading={loadingExpenseAction}
-          submitText="儲存"
-          onSubmit={handleSubmitExpense}
-        >
-          {expenseFormNode}
-        </MobileFormSheetLayout>
-
-        <MobileFormSheetLayout
-          title={editingCategory ? "編輯分類" : "新增分類"}
-          open={isMobileViewport && isCategorySheetOpen}
-          onClose={() => {
-            setIsCategorySheetOpen(false);
-            setEditingCategory(null);
-            categoryForm.resetFields();
-          }}
-          loading={loadingCategoryAction}
-          submitText="儲存"
-          onSubmit={handleSubmitCategory}
-        >
-          {categoryFormNode}
-        </MobileFormSheetLayout>
-
-        <MobileFormSheetLayout
-          title={editingBudget ? "編輯預算" : "新增預算"}
-          open={isMobileViewport && isBudgetSheetOpen}
-          onClose={() => {
-            setIsBudgetSheetOpen(false);
-            setEditingBudget(null);
-            budgetForm.resetFields();
-          }}
-          loading={loadingBudgetAction}
-          submitText="儲存"
-          onSubmit={handleSubmitBudget}
-        >
-          {budgetFormNode}
-        </MobileFormSheetLayout>
-
-        <Modal
-          title={
-            expenseFormMode === "recurring-create"
-              ? "新增定期支出"
-              : (editingExpenseEntry ? "編輯支出" : "新增支出")
-          }
-          open={!isMobileViewport && isExpenseModalOpen}
-          onCancel={() => {
-            if (!loadingExpenseAction) {
-              setIsExpenseModalOpen(false);
+            open={isMobileViewport && isExpenseSheetOpen}
+            onClose={() => {
+              setIsExpenseSheetOpen(false);
               setEditingExpenseEntry(null);
               setExpenseFormMode("normal");
               expenseForm.resetFields();
-            }
-          }}
-          onOk={handleSubmitExpense}
-          confirmLoading={loadingExpenseAction}
-          okText="儲存"
-          destroyOnHidden
-        >
-          {expenseFormNode}
-        </Modal>
+            }}
+            loading={loadingExpenseAction}
+            submitText="儲存"
+            onSubmit={handleSubmitExpense}
+          >
+            {expenseFormNode}
+          </MobileFormSheetLayout>
 
-        <Modal
-          title={editingCategory ? "編輯分類" : "新增分類"}
-          open={!isMobileViewport && isCategoryModalOpen}
-          onCancel={() => {
-            if (!loadingCategoryAction) {
-              setIsCategoryModalOpen(false);
+          <MobileFormSheetLayout
+            title={editingCategory ? "編輯分類" : "新增分類"}
+            open={isMobileViewport && isCategorySheetOpen}
+            onClose={() => {
+              setIsCategorySheetOpen(false);
               setEditingCategory(null);
               categoryForm.resetFields();
-            }
-          }}
-          onOk={handleSubmitCategory}
-          confirmLoading={loadingCategoryAction}
-          okText="儲存"
-          destroyOnHidden
-        >
-          {categoryFormNode}
-        </Modal>
+            }}
+            loading={loadingCategoryAction}
+            submitText="儲存"
+            onSubmit={handleSubmitCategory}
+          >
+            {categoryFormNode}
+          </MobileFormSheetLayout>
 
-        <Modal
-          title={editingBudget ? "編輯預算" : "新增預算"}
-          open={!isMobileViewport && isBudgetModalOpen}
-          onCancel={() => {
-            if (!loadingBudgetAction) {
-              setIsBudgetModalOpen(false);
+          <MobileFormSheetLayout
+            title={editingBudget ? "編輯預算" : "新增預算"}
+            open={isMobileViewport && isBudgetSheetOpen}
+            onClose={() => {
+              setIsBudgetSheetOpen(false);
               setEditingBudget(null);
               budgetForm.resetFields();
+            }}
+            loading={loadingBudgetAction}
+            submitText="儲存"
+            onSubmit={handleSubmitBudget}
+          >
+            {budgetFormNode}
+          </MobileFormSheetLayout>
+
+          <Modal
+            title={
+              expenseFormMode === "recurring-create"
+                ? "新增定期支出"
+                : editingExpenseEntry
+                  ? "編輯支出"
+                  : "新增支出"
             }
-          }}
-          onOk={handleSubmitBudget}
-          confirmLoading={loadingBudgetAction}
-          okText="儲存"
-          destroyOnHidden
-        >
-          {budgetFormNode}
-        </Modal>
-      </Content>
-    </Layout>
+            open={!isMobileViewport && isExpenseModalOpen}
+            onCancel={() => {
+              if (!loadingExpenseAction) {
+                setIsExpenseModalOpen(false);
+                setEditingExpenseEntry(null);
+                setExpenseFormMode("normal");
+                expenseForm.resetFields();
+              }
+            }}
+            onOk={handleSubmitExpense}
+            confirmLoading={loadingExpenseAction}
+            okText="儲存"
+            destroyOnHidden
+          >
+            {expenseFormNode}
+          </Modal>
+
+          <Modal
+            title={editingCategory ? "編輯分類" : "新增分類"}
+            open={!isMobileViewport && isCategoryModalOpen}
+            onCancel={() => {
+              if (!loadingCategoryAction) {
+                setIsCategoryModalOpen(false);
+                setEditingCategory(null);
+                categoryForm.resetFields();
+              }
+            }}
+            onOk={handleSubmitCategory}
+            confirmLoading={loadingCategoryAction}
+            okText="儲存"
+            destroyOnHidden
+          >
+            {categoryFormNode}
+          </Modal>
+
+          <Modal
+            title={editingBudget ? "編輯預算" : "新增預算"}
+            open={!isMobileViewport && isBudgetModalOpen}
+            onCancel={() => {
+              if (!loadingBudgetAction) {
+                setIsBudgetModalOpen(false);
+                setEditingBudget(null);
+                budgetForm.resetFields();
+              }
+            }}
+            onOk={handleSubmitBudget}
+            confirmLoading={loadingBudgetAction}
+            okText="儲存"
+            destroyOnHidden
+          >
+            {budgetFormNode}
+          </Modal>
+        </Content>
+      </Layout>
     </AppErrorBoundary>
   );
 }
