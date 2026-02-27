@@ -41,6 +41,7 @@ cp .env.example .env.local
 - `VITE_FIREBASE_AUTH_DOMAIN`
 - `VITE_FIREBASE_PROJECT_ID`
 - `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_RECAPTCHA_SITE_KEY`（App Check / reCAPTCHA v3）
 
 台股 fallback 順序：
 1. Finnhub
@@ -70,6 +71,7 @@ npm run build
   - `VITE_FIREBASE_AUTH_DOMAIN`
   - `VITE_FIREBASE_PROJECT_ID`
   - `VITE_FIREBASE_APP_ID`
+  - `VITE_FIREBASE_RECAPTCHA_SITE_KEY`
 - `vite.config.js` 會在 production 自動使用 `/<repo-name>/` 當作 base
 
 ## Firestore Rules（建議）
@@ -84,6 +86,18 @@ service cloud.firestore {
   }
 }
 ```
+
+本 repo 已提供 `firestore.rules` 與 `firebase.json` 的 rules 路徑設定，可用以下指令部署：
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+## App Check（建議）
+
+1. Firebase Console > App Check，為 Web App 啟用 reCAPTCHA v3。
+2. 先用 monitor 模式觀察 24~48 小時，再切 enforce。
+3. production 需配置 `VITE_FIREBASE_RECAPTCHA_SITE_KEY`，前端才會啟用 App Check token。
 
 ## Data Model (IndexedDB)
 

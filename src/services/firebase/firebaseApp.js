@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app'
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check'
 import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
@@ -25,8 +26,26 @@ export const firebaseApp = isFirebaseConfigured
 export const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null
 export const firestoreDb = firebaseApp ? getFirestore(firebaseApp) : null
 
+const recaptchaSiteKey = import.meta.env.VITE_FIREBASE_RECAPTCHA_SITE_KEY
+export const isAppCheckConfigured = Boolean(recaptchaSiteKey)
+
+export const firebaseAppCheck = (
+  firebaseApp
+  && import.meta.env.PROD
+  && isAppCheckConfigured
+)
+  ? initializeAppCheck(firebaseApp, {
+    provider: new ReCaptchaV3Provider(recaptchaSiteKey),
+    isTokenAutoRefreshEnabled: true,
+  })
+  : null
+
 export const assertFirebaseConfigured = () => {
   if (!isFirebaseConfigured) {
     throw new Error('Missing Firebase config. Check VITE_FIREBASE_* in .env.local or GitHub Secrets.')
   }
+}
+
+if (firebaseApp && import.meta.env.PROD && !isAppCheckConfigured) {
+  console.warn('App Check is not configured. Set VITE_FIREBASE_RECAPTCHA_SITE_KEY for production.')
 }
