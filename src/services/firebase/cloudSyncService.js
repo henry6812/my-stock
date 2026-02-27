@@ -12,11 +12,13 @@ import {
   buildCashBalanceSnapshotKey,
   buildCashAccountKey,
   buildBudgetKey,
+  buildAppConfigKey,
   buildExpenseCategoryKey,
   buildExpenseEntryKey,
   buildHoldingKey,
   buildSnapshotKey,
   budgetToRemote,
+  appConfigToRemote,
   cashBalanceSnapshotToRemote,
   cashAccountToRemote,
   expenseCategoryToRemote,
@@ -25,6 +27,7 @@ import {
   holdingToRemote,
   isRemoteNewer,
   remoteToBudget,
+  remoteToAppConfig,
   remoteToCashBalanceSnapshot,
   remoteToCashAccount,
   remoteToExpenseCategory,
@@ -52,6 +55,7 @@ const COLLECTIONS = {
   EXPENSE_ENTRIES: 'expense_entries',
   EXPENSE_CATEGORIES: 'expense_categories',
   BUDGETS: 'budgets',
+  APP_CONFIG: 'app_config',
 }
 
 let currentUid = null
@@ -172,6 +176,7 @@ const clearLocalCloudBackedData = async () => {
     db.expense_entries,
     db.expense_categories,
     db.budgets,
+    db.app_config,
     async () => {
       await db.holdings.clear()
       await db.price_snapshots.clear()
@@ -182,6 +187,7 @@ const clearLocalCloudBackedData = async () => {
       await db.expense_entries.clear()
       await db.expense_categories.clear()
       await db.budgets.clear()
+      await db.app_config.clear()
     },
   )
 }
@@ -213,6 +219,9 @@ const buildMutationPayload = ({ collectionName, record }) => {
   }
   if (collectionName === COLLECTIONS.BUDGETS) {
     return { docId: buildBudgetKey(record), payload: budgetToRemote(record) }
+  }
+  if (collectionName === COLLECTIONS.APP_CONFIG) {
+    return { docId: buildAppConfigKey(record), payload: appConfigToRemote(record) }
   }
   throw new Error(`Unsupported collection for mutation: ${collectionName}`)
 }
@@ -479,6 +488,20 @@ const applyRemoteBudget = async (remote) => {
   })
 }
 
+const applyRemoteAppConfig = async (remote) => {
+  if (!remote.key) return
+  const local = await db.app_config.get(remote.key)
+  if (local?.updatedAt && remote.updatedAt && local.updatedAt >= remote.updatedAt) return
+  await db.app_config.put({
+    ...local,
+    ...remote,
+    key: remote.key,
+    updatedAt: remote.updatedAt ?? local?.updatedAt ?? getNowIso(),
+    deletedAt: remote.deletedAt ?? null,
+    syncState: SYNC_SYNCED,
+  })
+}
+
 const applyRealtimeSnapshot = async (collectionName, snapshot) => {
   for (const change of snapshot.docChanges()) {
     if (change.type === 'removed') {
@@ -519,6 +542,10 @@ const applyRealtimeSnapshot = async (collectionName, snapshot) => {
     }
     if (collectionName === COLLECTIONS.BUDGETS) {
       await applyRemoteBudget(remoteToBudget(data))
+      continue
+    }
+    if (collectionName === COLLECTIONS.APP_CONFIG) {
+      await applyRemoteAppConfig(remoteToAppConfig(data))
     }
   }
   emitCloudUpdated()
@@ -638,6 +665,7 @@ export const startRealtimeSync = async (uid) => {
       COLLECTIONS.EXPENSE_ENTRIES,
       COLLECTIONS.EXPENSE_CATEGORIES,
       COLLECTIONS.BUDGETS,
+      COLLECTIONS.APP_CONFIG,
     ]),
     waiters: [],
   }
@@ -656,6 +684,7 @@ export const startRealtimeSync = async (uid) => {
     subscribeCollection(COLLECTIONS.EXPENSE_ENTRIES),
     subscribeCollection(COLLECTIONS.EXPENSE_CATEGORIES),
     subscribeCollection(COLLECTIONS.BUDGETS),
+    subscribeCollection(COLLECTIONS.APP_CONFIG),
   ])
 
   onlineHandler = () => {

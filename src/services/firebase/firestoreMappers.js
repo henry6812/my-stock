@@ -34,6 +34,8 @@ export const buildBudgetKey = (budget) => (
   budget.remoteKey || `budget_${budget.id}`
 )
 
+export const buildAppConfigKey = (config) => String(config?.key || '')
+
 export const holdingToRemote = (holding) => ({
   symbol: holding.symbol,
   market: holding.market,
@@ -145,6 +147,21 @@ export const budgetToRemote = (budget) => ({
   clientUpdatedAt: budget.updatedAt,
 })
 
+export const appConfigToRemote = (config) => ({
+  key: config.key,
+  ...(Array.isArray(config.options) ? { options: config.options } : {}),
+  defaultMonthlyIncomeTwd:
+    typeof config.defaultMonthlyIncomeTwd === 'number'
+      ? config.defaultMonthlyIncomeTwd
+      : null,
+  monthOverrides: Array.isArray(config.monthOverrides)
+    ? config.monthOverrides
+    : [],
+  updatedAt: config.updatedAt,
+  deletedAt: config.deletedAt ?? null,
+  clientUpdatedAt: config.updatedAt,
+})
+
 export const remoteToHolding = (data) => ({
   symbol: data.symbol,
   market: data.market,
@@ -243,6 +260,20 @@ export const remoteToBudget = (data) => ({
   budgetType: data.budgetType || 'MONTHLY',
   startDate: data.startDate,
   createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
+  updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
+  deletedAt: toIso(data.deletedAt),
+})
+
+export const remoteToAppConfig = (data) => ({
+  key: data.key,
+  options: Array.isArray(data.options) ? data.options : undefined,
+  defaultMonthlyIncomeTwd:
+    typeof data.defaultMonthlyIncomeTwd === 'number'
+      ? data.defaultMonthlyIncomeTwd
+      : null,
+  monthOverrides: Array.isArray(data.monthOverrides)
+    ? data.monthOverrides
+    : [],
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),
 })

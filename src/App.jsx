@@ -112,6 +112,9 @@ import {
   upsertCashAccount,
   upsertHolding,
   getExpenseDashboardView,
+  saveIncomeSettings,
+  setIncomeOverride,
+  removeIncomeOverride,
   upsertExpenseEntry,
   stopRecurringExpense,
   removeExpenseEntry,
@@ -427,6 +430,15 @@ function App() {
   const [expenseFirstDate, setExpenseFirstDate] = useState(null);
   const [expenseCategoryRows, setExpenseCategoryRows] = useState([]);
   const [budgetRows, setBudgetRows] = useState([]);
+  const [defaultMonthlyIncomeTwd, setDefaultMonthlyIncomeTwd] = useState(null);
+  const [incomeMonthOverrides, setIncomeMonthOverrides] = useState([]);
+  const [incomeProgress, setIncomeProgress] = useState({
+    month: { numerator: 0, denominator: null, ratio: null, hasIncome: false },
+    cumulative: { numerator: 0, denominator: null, ratio: null, hasIncome: false },
+  });
+  const [newIncomeOverrideMonth, setNewIncomeOverrideMonth] = useState(dayjs());
+  const [newIncomeOverrideValue, setNewIncomeOverrideValue] = useState(null);
+  const [loadingIncomeSettings, setLoadingIncomeSettings] = useState(false);
   const [recurringExpenseRows, setRecurringExpenseRows] = useState([]);
   const [expenseAnalyticsAllHistory, setExpenseAnalyticsAllHistory] = useState(
     DEFAULT_EXPENSE_ANALYTICS,
@@ -883,6 +895,19 @@ function App() {
       setExpenseFirstDate(view.firstExpenseDate || null);
       setExpenseCategoryRows(view.categoryRows ?? []);
       setBudgetRows(view.budgetRows ?? []);
+      setDefaultMonthlyIncomeTwd(view.incomeSettings?.defaultMonthlyIncomeTwd ?? null);
+      setIncomeMonthOverrides(view.incomeSettings?.monthOverrides ?? []);
+      setIncomeProgress(
+        view.expenseIncomeProgress ?? {
+          month: { numerator: 0, denominator: null, ratio: null, hasIncome: false },
+          cumulative: {
+            numerator: 0,
+            denominator: null,
+            ratio: null,
+            hasIncome: false,
+          },
+        },
+      );
       setRecurringExpenseRows(view.recurringExpenseRows ?? []);
       setExpenseAnalyticsAllHistory(
         view.expenseAnalyticsAllHistory ??
@@ -2982,6 +3007,38 @@ function App() {
     expenseTotalMode === "cumulative"
       ? expenseCumulativeTotalTwd
       : expenseMonthlyTotalTwd;
+  const activeIncomeProgress =
+    expenseTotalMode === "cumulative"
+      ? incomeProgress?.cumulative
+      : incomeProgress?.month;
+  const expenseIncomeProgressPercent = useMemo(() => {
+    const ratio = Number(activeIncomeProgress?.ratio);
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      return 0;
+    }
+    return Math.min(100, Math.round(ratio * 100));
+  }, [activeIncomeProgress]);
+  const expenseIncomeProgressMeta = useMemo(() => {
+    if (!activeIncomeProgress?.hasIncome) {
+      return "";
+    }
+    const numerator = Number(activeIncomeProgress?.numerator) || 0;
+    const denominator = Number(activeIncomeProgress?.denominator) || 0;
+    if (expenseTotalMode === "cumulative") {
+      return `累計開支 ${formatTwd(numerator)} / 年收入 ${formatTwd(denominator)}`;
+    }
+    return `本月開支 ${formatTwd(numerator)} / 本月收入 ${formatTwd(denominator)}`;
+  }, [activeIncomeProgress, expenseTotalMode]);
+  const expenseIncomeRateText = useMemo(() => {
+    if (!activeIncomeProgress?.hasIncome) {
+      return "";
+    }
+    const ratio = Number(activeIncomeProgress?.ratio);
+    if (!Number.isFinite(ratio) || ratio < 0) {
+      return "";
+    }
+    return `支出率 ${(ratio * 100).toFixed(1)}%`;
+  }, [activeIncomeProgress]);
   const expenseActiveMonthIndex = useMemo(
     () =>
       safeActiveExpenseMonth
@@ -3003,6 +3060,73 @@ function App() {
       return today >= budget.cycleStart && today <= budget.cycleEnd;
     });
   }, [budgetRows]);
+
+  const handleAddIncomeOverride = useCallback(async () => {
+    const monthValue = dayjs(newIncomeOverrideMonth).format("YYYY-MM");
+    const incomeValue = Number(newIncomeOverrideValue);
+    if (!Number.isFinite(incomeValue) || incomeValue <= 0) {
+      message.error("請輸入有效的覆寫收入金額");
+      return;
+    }
+    try {
+      setLoadingIncomeSettings(true);
+      await setIncomeOverride({ month: monthValue, incomeTwd: incomeValue });
+      await loadExpenseData();
+      await performCloudSync();
+      setNewIncomeOverrideValue(null);
+      message.success("月份收入覆寫已新增");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "新增月份收入覆寫失敗");
+    } finally {
+      setLoadingIncomeSettings(false);
+    }
+  }, [
+    loadExpenseData,
+    message,
+    newIncomeOverrideMonth,
+    newIncomeOverrideValue,
+    performCloudSync,
+  ]);
+
+  const handleRemoveIncomeOverride = useCallback(
+    async (month) => {
+      try {
+        setLoadingIncomeSettings(true);
+        await removeIncomeOverride({ month });
+        await loadExpenseData();
+        await performCloudSync();
+        message.success("月份收入覆寫已刪除");
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "刪除月份收入覆寫失敗");
+      } finally {
+        setLoadingIncomeSettings(false);
+      }
+    },
+    [loadExpenseData, message, performCloudSync],
+  );
+
+  const handleSaveIncomeSettings = useCallback(async () => {
+    try {
+      setLoadingIncomeSettings(true);
+      await saveIncomeSettings({
+        defaultMonthlyIncomeTwd,
+        monthOverrides: incomeMonthOverrides,
+      });
+      await loadExpenseData();
+      await performCloudSync();
+      message.success("收入設定已儲存");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "儲存收入設定失敗");
+    } finally {
+      setLoadingIncomeSettings(false);
+    }
+  }, [
+    defaultMonthlyIncomeTwd,
+    incomeMonthOverrides,
+    loadExpenseData,
+    message,
+    performCloudSync,
+  ]);
 
   const effectiveExpenseAnalytics = useMemo(
     () =>
@@ -3983,6 +4107,23 @@ function App() {
                         </Tooltip>
                       ) : null}
                     </div>
+                    <div className="expense-income-progress">
+                      <Progress
+                        percent={expenseIncomeProgressPercent}
+                        showInfo={false}
+                        size="small"
+                      />
+                      {expenseIncomeProgressMeta ? (
+                        <div className="expense-income-progress-meta">
+                          <Text type="secondary">
+                            {expenseIncomeProgressMeta}
+                          </Text>
+                          <Text type="secondary">
+                            {expenseIncomeRateText}
+                          </Text>
+                        </div>
+                      ) : null}
+                    </div>
                     {expenseTotalMode === "cumulative" && (
                       <Text
                         type="secondary"
@@ -4267,6 +4408,109 @@ function App() {
               )}
               {activeMainTab === "settings" && (
                 <>
+              <Col xs={24}>
+                <Card title="收入設定">
+                  <Space
+                    direction="vertical"
+                    size={12}
+                    style={{ width: "100%" }}
+                  >
+                    <div className="income-settings-row">
+                      <Text type="secondary">預設每月收入 (TWD)</Text>
+                      <InputNumber
+                        min={0}
+                        step={1000}
+                        precision={0}
+                        style={{ width: isMobileViewport ? "100%" : 240 }}
+                        value={defaultMonthlyIncomeTwd ?? undefined}
+                        placeholder="未設定"
+                        onChange={(value) =>
+                          setDefaultMonthlyIncomeTwd(
+                            typeof value === "number" ? value : null,
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="income-settings-row">
+                      <Text type="secondary">新增月份覆寫</Text>
+                      <Space wrap>
+                        <DatePicker
+                          picker="month"
+                          value={dayjs(newIncomeOverrideMonth)}
+                          onChange={(value) =>
+                            setNewIncomeOverrideMonth(value || dayjs())
+                          }
+                          getPopupContainer={getSheetPopupContainer}
+                        />
+                        <InputNumber
+                          min={1}
+                          step={1000}
+                          precision={0}
+                          value={newIncomeOverrideValue ?? undefined}
+                          placeholder="收入金額"
+                          onChange={(value) =>
+                            setNewIncomeOverrideValue(
+                              typeof value === "number" ? value : null,
+                            )
+                          }
+                        />
+                        <Button
+                          onClick={handleAddIncomeOverride}
+                          loading={loadingIncomeSettings}
+                        >
+                          新增覆寫
+                        </Button>
+                      </Space>
+                    </div>
+                    <Table
+                      rowKey="month"
+                      size="small"
+                      pagination={false}
+                      dataSource={incomeMonthOverrides}
+                      locale={{ emptyText: "尚無月份覆寫" }}
+                      columns={[
+                        {
+                          title: "月份",
+                          dataIndex: "month",
+                          key: "month",
+                        },
+                        {
+                          title: "收入 (TWD)",
+                          dataIndex: "incomeTwd",
+                          key: "incomeTwd",
+                          align: "right",
+                          render: (value) => formatTwd(value),
+                        },
+                        {
+                          title: "操作",
+                          key: "actions",
+                          width: 90,
+                          render: (_, record) => (
+                            <Button
+                              danger
+                              size="small"
+                              icon={<DeleteOutlined />}
+                              loading={loadingIncomeSettings}
+                              onClick={() =>
+                                handleRemoveIncomeOverride(record.month)
+                              }
+                            />
+                          ),
+                        },
+                      ]}
+                    />
+                    <div className="income-settings-actions">
+                      <Button
+                        type="primary"
+                        onClick={handleSaveIncomeSettings}
+                        loading={loadingIncomeSettings}
+                      >
+                        儲存收入設定
+                      </Button>
+                    </div>
+                  </Space>
+                </Card>
+              </Col>
               <Col xs={24} lg={12}>
                 <Card
                   title={

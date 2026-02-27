@@ -44,6 +44,7 @@ const CLOUD_COLLECTION = {
   EXPENSE_ENTRIES: 'expense_entries',
   EXPENSE_CATEGORIES: 'expense_categories',
   BUDGETS: 'budgets',
+  APP_CONFIG: 'app_config',
 }
 
 const TREND_RANGE_DAYS = {
@@ -70,6 +71,7 @@ const BUDGET_TYPE = {
 
 const EXPENSE_PAYER_OPTIONS = ['Po', 'Wei', '共同帳戶']
 const EXPENSE_KIND_OPTIONS = ['家庭', '個人']
+const INCOME_SETTINGS_KEY = 'income_settings'
 
 const isDeleted = (item) => Boolean(item?.deletedAt)
 
@@ -89,6 +91,44 @@ const toDayjsDateOnly = (value) => dayjs(normalizeDateOnly(value))
 
 const mirrorToCloud = async (collectionName, record) => {
   await writeCollectionRecord({ collectionName, record })
+}
+
+const normalizeIncomeValue = (value) => {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error('Income must be a positive number')
+  }
+  return Math.round(parsed)
+}
+
+const normalizeMonthValue = (month) => {
+  const parsed = dayjs(`${month}-01`)
+  if (!parsed.isValid()) {
+    throw new Error('Invalid month format')
+  }
+  return parsed.format('YYYY-MM')
+}
+
+const normalizeMonthOverrides = (overrides = []) => {
+  const map = new Map()
+  for (const item of overrides) {
+    if (!item) continue
+    const month = normalizeMonthValue(item.month)
+    const incomeTwd = normalizeIncomeValue(item.incomeTwd)
+    if (incomeTwd === null) continue
+    map.set(month, incomeTwd)
+  }
+  return Array.from(map.entries())
+    .map(([month, incomeTwd]) => ({ month, incomeTwd }))
+    .sort((a, b) => a.month.localeCompare(b.month))
+}
+
+const resolveIncomeForMonth = ({ month, defaultMonthlyIncomeTwd, monthOverridesMap }) => {
+  if (monthOverridesMap.has(month)) {
+    return monthOverridesMap.get(month)
+  }
+  return typeof defaultMonthlyIncomeTwd === 'number' ? defaultMonthlyIncomeTwd : null
 }
 
 const sortHoldingsByOrder = (a, b) => {
@@ -261,6 +301,58 @@ export const syncNow = async () => syncNowWithCloud()
 export const getCloudSyncRuntime = () => getSyncRuntimeState()
 
 export const getHoldingTagOptions = async () => ensureHoldingTagOptions()
+
+export const getIncomeSettings = async () => {
+  const config = await db.app_config.get(INCOME_SETTINGS_KEY)
+  const defaultMonthlyIncomeTwd =
+    typeof config?.defaultMonthlyIncomeTwd === 'number'
+      ? config.defaultMonthlyIncomeTwd
+      : null
+  const monthOverrides = normalizeMonthOverrides(config?.monthOverrides ?? [])
+  return { defaultMonthlyIncomeTwd, monthOverrides }
+}
+
+export const saveIncomeSettings = async (input = {}) => {
+  const nowIso = getNowIso()
+  const defaultMonthlyIncomeTwd = normalizeIncomeValue(input.defaultMonthlyIncomeTwd)
+  const monthOverrides = normalizeMonthOverrides(input.monthOverrides ?? [])
+  const record = {
+    key: INCOME_SETTINGS_KEY,
+    defaultMonthlyIncomeTwd,
+    monthOverrides,
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  }
+  await db.app_config.put(record)
+  await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, record)
+}
+
+export const setIncomeOverride = async ({ month, incomeTwd }) => {
+  const { defaultMonthlyIncomeTwd, monthOverrides } = await getIncomeSettings()
+  const normalizedMonth = normalizeMonthValue(month)
+  const normalizedIncome = normalizeIncomeValue(incomeTwd)
+  if (normalizedIncome === null) {
+    throw new Error('Income must be a positive number')
+  }
+
+  const next = monthOverrides.filter((item) => item.month !== normalizedMonth)
+  next.push({ month: normalizedMonth, incomeTwd: normalizedIncome })
+  await saveIncomeSettings({
+    defaultMonthlyIncomeTwd,
+    monthOverrides: next,
+  })
+}
+
+export const removeIncomeOverride = async ({ month }) => {
+  const { defaultMonthlyIncomeTwd, monthOverrides } = await getIncomeSettings()
+  const normalizedMonth = normalizeMonthValue(month)
+  const next = monthOverrides.filter((item) => item.month !== normalizedMonth)
+  await saveIncomeSettings({
+    defaultMonthlyIncomeTwd,
+    monthOverrides: next,
+  })
+}
 
 export const upsertHolding = async ({ symbol, market, shares, assetTag }) => {
   const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW
@@ -1998,6 +2090,41 @@ export const getExpenseDashboardView = async (input = {}) => {
     .map((entry) => normalizeDateOnly(entry.occurredAt))
     .filter(Boolean)
     .sort()[0] || null
+  const incomeSettings = await getIncomeSettings()
+  const monthOverridesMap = new Map(
+    (incomeSettings.monthOverrides || []).map((item) => [item.month, Number(item.incomeTwd) || 0]),
+  )
+  const incomeForActiveMonthTwd = resolveIncomeForMonth({
+    month: activeMonth,
+    defaultMonthlyIncomeTwd: incomeSettings.defaultMonthlyIncomeTwd,
+    monthOverridesMap,
+  })
+  const currentYear = dayjs().year()
+  const incomeForCurrentYearTwd = Array.from({ length: 12 }).reduce((sum, _, index) => {
+    const month = dayjs(`${currentYear}-01-01`).month(index).format('YYYY-MM')
+    const monthlyIncome = resolveIncomeForMonth({
+      month,
+      defaultMonthlyIncomeTwd: incomeSettings.defaultMonthlyIncomeTwd,
+      monthOverridesMap,
+    })
+    return sum + (typeof monthlyIncome === 'number' ? monthlyIncome : 0)
+  }, 0)
+  const monthHasIncome = typeof incomeForActiveMonthTwd === 'number' && incomeForActiveMonthTwd > 0
+  const yearHasIncome = incomeForCurrentYearTwd > 0
+  const expenseIncomeProgress = {
+    month: {
+      numerator: monthlyExpenseTotalTwd,
+      denominator: monthHasIncome ? incomeForActiveMonthTwd : null,
+      ratio: monthHasIncome ? monthlyExpenseTotalTwd / incomeForActiveMonthTwd : null,
+      hasIncome: monthHasIncome,
+    },
+    cumulative: {
+      numerator: cumulativeExpenseTotalTwd,
+      denominator: yearHasIncome ? incomeForCurrentYearTwd : null,
+      ratio: yearHasIncome ? cumulativeExpenseTotalTwd / incomeForCurrentYearTwd : null,
+      hasIncome: yearHasIncome,
+    },
+  }
 
   const today = getNowDate()
   const budgetRows = budgets.map((budget) => {
@@ -2082,6 +2209,10 @@ export const getExpenseDashboardView = async (input = {}) => {
     monthlyExpenseTotalTwd,
     cumulativeExpenseTotalTwd,
     firstExpenseDate,
+    incomeForActiveMonthTwd: monthHasIncome ? incomeForActiveMonthTwd : null,
+    incomeForCurrentYearTwd: yearHasIncome ? incomeForCurrentYearTwd : null,
+    expenseIncomeProgress,
+    incomeSettings,
     expenseRows: decoratedExpenseRows,
     categoryRows: categories
       .map((item) => ({ id: item.id, name: item.name, updatedAt: item.updatedAt }))
