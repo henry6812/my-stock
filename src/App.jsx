@@ -56,6 +56,7 @@ import {
   MenuOutlined,
   PlusOutlined,
   PieChartOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import {
   DndContext,
@@ -427,7 +428,10 @@ function App() {
   const [expenseCategoryRows, setExpenseCategoryRows] = useState([]);
   const [budgetRows, setBudgetRows] = useState([]);
   const [recurringExpenseRows, setRecurringExpenseRows] = useState([]);
-  const [expenseAnalytics, setExpenseAnalytics] = useState(
+  const [expenseAnalyticsAllHistory, setExpenseAnalyticsAllHistory] = useState(
+    DEFAULT_EXPENSE_ANALYTICS,
+  );
+  const [expenseAnalyticsByMonth, setExpenseAnalyticsByMonth] = useState(
     DEFAULT_EXPENSE_ANALYTICS,
   );
   const [expenseTrendRange, setExpenseTrendRange] = useState("6m");
@@ -880,7 +884,14 @@ function App() {
       setExpenseCategoryRows(view.categoryRows ?? []);
       setBudgetRows(view.budgetRows ?? []);
       setRecurringExpenseRows(view.recurringExpenseRows ?? []);
-      setExpenseAnalytics(view.expenseAnalytics ?? DEFAULT_EXPENSE_ANALYTICS);
+      setExpenseAnalyticsAllHistory(
+        view.expenseAnalyticsAllHistory ??
+          view.expenseAnalytics ??
+          DEFAULT_EXPENSE_ANALYTICS,
+      );
+      setExpenseAnalyticsByMonth(
+        view.expenseAnalyticsByMonth ?? DEFAULT_EXPENSE_ANALYTICS,
+      );
       setSelectableBudgetOptions(view.selectableBudgets ?? []);
     },
     [activeExpenseMonth],
@@ -2993,20 +3004,28 @@ function App() {
     });
   }, [budgetRows]);
 
+  const effectiveExpenseAnalytics = useMemo(
+    () =>
+      expenseTotalMode === "cumulative"
+        ? expenseAnalyticsAllHistory
+        : expenseAnalyticsByMonth,
+    [expenseAnalyticsAllHistory, expenseAnalyticsByMonth, expenseTotalMode],
+  );
+
   const trendMonths = useMemo(() => {
-    const source = Array.isArray(expenseAnalytics?.monthlyTotalsAllHistory)
-      ? expenseAnalytics.monthlyTotalsAllHistory
+    const source = Array.isArray(effectiveExpenseAnalytics?.monthlyTotalsAllHistory)
+      ? effectiveExpenseAnalytics.monthlyTotalsAllHistory
       : [];
     const size = expenseTrendRange === "1y" ? 12 : 6;
     return source.slice(-size).map((item) => ({
       ...item,
       monthLabel: dayjs(`${item.month}-01`).format("YY/MM"),
     }));
-  }, [expenseAnalytics, expenseTrendRange]);
+  }, [effectiveExpenseAnalytics, expenseTrendRange]);
 
   const kindAnalysisData = useMemo(
     () =>
-      (expenseAnalytics?.kindBreakdown ?? [])
+      (effectiveExpenseAnalytics?.kindBreakdown ?? [])
         .filter((item) => Number(item.value) > 0)
         .map((item) => ({
           name: item.key,
@@ -3018,21 +3037,21 @@ function App() {
                 ? "#52c41a"
                 : "#8c8c8c",
         })),
-    [expenseAnalytics],
+    [effectiveExpenseAnalytics],
   );
 
   const payerRankingData = useMemo(
     () =>
-      (expenseAnalytics?.payerRanking ?? []).map((item) => ({
+      (effectiveExpenseAnalytics?.payerRanking ?? []).map((item) => ({
         name: item.label,
         value: Number(item.value) || 0,
       })),
-    [expenseAnalytics],
+    [effectiveExpenseAnalytics],
   );
 
   const familyBalanceData = useMemo(
     () =>
-      (expenseAnalytics?.familyBalance ?? [])
+      (effectiveExpenseAnalytics?.familyBalance ?? [])
         .filter((item) => item.key === "po_family" || item.key === "wei_family")
         .filter((item) => Number(item.value) > 0)
         .map((item) => ({
@@ -3045,12 +3064,12 @@ function App() {
                 ? "#13c2c2"
                 : "#8c8c8c",
         })),
-    [expenseAnalytics],
+    [effectiveExpenseAnalytics],
   );
 
   const categoryAnalysisData = useMemo(
     () =>
-      (expenseAnalytics?.categoryBreakdown ?? [])
+      (effectiveExpenseAnalytics?.categoryBreakdown ?? [])
         .filter((item) => Number(item.value) > 0)
         .slice(0, 8)
         .map((item, index) => ({
@@ -3067,7 +3086,7 @@ function App() {
             "#2f54eb",
           ][index % 8],
         })),
-    [expenseAnalytics],
+    [effectiveExpenseAnalytics],
   );
 
   const expenseChartPreviewSummary = useMemo(() => {
@@ -3425,6 +3444,11 @@ function App() {
                     label: "支出分析",
                     value: "expense",
                     icon: <FundProjectionScreenOutlined />,
+                  },
+                  {
+                    label: "設定",
+                    value: "settings",
+                    icon: <SettingOutlined />,
                   },
                 ]}
               />
@@ -3878,6 +3902,8 @@ function App() {
             </Row>
           ) : (
             <Row gutter={[16, 16]}>
+              {activeMainTab === "expense" && (
+                <>
               <Col xs={24}>
                 <div className="expense-summary-panel expense-summary-panel--plain">
                   <Segmented
@@ -4237,6 +4263,10 @@ function App() {
                   />
                 </Card>
               </Col>
+                </>
+              )}
+              {activeMainTab === "settings" && (
+                <>
               <Col xs={24} lg={12}>
                 <Card
                   title={
@@ -4310,6 +4340,8 @@ function App() {
                   />
                 </Card>
               </Col>
+                </>
+              )}
             </Row>
           )}
 
@@ -4336,6 +4368,13 @@ function App() {
                 onClick={() => setActiveMainTab("expense")}
               >
                 支出分析
+              </Button>
+              <Button
+                type={activeMainTab === "settings" ? "primary" : "default"}
+                icon={<SettingOutlined />}
+                onClick={() => setActiveMainTab("settings")}
+              >
+                設定
               </Button>
             </div>
           )}
