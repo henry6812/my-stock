@@ -60,9 +60,11 @@
 
 .mobile-main-tabbar {
   position: sticky;
-  bottom: 20px;
+  bottom: 30px;
   z-index: 20;
   width: fit-content;
+  max-width: calc(100vw - 20px);
+  box-sizing: border-box;
   margin: 18px auto 0;
   display: flex;
   gap: 8px;
@@ -77,10 +79,13 @@
 
 .mobile-main-tabbar .ant-segmented {
   background: transparent;
+  width: 100%;
+  max-width: 100%;
 }
 
 .mobile-main-tabbar .ant-segmented-group {
   gap: 6px;
+  width: 100%;
 }
 
 .mobile-main-tabbar .ant-segmented-item {
@@ -88,6 +93,9 @@
   min-height: 30px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  min-width: 0;
   white-space: nowrap;
 }
 
@@ -95,6 +103,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
 }
 
 .mobile-main-tabbar .ant-segmented-item-selected {
@@ -150,6 +159,41 @@
 
 .pull-refresh-indicator.is-refreshing {
   transition: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .ant-btn,
+  .ant-segmented-item {
+    touch-action: manipulation;
+  }
+
+  .ant-btn:hover,
+  .ant-btn:focus-visible {
+    box-shadow: none;
+  }
+
+  .ant-btn-default:hover,
+  .ant-btn-dashed:hover {
+    color: rgba(0, 0, 0, 0.88);
+    border-color: #d9d9d9;
+    background: #ffffff;
+  }
+
+  .ant-btn-primary:hover,
+  .ant-btn-primary:focus-visible {
+    color: #ffffff;
+    border-color: var(--ant-color-primary);
+    background: var(--ant-color-primary);
+  }
+
+  .ant-btn-text:hover,
+  .ant-btn-link:hover {
+    background: transparent;
+  }
+
+  .ant-segmented-item:hover {
+    color: inherit;
+  }
 }
 
 .asset-summary-panel {
