@@ -3416,16 +3416,23 @@ function App() {
       kindAnalysisData.find((item) => item.name === "家庭")?.value || 0;
     const personalValue =
       kindAnalysisData.find((item) => item.name === "個人")?.value || 0;
-    const weiPersonal =
-      payerRankingData.find((item) => item.name === "Wei")?.value || 0;
-    const poPersonal =
-      payerRankingData.find((item) => item.name === "Po")?.value || 0;
-    const familyTotal =
-      payerRankingData.find((item) => item.name === "家庭")?.value || 0;
-    const poFamily =
-      familyBalanceData.find((item) => item.name === "Po 支付")?.value || 0;
-    const weiFamily =
-      familyBalanceData.find((item) => item.name === "Wei 支付")?.value || 0;
+    const payerRankingMap = new Map(
+      (effectiveExpenseAnalytics?.payerRanking ?? []).map((item) => [
+        item.key,
+        Number(item.value) || 0,
+      ]),
+    );
+    const familyBalanceMap = new Map(
+      (effectiveExpenseAnalytics?.familyBalance ?? []).map((item) => [
+        item.key,
+        Number(item.value) || 0,
+      ]),
+    );
+    const weiPersonal = payerRankingMap.get("wei_personal") || 0;
+    const poPersonal = payerRankingMap.get("po_personal") || 0;
+    const familyTotal = payerRankingMap.get("family_total") || 0;
+    const poFamily = familyBalanceMap.get("po_family") || 0;
+    const weiFamily = familyBalanceMap.get("wei_family") || 0;
     const topCategory = categoryAnalysisData[0];
     const kindTotal = familyValue + personalValue;
     const familyBalanceTotal = poFamily + weiFamily;
@@ -3450,9 +3457,8 @@ function App() {
     };
   }, [
     categoryAnalysisData,
-    familyBalanceData,
+    effectiveExpenseAnalytics,
     kindAnalysisData,
-    payerRankingData,
     trendMonths,
   ]);
 

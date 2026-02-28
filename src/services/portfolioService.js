@@ -1,244 +1,278 @@
-import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import {
   db,
   DB_MAX_KEY,
   DB_MIN_KEY,
   FX_PAIR_USD_TWD,
   SYNC_KEY_PRICES,
-} from '../db/database'
-import { getUsdTwdRate } from './priceProviders/fxProvider'
-import { getHoldingQuote, sleepForRateLimit } from './priceProviders/finnhubProvider'
+} from "../db/database";
+import { getUsdTwdRate } from "./priceProviders/fxProvider";
+import {
+  getHoldingQuote,
+  sleepForRateLimit,
+} from "./priceProviders/finnhubProvider";
 import {
   getSyncRuntimeState,
   initCloudSync,
   writeCollectionRecord,
   stopCloudSync,
   syncNowWithCloud,
-} from './firebase/cloudSyncService'
+} from "./firebase/cloudSyncService";
 
-dayjs.extend(utc)
-dayjs.extend(timezone)
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const MARKET = {
-  TW: 'TW',
-  US: 'US',
-}
+  TW: "TW",
+  US: "US",
+};
 
 const DEFAULT_HOLDING_TAG_OPTIONS = [
-  { value: 'STOCK', label: '個股', isDefault: true },
-  { value: 'ETF', label: 'ETF' },
-  { value: 'BOND', label: '債券' },
-]
+  { value: "STOCK", label: "個股", isDefault: true },
+  { value: "ETF", label: "ETF" },
+  { value: "BOND", label: "債券" },
+];
 
-const SYNC_PENDING = 'pending'
-const SYNC_SYNCED = 'synced'
+const SYNC_PENDING = "pending";
+const SYNC_SYNCED = "synced";
 const CLOUD_COLLECTION = {
-  HOLDINGS: 'holdings',
-  PRICE_SNAPSHOTS: 'price_snapshots',
-  FX_RATES: 'fx_rates',
-  SYNC_META: 'sync_meta',
-  CASH_ACCOUNTS: 'cash_accounts',
-  CASH_BALANCE_SNAPSHOTS: 'cash_balance_snapshots',
-  EXPENSE_ENTRIES: 'expense_entries',
-  EXPENSE_CATEGORIES: 'expense_categories',
-  BUDGETS: 'budgets',
-  APP_CONFIG: 'app_config',
-}
+  HOLDINGS: "holdings",
+  PRICE_SNAPSHOTS: "price_snapshots",
+  FX_RATES: "fx_rates",
+  SYNC_META: "sync_meta",
+  CASH_ACCOUNTS: "cash_accounts",
+  CASH_BALANCE_SNAPSHOTS: "cash_balance_snapshots",
+  EXPENSE_ENTRIES: "expense_entries",
+  EXPENSE_CATEGORIES: "expense_categories",
+  BUDGETS: "budgets",
+  APP_CONFIG: "app_config",
+};
 
 const TREND_RANGE_DAYS = {
-  '24h': 2,
-  '7d': 7,
-  '30d': 30,
-}
+  "24h": 2,
+  "7d": 7,
+  "30d": 30,
+};
 
 const EXPENSE_ENTRY_TYPE = {
-  ONE_TIME: 'ONE_TIME',
-  RECURRING: 'RECURRING',
-}
+  ONE_TIME: "ONE_TIME",
+  RECURRING: "RECURRING",
+};
 
 const RECURRENCE_TYPE = {
-  MONTHLY: 'MONTHLY',
-  YEARLY: 'YEARLY',
-}
+  MONTHLY: "MONTHLY",
+  YEARLY: "YEARLY",
+};
 
 const BUDGET_TYPE = {
-  MONTHLY: 'MONTHLY',
-  QUARTERLY: 'QUARTERLY',
-  YEARLY: 'YEARLY',
-}
+  MONTHLY: "MONTHLY",
+  QUARTERLY: "QUARTERLY",
+  YEARLY: "YEARLY",
+};
 
-const EXPENSE_PAYER_OPTIONS = ['Po', 'Wei', '共同帳戶']
-const EXPENSE_KIND_OPTIONS = ['家庭', '個人']
-const INCOME_SETTINGS_KEY = 'income_settings'
+const EXPENSE_PAYER_OPTIONS = ["Po", "Wei", "共同帳戶"];
+const EXPENSE_KIND_OPTIONS = ["家庭", "個人"];
+const INCOME_SETTINGS_KEY = "income_settings";
 
-const isDeleted = (item) => Boolean(item?.deletedAt)
+const isDeleted = (item) => Boolean(item?.deletedAt);
 
-const getNowIso = () => new Date().toISOString()
-const getNowDate = () => dayjs().format('YYYY-MM-DD')
-const makeRemoteKey = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+const getNowIso = () => new Date().toISOString();
+const getNowDate = () => dayjs().format("YYYY-MM-DD");
+const makeRemoteKey = (prefix) =>
+  `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
 const normalizeDateOnly = (value) => {
-  const parsed = dayjs(value)
+  const parsed = dayjs(value);
   if (!parsed.isValid()) {
-    return null
+    return null;
   }
-  return parsed.format('YYYY-MM-DD')
-}
+  return parsed.format("YYYY-MM-DD");
+};
 
-const toDayjsDateOnly = (value) => dayjs(normalizeDateOnly(value))
+const toDayjsDateOnly = (value) => dayjs(normalizeDateOnly(value));
 
 const mirrorToCloud = async (collectionName, record) => {
-  await writeCollectionRecord({ collectionName, record })
-}
+  await writeCollectionRecord({ collectionName, record });
+};
 
 const normalizeIncomeValue = (value) => {
-  if (value === null || value === undefined || value === '') return null
-  const parsed = Number(value)
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error('Income must be a positive number')
+    throw new Error("Income must be a positive number");
   }
-  return Math.round(parsed)
-}
+  return Math.round(parsed);
+};
 
 const normalizeMonthValue = (month) => {
-  const parsed = dayjs(`${month}-01`)
+  const parsed = dayjs(`${month}-01`);
   if (!parsed.isValid()) {
-    throw new Error('Invalid month format')
+    throw new Error("Invalid month format");
   }
-  return parsed.format('YYYY-MM')
-}
+  return parsed.format("YYYY-MM");
+};
 
 const normalizeMonthOverrides = (overrides = []) => {
-  const map = new Map()
+  const map = new Map();
   for (const item of overrides) {
-    if (!item) continue
-    const month = normalizeMonthValue(item.month)
-    const incomeTwd = normalizeIncomeValue(item.incomeTwd)
-    if (incomeTwd === null) continue
-    map.set(month, incomeTwd)
+    if (!item) continue;
+    const month = normalizeMonthValue(item.month);
+    const incomeTwd = normalizeIncomeValue(item.incomeTwd);
+    if (incomeTwd === null) continue;
+    map.set(month, incomeTwd);
   }
   return Array.from(map.entries())
     .map(([month, incomeTwd]) => ({ month, incomeTwd }))
-    .sort((a, b) => a.month.localeCompare(b.month))
-}
+    .sort((a, b) => a.month.localeCompare(b.month));
+};
 
-const resolveIncomeForMonth = ({ month, defaultMonthlyIncomeTwd, monthOverridesMap }) => {
+const resolveIncomeForMonth = ({
+  month,
+  defaultMonthlyIncomeTwd,
+  monthOverridesMap,
+}) => {
   if (monthOverridesMap.has(month)) {
-    return monthOverridesMap.get(month)
+    return monthOverridesMap.get(month);
   }
-  return typeof defaultMonthlyIncomeTwd === 'number' ? defaultMonthlyIncomeTwd : null
-}
+  return typeof defaultMonthlyIncomeTwd === "number"
+    ? defaultMonthlyIncomeTwd
+    : null;
+};
 
 const sortHoldingsByOrder = (a, b) => {
-  const aOrder = Number(a?.sortOrder)
-  const bOrder = Number(b?.sortOrder)
-  const aHasOrder = Number.isFinite(aOrder)
-  const bHasOrder = Number.isFinite(bOrder)
+  const aOrder = Number(a?.sortOrder);
+  const bOrder = Number(b?.sortOrder);
+  const aHasOrder = Number.isFinite(aOrder);
+  const bHasOrder = Number.isFinite(bOrder);
 
   if (aHasOrder && bHasOrder && aOrder !== bOrder) {
-    return aOrder - bOrder
+    return aOrder - bOrder;
   }
-  if (aHasOrder && !bHasOrder) return -1
-  if (!aHasOrder && bHasOrder) return 1
+  if (aHasOrder && !bHasOrder) return -1;
+  if (!aHasOrder && bHasOrder) return 1;
 
-  if (!a?.updatedAt && !b?.updatedAt) return 0
-  if (!a?.updatedAt) return 1
-  if (!b?.updatedAt) return -1
-  return a.updatedAt > b.updatedAt ? -1 : 1
-}
+  if (!a?.updatedAt && !b?.updatedAt) return 0;
+  if (!a?.updatedAt) return 1;
+  if (!b?.updatedAt) return -1;
+  return a.updatedAt > b.updatedAt ? -1 : 1;
+};
 
 const normalizeSymbol = (symbol, market) => {
-  const normalized = symbol.trim().toUpperCase()
+  const normalized = symbol.trim().toUpperCase();
   if (market === MARKET.TW) {
-    return normalized.replace('.TW', '')
+    return normalized.replace(".TW", "");
   }
-  return normalized
-}
+  return normalized;
+};
 
-const normalizeAssetTag = (assetTag) => String(assetTag ?? '').trim().toUpperCase()
+const normalizeAssetTag = (assetTag) =>
+  String(assetTag ?? "")
+    .trim()
+    .toUpperCase();
 
 const ensureHoldingTagOptions = async () => {
-  const config = await db.app_config.get('holding_tags')
-  const options = Array.isArray(config?.options) ? config.options : []
+  const config = await db.app_config.get("holding_tags");
+  const options = Array.isArray(config?.options) ? config.options : [];
   if (options.length > 0) {
-    return options
+    return options;
   }
 
   await db.app_config.put({
-    key: 'holding_tags',
+    key: "holding_tags",
     options: DEFAULT_HOLDING_TAG_OPTIONS,
     updatedAt: getNowIso(),
-  })
-  return DEFAULT_HOLDING_TAG_OPTIONS
-}
+  });
+  return DEFAULT_HOLDING_TAG_OPTIONS;
+};
 
 const getDefaultHoldingTag = (options) => {
-  const defaultOption = options.find((item) => item.isDefault)
-  return defaultOption?.value || options[0]?.value || 'STOCK'
-}
+  const defaultOption = options.find((item) => item.isDefault);
+  return defaultOption?.value || options[0]?.value || "STOCK";
+};
 
 const resolveHoldingTag = ({ inputTag, options }) => {
-  const normalizedInputTag = normalizeAssetTag(inputTag)
+  const normalizedInputTag = normalizeAssetTag(inputTag);
   if (!normalizedInputTag) {
-    return getDefaultHoldingTag(options)
+    return getDefaultHoldingTag(options);
   }
-  const isValid = options.some((item) => item.value === normalizedInputTag)
+  const isValid = options.some((item) => item.value === normalizedInputTag);
   if (!isValid) {
-    throw new Error('Invalid holding tag')
+    throw new Error("Invalid holding tag");
   }
-  return normalizedInputTag
-}
+  return normalizedInputTag;
+};
 
 const getLatestTwoSnapshotsByHoldingId = async (holdingId) => {
   const snapshots = await db.price_snapshots
-    .where('[holdingId+capturedAt]')
+    .where("[holdingId+capturedAt]")
     .between([holdingId, DB_MIN_KEY], [holdingId, DB_MAX_KEY])
     .reverse()
-    .toArray()
+    .toArray();
 
-  const activeSnapshots = snapshots.filter((item) => !isDeleted(item))
+  const activeSnapshots = snapshots.filter((item) => !isDeleted(item));
   return {
     latestSnapshot: activeSnapshots[0],
     previousSnapshot: activeSnapshots[1],
-  }
-}
+  };
+};
 
 const getLatestSnapshotAtOrBefore = async (holdingId, baselineAtIso) => {
   const snapshots = await db.price_snapshots
-    .where('[holdingId+capturedAt]')
+    .where("[holdingId+capturedAt]")
     .between([holdingId, DB_MIN_KEY], [holdingId, baselineAtIso], true, true)
     .reverse()
-    .toArray()
+    .toArray();
 
-  return snapshots.find((item) => !isDeleted(item))
-}
+  return snapshots.find((item) => !isDeleted(item));
+};
 
-const getLatestCashBalanceSnapshotAtOrBefore = async (cashAccountId, baselineAtIso) => {
+const getLatestCashBalanceSnapshotAtOrBefore = async (
+  cashAccountId,
+  baselineAtIso,
+) => {
   const snapshots = await db.cash_balance_snapshots
-    .where('[cashAccountId+capturedAt]')
-    .between([cashAccountId, DB_MIN_KEY], [cashAccountId, baselineAtIso], true, true)
+    .where("[cashAccountId+capturedAt]")
+    .between(
+      [cashAccountId, DB_MIN_KEY],
+      [cashAccountId, baselineAtIso],
+      true,
+      true,
+    )
     .reverse()
-    .toArray()
+    .toArray();
 
-  return snapshots.find((item) => !isDeleted(item))
-}
+  return snapshots.find((item) => !isDeleted(item));
+};
 
-const getEarliestCashBalanceSnapshotAfter = async (cashAccountId, baselineAtIso) => {
+const getEarliestCashBalanceSnapshotAfter = async (
+  cashAccountId,
+  baselineAtIso,
+) => {
   const snapshots = await db.cash_balance_snapshots
-    .where('[cashAccountId+capturedAt]')
-    .between([cashAccountId, baselineAtIso], [cashAccountId, DB_MAX_KEY], false, true)
-    .toArray()
+    .where("[cashAccountId+capturedAt]")
+    .between(
+      [cashAccountId, baselineAtIso],
+      [cashAccountId, DB_MAX_KEY],
+      false,
+      true,
+    )
+    .toArray();
 
-  return snapshots.find((item) => !isDeleted(item))
-}
+  return snapshots.find((item) => !isDeleted(item));
+};
 
-const getBaselineAtIso = () => dayjs().tz('Asia/Taipei').subtract(1, 'day').endOf('day').utc().toISOString()
+const getBaselineAtIso = () =>
+  dayjs().tz("Asia/Taipei").subtract(1, "day").endOf("day").utc().toISOString();
 
-const recordCashBalanceSnapshot = async ({ cashAccount, balanceTwd, capturedAt = getNowIso() }) => {
+const recordCashBalanceSnapshot = async ({
+  cashAccount,
+  balanceTwd,
+  capturedAt = getNowIso(),
+}) => {
   if (!cashAccount) {
-    return
+    return;
   }
 
   const snapshot = {
@@ -251,14 +285,14 @@ const recordCashBalanceSnapshot = async ({ cashAccount, balanceTwd, capturedAt =
     updatedAt: capturedAt,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  }
+  };
 
-  await db.cash_balance_snapshots.add(snapshot)
-  await mirrorToCloud(CLOUD_COLLECTION.CASH_BALANCE_SNAPSHOTS, snapshot)
-}
+  await db.cash_balance_snapshots.add(snapshot);
+  await mirrorToCloud(CLOUD_COLLECTION.CASH_BALANCE_SNAPSHOTS, snapshot);
+};
 
-const setSyncMeta = async ({ status, errorMessage = '' }) => {
-  const nowIso = getNowIso()
+const setSyncMeta = async ({ status, errorMessage = "" }) => {
+  const nowIso = getNowIso();
   await db.sync_meta.put({
     key: SYNC_KEY_PRICES,
     lastUpdatedAt: nowIso,
@@ -267,55 +301,57 @@ const setSyncMeta = async ({ status, errorMessage = '' }) => {
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  })
-  const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES)
+  });
+  const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES);
   if (syncMeta) {
-    await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta)
+    await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta);
   }
-  return nowIso
-}
+  return nowIso;
+};
 
 const getActiveHoldings = async () => {
-  const holdings = await db.holdings.toArray()
-  return holdings.filter((item) => !isDeleted(item))
-}
+  const holdings = await db.holdings.toArray();
+  return holdings.filter((item) => !isDeleted(item));
+};
 
 const getActiveCashAccounts = async () => {
-  const cashAccounts = await db.cash_accounts.toArray()
-  return cashAccounts.filter((item) => !isDeleted(item))
-}
+  const cashAccounts = await db.cash_accounts.toArray();
+  return cashAccounts.filter((item) => !isDeleted(item));
+};
 
 export const setCurrentUser = (uid) => {
-  void uid
-}
+  void uid;
+};
 
 export const initSync = async (uid) => {
-  await initCloudSync(uid)
-}
+  await initCloudSync(uid);
+};
 
 export const stopSync = () => {
-  stopCloudSync()
-}
+  stopCloudSync();
+};
 
-export const syncNow = async () => syncNowWithCloud()
-export const getCloudSyncRuntime = () => getSyncRuntimeState()
+export const syncNow = async () => syncNowWithCloud();
+export const getCloudSyncRuntime = () => getSyncRuntimeState();
 
-export const getHoldingTagOptions = async () => ensureHoldingTagOptions()
+export const getHoldingTagOptions = async () => ensureHoldingTagOptions();
 
 export const getIncomeSettings = async () => {
-  const config = await db.app_config.get(INCOME_SETTINGS_KEY)
+  const config = await db.app_config.get(INCOME_SETTINGS_KEY);
   const defaultMonthlyIncomeTwd =
-    typeof config?.defaultMonthlyIncomeTwd === 'number'
+    typeof config?.defaultMonthlyIncomeTwd === "number"
       ? config.defaultMonthlyIncomeTwd
-      : null
-  const monthOverrides = normalizeMonthOverrides(config?.monthOverrides ?? [])
-  return { defaultMonthlyIncomeTwd, monthOverrides }
-}
+      : null;
+  const monthOverrides = normalizeMonthOverrides(config?.monthOverrides ?? []);
+  return { defaultMonthlyIncomeTwd, monthOverrides };
+};
 
 export const saveIncomeSettings = async (input = {}) => {
-  const nowIso = getNowIso()
-  const defaultMonthlyIncomeTwd = normalizeIncomeValue(input.defaultMonthlyIncomeTwd)
-  const monthOverrides = normalizeMonthOverrides(input.monthOverrides ?? [])
+  const nowIso = getNowIso();
+  const defaultMonthlyIncomeTwd = normalizeIncomeValue(
+    input.defaultMonthlyIncomeTwd,
+  );
+  const monthOverrides = normalizeMonthOverrides(input.monthOverrides ?? []);
   const record = {
     key: INCOME_SETTINGS_KEY,
     defaultMonthlyIncomeTwd,
@@ -323,86 +359,92 @@ export const saveIncomeSettings = async (input = {}) => {
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  }
-  await db.app_config.put(record)
-  await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, record)
-}
+  };
+  await db.app_config.put(record);
+  await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, record);
+};
 
 export const setIncomeOverride = async ({ month, incomeTwd }) => {
-  const { defaultMonthlyIncomeTwd, monthOverrides } = await getIncomeSettings()
-  const normalizedMonth = normalizeMonthValue(month)
-  const normalizedIncome = normalizeIncomeValue(incomeTwd)
+  const { defaultMonthlyIncomeTwd, monthOverrides } = await getIncomeSettings();
+  const normalizedMonth = normalizeMonthValue(month);
+  const normalizedIncome = normalizeIncomeValue(incomeTwd);
   if (normalizedIncome === null) {
-    throw new Error('Income must be a positive number')
+    throw new Error("Income must be a positive number");
   }
 
-  const next = monthOverrides.filter((item) => item.month !== normalizedMonth)
-  next.push({ month: normalizedMonth, incomeTwd: normalizedIncome })
+  const next = monthOverrides.filter((item) => item.month !== normalizedMonth);
+  next.push({ month: normalizedMonth, incomeTwd: normalizedIncome });
   await saveIncomeSettings({
     defaultMonthlyIncomeTwd,
     monthOverrides: next,
-  })
-}
+  });
+};
 
 export const removeIncomeOverride = async ({ month }) => {
-  const { defaultMonthlyIncomeTwd, monthOverrides } = await getIncomeSettings()
-  const normalizedMonth = normalizeMonthValue(month)
-  const next = monthOverrides.filter((item) => item.month !== normalizedMonth)
+  const { defaultMonthlyIncomeTwd, monthOverrides } = await getIncomeSettings();
+  const normalizedMonth = normalizeMonthValue(month);
+  const next = monthOverrides.filter((item) => item.month !== normalizedMonth);
   await saveIncomeSettings({
     defaultMonthlyIncomeTwd,
     monthOverrides: next,
-  })
-}
+  });
+};
 
 export const upsertHolding = async ({ symbol, market, shares, assetTag }) => {
-  const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW
-  const normalizedSymbol = normalizeSymbol(symbol, normalizedMarket)
-  const parsedShares = Number(shares)
-  const options = await ensureHoldingTagOptions()
-  const hasAssetTagInput = assetTag !== undefined && assetTag !== null && String(assetTag).trim() !== ''
+  const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW;
+  const normalizedSymbol = normalizeSymbol(symbol, normalizedMarket);
+  const parsedShares = Number(shares);
+  const options = await ensureHoldingTagOptions();
+  const hasAssetTagInput =
+    assetTag !== undefined &&
+    assetTag !== null &&
+    String(assetTag).trim() !== "";
 
   if (!normalizedSymbol) {
-    throw new Error('Stock symbol is required')
+    throw new Error("Stock symbol is required");
   }
 
   if (!Number.isFinite(parsedShares) || parsedShares <= 0) {
-    throw new Error('Shares must be a positive number')
+    throw new Error("Shares must be a positive number");
   }
 
-  const existing = await db.holdings.where('[symbol+market]').equals([normalizedSymbol, normalizedMarket]).first()
-  const nowIso = getNowIso()
+  const existing = await db.holdings
+    .where("[symbol+market]")
+    .equals([normalizedSymbol, normalizedMarket])
+    .first();
+  const nowIso = getNowIso();
 
   if (existing) {
     const nextAssetTag = hasAssetTagInput
       ? resolveHoldingTag({ inputTag: assetTag, options })
-      : (existing.assetTag || getDefaultHoldingTag(options))
+      : existing.assetTag || getDefaultHoldingTag(options);
     await db.holdings.update(existing.id, {
       shares: parsedShares,
       assetTag: nextAssetTag,
       updatedAt: nowIso,
       deletedAt: null,
       syncState: SYNC_PENDING,
-    })
-    const updatedHolding = await db.holdings.get(existing.id)
+    });
+    const updatedHolding = await db.holdings.get(existing.id);
     if (updatedHolding) {
-      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding)
+      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
     }
     return {
       id: existing.id,
       created: false,
-    }
+    };
   }
 
-  const holdings = await getActiveHoldings()
+  const holdings = await getActiveHoldings();
   const maxSortOrder = holdings.reduce((max, item) => {
-    const value = Number(item?.sortOrder)
-    if (!Number.isFinite(value)) return max
-    return Math.max(max, value)
-  }, 0)
+    const value = Number(item?.sortOrder);
+    if (!Number.isFinite(value)) return max;
+    return Math.max(max, value);
+  }, 0);
 
   const nextAssetTag = hasAssetTagInput
     ? resolveHoldingTag({ inputTag: assetTag, options })
-    : getDefaultHoldingTag(options)
+    : getDefaultHoldingTag(options);
 
   const id = await db.holdings.add({
     symbol: normalizedSymbol,
@@ -415,220 +457,227 @@ export const upsertHolding = async ({ symbol, market, shares, assetTag }) => {
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  })
-  const insertedHolding = await db.holdings.get(id)
+  });
+  const insertedHolding = await db.holdings.get(id);
   if (insertedHolding) {
-    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, insertedHolding)
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, insertedHolding);
   }
 
   return {
     id,
     created: true,
-  }
-}
+  };
+};
 
 export const updateHoldingTag = async ({ id, assetTag }) => {
-  const parsedId = Number(id)
-  const options = await ensureHoldingTagOptions()
-  const nextAssetTag = resolveHoldingTag({ inputTag: assetTag, options })
+  const parsedId = Number(id);
+  const options = await ensureHoldingTagOptions();
+  const nextAssetTag = resolveHoldingTag({ inputTag: assetTag, options });
 
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    throw new Error('Holding not found')
+    throw new Error("Holding not found");
   }
 
-  const existing = await db.holdings.get(parsedId)
+  const existing = await db.holdings.get(parsedId);
   if (!existing || isDeleted(existing)) {
-    throw new Error('Holding not found')
+    throw new Error("Holding not found");
   }
 
   await db.holdings.update(parsedId, {
     assetTag: nextAssetTag,
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
-  })
-  const updatedHolding = await db.holdings.get(parsedId)
+  });
+  const updatedHolding = await db.holdings.get(parsedId);
   if (updatedHolding) {
-    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding)
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
   }
-}
+};
 
 export const updateHoldingShares = async ({ id, shares }) => {
-  const parsedId = Number(id)
-  const parsedShares = Number(shares)
+  const parsedId = Number(id);
+  const parsedShares = Number(shares);
 
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    throw new Error('Holding not found')
+    throw new Error("Holding not found");
   }
 
   if (!Number.isFinite(parsedShares) || parsedShares <= 0) {
-    throw new Error('Shares must be a positive number')
+    throw new Error("Shares must be a positive number");
   }
 
-  const existing = await db.holdings.get(parsedId)
+  const existing = await db.holdings.get(parsedId);
   if (!existing || isDeleted(existing)) {
-    throw new Error('Holding not found')
+    throw new Error("Holding not found");
   }
 
   await db.holdings.update(parsedId, {
     shares: parsedShares,
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
-  })
-  const updatedHolding = await db.holdings.get(parsedId)
+  });
+  const updatedHolding = await db.holdings.get(parsedId);
   if (updatedHolding) {
-    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding)
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
   }
-}
+};
 
 export const removeHolding = async ({ id }) => {
-  const parsedId = Number(id)
+  const parsedId = Number(id);
 
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    throw new Error('Holding not found')
+    throw new Error("Holding not found");
   }
 
-  let nowIso
-  await db.transaction('rw', db.holdings, db.price_snapshots, async () => {
-    const existing = await db.holdings.get(parsedId)
+  let nowIso;
+  await db.transaction("rw", db.holdings, db.price_snapshots, async () => {
+    const existing = await db.holdings.get(parsedId);
     if (!existing || isDeleted(existing)) {
-      throw new Error('Holding not found')
+      throw new Error("Holding not found");
     }
 
-    nowIso = getNowIso()
+    nowIso = getNowIso();
 
     await db.holdings.update(parsedId, {
       deletedAt: nowIso,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
-    })
+    });
 
-    await db.price_snapshots
-      .where('holdingId')
-      .equals(parsedId)
-      .modify({
-        deletedAt: nowIso,
-        updatedAt: nowIso,
-        syncState: SYNC_PENDING,
-      })
+    await db.price_snapshots.where("holdingId").equals(parsedId).modify({
+      deletedAt: nowIso,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
 
-    const allHoldings = await db.holdings.toArray()
-    const remaining = allHoldings.filter((item) => !isDeleted(item) && item.id !== parsedId)
-    remaining.sort(sortHoldingsByOrder)
+    const allHoldings = await db.holdings.toArray();
+    const remaining = allHoldings.filter(
+      (item) => !isDeleted(item) && item.id !== parsedId,
+    );
+    remaining.sort(sortHoldingsByOrder);
 
     for (let i = 0; i < remaining.length; i += 1) {
       await db.holdings.update(remaining[i].id, {
         sortOrder: i + 1,
         updatedAt: nowIso,
         syncState: SYNC_PENDING,
-      })
+      });
     }
-  })
+  });
 
-  const deletedHolding = await db.holdings.get(parsedId)
+  const deletedHolding = await db.holdings.get(parsedId);
   if (deletedHolding) {
-    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, deletedHolding)
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, deletedHolding);
   }
 
-  const affectedSnapshots = await db.price_snapshots.where('holdingId').equals(parsedId).toArray()
+  const affectedSnapshots = await db.price_snapshots
+    .where("holdingId")
+    .equals(parsedId)
+    .toArray();
   for (const snapshot of affectedSnapshots) {
     if (snapshot.updatedAt === nowIso || snapshot.deletedAt) {
-      await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot)
+      await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot);
     }
   }
 
-  const remaining = (await db.holdings.toArray()).filter((item) => !isDeleted(item))
+  const remaining = (await db.holdings.toArray()).filter(
+    (item) => !isDeleted(item),
+  );
   for (const holding of remaining) {
     if (holding.updatedAt === nowIso) {
-      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, holding)
+      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, holding);
     }
   }
-}
+};
 
 export const reorderHoldings = async ({ orderedIds }) => {
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
-    throw new Error('orderedIds is required')
+    throw new Error("orderedIds is required");
   }
 
-  const normalizedIds = orderedIds.map((id) => Number(id))
+  const normalizedIds = orderedIds.map((id) => Number(id));
   if (normalizedIds.some((id) => !Number.isInteger(id) || id <= 0)) {
-    throw new Error('orderedIds contains invalid id')
+    throw new Error("orderedIds contains invalid id");
   }
 
-  const uniqueIds = new Set(normalizedIds)
+  const uniqueIds = new Set(normalizedIds);
   if (uniqueIds.size !== normalizedIds.length) {
-    throw new Error('orderedIds contains duplicate id')
+    throw new Error("orderedIds contains duplicate id");
   }
 
-  let nowIso
-  await db.transaction('rw', db.holdings, async () => {
-    const holdings = (await db.holdings.toArray()).filter((item) => !isDeleted(item))
-    const existingIds = holdings.map((item) => item.id)
+  let nowIso;
+  await db.transaction("rw", db.holdings, async () => {
+    const holdings = (await db.holdings.toArray()).filter(
+      (item) => !isDeleted(item),
+    );
+    const existingIds = holdings.map((item) => item.id);
 
     if (existingIds.length !== normalizedIds.length) {
-      throw new Error('orderedIds does not match holdings length')
+      throw new Error("orderedIds does not match holdings length");
     }
 
-    const existingIdSet = new Set(existingIds)
+    const existingIdSet = new Set(existingIds);
     for (const id of normalizedIds) {
       if (!existingIdSet.has(id)) {
-        throw new Error('orderedIds contains unknown id')
+        throw new Error("orderedIds contains unknown id");
       }
     }
 
-    nowIso = getNowIso()
+    nowIso = getNowIso();
     for (let i = 0; i < normalizedIds.length; i += 1) {
       await db.holdings.update(normalizedIds[i], {
         sortOrder: i + 1,
         updatedAt: nowIso,
         syncState: SYNC_PENDING,
-      })
+      });
     }
-  })
+  });
 
-  const holdings = await db.holdings.where('id').anyOf(normalizedIds).toArray()
+  const holdings = await db.holdings.where("id").anyOf(normalizedIds).toArray();
   for (const holding of holdings) {
     if (holding.updatedAt === nowIso) {
-      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, holding)
+      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, holding);
     }
   }
-}
+};
 
 export const refreshHoldingPrice = async ({ holdingId }) => {
-  const parsedHoldingId = Number(holdingId)
+  const parsedHoldingId = Number(holdingId);
   if (!Number.isInteger(parsedHoldingId) || parsedHoldingId <= 0) {
-    throw new Error('Holding not found')
+    throw new Error("Holding not found");
   }
 
-  const holding = await db.holdings.get(parsedHoldingId)
+  const holding = await db.holdings.get(parsedHoldingId);
   if (!holding || isDeleted(holding)) {
-    throw new Error('Holding not found')
+    throw new Error("Holding not found");
   }
 
-  const quote = await getHoldingQuote(holding)
-  let fxRateToTwd = 1
+  const quote = await getHoldingQuote(holding);
+  let fxRateToTwd = 1;
 
   if (holding.market === MARKET.US) {
-    const fx = await getUsdTwdRate()
-    fxRateToTwd = fx.rate
+    const fx = await getUsdTwdRate();
+    fxRateToTwd = fx.rate;
     await db.fx_rates.put({
       pair: FX_PAIR_USD_TWD,
       rate: fx.rate,
       fetchedAt: fx.fetchedAt,
-      source: 'open.er-api',
+      source: "open.er-api",
       updatedAt: getNowIso(),
       deletedAt: null,
       syncState: SYNC_PENDING,
-    })
-    const fxRate = await db.fx_rates.get(FX_PAIR_USD_TWD)
+    });
+    const fxRate = await db.fx_rates.get(FX_PAIR_USD_TWD);
     if (fxRate) {
-      await mirrorToCloud(CLOUD_COLLECTION.FX_RATES, fxRate)
+      await mirrorToCloud(CLOUD_COLLECTION.FX_RATES, fxRate);
     }
   }
 
-  const nowIso = getNowIso()
-  const valueTwd = holding.market === MARKET.US
-    ? quote.price * holding.shares * fxRateToTwd
-    : quote.price * holding.shares
+  const nowIso = getNowIso();
+  const valueTwd =
+    holding.market === MARKET.US
+      ? quote.price * holding.shares * fxRateToTwd
+      : quote.price * holding.shares;
 
   await db.price_snapshots.add({
     holdingId: holding.id,
@@ -642,13 +691,13 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  })
+  });
   const insertedSnapshot = await db.price_snapshots
-    .where('[holdingId+capturedAt]')
+    .where("[holdingId+capturedAt]")
     .equals([holding.id, nowIso])
-    .first()
+    .first();
   if (insertedSnapshot) {
-    await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, insertedSnapshot)
+    await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, insertedSnapshot);
   }
 
   if (quote.name && quote.name !== holding.companyName) {
@@ -656,88 +705,91 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
       companyName: quote.name,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
-    })
-    const updatedHolding = await db.holdings.get(holding.id)
+    });
+    const updatedHolding = await db.holdings.get(holding.id);
     if (updatedHolding) {
-      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding)
+      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
     }
   }
 
   await db.sync_meta.put({
     key: SYNC_KEY_PRICES,
     lastUpdatedAt: nowIso,
-    status: 'success',
-    errorMessage: '',
+    status: "success",
+    errorMessage: "",
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  })
-  const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES)
+  });
+  const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES);
   if (syncMeta) {
-    await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta)
+    await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta);
   }
 
   return {
     updatedAt: nowIso,
-  }
-}
+  };
+};
 
-export const refreshPrices = async ({ market: inputMarket = 'ALL' } = {}) => {
-  const normalized = String(inputMarket ?? 'ALL').toUpperCase()
-  const market = (normalized === 'TW' || normalized === 'US' || normalized === 'ALL')
-    ? normalized
-    : 'ALL'
+export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
+  const normalized = String(inputMarket ?? "ALL").toUpperCase();
+  const market =
+    normalized === "TW" || normalized === "US" || normalized === "ALL"
+      ? normalized
+      : "ALL";
 
-  const holdings = await getActiveHoldings()
-  const targetHoldings = market === 'ALL'
-    ? holdings
-    : holdings.filter((item) => item.market === market)
+  const holdings = await getActiveHoldings();
+  const targetHoldings =
+    market === "ALL"
+      ? holdings
+      : holdings.filter((item) => item.market === market);
 
   if (targetHoldings.length === 0) {
-    const lastUpdatedAt = await setSyncMeta({ status: 'success' })
+    const lastUpdatedAt = await setSyncMeta({ status: "success" });
     return {
       updatedCount: 0,
       targetCount: 0,
       market,
       lastUpdatedAt,
-    }
+    };
   }
 
-  const usHoldings = targetHoldings.filter((item) => item.market === MARKET.US)
+  const usHoldings = targetHoldings.filter((item) => item.market === MARKET.US);
 
   try {
-    let usdTwdRate = 1
+    let usdTwdRate = 1;
     if (usHoldings.length > 0) {
-      const fx = await getUsdTwdRate()
-      usdTwdRate = fx.rate
+      const fx = await getUsdTwdRate();
+      usdTwdRate = fx.rate;
       await db.fx_rates.put({
         pair: FX_PAIR_USD_TWD,
         rate: fx.rate,
         fetchedAt: fx.fetchedAt,
-        source: 'open.er-api',
+        source: "open.er-api",
         updatedAt: getNowIso(),
         deletedAt: null,
         syncState: SYNC_PENDING,
-      })
-      const fxRate = await db.fx_rates.get(FX_PAIR_USD_TWD)
+      });
+      const fxRate = await db.fx_rates.get(FX_PAIR_USD_TWD);
       if (fxRate) {
-        await mirrorToCloud(CLOUD_COLLECTION.FX_RATES, fxRate)
+        await mirrorToCloud(CLOUD_COLLECTION.FX_RATES, fxRate);
       }
     }
 
-    const nowIso = getNowIso()
-    const snapshots = []
+    const nowIso = getNowIso();
+    const snapshots = [];
 
     for (let i = 0; i < targetHoldings.length; i += 1) {
       if (i > 0) {
-        await sleepForRateLimit(1_200)
+        await sleepForRateLimit(1_200);
       }
 
-      const holding = targetHoldings[i]
-      const quote = await getHoldingQuote(holding)
-      const valueTwd = holding.market === MARKET.US
-        ? quote.price * holding.shares * usdTwdRate
-        : quote.price * holding.shares
+      const holding = targetHoldings[i];
+      const quote = await getHoldingQuote(holding);
+      const valueTwd =
+        holding.market === MARKET.US
+          ? quote.price * holding.shares * usdTwdRate
+          : quote.price * holding.shares;
 
       snapshots.push({
         holdingId: holding.id,
@@ -751,40 +803,40 @@ export const refreshPrices = async ({ market: inputMarket = 'ALL' } = {}) => {
         updatedAt: nowIso,
         deletedAt: null,
         syncState: SYNC_PENDING,
-      })
+      });
 
       if (quote.name && quote.name !== holding.companyName) {
         await db.holdings.update(holding.id, {
           companyName: quote.name,
           updatedAt: nowIso,
           syncState: SYNC_PENDING,
-        })
-        const updatedHolding = await db.holdings.get(holding.id)
+        });
+        const updatedHolding = await db.holdings.get(holding.id);
         if (updatedHolding) {
-          await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding)
+          await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
         }
       }
     }
 
     if (snapshots.length > 0) {
-      await db.price_snapshots.bulkAdd(snapshots)
+      await db.price_snapshots.bulkAdd(snapshots);
       for (const snapshot of snapshots) {
-        await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot)
+        await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot);
       }
     }
 
     await db.sync_meta.put({
       key: SYNC_KEY_PRICES,
       lastUpdatedAt: nowIso,
-      status: 'success',
-      errorMessage: '',
+      status: "success",
+      errorMessage: "",
       updatedAt: nowIso,
       deletedAt: null,
       syncState: SYNC_PENDING,
-    })
-    const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES)
+    });
+    const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES);
     if (syncMeta) {
-      await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta)
+      await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta);
     }
 
     return {
@@ -792,18 +844,16 @@ export const refreshPrices = async ({ market: inputMarket = 'ALL' } = {}) => {
       targetCount: targetHoldings.length,
       market,
       lastUpdatedAt: nowIso,
-    }
+    };
   } catch (error) {
-    const errorMessage = error instanceof Error
-      ? error.message
-      : String(error)
+    const errorMessage = error instanceof Error ? error.message : String(error);
     await setSyncMeta({
-      status: 'error',
+      status: "error",
       errorMessage,
-    })
-    throw new Error(errorMessage)
+    });
+    throw new Error(errorMessage);
   }
-}
+};
 
 export const upsertCashAccount = async ({
   bankCode,
@@ -811,27 +861,28 @@ export const upsertCashAccount = async ({
   accountAlias,
   balanceTwd,
 }) => {
-  const normalizedBankCode = typeof bankCode === 'string' ? bankCode.trim() : undefined
-  const normalizedBankName = String(bankName ?? '').trim()
-  const normalizedAlias = String(accountAlias ?? '').trim()
-  const parsedBalance = Number(balanceTwd)
+  const normalizedBankCode =
+    typeof bankCode === "string" ? bankCode.trim() : undefined;
+  const normalizedBankName = String(bankName ?? "").trim();
+  const normalizedAlias = String(accountAlias ?? "").trim();
+  const parsedBalance = Number(balanceTwd);
 
   if (!normalizedBankName) {
-    throw new Error('Bank name is required')
+    throw new Error("Bank name is required");
   }
   if (!normalizedAlias) {
-    throw new Error('Account alias is required')
+    throw new Error("Account alias is required");
   }
   if (!Number.isFinite(parsedBalance) || parsedBalance < 0) {
-    throw new Error('Balance must be a non-negative number')
+    throw new Error("Balance must be a non-negative number");
   }
 
   const existing = await db.cash_accounts
-    .where('[bankName+accountAlias]')
+    .where("[bankName+accountAlias]")
     .equals([normalizedBankName, normalizedAlias])
-    .first()
+    .first();
 
-  const nowIso = getNowIso()
+  const nowIso = getNowIso();
   if (existing) {
     await db.cash_accounts.update(existing.id, {
       bankCode: normalizedBankCode || null,
@@ -841,20 +892,20 @@ export const upsertCashAccount = async ({
       updatedAt: nowIso,
       deletedAt: null,
       syncState: SYNC_PENDING,
-    })
-    const updatedCash = await db.cash_accounts.get(existing.id)
+    });
+    const updatedCash = await db.cash_accounts.get(existing.id);
     if (updatedCash) {
-      await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash)
+      await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash);
       await recordCashBalanceSnapshot({
         cashAccount: updatedCash,
         balanceTwd: parsedBalance,
         capturedAt: nowIso,
-      })
+      });
     }
     return {
       id: existing.id,
       created: false,
-    }
+    };
   }
 
   const id = await db.cash_accounts.add({
@@ -866,42 +917,42 @@ export const upsertCashAccount = async ({
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  })
-  const insertedCash = await db.cash_accounts.get(id)
+  });
+  const insertedCash = await db.cash_accounts.get(id);
   if (insertedCash) {
-    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, insertedCash)
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, insertedCash);
     await recordCashBalanceSnapshot({
       cashAccount: insertedCash,
       balanceTwd: parsedBalance,
       capturedAt: nowIso,
-    })
+    });
   }
 
   return {
     id,
     created: true,
-  }
-}
+  };
+};
 
 export const updateCashAccountBalance = async ({ id, balanceTwd }) => {
-  const parsedId = Number(id)
-  const parsedBalance = Number(balanceTwd)
+  const parsedId = Number(id);
+  const parsedBalance = Number(balanceTwd);
 
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    throw new Error('Cash account not found')
+    throw new Error("Cash account not found");
   }
   if (!Number.isFinite(parsedBalance) || parsedBalance < 0) {
-    throw new Error('Balance must be a non-negative number')
+    throw new Error("Balance must be a non-negative number");
   }
 
-  const existing = await db.cash_accounts.get(parsedId)
+  const existing = await db.cash_accounts.get(parsedId);
   if (!existing || isDeleted(existing)) {
-    throw new Error('Cash account not found')
+    throw new Error("Cash account not found");
   }
 
-  const nowTs = Date.now()
-  const beforeIso = new Date(nowTs - 1).toISOString()
-  const afterIso = new Date(nowTs).toISOString()
+  const nowTs = Date.now();
+  const beforeIso = new Date(nowTs - 1).toISOString();
+  const afterIso = new Date(nowTs).toISOString();
 
   // Capture "before" value first so baseline fallback can infer delta correctly
   // for legacy accounts that had no historical cash snapshots.
@@ -909,65 +960,65 @@ export const updateCashAccountBalance = async ({ id, balanceTwd }) => {
     cashAccount: existing,
     balanceTwd: existing.balanceTwd,
     capturedAt: beforeIso,
-  })
+  });
 
   await db.cash_accounts.update(parsedId, {
     balanceTwd: parsedBalance,
     updatedAt: afterIso,
     syncState: SYNC_PENDING,
-  })
-  const updatedCash = await db.cash_accounts.get(parsedId)
+  });
+  const updatedCash = await db.cash_accounts.get(parsedId);
   if (updatedCash) {
-    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash)
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash);
     await recordCashBalanceSnapshot({
       cashAccount: updatedCash,
       balanceTwd: parsedBalance,
       capturedAt: afterIso,
-    })
+    });
   }
-}
+};
 
 export const removeCashAccount = async ({ id }) => {
-  const parsedId = Number(id)
+  const parsedId = Number(id);
 
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    throw new Error('Cash account not found')
+    throw new Error("Cash account not found");
   }
 
-  const existing = await db.cash_accounts.get(parsedId)
+  const existing = await db.cash_accounts.get(parsedId);
   if (!existing || isDeleted(existing)) {
-    throw new Error('Cash account not found')
+    throw new Error("Cash account not found");
   }
 
-  const nowIso = getNowIso()
+  const nowIso = getNowIso();
   await db.cash_accounts.update(parsedId, {
     deletedAt: nowIso,
     updatedAt: nowIso,
     syncState: SYNC_PENDING,
-  })
-  const deletedCash = await db.cash_accounts.get(parsedId)
+  });
+  const deletedCash = await db.cash_accounts.get(parsedId);
   if (deletedCash) {
-    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, deletedCash)
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, deletedCash);
     await recordCashBalanceSnapshot({
       cashAccount: deletedCash,
       balanceTwd: 0,
       capturedAt: nowIso,
-    })
+    });
   }
-}
+};
 
 export const getCashAccountsView = async () => {
-  const cashAccounts = await getActiveCashAccounts()
+  const cashAccounts = await getActiveCashAccounts();
   cashAccounts.sort((a, b) => {
-    if (!a?.updatedAt && !b?.updatedAt) return 0
-    if (!a?.updatedAt) return 1
-    if (!b?.updatedAt) return -1
-    return a.updatedAt > b.updatedAt ? -1 : 1
-  })
+    if (!a?.updatedAt && !b?.updatedAt) return 0;
+    if (!a?.updatedAt) return 1;
+    if (!b?.updatedAt) return -1;
+    return a.updatedAt > b.updatedAt ? -1 : 1;
+  });
 
-  let totalCashTwd = 0
+  let totalCashTwd = 0;
   const rows = cashAccounts.map((item) => {
-    totalCashTwd += Number(item.balanceTwd) || 0
+    totalCashTwd += Number(item.balanceTwd) || 0;
     return {
       id: item.id,
       bankCode: item.bankCode || undefined,
@@ -975,52 +1026,72 @@ export const getCashAccountsView = async () => {
       accountAlias: item.accountAlias,
       balanceTwd: Number(item.balanceTwd) || 0,
       updatedAt: item.updatedAt,
-    }
-  })
+    };
+  });
 
   return {
     rows,
     totalCashTwd,
-  }
-}
+  };
+};
 
 export const getPortfolioView = async () => {
-  const allHoldings = await db.holdings.toArray()
-  const holdings = allHoldings.filter((item) => !isDeleted(item))
-  holdings.sort(sortHoldingsByOrder)
-  const allCashAccounts = await db.cash_accounts.toArray()
-  const tagOptions = await ensureHoldingTagOptions()
-  const tagLabelMap = new Map(tagOptions.map((item) => [item.value, item.label]))
-  const defaultTag = getDefaultHoldingTag(tagOptions)
-  const baselineAt = getBaselineAtIso()
+  const allHoldings = await db.holdings.toArray();
+  const holdings = allHoldings.filter((item) => !isDeleted(item));
+  holdings.sort(sortHoldingsByOrder);
+  const allCashAccounts = await db.cash_accounts.toArray();
+  const tagOptions = await ensureHoldingTagOptions();
+  const tagLabelMap = new Map(
+    tagOptions.map((item) => [item.value, item.label]),
+  );
+  const defaultTag = getDefaultHoldingTag(tagOptions);
+  const baselineAt = getBaselineAtIso();
 
-  const rows = []
-  let stockTotalTwd = 0
+  const rows = [];
+  let stockTotalTwd = 0;
 
   for (const holding of holdings) {
-    const { latestSnapshot, previousSnapshot } = await getLatestTwoSnapshotsByHoldingId(holding.id)
-    const hasLatestPrice = typeof latestSnapshot?.price === 'number'
-    const fxRateToTwd = holding.market === MARKET.US
-      ? (typeof latestSnapshot?.fxRateToTwd === 'number' ? latestSnapshot.fxRateToTwd : 1)
-      : 1
+    const { latestSnapshot, previousSnapshot } =
+      await getLatestTwoSnapshotsByHoldingId(holding.id);
+    const hasLatestPrice = typeof latestSnapshot?.price === "number";
+    const fxRateToTwd =
+      holding.market === MARKET.US
+        ? typeof latestSnapshot?.fxRateToTwd === "number"
+          ? latestSnapshot.fxRateToTwd
+          : 1
+        : 1;
     const latestValueTwd = hasLatestPrice
       ? latestSnapshot.price * holding.shares * fxRateToTwd
-      : latestSnapshot?.valueTwd
-    const prevPrice = typeof previousSnapshot?.price === 'number' ? previousSnapshot.price : undefined
-    const prevValueTwd = typeof previousSnapshot?.valueTwd === 'number' ? previousSnapshot.valueTwd : undefined
-    const hasPreviousSnapshot = Boolean(previousSnapshot)
-    const priceChange = hasLatestPrice && typeof prevPrice === 'number'
-      ? latestSnapshot.price - prevPrice
-      : undefined
-    const valueChangeTwd = typeof latestValueTwd === 'number' && typeof prevValueTwd === 'number'
-      ? latestValueTwd - prevValueTwd
-      : undefined
-    const priceChangePct = typeof priceChange === 'number' && typeof prevPrice === 'number' && prevPrice !== 0
-      ? (priceChange / prevPrice) * 100
-      : null
-    const valueChangePct = typeof valueChangeTwd === 'number' && typeof prevValueTwd === 'number' && prevValueTwd !== 0
-      ? (valueChangeTwd / prevValueTwd) * 100
-      : null
+      : latestSnapshot?.valueTwd;
+    const prevPrice =
+      typeof previousSnapshot?.price === "number"
+        ? previousSnapshot.price
+        : undefined;
+    const prevValueTwd =
+      typeof previousSnapshot?.valueTwd === "number"
+        ? previousSnapshot.valueTwd
+        : undefined;
+    const hasPreviousSnapshot = Boolean(previousSnapshot);
+    const priceChange =
+      hasLatestPrice && typeof prevPrice === "number"
+        ? latestSnapshot.price - prevPrice
+        : undefined;
+    const valueChangeTwd =
+      typeof latestValueTwd === "number" && typeof prevValueTwd === "number"
+        ? latestValueTwd - prevValueTwd
+        : undefined;
+    const priceChangePct =
+      typeof priceChange === "number" &&
+      typeof prevPrice === "number" &&
+      prevPrice !== 0
+        ? (priceChange / prevPrice) * 100
+        : null;
+    const valueChangePct =
+      typeof valueChangeTwd === "number" &&
+      typeof prevValueTwd === "number" &&
+      prevValueTwd !== 0
+        ? (valueChangeTwd / prevValueTwd) * 100
+        : null;
 
     const row = {
       id: holding.id,
@@ -1028,7 +1099,10 @@ export const getPortfolioView = async () => {
       companyName: holding.companyName,
       market: holding.market,
       assetTag: holding.assetTag || defaultTag,
-      assetTagLabel: tagLabelMap.get(holding.assetTag || defaultTag) || (holding.assetTag || defaultTag),
+      assetTagLabel:
+        tagLabelMap.get(holding.assetTag || defaultTag) ||
+        holding.assetTag ||
+        defaultTag,
       shares: holding.shares,
       latestPrice: latestSnapshot?.price,
       prevPrice,
@@ -1041,43 +1115,50 @@ export const getPortfolioView = async () => {
       hasPreviousSnapshot,
       latestCurrency: latestSnapshot?.currency,
       latestCapturedAt: latestSnapshot?.capturedAt,
+    };
+
+    if (typeof row.latestValueTwd === "number") {
+      stockTotalTwd += row.latestValueTwd;
     }
 
-    if (typeof row.latestValueTwd === 'number') {
-      stockTotalTwd += row.latestValueTwd
-    }
-
-    rows.push(row)
+    rows.push(row);
   }
 
-  let baselineStockTotalTwd = 0
+  let baselineStockTotalTwd = 0;
   for (const holding of allHoldings) {
     if (holding.deletedAt && holding.deletedAt <= baselineAt) {
-      continue
+      continue;
     }
-    const baselineSnapshot = await getLatestSnapshotAtOrBefore(holding.id, baselineAt)
-    if (typeof baselineSnapshot?.valueTwd === 'number') {
-      baselineStockTotalTwd += baselineSnapshot.valueTwd
+    const baselineSnapshot = await getLatestSnapshotAtOrBefore(
+      holding.id,
+      baselineAt,
+    );
+    if (typeof baselineSnapshot?.valueTwd === "number") {
+      baselineStockTotalTwd += baselineSnapshot.valueTwd;
     }
   }
 
-  let baselineCashTotalTwd = 0
+  let baselineCashTotalTwd = 0;
   for (const cashAccount of allCashAccounts) {
     if (cashAccount.deletedAt && cashAccount.deletedAt <= baselineAt) {
-      continue
+      continue;
     }
-    const baselineSnapshot = await getLatestCashBalanceSnapshotAtOrBefore(cashAccount.id, baselineAt)
-    if (typeof baselineSnapshot?.balanceTwd === 'number') {
-      baselineCashTotalTwd += baselineSnapshot.balanceTwd
-      continue
+    const baselineSnapshot = await getLatestCashBalanceSnapshotAtOrBefore(
+      cashAccount.id,
+      baselineAt,
+    );
+    if (typeof baselineSnapshot?.balanceTwd === "number") {
+      baselineCashTotalTwd += baselineSnapshot.balanceTwd;
+      continue;
     }
 
     // Legacy fallback: if there is no snapshot at/before baseline, use the first
     // snapshot after baseline as an approximation of baseline value.
-    const firstSnapshotAfterBaseline = await getEarliestCashBalanceSnapshotAfter(cashAccount.id, baselineAt)
-    if (typeof firstSnapshotAfterBaseline?.balanceTwd === 'number') {
-      baselineCashTotalTwd += firstSnapshotAfterBaseline.balanceTwd
-      continue
+    const firstSnapshotAfterBaseline =
+      await getEarliestCashBalanceSnapshotAfter(cashAccount.id, baselineAt);
+    if (typeof firstSnapshotAfterBaseline?.balanceTwd === "number") {
+      baselineCashTotalTwd += firstSnapshotAfterBaseline.balanceTwd;
+      continue;
     }
 
     // Backward compatibility: older cash accounts may not have balance snapshots yet.
@@ -1089,21 +1170,22 @@ export const getPortfolioView = async () => {
       cashAccount.updatedAt &&
       cashAccount.updatedAt <= baselineAt
     ) {
-      const fallbackBalance = Number(cashAccount.balanceTwd)
+      const fallbackBalance = Number(cashAccount.balanceTwd);
       if (Number.isFinite(fallbackBalance)) {
-        baselineCashTotalTwd += fallbackBalance
+        baselineCashTotalTwd += fallbackBalance;
       }
     }
   }
 
-  const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES)
-  const cashView = await getCashAccountsView()
-  const totalTwd = stockTotalTwd + cashView.totalCashTwd
-  const baselineTotalTwd = baselineStockTotalTwd + baselineCashTotalTwd
-  const totalChangeTwd = totalTwd - baselineTotalTwd
-  const totalChangePct = Number.isFinite(baselineTotalTwd) && baselineTotalTwd !== 0
-    ? (totalChangeTwd / baselineTotalTwd) * 100
-    : null
+  const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES);
+  const cashView = await getCashAccountsView();
+  const totalTwd = stockTotalTwd + cashView.totalCashTwd;
+  const baselineTotalTwd = baselineStockTotalTwd + baselineCashTotalTwd;
+  const totalChangeTwd = totalTwd - baselineTotalTwd;
+  const totalChangePct =
+    Number.isFinite(baselineTotalTwd) && baselineTotalTwd !== 0
+      ? (totalChangeTwd / baselineTotalTwd) * 100
+      : null;
 
   return {
     rows,
@@ -1121,263 +1203,292 @@ export const getPortfolioView = async () => {
     syncStatus: syncMeta?.status,
     syncError: syncMeta?.errorMessage,
     cloudSyncState: syncMeta?.syncState ?? SYNC_SYNCED,
-  }
-}
+  };
+};
 
 export const getTrend = async (range) => {
-  const pointCount = TREND_RANGE_DAYS[range] ?? TREND_RANGE_DAYS['24h']
-  const latestCompletedDayEnd = dayjs().tz('Asia/Taipei').subtract(1, 'day').endOf('day')
+  const pointCount = TREND_RANGE_DAYS[range] ?? TREND_RANGE_DAYS["24h"];
+  const latestCompletedDayEnd = dayjs()
+    .tz("Asia/Taipei")
+    .subtract(1, "day")
+    .endOf("day");
 
-  const cutoffs = []
+  const cutoffs = [];
   for (let i = pointCount - 1; i >= 0; i -= 1) {
-    cutoffs.push(latestCompletedDayEnd.subtract(i, 'day'))
+    cutoffs.push(latestCompletedDayEnd.subtract(i, "day"));
   }
 
-  const allHoldings = await db.holdings.toArray()
-  const allCashAccounts = await db.cash_accounts.toArray()
+  const allHoldings = await db.holdings.toArray();
+  const allCashAccounts = await db.cash_accounts.toArray();
 
-  const stockSnapshotsByHolding = new Map()
+  const stockSnapshotsByHolding = new Map();
   for (const holding of allHoldings) {
     const snapshots = await db.price_snapshots
-      .where('[holdingId+capturedAt]')
+      .where("[holdingId+capturedAt]")
       .between([holding.id, DB_MIN_KEY], [holding.id, DB_MAX_KEY], true, true)
-      .toArray()
-    stockSnapshotsByHolding.set(holding.id, snapshots)
+      .toArray();
+    stockSnapshotsByHolding.set(holding.id, snapshots);
   }
 
-  const cashSnapshotsByAccount = new Map()
+  const cashSnapshotsByAccount = new Map();
   for (const cashAccount of allCashAccounts) {
     const snapshots = await db.cash_balance_snapshots
-      .where('[cashAccountId+capturedAt]')
-      .between([cashAccount.id, DB_MIN_KEY], [cashAccount.id, DB_MAX_KEY], true, true)
-      .toArray()
-    cashSnapshotsByAccount.set(cashAccount.id, snapshots)
+      .where("[cashAccountId+capturedAt]")
+      .between(
+        [cashAccount.id, DB_MIN_KEY],
+        [cashAccount.id, DB_MAX_KEY],
+        true,
+        true,
+      )
+      .toArray();
+    cashSnapshotsByAccount.set(cashAccount.id, snapshots);
   }
 
   const findLatestAtOrBefore = (snapshots, cutoffIso) => {
     for (let i = snapshots.length - 1; i >= 0; i -= 1) {
-      const snapshot = snapshots[i]
+      const snapshot = snapshots[i];
       if (snapshot.capturedAt > cutoffIso) {
-        continue
+        continue;
       }
       if (!isDeleted(snapshot)) {
-        return snapshot
+        return snapshot;
       }
     }
-    return undefined
-  }
+    return undefined;
+  };
 
   return cutoffs.map((cutoff) => {
-    const cutoffIso = cutoff.utc().toISOString()
+    const cutoffIso = cutoff.utc().toISOString();
 
-    let stockTotalTwd = 0
+    let stockTotalTwd = 0;
     for (const holding of allHoldings) {
       if (holding.deletedAt && holding.deletedAt <= cutoffIso) {
-        continue
+        continue;
       }
-      const snapshots = stockSnapshotsByHolding.get(holding.id) || []
-      const snapshot = findLatestAtOrBefore(snapshots, cutoffIso)
-      if (typeof snapshot?.valueTwd === 'number') {
-        stockTotalTwd += snapshot.valueTwd
+      const snapshots = stockSnapshotsByHolding.get(holding.id) || [];
+      const snapshot = findLatestAtOrBefore(snapshots, cutoffIso);
+      if (typeof snapshot?.valueTwd === "number") {
+        stockTotalTwd += snapshot.valueTwd;
       }
     }
 
-    let cashTotalTwd = 0
+    let cashTotalTwd = 0;
     for (const cashAccount of allCashAccounts) {
       if (cashAccount.deletedAt && cashAccount.deletedAt <= cutoffIso) {
-        continue
+        continue;
       }
-      const snapshots = cashSnapshotsByAccount.get(cashAccount.id) || []
-      const snapshot = findLatestAtOrBefore(snapshots, cutoffIso)
-      if (typeof snapshot?.balanceTwd === 'number') {
-        cashTotalTwd += snapshot.balanceTwd
+      const snapshots = cashSnapshotsByAccount.get(cashAccount.id) || [];
+      const snapshot = findLatestAtOrBefore(snapshots, cutoffIso);
+      if (typeof snapshot?.balanceTwd === "number") {
+        cashTotalTwd += snapshot.balanceTwd;
       }
     }
 
     return {
       ts: cutoffIso,
       totalTwd: stockTotalTwd + cashTotalTwd,
-    }
-  })
-}
+    };
+  });
+};
 
 const monthRange = (month) => {
-  const parsed = dayjs(`${month}-01`)
-  const start = parsed.startOf('month')
-  const end = parsed.endOf('month')
-  return { start, end }
-}
+  const parsed = dayjs(`${month}-01`);
+  const start = parsed.startOf("month");
+  const end = parsed.endOf("month");
+  return { start, end };
+};
 
 const clampDayInMonth = (date, day) => {
-  const daysInMonth = date.daysInMonth()
-  return Math.min(Math.max(1, day), daysInMonth)
-}
+  const daysInMonth = date.daysInMonth();
+  return Math.min(Math.max(1, day), daysInMonth);
+};
 
 const resolveRecurringOccurrenceDate = (entry, monthStart) => {
   if (entry.recurrenceType === RECURRENCE_TYPE.MONTHLY) {
-    const day = Number(entry.monthlyDay || toDayjsDateOnly(entry.occurredAt).date())
-    const d = clampDayInMonth(monthStart, day)
-    return monthStart.date(d)
+    const day = Number(
+      entry.monthlyDay || toDayjsDateOnly(entry.occurredAt).date(),
+    );
+    const d = clampDayInMonth(monthStart, day);
+    return monthStart.date(d);
   }
 
   if (entry.recurrenceType === RECURRENCE_TYPE.YEARLY) {
-    const month = Number(entry.yearlyMonth || toDayjsDateOnly(entry.occurredAt).month() + 1)
-    const day = Number(entry.yearlyDay || toDayjsDateOnly(entry.occurredAt).date())
-    const candidateMonth = monthStart.month() + 1
+    const month = Number(
+      entry.yearlyMonth || toDayjsDateOnly(entry.occurredAt).month() + 1,
+    );
+    const day = Number(
+      entry.yearlyDay || toDayjsDateOnly(entry.occurredAt).date(),
+    );
+    const candidateMonth = monthStart.month() + 1;
     if (candidateMonth !== month) {
-      return null
+      return null;
     }
-    const d = clampDayInMonth(monthStart, day)
-    return monthStart.date(d)
+    const d = clampDayInMonth(monthStart, day);
+    return monthStart.date(d);
   }
 
-  return null
-}
+  return null;
+};
 
 const entryIsActiveOnDate = (entry, dateObj) => {
-  const start = toDayjsDateOnly(entry.occurredAt)
-  if (!start.isValid() || dateObj.isBefore(start, 'day')) {
-    return false
+  const start = toDayjsDateOnly(entry.occurredAt);
+  if (!start.isValid() || dateObj.isBefore(start, "day")) {
+    return false;
   }
   if (entry.recurrenceUntil) {
-    const until = toDayjsDateOnly(entry.recurrenceUntil)
-    if (until.isValid() && dateObj.isAfter(until, 'day')) {
-      return false
+    const until = toDayjsDateOnly(entry.recurrenceUntil);
+    if (until.isValid() && dateObj.isAfter(until, "day")) {
+      return false;
     }
   }
-  return true
-}
+  return true;
+};
 
 const expandRecurringOccurrencesForMonth = (entries, month) => {
-  const { start, end } = monthRange(month)
-  const rows = []
+  const { start, end } = monthRange(month);
+  const rows = [];
 
   for (const entry of entries) {
     if (isDeleted(entry)) {
-      continue
+      continue;
     }
 
     if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) {
-      const occurred = toDayjsDateOnly(entry.occurredAt)
-      if (occurred.isValid() && !occurred.isBefore(start, 'day') && !occurred.isAfter(end, 'day')) {
+      const occurred = toDayjsDateOnly(entry.occurredAt);
+      if (
+        occurred.isValid() &&
+        !occurred.isBefore(start, "day") &&
+        !occurred.isAfter(end, "day")
+      ) {
         rows.push({
           ...entry,
-          occurrenceDate: occurred.format('YYYY-MM-DD'),
+          occurrenceDate: occurred.format("YYYY-MM-DD"),
           isRecurringOccurrence: false,
-        })
+        });
       }
-      continue
+      continue;
     }
 
-    const occurrence = resolveRecurringOccurrenceDate(entry, start.clone())
-    if (!occurrence || occurrence.isBefore(start, 'day') || occurrence.isAfter(end, 'day')) {
-      continue
+    const occurrence = resolveRecurringOccurrenceDate(entry, start.clone());
+    if (
+      !occurrence ||
+      occurrence.isBefore(start, "day") ||
+      occurrence.isAfter(end, "day")
+    ) {
+      continue;
     }
     if (!entryIsActiveOnDate(entry, occurrence)) {
-      continue
+      continue;
     }
     rows.push({
       ...entry,
-      occurrenceDate: occurrence.format('YYYY-MM-DD'),
+      occurrenceDate: occurrence.format("YYYY-MM-DD"),
       isRecurringOccurrence: true,
-    })
+    });
   }
 
   rows.sort((a, b) => {
-    const aOccurrence = a.occurrenceDate || ''
-    const bOccurrence = b.occurrenceDate || ''
+    const aOccurrence = a.occurrenceDate || "";
+    const bOccurrence = b.occurrenceDate || "";
     if (aOccurrence !== bOccurrence) {
-      return bOccurrence.localeCompare(aOccurrence)
+      return bOccurrence.localeCompare(aOccurrence);
     }
 
-    const aCreatedAt = a.createdAt || ''
-    const bCreatedAt = b.createdAt || ''
+    const aCreatedAt = a.createdAt || "";
+    const bCreatedAt = b.createdAt || "";
     if (aCreatedAt !== bCreatedAt) {
-      return bCreatedAt.localeCompare(aCreatedAt)
+      return bCreatedAt.localeCompare(aCreatedAt);
     }
 
-    const aUpdatedAt = a.updatedAt || ''
-    const bUpdatedAt = b.updatedAt || ''
+    const aUpdatedAt = a.updatedAt || "";
+    const bUpdatedAt = b.updatedAt || "";
     if (aUpdatedAt !== bUpdatedAt) {
-      return bUpdatedAt.localeCompare(aUpdatedAt)
+      return bUpdatedAt.localeCompare(aUpdatedAt);
     }
 
-    const aId = Number(a.id)
-    const bId = Number(b.id)
+    const aId = Number(a.id);
+    const bId = Number(b.id);
     if (Number.isFinite(aId) && Number.isFinite(bId) && aId !== bId) {
-      return bId - aId
+      return bId - aId;
     }
-    return 0
-  })
+    return 0;
+  });
 
-  return rows
-}
+  return rows;
+};
 
-const computeCumulativeExpenseTotal = (entries, endDateInput = getNowDate()) => {
-  const endDate = toDayjsDateOnly(endDateInput)
+const computeCumulativeExpenseTotal = (
+  entries,
+  endDateInput = getNowDate(),
+) => {
+  const endDate = toDayjsDateOnly(endDateInput);
   if (!endDate.isValid()) {
-    return 0
+    return 0;
   }
 
-  let total = 0
+  let total = 0;
 
   for (const entry of entries) {
     if (isDeleted(entry)) {
-      continue
+      continue;
     }
 
-    const amount = Number(entry.amountTwd) || 0
+    const amount = Number(entry.amountTwd) || 0;
     if (amount <= 0) {
-      continue
+      continue;
     }
 
     if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) {
-      const occurred = toDayjsDateOnly(entry.occurredAt)
-      if (occurred.isValid() && !occurred.isAfter(endDate, 'day')) {
-        total += amount
+      const occurred = toDayjsDateOnly(entry.occurredAt);
+      if (occurred.isValid() && !occurred.isAfter(endDate, "day")) {
+        total += amount;
       }
-      continue
+      continue;
     }
 
-    const start = toDayjsDateOnly(entry.occurredAt)
-    if (!start.isValid() || start.isAfter(endDate, 'day')) {
-      continue
+    const start = toDayjsDateOnly(entry.occurredAt);
+    if (!start.isValid() || start.isAfter(endDate, "day")) {
+      continue;
     }
 
     const until = entry.recurrenceUntil
       ? toDayjsDateOnly(entry.recurrenceUntil)
-      : endDate
-    const limit = until.isValid() && until.isBefore(endDate, 'day') ? until : endDate
+      : endDate;
+    const limit =
+      until.isValid() && until.isBefore(endDate, "day") ? until : endDate;
 
-    let cursor = start.startOf('month')
-    while (!cursor.isAfter(limit, 'month')) {
-      const occurrence = resolveRecurringOccurrenceDate(entry, cursor.clone())
+    let cursor = start.startOf("month");
+    while (!cursor.isAfter(limit, "month")) {
+      const occurrence = resolveRecurringOccurrenceDate(entry, cursor.clone());
       if (
         occurrence &&
-        !occurrence.isBefore(start, 'day') &&
-        !occurrence.isAfter(limit, 'day') &&
+        !occurrence.isBefore(start, "day") &&
+        !occurrence.isAfter(limit, "day") &&
         entryIsActiveOnDate(entry, occurrence)
       ) {
-        total += amount
+        total += amount;
       }
-      cursor = cursor.add(1, 'month')
+      cursor = cursor.add(1, "month");
     }
   }
 
-  return total
-}
+  return total;
+};
 
 const computeExpenseBreakdown = (occurrences = []) => {
-  let recurringTotal = 0
-  let oneTimeTotal = 0
+  let recurringTotal = 0;
+  let oneTimeTotal = 0;
 
   for (const occurrence of occurrences) {
-    const amount = Number(occurrence?.amountTwd) || 0
-    if (amount <= 0) continue
-    if (occurrence?.entryType === EXPENSE_ENTRY_TYPE.RECURRING || occurrence?.isRecurringOccurrence) {
-      recurringTotal += amount
+    const amount = Number(occurrence?.amountTwd) || 0;
+    if (amount <= 0) continue;
+    if (
+      occurrence?.entryType === EXPENSE_ENTRY_TYPE.RECURRING ||
+      occurrence?.isRecurringOccurrence
+    ) {
+      recurringTotal += amount;
     } else {
-      oneTimeTotal += amount
+      oneTimeTotal += amount;
     }
   }
 
@@ -1385,115 +1496,127 @@ const computeExpenseBreakdown = (occurrences = []) => {
     recurringTotal,
     oneTimeTotal,
     total: recurringTotal + oneTimeTotal,
-  }
-}
+  };
+};
 
 const normalizePayerKey = (payer) => {
-  const normalized = String(payer || '').trim().toLowerCase()
-  if (normalized === 'po') return 'po'
-  if (normalized === 'wei') return 'wei'
-  return normalized
-}
+  const normalized = String(payer || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "po") return "po";
+  if (normalized === "wei") return "wei";
+  return normalized;
+};
 
-const expandExpenseOccurrencesUntilDate = (entries, endDateInput = getNowDate()) => {
-  const endDate = toDayjsDateOnly(endDateInput)
+const expandExpenseOccurrencesUntilDate = (
+  entries,
+  endDateInput = getNowDate(),
+) => {
+  const endDate = toDayjsDateOnly(endDateInput);
   if (!endDate.isValid()) {
-    return []
+    return [];
   }
 
-  const rows = []
+  const rows = [];
 
   for (const entry of entries) {
-    if (isDeleted(entry)) continue
-    const amount = Number(entry.amountTwd) || 0
-    if (amount <= 0) continue
+    if (isDeleted(entry)) continue;
+    const amount = Number(entry.amountTwd) || 0;
+    if (amount <= 0) continue;
 
     if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) {
-      const occurred = toDayjsDateOnly(entry.occurredAt)
-      if (occurred.isValid() && !occurred.isAfter(endDate, 'day')) {
+      const occurred = toDayjsDateOnly(entry.occurredAt);
+      if (occurred.isValid() && !occurred.isAfter(endDate, "day")) {
         rows.push({
           id: entry.id,
           amountTwd: amount,
-          occurredAt: occurred.format('YYYY-MM-DD'),
+          occurredAt: occurred.format("YYYY-MM-DD"),
           entryType: entry.entryType || EXPENSE_ENTRY_TYPE.ONE_TIME,
           isRecurringOccurrence: false,
           payer: entry.payer ?? null,
           expenseKind: entry.expenseKind ?? null,
           categoryId: entry.categoryId ?? null,
-        })
+        });
       }
-      continue
+      continue;
     }
 
-    const recurringStart = toDayjsDateOnly(entry.occurredAt)
-    if (!recurringStart.isValid() || recurringStart.isAfter(endDate, 'day')) {
-      continue
+    const recurringStart = toDayjsDateOnly(entry.occurredAt);
+    if (!recurringStart.isValid() || recurringStart.isAfter(endDate, "day")) {
+      continue;
     }
-    const until = entry.recurrenceUntil ? toDayjsDateOnly(entry.recurrenceUntil) : endDate
-    const limit = until.isValid() && until.isBefore(endDate, 'day') ? until : endDate
-    if (limit.isBefore(recurringStart, 'day')) {
-      continue
+    const until = entry.recurrenceUntil
+      ? toDayjsDateOnly(entry.recurrenceUntil)
+      : endDate;
+    const limit =
+      until.isValid() && until.isBefore(endDate, "day") ? until : endDate;
+    if (limit.isBefore(recurringStart, "day")) {
+      continue;
     }
 
-    let cursor = recurringStart.startOf('month')
-    while (!cursor.isAfter(limit, 'month')) {
-      const occurrence = resolveRecurringOccurrenceDate(entry, cursor.clone())
+    let cursor = recurringStart.startOf("month");
+    while (!cursor.isAfter(limit, "month")) {
+      const occurrence = resolveRecurringOccurrenceDate(entry, cursor.clone());
       if (
         occurrence &&
-        !occurrence.isBefore(recurringStart, 'day') &&
-        !occurrence.isAfter(limit, 'day') &&
+        !occurrence.isBefore(recurringStart, "day") &&
+        !occurrence.isAfter(limit, "day") &&
         entryIsActiveOnDate(entry, occurrence)
       ) {
         rows.push({
           id: entry.id,
           amountTwd: amount,
-          occurredAt: occurrence.format('YYYY-MM-DD'),
+          occurredAt: occurrence.format("YYYY-MM-DD"),
           entryType: entry.entryType || EXPENSE_ENTRY_TYPE.RECURRING,
           isRecurringOccurrence: true,
           payer: entry.payer ?? null,
           expenseKind: entry.expenseKind ?? null,
           categoryId: entry.categoryId ?? null,
-        })
+        });
       }
-      cursor = cursor.add(1, 'month')
+      cursor = cursor.add(1, "month");
     }
   }
 
-  return rows
-}
+  return rows;
+};
 
 const buildMonthlyTotalsSeries = (occurrences, endDateInput = getNowDate()) => {
-  const end = toDayjsDateOnly(endDateInput)
+  const end = toDayjsDateOnly(endDateInput);
   const validOccurred = occurrences
     .map((item) => normalizeDateOnly(item.occurredAt))
-    .filter(Boolean)
-  const firstMonth = validOccurred.length > 0
-    ? validOccurred.sort()[0].slice(0, 7)
-    : end.format('YYYY-MM')
-  const endMonth = end.format('YYYY-MM')
-  const totals = new Map()
+    .filter(Boolean);
+  const firstMonth =
+    validOccurred.length > 0
+      ? validOccurred.sort()[0].slice(0, 7)
+      : end.format("YYYY-MM");
+  const endMonth = end.format("YYYY-MM");
+  const totals = new Map();
 
   for (const occurrence of occurrences) {
-    const month = normalizeDateOnly(occurrence.occurredAt)?.slice(0, 7)
-    if (!month) continue
-    totals.set(month, (totals.get(month) || 0) + (Number(occurrence.amountTwd) || 0))
+    const month = normalizeDateOnly(occurrence.occurredAt)?.slice(0, 7);
+    if (!month) continue;
+    totals.set(
+      month,
+      (totals.get(month) || 0) + (Number(occurrence.amountTwd) || 0),
+    );
   }
 
-  const series = []
-  let cursor = dayjs(`${firstMonth}-01`)
-  const limit = dayjs(`${endMonth}-01`)
-  while (!cursor.isAfter(limit, 'month')) {
-    const month = cursor.format('YYYY-MM')
+  const series = [];
+  let cursor = dayjs(`${firstMonth}-01`);
+  const limit = dayjs(`${endMonth}-01`);
+  while (!cursor.isAfter(limit, "month")) {
+    const month = cursor.format("YYYY-MM");
     series.push({
       month,
       totalTwd: Number(totals.get(month) || 0),
-    })
-    cursor = cursor.add(1, 'month')
+    });
+    cursor = cursor.add(1, "month");
   }
-  return series
-}
+  return series;
+};
 
-const getOccurrencesForMonth = (entries, month) => (
+const getOccurrencesForMonth = (entries, month) =>
   expandRecurringOccurrencesForMonth(entries, month).map((item) => ({
     id: item.id,
     amountTwd: Number(item.amountTwd) || 0,
@@ -1503,13 +1626,12 @@ const getOccurrencesForMonth = (entries, month) => (
     payer: item.payer ?? null,
     expenseKind: item.expenseKind ?? null,
     categoryId: item.categoryId ?? null,
-  }))
-)
+  }));
 
 const buildExpenseAnalytics = ({
   occurrences,
   categoryMap,
-  trendMode = 'all',
+  trendMode = "all",
   month,
   today = getNowDate(),
 }) => {
@@ -1517,69 +1639,103 @@ const buildExpenseAnalytics = ({
     家庭: 0,
     個人: 0,
     未指定: 0,
-  }
+  };
   const payerRankingBucket = {
     wei_personal: 0,
     po_personal: 0,
     family_total: 0,
-  }
+  };
   const familyBalanceBucket = {
     po_family: 0,
     wei_family: 0,
     other_family: 0,
-  }
-  const categoryBucket = new Map()
+  };
+  const categoryBucket = new Map();
 
   for (const occurrence of occurrences) {
-    const amount = Number(occurrence.amountTwd) || 0
-    if (amount <= 0) continue
-    const kind = occurrence.expenseKind === '家庭' || occurrence.expenseKind === '個人'
-      ? occurrence.expenseKind
-      : '未指定'
-    const payerKey = normalizePayerKey(occurrence.payer)
+    const amount = Number(occurrence.amountTwd) || 0;
+    if (amount <= 0) continue;
+    const kind =
+      occurrence.expenseKind === "家庭" || occurrence.expenseKind === "個人"
+        ? occurrence.expenseKind
+        : "未指定";
+    const payerKey = normalizePayerKey(occurrence.payer);
 
-    kindBucket[kind] += amount
+    kindBucket[kind] += amount;
 
-    if (kind === '個人') {
-      if (payerKey === 'wei') payerRankingBucket.wei_personal += amount
-      if (payerKey === 'po') payerRankingBucket.po_personal += amount
+    if (kind === "個人") {
+      if (payerKey === "wei") payerRankingBucket.wei_personal += amount;
+      if (payerKey === "po") payerRankingBucket.po_personal += amount;
     }
-    if (kind === '家庭') {
-      payerRankingBucket.family_total += amount
-      if (payerKey === 'po') familyBalanceBucket.po_family += amount
-      else if (payerKey === 'wei') familyBalanceBucket.wei_family += amount
-      else familyBalanceBucket.other_family += amount
+    if (kind === "家庭") {
+      payerRankingBucket.family_total += amount;
+      if (payerKey === "po") familyBalanceBucket.po_family += amount;
+      else if (payerKey === "wei") familyBalanceBucket.wei_family += amount;
+      else familyBalanceBucket.other_family += amount;
     }
 
     const categoryName = occurrence.categoryId
-      ? (categoryMap.get(occurrence.categoryId) || '未分類')
-      : '未分類'
-    categoryBucket.set(categoryName, (categoryBucket.get(categoryName) || 0) + amount)
+      ? categoryMap.get(occurrence.categoryId) || "未分類"
+      : "未分類";
+    categoryBucket.set(
+      categoryName,
+      (categoryBucket.get(categoryName) || 0) + amount,
+    );
   }
 
-  const monthlyTotalsAllHistory = trendMode === 'month'
-    ? [{
-      month,
-      totalTwd: occurrences.reduce((sum, item) => sum + (Number(item.amountTwd) || 0), 0),
-    }]
-    : buildMonthlyTotalsSeries(occurrences, today)
+  const monthlyTotalsAllHistory =
+    trendMode === "month"
+      ? [
+          {
+            month,
+            totalTwd: occurrences.reduce(
+              (sum, item) => sum + (Number(item.amountTwd) || 0),
+              0,
+            ),
+          },
+        ]
+      : buildMonthlyTotalsSeries(occurrences, today);
 
   return {
     monthlyTotalsAllHistory,
     kindBreakdown: [
-      { key: '家庭', value: kindBucket.家庭 },
-      { key: '個人', value: kindBucket.個人 },
-      { key: '未指定', value: kindBucket.未指定 },
+      { key: "家庭", value: kindBucket.家庭 },
+      { key: "個人", value: kindBucket.個人 },
+      { key: "未指定", value: kindBucket.未指定 },
     ],
     payerRanking: [
-      { key: 'wei_personal', label: 'Wei 個人', value: payerRankingBucket.wei_personal },
-      { key: 'po_personal', label: 'Po 個人', value: payerRankingBucket.po_personal },
-      { key: 'family_total', label: '所有家庭', value: payerRankingBucket.family_total },
+      {
+        key: "wei_personal",
+        label: "Wei",
+        value: payerRankingBucket.wei_personal,
+      },
+      {
+        key: "po_personal",
+        label: "Po",
+        value: payerRankingBucket.po_personal,
+      },
+      {
+        key: "family_total",
+        label: "家庭",
+        value: payerRankingBucket.family_total,
+      },
     ],
     familyBalance: [
-      { key: 'po_family', label: 'Po 家庭', value: familyBalanceBucket.po_family },
-      { key: 'wei_family', label: 'Wei 家庭', value: familyBalanceBucket.wei_family },
-      { key: 'other_family', label: '其他家庭', value: familyBalanceBucket.other_family },
+      {
+        key: "po_family",
+        label: "Po",
+        value: familyBalanceBucket.po_family,
+      },
+      {
+        key: "wei_family",
+        label: "Wei",
+        value: familyBalanceBucket.wei_family,
+      },
+      {
+        key: "other_family",
+        label: "其他家庭",
+        value: familyBalanceBucket.other_family,
+      },
     ],
     categoryBreakdown: Array.from(categoryBucket.entries())
       .map(([name, value]) => ({
@@ -1588,32 +1744,37 @@ const buildExpenseAnalytics = ({
         value,
       }))
       .sort((a, b) => b.value - a.value),
-  }
-}
+  };
+};
 
 const getBudgetCycleRange = (budget, refDateInput = getNowDate()) => {
-  const start = toDayjsDateOnly(budget.startDate)
-  const refDate = toDayjsDateOnly(refDateInput)
-  if (!start.isValid() || !refDate.isValid() || refDate.isBefore(start, 'day')) {
-    return null
+  const start = toDayjsDateOnly(budget.startDate);
+  const refDate = toDayjsDateOnly(refDateInput);
+  if (
+    !start.isValid() ||
+    !refDate.isValid() ||
+    refDate.isBefore(start, "day")
+  ) {
+    return null;
   }
 
-  const monthsPerCycle = budget.budgetType === BUDGET_TYPE.MONTHLY
-    ? 1
-    : budget.budgetType === BUDGET_TYPE.QUARTERLY
-      ? 3
-      : 12
+  const monthsPerCycle =
+    budget.budgetType === BUDGET_TYPE.MONTHLY
+      ? 1
+      : budget.budgetType === BUDGET_TYPE.QUARTERLY
+        ? 3
+        : 12;
 
-  const monthsDiff = refDate.diff(start, 'month')
-  const cycleIndex = Math.floor(Math.max(0, monthsDiff) / monthsPerCycle)
-  const cycleStart = start.add(cycleIndex * monthsPerCycle, 'month')
-  const cycleEnd = cycleStart.add(monthsPerCycle, 'month').subtract(1, 'day')
+  const monthsDiff = refDate.diff(start, "month");
+  const cycleIndex = Math.floor(Math.max(0, monthsDiff) / monthsPerCycle);
+  const cycleStart = start.add(cycleIndex * monthsPerCycle, "month");
+  const cycleEnd = cycleStart.add(monthsPerCycle, "month").subtract(1, "day");
 
   return {
-    cycleStart: cycleStart.format('YYYY-MM-DD'),
-    cycleEnd: cycleEnd.format('YYYY-MM-DD'),
-  }
-}
+    cycleStart: cycleStart.format("YYYY-MM-DD"),
+    cycleEnd: cycleEnd.format("YYYY-MM-DD"),
+  };
+};
 
 const computeBudgetRemaining = ({ budget, entries, cycleRange }) => {
   if (!cycleRange) {
@@ -1621,86 +1782,90 @@ const computeBudgetRemaining = ({ budget, entries, cycleRange }) => {
       spentTwd: 0,
       remainingTwd: Number(budget.amountTwd) || 0,
       progressPct: 0,
-    }
+    };
   }
 
-  const start = toDayjsDateOnly(cycleRange.cycleStart)
-  const end = toDayjsDateOnly(cycleRange.cycleEnd)
-  let spentTwd = 0
+  const start = toDayjsDateOnly(cycleRange.cycleStart);
+  const end = toDayjsDateOnly(cycleRange.cycleEnd);
+  let spentTwd = 0;
 
   for (const entry of entries) {
-    if (isDeleted(entry)) continue
-    if (entry.budgetId !== budget.id) continue
+    if (isDeleted(entry)) continue;
+    if (entry.budgetId !== budget.id) continue;
 
-    const amount = Number(entry.amountTwd) || 0
-    if (amount <= 0) continue
+    const amount = Number(entry.amountTwd) || 0;
+    if (amount <= 0) continue;
 
     if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) {
-      const occurred = toDayjsDateOnly(entry.occurredAt)
-      if (!occurred.isValid()) continue
-      if (occurred.isBefore(start, 'day') || occurred.isAfter(end, 'day')) continue
-      spentTwd += amount
-      continue
+      const occurred = toDayjsDateOnly(entry.occurredAt);
+      if (!occurred.isValid()) continue;
+      if (occurred.isBefore(start, "day") || occurred.isAfter(end, "day"))
+        continue;
+      spentTwd += amount;
+      continue;
     }
 
-    const recurringStart = toDayjsDateOnly(entry.occurredAt)
-    if (!recurringStart.isValid()) continue
+    const recurringStart = toDayjsDateOnly(entry.occurredAt);
+    if (!recurringStart.isValid()) continue;
 
-    const until = entry.recurrenceUntil ? toDayjsDateOnly(entry.recurrenceUntil) : end
-    const limit = until.isValid() && until.isBefore(end, 'day') ? until : end
-    if (limit.isBefore(start, 'day')) continue
+    const until = entry.recurrenceUntil
+      ? toDayjsDateOnly(entry.recurrenceUntil)
+      : end;
+    const limit = until.isValid() && until.isBefore(end, "day") ? until : end;
+    if (limit.isBefore(start, "day")) continue;
 
-    let cursor = start.startOf('month')
-    while (!cursor.isAfter(end, 'month')) {
-      const occurrence = resolveRecurringOccurrenceDate(entry, cursor.clone())
+    let cursor = start.startOf("month");
+    while (!cursor.isAfter(end, "month")) {
+      const occurrence = resolveRecurringOccurrenceDate(entry, cursor.clone());
       if (
         occurrence &&
-        !occurrence.isBefore(start, 'day') &&
-        !occurrence.isAfter(limit, 'day') &&
-        !occurrence.isBefore(recurringStart, 'day') &&
+        !occurrence.isBefore(start, "day") &&
+        !occurrence.isAfter(limit, "day") &&
+        !occurrence.isBefore(recurringStart, "day") &&
         entryIsActiveOnDate(entry, occurrence)
       ) {
-        spentTwd += amount
+        spentTwd += amount;
       }
-      cursor = cursor.add(1, 'month')
+      cursor = cursor.add(1, "month");
     }
   }
 
-  const total = Number(budget.amountTwd) || 0
-  const remaining = total - spentTwd
+  const total = Number(budget.amountTwd) || 0;
+  const remaining = total - spentTwd;
   return {
     spentTwd,
     remainingTwd: remaining,
-    progressPct: total > 0 ? Math.min(100, Math.max(0, (spentTwd / total) * 100)) : 0,
-  }
-}
+    progressPct:
+      total > 0 ? Math.min(100, Math.max(0, (spentTwd / total) * 100)) : 0,
+  };
+};
 
 export const upsertExpenseCategory = async ({ id, name }) => {
-  const normalizedName = String(name || '').trim()
+  const normalizedName = String(name || "").trim();
   if (!normalizedName) {
-    throw new Error('Category name is required')
+    throw new Error("Category name is required");
   }
 
-  const nowIso = getNowIso()
-  const parsedId = Number(id)
+  const nowIso = getNowIso();
+  const parsedId = Number(id);
   if (Number.isInteger(parsedId) && parsedId > 0) {
-    const existing = await db.expense_categories.get(parsedId)
+    const existing = await db.expense_categories.get(parsedId);
     if (!existing || isDeleted(existing)) {
-      throw new Error('Category not found')
+      throw new Error("Category not found");
     }
     await db.expense_categories.update(parsedId, {
       name: normalizedName,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
-    })
-    const updated = await db.expense_categories.get(parsedId)
+    });
+    const updated = await db.expense_categories.get(parsedId);
     if (updated) {
-      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, updated)
+      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, updated);
     }
-    return { id: parsedId, created: false }
+    return { id: parsedId, created: false };
   }
 
-  const remoteKey = makeRemoteKey('category')
+  const remoteKey = makeRemoteKey("category");
   const newId = await db.expense_categories.add({
     remoteKey,
     name: normalizedName,
@@ -1708,68 +1873,85 @@ export const upsertExpenseCategory = async ({ id, name }) => {
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  })
-  const inserted = await db.expense_categories.get(newId)
+  });
+  const inserted = await db.expense_categories.get(newId);
   if (inserted) {
-    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, inserted)
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, inserted);
   }
-  return { id: newId, created: true }
-}
+  return { id: newId, created: true };
+};
 
 export const removeExpenseCategory = async ({ id }) => {
-  const parsedId = Number(id)
+  const parsedId = Number(id);
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    throw new Error('Category not found')
+    throw new Error("Category not found");
   }
-  const existing = await db.expense_categories.get(parsedId)
+  const existing = await db.expense_categories.get(parsedId);
   if (!existing || isDeleted(existing)) {
-    throw new Error('Category not found')
+    throw new Error("Category not found");
   }
-  const nowIso = getNowIso()
+  const nowIso = getNowIso();
   await db.expense_categories.update(parsedId, {
     deletedAt: nowIso,
     updatedAt: nowIso,
     syncState: SYNC_PENDING,
-  })
+  });
 
-  const entries = await db.expense_entries.where('categoryId').equals(parsedId).toArray()
+  const entries = await db.expense_entries
+    .where("categoryId")
+    .equals(parsedId)
+    .toArray();
   for (const entry of entries) {
     await db.expense_entries.update(entry.id, {
       categoryId: null,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
-    })
+    });
   }
 
-  const deleted = await db.expense_categories.get(parsedId)
+  const deleted = await db.expense_categories.get(parsedId);
   if (deleted) {
-    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, deleted)
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, deleted);
   }
-  const updatedEntries = await db.expense_entries.where('categoryId').equals(null).toArray()
+  const updatedEntries = await db.expense_entries
+    .where("categoryId")
+    .equals(null)
+    .toArray();
   for (const entry of updatedEntries) {
     if (entry.updatedAt === nowIso) {
-      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, entry)
+      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, entry);
     }
   }
-}
+};
 
-export const upsertBudget = async ({ id, name, amountTwd, budgetType, startDate }) => {
-  const normalizedName = String(name || '').trim()
-  const normalizedStartDate = normalizeDateOnly(startDate)
-  const normalizedType = String(budgetType || '').toUpperCase()
-  const parsedAmount = Number(amountTwd)
-  if (!normalizedName) throw new Error('Budget name is required')
-  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) throw new Error('Budget amount must be positive')
-  if (![BUDGET_TYPE.MONTHLY, BUDGET_TYPE.QUARTERLY, BUDGET_TYPE.YEARLY].includes(normalizedType)) {
-    throw new Error('Invalid budget type')
+export const upsertBudget = async ({
+  id,
+  name,
+  amountTwd,
+  budgetType,
+  startDate,
+}) => {
+  const normalizedName = String(name || "").trim();
+  const normalizedStartDate = normalizeDateOnly(startDate);
+  const normalizedType = String(budgetType || "").toUpperCase();
+  const parsedAmount = Number(amountTwd);
+  if (!normalizedName) throw new Error("Budget name is required");
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0)
+    throw new Error("Budget amount must be positive");
+  if (
+    ![BUDGET_TYPE.MONTHLY, BUDGET_TYPE.QUARTERLY, BUDGET_TYPE.YEARLY].includes(
+      normalizedType,
+    )
+  ) {
+    throw new Error("Invalid budget type");
   }
-  if (!normalizedStartDate) throw new Error('Budget start date is required')
+  if (!normalizedStartDate) throw new Error("Budget start date is required");
 
-  const nowIso = getNowIso()
-  const parsedId = Number(id)
+  const nowIso = getNowIso();
+  const parsedId = Number(id);
   if (Number.isInteger(parsedId) && parsedId > 0) {
-    const existing = await db.budgets.get(parsedId)
-    if (!existing || isDeleted(existing)) throw new Error('Budget not found')
+    const existing = await db.budgets.get(parsedId);
+    if (!existing || isDeleted(existing)) throw new Error("Budget not found");
     await db.budgets.update(parsedId, {
       name: normalizedName,
       amountTwd: parsedAmount,
@@ -1777,15 +1959,15 @@ export const upsertBudget = async ({ id, name, amountTwd, budgetType, startDate 
       startDate: normalizedStartDate,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
-    })
-    const updated = await db.budgets.get(parsedId)
+    });
+    const updated = await db.budgets.get(parsedId);
     if (updated) {
-      await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, updated)
+      await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, updated);
     }
-    return { id: parsedId, created: false }
+    return { id: parsedId, created: false };
   }
 
-  const remoteKey = makeRemoteKey('budget')
+  const remoteKey = makeRemoteKey("budget");
   const newId = await db.budgets.add({
     remoteKey,
     name: normalizedName,
@@ -1796,115 +1978,149 @@ export const upsertBudget = async ({ id, name, amountTwd, budgetType, startDate 
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  })
-  const inserted = await db.budgets.get(newId)
+  });
+  const inserted = await db.budgets.get(newId);
   if (inserted) {
-    await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, inserted)
+    await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, inserted);
   }
-  return { id: newId, created: true }
-}
+  return { id: newId, created: true };
+};
 
 export const removeBudget = async ({ id }) => {
-  const parsedId = Number(id)
+  const parsedId = Number(id);
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    throw new Error('Budget not found')
+    throw new Error("Budget not found");
   }
-  const existing = await db.budgets.get(parsedId)
+  const existing = await db.budgets.get(parsedId);
   if (!existing || isDeleted(existing)) {
-    throw new Error('Budget not found')
+    throw new Error("Budget not found");
   }
-  const nowIso = getNowIso()
+  const nowIso = getNowIso();
   await db.budgets.update(parsedId, {
     deletedAt: nowIso,
     updatedAt: nowIso,
     syncState: SYNC_PENDING,
-  })
-  const entries = await db.expense_entries.where('budgetId').equals(parsedId).toArray()
+  });
+  const entries = await db.expense_entries
+    .where("budgetId")
+    .equals(parsedId)
+    .toArray();
   for (const entry of entries) {
     await db.expense_entries.update(entry.id, {
       budgetId: null,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
-    })
+    });
   }
-  const deleted = await db.budgets.get(parsedId)
+  const deleted = await db.budgets.get(parsedId);
   if (deleted) {
-    await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, deleted)
+    await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, deleted);
   }
-  const maybeUpdatedEntries = await db.expense_entries.where('budgetId').equals(null).toArray()
+  const maybeUpdatedEntries = await db.expense_entries
+    .where("budgetId")
+    .equals(null)
+    .toArray();
   for (const entry of maybeUpdatedEntries) {
     if (entry.updatedAt === nowIso) {
-      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, entry)
+      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, entry);
     }
   }
-}
+};
 
 export const upsertExpenseEntry = async (input) => {
-  const nowIso = getNowIso()
-  const name = String(input?.name || '').trim()
-  const payerRaw = String(input?.payer || '').trim()
-  const normalizedPayerRaw = payerRaw === '共同' ? '共同帳戶' : payerRaw
-  const payer = EXPENSE_PAYER_OPTIONS.includes(normalizedPayerRaw) ? normalizedPayerRaw : null
-  const expenseKindRaw = String(input?.expenseKind || '').trim()
-  const expenseKind = EXPENSE_KIND_OPTIONS.includes(expenseKindRaw) ? expenseKindRaw : null
-  const amountTwd = Number(input?.amountTwd)
-  const occurredAt = normalizeDateOnly(input?.occurredAt) || getNowDate()
-  const entryType = String(input?.entryType || EXPENSE_ENTRY_TYPE.ONE_TIME).toUpperCase()
-  const recurrenceType = input?.recurrenceType ? String(input.recurrenceType).toUpperCase() : null
-  const monthlyDay = input?.monthlyDay ? Number(input.monthlyDay) : null
-  const yearlyMonth = input?.yearlyMonth ? Number(input.yearlyMonth) : null
-  const yearlyDay = input?.yearlyDay ? Number(input.yearlyDay) : null
-  const categoryId = input?.categoryId ? Number(input.categoryId) : null
-  const budgetId = input?.budgetId ? Number(input.budgetId) : null
+  const nowIso = getNowIso();
+  const name = String(input?.name || "").trim();
+  const payerRaw = String(input?.payer || "").trim();
+  const normalizedPayerRaw = payerRaw === "共同" ? "共同帳戶" : payerRaw;
+  const payer = EXPENSE_PAYER_OPTIONS.includes(normalizedPayerRaw)
+    ? normalizedPayerRaw
+    : null;
+  const expenseKindRaw = String(input?.expenseKind || "").trim();
+  const expenseKind = EXPENSE_KIND_OPTIONS.includes(expenseKindRaw)
+    ? expenseKindRaw
+    : null;
+  const amountTwd = Number(input?.amountTwd);
+  const occurredAt = normalizeDateOnly(input?.occurredAt) || getNowDate();
+  const entryType = String(
+    input?.entryType || EXPENSE_ENTRY_TYPE.ONE_TIME,
+  ).toUpperCase();
+  const recurrenceType = input?.recurrenceType
+    ? String(input.recurrenceType).toUpperCase()
+    : null;
+  const monthlyDay = input?.monthlyDay ? Number(input.monthlyDay) : null;
+  const yearlyMonth = input?.yearlyMonth ? Number(input.yearlyMonth) : null;
+  const yearlyDay = input?.yearlyDay ? Number(input.yearlyDay) : null;
+  const categoryId = input?.categoryId ? Number(input.categoryId) : null;
+  const budgetId = input?.budgetId ? Number(input.budgetId) : null;
 
-  if (!name) throw new Error('Expense name is required')
-  if (!Number.isFinite(amountTwd) || amountTwd <= 0) throw new Error('Expense amount must be positive')
-  if (!occurredAt) throw new Error('Expense date is required')
-  if (![EXPENSE_ENTRY_TYPE.ONE_TIME, EXPENSE_ENTRY_TYPE.RECURRING].includes(entryType)) {
-    throw new Error('Invalid expense type')
+  if (!name) throw new Error("Expense name is required");
+  if (!Number.isFinite(amountTwd) || amountTwd <= 0)
+    throw new Error("Expense amount must be positive");
+  if (!occurredAt) throw new Error("Expense date is required");
+  if (
+    ![EXPENSE_ENTRY_TYPE.ONE_TIME, EXPENSE_ENTRY_TYPE.RECURRING].includes(
+      entryType,
+    )
+  ) {
+    throw new Error("Invalid expense type");
   }
   if (entryType === EXPENSE_ENTRY_TYPE.RECURRING) {
-    if (![RECURRENCE_TYPE.MONTHLY, RECURRENCE_TYPE.YEARLY].includes(recurrenceType)) {
-      throw new Error('Invalid recurrence type')
+    if (
+      ![RECURRENCE_TYPE.MONTHLY, RECURRENCE_TYPE.YEARLY].includes(
+        recurrenceType,
+      )
+    ) {
+      throw new Error("Invalid recurrence type");
     }
-    if (recurrenceType === RECURRENCE_TYPE.MONTHLY && (!Number.isInteger(monthlyDay) || monthlyDay < 1 || monthlyDay > 31)) {
-      throw new Error('Monthly day must be between 1 and 31')
+    if (
+      recurrenceType === RECURRENCE_TYPE.MONTHLY &&
+      (!Number.isInteger(monthlyDay) || monthlyDay < 1 || monthlyDay > 31)
+    ) {
+      throw new Error("Monthly day must be between 1 and 31");
     }
     if (recurrenceType === RECURRENCE_TYPE.YEARLY) {
-      if (!Number.isInteger(yearlyMonth) || yearlyMonth < 1 || yearlyMonth > 12) {
-        throw new Error('Yearly month must be between 1 and 12')
+      if (
+        !Number.isInteger(yearlyMonth) ||
+        yearlyMonth < 1 ||
+        yearlyMonth > 12
+      ) {
+        throw new Error("Yearly month must be between 1 and 12");
       }
       if (!Number.isInteger(yearlyDay) || yearlyDay < 1 || yearlyDay > 31) {
-        throw new Error('Yearly day must be between 1 and 31')
+        throw new Error("Yearly day must be between 1 and 31");
       }
     }
   }
 
-  const parsedId = Number(input?.id)
+  const parsedId = Number(input?.id);
   if (Number.isInteger(parsedId) && parsedId > 0) {
-    const existing = await db.expense_entries.get(parsedId)
+    const existing = await db.expense_entries.get(parsedId);
     if (!existing || isDeleted(existing)) {
-      throw new Error('Expense not found')
+      throw new Error("Expense not found");
     }
 
-    const today = getNowDate()
-    const editingRecurringFutureOnly = existing.entryType === EXPENSE_ENTRY_TYPE.RECURRING
-      && existing.recurrenceUntil == null
-      && toDayjsDateOnly(existing.occurredAt).isBefore(toDayjsDateOnly(today), 'day')
-      && entryType === EXPENSE_ENTRY_TYPE.RECURRING
+    const today = getNowDate();
+    const editingRecurringFutureOnly =
+      existing.entryType === EXPENSE_ENTRY_TYPE.RECURRING &&
+      existing.recurrenceUntil == null &&
+      toDayjsDateOnly(existing.occurredAt).isBefore(
+        toDayjsDateOnly(today),
+        "day",
+      ) &&
+      entryType === EXPENSE_ENTRY_TYPE.RECURRING;
 
     if (editingRecurringFutureOnly) {
-      const until = dayjs(today).subtract(1, 'day').format('YYYY-MM-DD')
+      const until = dayjs(today).subtract(1, "day").format("YYYY-MM-DD");
       await db.expense_entries.update(parsedId, {
         recurrenceUntil: until,
         updatedAt: nowIso,
         syncState: SYNC_PENDING,
-      })
-      const closed = await db.expense_entries.get(parsedId)
-      if (closed) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, closed)
+      });
+      const closed = await db.expense_entries.get(parsedId);
+      if (closed) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, closed);
 
       const newId = await db.expense_entries.add({
-        remoteKey: makeRemoteKey('expense'),
+        remoteKey: makeRemoteKey("expense"),
         name,
         payer,
         expenseKind,
@@ -1912,8 +2128,10 @@ export const upsertExpenseEntry = async (input) => {
         occurredAt: today,
         entryType,
         recurrenceType: recurrenceType ?? null,
-        monthlyDay: recurrenceType === RECURRENCE_TYPE.MONTHLY ? monthlyDay : null,
-        yearlyMonth: recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyMonth : null,
+        monthlyDay:
+          recurrenceType === RECURRENCE_TYPE.MONTHLY ? monthlyDay : null,
+        yearlyMonth:
+          recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyMonth : null,
         yearlyDay: recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyDay : null,
         recurrenceUntil: null,
         categoryId: Number.isInteger(categoryId) ? categoryId : null,
@@ -1922,10 +2140,11 @@ export const upsertExpenseEntry = async (input) => {
         updatedAt: nowIso,
         deletedAt: null,
         syncState: SYNC_PENDING,
-      })
-      const inserted = await db.expense_entries.get(newId)
-      if (inserted) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, inserted)
-      return { id: newId, created: true }
+      });
+      const inserted = await db.expense_entries.get(newId);
+      if (inserted)
+        await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, inserted);
+      return { id: newId, created: true };
     }
 
     await db.expense_entries.update(parsedId, {
@@ -1935,21 +2154,34 @@ export const upsertExpenseEntry = async (input) => {
       amountTwd,
       occurredAt,
       entryType,
-      recurrenceType: entryType === EXPENSE_ENTRY_TYPE.RECURRING ? recurrenceType : null,
-      monthlyDay: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.MONTHLY ? monthlyDay : null,
-      yearlyMonth: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyMonth : null,
-      yearlyDay: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyDay : null,
+      recurrenceType:
+        entryType === EXPENSE_ENTRY_TYPE.RECURRING ? recurrenceType : null,
+      monthlyDay:
+        entryType === EXPENSE_ENTRY_TYPE.RECURRING &&
+        recurrenceType === RECURRENCE_TYPE.MONTHLY
+          ? monthlyDay
+          : null,
+      yearlyMonth:
+        entryType === EXPENSE_ENTRY_TYPE.RECURRING &&
+        recurrenceType === RECURRENCE_TYPE.YEARLY
+          ? yearlyMonth
+          : null,
+      yearlyDay:
+        entryType === EXPENSE_ENTRY_TYPE.RECURRING &&
+        recurrenceType === RECURRENCE_TYPE.YEARLY
+          ? yearlyDay
+          : null,
       categoryId: Number.isInteger(categoryId) ? categoryId : null,
       budgetId: Number.isInteger(budgetId) ? budgetId : null,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
-    })
-    const updated = await db.expense_entries.get(parsedId)
-    if (updated) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, updated)
-    return { id: parsedId, created: false }
+    });
+    const updated = await db.expense_entries.get(parsedId);
+    if (updated) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, updated);
+    return { id: parsedId, created: false };
   }
 
-  const remoteKey = makeRemoteKey('expense')
+  const remoteKey = makeRemoteKey("expense");
   const newId = await db.expense_entries.add({
     remoteKey,
     name,
@@ -1958,10 +2190,23 @@ export const upsertExpenseEntry = async (input) => {
     amountTwd,
     occurredAt,
     entryType,
-    recurrenceType: entryType === EXPENSE_ENTRY_TYPE.RECURRING ? recurrenceType : null,
-    monthlyDay: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.MONTHLY ? monthlyDay : null,
-    yearlyMonth: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyMonth : null,
-    yearlyDay: entryType === EXPENSE_ENTRY_TYPE.RECURRING && recurrenceType === RECURRENCE_TYPE.YEARLY ? yearlyDay : null,
+    recurrenceType:
+      entryType === EXPENSE_ENTRY_TYPE.RECURRING ? recurrenceType : null,
+    monthlyDay:
+      entryType === EXPENSE_ENTRY_TYPE.RECURRING &&
+      recurrenceType === RECURRENCE_TYPE.MONTHLY
+        ? monthlyDay
+        : null,
+    yearlyMonth:
+      entryType === EXPENSE_ENTRY_TYPE.RECURRING &&
+      recurrenceType === RECURRENCE_TYPE.YEARLY
+        ? yearlyMonth
+        : null,
+    yearlyDay:
+      entryType === EXPENSE_ENTRY_TYPE.RECURRING &&
+      recurrenceType === RECURRENCE_TYPE.YEARLY
+        ? yearlyDay
+        : null,
     recurrenceUntil: null,
     categoryId: Number.isInteger(categoryId) ? categoryId : null,
     budgetId: Number.isInteger(budgetId) ? budgetId : null,
@@ -1969,118 +2214,134 @@ export const upsertExpenseEntry = async (input) => {
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  })
-  const inserted = await db.expense_entries.get(newId)
-  if (inserted) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, inserted)
-  return { id: newId, created: true }
-}
+  });
+  const inserted = await db.expense_entries.get(newId);
+  if (inserted) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, inserted);
+  return { id: newId, created: true };
+};
 
 export const removeExpenseEntry = async ({ id }) => {
-  const parsedId = Number(id)
+  const parsedId = Number(id);
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    throw new Error('Expense not found')
+    throw new Error("Expense not found");
   }
-  const existing = await db.expense_entries.get(parsedId)
+  const existing = await db.expense_entries.get(parsedId);
   if (!existing || isDeleted(existing)) {
-    throw new Error('Expense not found')
+    throw new Error("Expense not found");
   }
-  const nowIso = getNowIso()
+  const nowIso = getNowIso();
   await db.expense_entries.update(parsedId, {
     deletedAt: nowIso,
     updatedAt: nowIso,
     syncState: SYNC_PENDING,
-  })
-  const deleted = await db.expense_entries.get(parsedId)
-  if (deleted) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, deleted)
-}
+  });
+  const deleted = await db.expense_entries.get(parsedId);
+  if (deleted) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, deleted);
+};
 
 export const stopRecurringExpense = async ({ id, keepToday }) => {
-  const parsedId = Number(id)
+  const parsedId = Number(id);
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    throw new Error('Expense not found')
+    throw new Error("Expense not found");
   }
 
-  const existing = await db.expense_entries.get(parsedId)
+  const existing = await db.expense_entries.get(parsedId);
   if (!existing || isDeleted(existing)) {
-    throw new Error('Expense not found')
+    throw new Error("Expense not found");
   }
   if (existing.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) {
-    throw new Error('Expense is not recurring')
+    throw new Error("Expense is not recurring");
   }
 
-  const nowIso = getNowIso()
-  const today = dayjs(getNowDate())
-  const cutoffDate = keepToday ? today : today.subtract(1, 'day')
-  const recurrenceUntil = cutoffDate.format('YYYY-MM-DD')
+  const nowIso = getNowIso();
+  const today = dayjs(getNowDate());
+  const cutoffDate = keepToday ? today : today.subtract(1, "day");
+  const recurrenceUntil = cutoffDate.format("YYYY-MM-DD");
 
   await db.expense_entries.update(parsedId, {
     recurrenceUntil,
     updatedAt: nowIso,
     syncState: SYNC_PENDING,
-  })
+  });
 
-  const updated = await db.expense_entries.get(parsedId)
+  const updated = await db.expense_entries.get(parsedId);
   if (updated) {
-    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, updated)
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, updated);
   }
-}
+};
 
 export const getExpenseMonthOptions = async () => {
-  const entries = (await db.expense_entries.toArray()).filter((item) => !isDeleted(item))
-  const nowMonth = dayjs().format('YYYY-MM')
-  let firstMonth = null
-  let lastMonth = null
+  const entries = (await db.expense_entries.toArray()).filter(
+    (item) => !isDeleted(item),
+  );
+  const nowMonth = dayjs().format("YYYY-MM");
+  let firstMonth = null;
+  let lastMonth = null;
 
   for (const entry of entries) {
-    const occurred = normalizeDateOnly(entry.occurredAt)
-    if (!occurred) continue
-    const monthValue = occurred.slice(0, 7)
+    const occurred = normalizeDateOnly(entry.occurredAt);
+    if (!occurred) continue;
+    const monthValue = occurred.slice(0, 7);
     if (!firstMonth || monthValue < firstMonth) {
-      firstMonth = monthValue
+      firstMonth = monthValue;
     }
     if (!lastMonth || monthValue > lastMonth) {
-      lastMonth = monthValue
+      lastMonth = monthValue;
     }
 
-    if (entry.entryType === EXPENSE_ENTRY_TYPE.RECURRING && entry.recurrenceUntil) {
-      const until = normalizeDateOnly(entry.recurrenceUntil)
+    if (
+      entry.entryType === EXPENSE_ENTRY_TYPE.RECURRING &&
+      entry.recurrenceUntil
+    ) {
+      const until = normalizeDateOnly(entry.recurrenceUntil);
       if (until) {
-        const untilMonth = until.slice(0, 7)
+        const untilMonth = until.slice(0, 7);
         if (!lastMonth || untilMonth > lastMonth) {
-          lastMonth = untilMonth
+          lastMonth = untilMonth;
         }
       }
     }
   }
 
   if (!firstMonth) {
-    return [nowMonth]
+    return [nowMonth];
   }
 
-  const options = []
-  let cursor = dayjs(`${firstMonth}-01`)
-  const endMonth = lastMonth && lastMonth > nowMonth ? lastMonth : nowMonth
-  const end = dayjs(`${endMonth}-01`)
+  const options = [];
+  let cursor = dayjs(`${firstMonth}-01`);
+  const endMonth = lastMonth && lastMonth > nowMonth ? lastMonth : nowMonth;
+  const end = dayjs(`${endMonth}-01`);
 
-  while (!cursor.isAfter(end, 'month')) {
-    options.push(cursor.format('YYYY-MM'))
-    cursor = cursor.add(1, 'month')
+  while (!cursor.isAfter(end, "month")) {
+    options.push(cursor.format("YYYY-MM"));
+    cursor = cursor.add(1, "month");
   }
 
-  return options
-}
+  return options;
+};
 
 export const getExpenseDashboardView = async (input = {}) => {
-  const monthOptions = await getExpenseMonthOptions()
-  const currentMonth = dayjs().format('YYYY-MM')
+  const monthOptions = await getExpenseMonthOptions();
+  const currentMonth = dayjs().format("YYYY-MM");
   const activeMonth = monthOptions.includes(input.month)
     ? input.month
-    : (monthOptions.includes(currentMonth) ? currentMonth : monthOptions[monthOptions.length - 1])
-  const entries = (await db.expense_entries.toArray()).filter((item) => !isDeleted(item))
-  const categories = (await db.expense_categories.toArray()).filter((item) => !isDeleted(item))
-  const budgets = (await db.budgets.toArray()).filter((item) => !isDeleted(item))
+    : monthOptions.includes(currentMonth)
+      ? currentMonth
+      : monthOptions[monthOptions.length - 1];
+  const entries = (await db.expense_entries.toArray()).filter(
+    (item) => !isDeleted(item),
+  );
+  const categories = (await db.expense_categories.toArray()).filter(
+    (item) => !isDeleted(item),
+  );
+  const budgets = (await db.budgets.toArray()).filter(
+    (item) => !isDeleted(item),
+  );
 
-  const expenseRows = expandRecurringOccurrencesForMonth(entries, activeMonth).map((item) => ({
+  const expenseRows = expandRecurringOccurrencesForMonth(
+    entries,
+    activeMonth,
+  ).map((item) => ({
     id: item.id,
     name: item.name,
     payer: item.payer ?? null,
@@ -2097,57 +2358,74 @@ export const getExpenseDashboardView = async (input = {}) => {
     budgetId: item.budgetId ?? null,
     isRecurringOccurrence: Boolean(item.isRecurringOccurrence),
     updatedAt: item.updatedAt,
-  }))
+  }));
 
-  const categoryMap = new Map(categories.map((item) => [item.id, item.name]))
-  const budgetMap = new Map(budgets.map((item) => [item.id, item.name]))
+  const categoryMap = new Map(categories.map((item) => [item.id, item.name]));
+  const budgetMap = new Map(budgets.map((item) => [item.id, item.name]));
   const decoratedExpenseRows = expenseRows.map((row) => ({
     ...row,
-    payerName: row.payer === '共同' ? '共同帳戶' : (row.payer || '未指定'),
-    expenseKindName: row.expenseKind ? row.expenseKind : '未指定',
-    categoryName: row.categoryId ? categoryMap.get(row.categoryId) || '未指定' : '未指定',
-    budgetName: row.budgetId ? budgetMap.get(row.budgetId) || '未指定' : '未指定',
-  }))
+    payerName: row.payer === "共同" ? "共同帳戶" : row.payer || "未指定",
+    expenseKindName: row.expenseKind ? row.expenseKind : "未指定",
+    categoryName: row.categoryId
+      ? categoryMap.get(row.categoryId) || "未指定"
+      : "未指定",
+    budgetName: row.budgetId
+      ? budgetMap.get(row.budgetId) || "未指定"
+      : "未指定",
+  }));
   const monthlyExpenseTotalTwd = decoratedExpenseRows.reduce(
     (sum, row) => sum + (Number(row.amountTwd) || 0),
     0,
-  )
-  const cumulativeExpenseTotalTwd = computeCumulativeExpenseTotal(entries, getNowDate())
-  const firstExpenseDate = entries
-    .map((entry) => normalizeDateOnly(entry.occurredAt))
-    .filter(Boolean)
-    .sort()[0] || null
-  const incomeSettings = await getIncomeSettings()
+  );
+  const cumulativeExpenseTotalTwd = computeCumulativeExpenseTotal(
+    entries,
+    getNowDate(),
+  );
+  const firstExpenseDate =
+    entries
+      .map((entry) => normalizeDateOnly(entry.occurredAt))
+      .filter(Boolean)
+      .sort()[0] || null;
+  const incomeSettings = await getIncomeSettings();
   const monthOverridesMap = new Map(
-    (incomeSettings.monthOverrides || []).map((item) => [item.month, Number(item.incomeTwd) || 0]),
-  )
+    (incomeSettings.monthOverrides || []).map((item) => [
+      item.month,
+      Number(item.incomeTwd) || 0,
+    ]),
+  );
   const incomeForActiveMonthTwd = resolveIncomeForMonth({
     month: activeMonth,
     defaultMonthlyIncomeTwd: incomeSettings.defaultMonthlyIncomeTwd,
     monthOverridesMap,
-  })
-  const currentYear = dayjs().year()
-  const incomeForCurrentYearTwd = Array.from({ length: 12 }).reduce((sum, _, index) => {
-    const month = dayjs(`${currentYear}-01-01`).month(index).format('YYYY-MM')
-    const monthlyIncome = resolveIncomeForMonth({
-      month,
-      defaultMonthlyIncomeTwd: incomeSettings.defaultMonthlyIncomeTwd,
-      monthOverridesMap,
-    })
-    return sum + (typeof monthlyIncome === 'number' ? monthlyIncome : 0)
-  }, 0)
-  const monthHasIncome = typeof incomeForActiveMonthTwd === 'number' && incomeForActiveMonthTwd > 0
-  const yearHasIncome = incomeForCurrentYearTwd > 0
-  const monthBreakdown = computeExpenseBreakdown(expenseRows)
+  });
+  const currentYear = dayjs().year();
+  const incomeForCurrentYearTwd = Array.from({ length: 12 }).reduce(
+    (sum, _, index) => {
+      const month = dayjs(`${currentYear}-01-01`)
+        .month(index)
+        .format("YYYY-MM");
+      const monthlyIncome = resolveIncomeForMonth({
+        month,
+        defaultMonthlyIncomeTwd: incomeSettings.defaultMonthlyIncomeTwd,
+        monthOverridesMap,
+      });
+      return sum + (typeof monthlyIncome === "number" ? monthlyIncome : 0);
+    },
+    0,
+  );
+  const monthHasIncome =
+    typeof incomeForActiveMonthTwd === "number" && incomeForActiveMonthTwd > 0;
+  const yearHasIncome = incomeForCurrentYearTwd > 0;
+  const monthBreakdown = computeExpenseBreakdown(expenseRows);
 
-  const today = getNowDate()
+  const today = getNowDate();
   const budgetRows = budgets.map((budget) => {
-    const cycleRange = getBudgetCycleRange(budget, today)
+    const cycleRange = getBudgetCycleRange(budget, today);
     const stats = computeBudgetRemaining({
       budget,
       entries,
       cycleRange,
-    })
+    });
     return {
       id: budget.id,
       name: budget.name,
@@ -2160,20 +2438,20 @@ export const getExpenseDashboardView = async (input = {}) => {
       remainingTwd: stats.remainingTwd,
       progressPct: stats.progressPct,
       updatedAt: budget.updatedAt,
-    }
-  })
+    };
+  });
 
   const selectableBudgets = budgetRows.filter((budget) => {
-    if (!budget.cycleStart || !budget.cycleEnd) return false
-    return today >= budget.cycleStart && today <= budget.cycleEnd
-  })
+    if (!budget.cycleStart || !budget.cycleEnd) return false;
+    return today >= budget.cycleStart && today <= budget.cycleEnd;
+  });
 
   const recurringExpenseRows = entries
     .filter((entry) => {
-      if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) return false
-      const untilDate = normalizeDateOnly(entry.recurrenceUntil)
-      if (untilDate && untilDate < today) return false
-      return true
+      if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) return false;
+      const untilDate = normalizeDateOnly(entry.recurrenceUntil);
+      if (untilDate && untilDate < today) return false;
+      return true;
     })
     .map((entry) => ({
       id: entry.id,
@@ -2194,51 +2472,70 @@ export const getExpenseDashboardView = async (input = {}) => {
       createdAt: entry.createdAt ?? null,
     }))
     .sort((a, b) => {
-      const updatedCompare = (b.updatedAt || '').localeCompare(a.updatedAt || '')
-      if (updatedCompare !== 0) return updatedCompare
-      const createdCompare = (b.createdAt || '').localeCompare(a.createdAt || '')
-      if (createdCompare !== 0) return createdCompare
-      return Number(b.id || 0) - Number(a.id || 0)
-    })
+      const updatedCompare = (b.updatedAt || "").localeCompare(
+        a.updatedAt || "",
+      );
+      if (updatedCompare !== 0) return updatedCompare;
+      const createdCompare = (b.createdAt || "").localeCompare(
+        a.createdAt || "",
+      );
+      if (createdCompare !== 0) return createdCompare;
+      return Number(b.id || 0) - Number(a.id || 0);
+    });
 
-  const allHistoryOccurrences = expandExpenseOccurrencesUntilDate(entries, today)
-  const monthOccurrences = getOccurrencesForMonth(entries, activeMonth)
-  const cumulativeBreakdown = computeExpenseBreakdown(allHistoryOccurrences)
+  const allHistoryOccurrences = expandExpenseOccurrencesUntilDate(
+    entries,
+    today,
+  );
+  const monthOccurrences = getOccurrencesForMonth(entries, activeMonth);
+  const cumulativeBreakdown = computeExpenseBreakdown(allHistoryOccurrences);
   const expenseIncomeProgress = {
     month: {
       numerator: monthlyExpenseTotalTwd,
       denominator: monthHasIncome ? incomeForActiveMonthTwd : null,
-      ratio: monthHasIncome ? monthlyExpenseTotalTwd / incomeForActiveMonthTwd : null,
+      ratio: monthHasIncome
+        ? monthlyExpenseTotalTwd / incomeForActiveMonthTwd
+        : null,
       hasIncome: monthHasIncome,
       recurringNumerator: monthBreakdown.recurringTotal,
       oneTimeNumerator: monthBreakdown.oneTimeTotal,
-      recurringRatio: monthHasIncome ? monthBreakdown.recurringTotal / incomeForActiveMonthTwd : null,
-      oneTimeRatio: monthHasIncome ? monthBreakdown.oneTimeTotal / incomeForActiveMonthTwd : null,
+      recurringRatio: monthHasIncome
+        ? monthBreakdown.recurringTotal / incomeForActiveMonthTwd
+        : null,
+      oneTimeRatio: monthHasIncome
+        ? monthBreakdown.oneTimeTotal / incomeForActiveMonthTwd
+        : null,
     },
     cumulative: {
       numerator: cumulativeExpenseTotalTwd,
       denominator: yearHasIncome ? incomeForCurrentYearTwd : null,
-      ratio: yearHasIncome ? cumulativeExpenseTotalTwd / incomeForCurrentYearTwd : null,
+      ratio: yearHasIncome
+        ? cumulativeExpenseTotalTwd / incomeForCurrentYearTwd
+        : null,
       hasIncome: yearHasIncome,
       recurringNumerator: cumulativeBreakdown.recurringTotal,
       oneTimeNumerator: cumulativeBreakdown.oneTimeTotal,
-      recurringRatio: yearHasIncome ? cumulativeBreakdown.recurringTotal / incomeForCurrentYearTwd : null,
-      oneTimeRatio: yearHasIncome ? cumulativeBreakdown.oneTimeTotal / incomeForCurrentYearTwd : null,
+      recurringRatio: yearHasIncome
+        ? cumulativeBreakdown.recurringTotal / incomeForCurrentYearTwd
+        : null,
+      oneTimeRatio: yearHasIncome
+        ? cumulativeBreakdown.oneTimeTotal / incomeForCurrentYearTwd
+        : null,
     },
-  }
+  };
   const expenseAnalyticsAllHistory = buildExpenseAnalytics({
     occurrences: allHistoryOccurrences,
     categoryMap,
-    trendMode: 'all',
+    trendMode: "all",
     today,
-  })
+  });
   const expenseAnalyticsByMonth = buildExpenseAnalytics({
     occurrences: monthOccurrences,
     categoryMap,
-    trendMode: 'month',
+    trendMode: "month",
     month: activeMonth,
     today,
-  })
+  });
 
   return {
     monthOptions,
@@ -2252,16 +2549,23 @@ export const getExpenseDashboardView = async (input = {}) => {
     incomeSettings,
     expenseRows: decoratedExpenseRows,
     categoryRows: categories
-      .map((item) => ({ id: item.id, name: item.name, updatedAt: item.updatedAt }))
-      .sort((a, b) => (a.updatedAt || '').localeCompare(b.updatedAt || ''))
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        updatedAt: item.updatedAt,
+      }))
+      .sort((a, b) => (a.updatedAt || "").localeCompare(b.updatedAt || ""))
       .reverse(),
     budgetRows: budgetRows
-      .sort((a, b) => (a.updatedAt || '').localeCompare(b.updatedAt || ''))
+      .sort((a, b) => (a.updatedAt || "").localeCompare(b.updatedAt || ""))
       .reverse(),
-    selectableBudgets: selectableBudgets.map((item) => ({ id: item.id, name: item.name })),
+    selectableBudgets: selectableBudgets.map((item) => ({
+      id: item.id,
+      name: item.name,
+    })),
     recurringExpenseRows,
     expenseAnalytics: expenseAnalyticsAllHistory,
     expenseAnalyticsAllHistory,
     expenseAnalyticsByMonth,
-  }
-}
+  };
+};
