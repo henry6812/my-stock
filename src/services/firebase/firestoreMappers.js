@@ -138,9 +138,21 @@ export const expenseCategoryToRemote = (category) => ({
 export const budgetToRemote = (budget) => ({
   remoteKey: budget.remoteKey || null,
   name: budget.name,
-  amountTwd: budget.amountTwd,
-  budgetType: budget.budgetType,
-  startDate: budget.startDate,
+  amountTwd:
+    typeof budget.amountTwd === "number" ? Number(budget.amountTwd) : null,
+  budgetMode: budget.budgetMode || "RESIDENT",
+  budgetType: budget.budgetType ?? null,
+  startDate: budget.startDate ?? null,
+  residentPercent:
+    typeof budget.residentPercent === "number"
+      ? Number(budget.residentPercent)
+      : null,
+  specialAmountTwd:
+    typeof budget.specialAmountTwd === "number"
+      ? Number(budget.specialAmountTwd)
+      : null,
+  specialStartDate: budget.specialStartDate ?? null,
+  specialEndDate: budget.specialEndDate ?? null,
   createdAt: budget.createdAt ?? null,
   updatedAt: budget.updatedAt,
   deletedAt: budget.deletedAt ?? null,
@@ -256,9 +268,21 @@ export const remoteToExpenseCategory = (data) => ({
 export const remoteToBudget = (data) => ({
   remoteKey: data.remoteKey ?? null,
   name: data.name,
-  amountTwd: Number(data.amountTwd) || 0,
-  budgetType: data.budgetType || 'MONTHLY',
-  startDate: data.startDate,
+  amountTwd:
+    typeof data.amountTwd === "number" ? Number(data.amountTwd) : null,
+  budgetMode: data.budgetMode || "RESIDENT",
+  budgetType: data.budgetType || "MONTHLY",
+  startDate: data.startDate ?? null,
+  residentPercent:
+    typeof data.residentPercent === "number"
+      ? Number(data.residentPercent)
+      : null,
+  specialAmountTwd:
+    typeof data.specialAmountTwd === "number"
+      ? Number(data.specialAmountTwd)
+      : null,
+  specialStartDate: data.specialStartDate ?? null,
+  specialEndDate: data.specialEndDate ?? null,
   createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),

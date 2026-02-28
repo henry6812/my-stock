@@ -903,6 +903,10 @@
   justify-content: flex-end;
 }
 
+.settings-budget-tabs .ant-tabs-nav {
+  margin-bottom: 12px;
+}
+
 .active-budgets-section {
   display: flex;
   flex-direction: column;

@@ -208,6 +208,16 @@ const formatRecurringScheduleText = (row) => {
   return "--";
 };
 
+const formatBudgetModeLabel = (mode) =>
+  mode === "SPECIAL" ? "特別預算" : "常駐預算";
+
+const formatBudgetCycleLabel = (budgetType) =>
+  budgetType === "QUARTERLY"
+    ? "季度"
+    : budgetType === "YEARLY"
+      ? "年度"
+      : "月度";
+
 const filterRowsByHoldingTab = (targetRows, tab) => {
   if (tab === "tw") {
     return targetRows.filter((row) => row.market === "TW");
@@ -432,6 +442,7 @@ function App() {
   const [expenseFirstDate, setExpenseFirstDate] = useState(null);
   const [expenseCategoryRows, setExpenseCategoryRows] = useState([]);
   const [budgetRows, setBudgetRows] = useState([]);
+  const [activeBudgetTab, setActiveBudgetTab] = useState("resident");
   const [defaultMonthlyIncomeTwd, setDefaultMonthlyIncomeTwd] = useState(null);
   const [incomeMonthOverrides, setIncomeMonthOverrides] = useState([]);
   const [incomeProgress, setIncomeProgress] = useState({
@@ -1119,12 +1130,30 @@ function App() {
     try {
       const values = await budgetForm.validateFields();
       setLoadingBudgetAction(true);
+      const budgetMode = values.budgetMode || "RESIDENT";
       await upsertBudget({
         id: editingBudget?.id,
         name: values.name,
-        amountTwd: values.amountTwd,
-        budgetType: values.budgetType,
-        startDate: values.startDate?.format?.("YYYY-MM-DD") || values.startDate,
+        budgetMode,
+        budgetType: budgetMode === "RESIDENT" ? values.budgetType : undefined,
+        startDate:
+          budgetMode === "RESIDENT"
+            ? values.startDate?.format?.("YYYY-MM-DD") || values.startDate
+            : undefined,
+        residentPercent:
+          budgetMode === "RESIDENT" ? values.residentPercent : undefined,
+        specialAmountTwd:
+          budgetMode === "SPECIAL" ? values.specialAmountTwd : undefined,
+        specialStartDate:
+          budgetMode === "SPECIAL"
+            ? values.specialStartDate?.format?.("YYYY-MM-DD") ||
+              values.specialStartDate
+            : undefined,
+        specialEndDate:
+          budgetMode === "SPECIAL"
+            ? values.specialEndDate?.format?.("YYYY-MM-DD") ||
+              values.specialEndDate
+            : undefined,
       });
       await loadExpenseData();
       await performCloudSync();
@@ -2174,80 +2203,115 @@ function App() {
     }
   }, [activeExpenseCategoryTab, expenseCategoryTabItems]);
 
-  const budgetColumns = useMemo(
+  const renderBudgetActionButtons = useCallback(
+    (record) => (
+      <Space>
+        <Button
+          size="small"
+          icon={<EditOutlined />}
+          onClick={() => openBudgetForm(record)}
+        />
+        <Popconfirm
+          title="刪除此預算？"
+          onConfirm={() => handleRemoveBudget(record)}
+          okText="刪除"
+          cancelText="取消"
+        >
+          <Button danger size="small" icon={<DeleteOutlined />} />
+        </Popconfirm>
+      </Space>
+    ),
+    [handleRemoveBudget, openBudgetForm],
+  );
+
+  const residentBudgetRows = useMemo(
+    () => budgetRows.filter((row) => row.budgetMode !== "SPECIAL"),
+    [budgetRows],
+  );
+
+  const specialBudgetRows = useMemo(
+    () => budgetRows.filter((row) => row.budgetMode === "SPECIAL"),
+    [budgetRows],
+  );
+
+  const residentBudgetColumns = useMemo(
     () => [
       { title: "預算名稱", dataIndex: "name", key: "name" },
       {
-        title: "預算長度",
+        title: "預算週期",
         dataIndex: "budgetType",
         key: "budgetType",
         render: (value) => {
-          const label =
-            value === "QUARTERLY"
-              ? "季度"
-              : value === "YEARLY"
-                ? "年度"
-                : "月度";
+          const cycle = formatBudgetCycleLabel(value);
           const color =
-            value === "QUARTERLY"
-              ? "blue"
-              : value === "YEARLY"
-                ? "purple"
-                : "green";
-          return <Tag color={color}>{label}</Tag>;
+            value === "YEARLY" ? "purple" : value === "QUARTERLY" ? "blue" : "green";
+          return <Tag color={color}>{cycle}</Tag>;
         },
       },
       {
-        title: "預算時間",
-        key: "cycle",
-        render: (_, record) =>
-          record.cycleStart && record.cycleEnd
-            ? `${record.cycleStart} ~ ${record.cycleEnd}`
-            : "尚未生效",
-      },
-      {
-        title: "剩餘",
-        key: "remaining",
-        render: (_, record) => (
-          <div style={{ minWidth: 220 }}>
-            <Progress
-              percent={Math.round(Number(record.progressPct || 0))}
-              size="small"
-              strokeColor={
-                Number(record.spentTwd || 0) > Number(record.amountTwd || 0)
-                  ? "#f5222d"
-                  : undefined
-              }
-            />
-            <Text type="secondary">
-              {formatTwd(record.spentTwd)} / {formatTwd(record.amountTwd)}
-            </Text>
-          </div>
-        ),
+        title: "分配比例",
+        key: "residentPercent",
+        render: (_, record) => {
+          const percent = Number(record.residentPercent);
+          if (!Number.isFinite(percent) || percent <= 0) {
+            return <Text type="secondary">待設定</Text>;
+          }
+          return `${percent}%`;
+        },
       },
       {
         title: "操作",
         key: "actions",
-        render: (_, record) => (
-          <Space>
-            <Button
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => openBudgetForm(record)}
-            />
-            <Popconfirm
-              title="刪除此預算？"
-              onConfirm={() => handleRemoveBudget(record)}
-              okText="刪除"
-              cancelText="取消"
-            >
-              <Button danger size="small" icon={<DeleteOutlined />} />
-            </Popconfirm>
-          </Space>
-        ),
+        render: (_, record) => renderBudgetActionButtons(record),
       },
     ],
-    [handleRemoveBudget, openBudgetForm],
+    [renderBudgetActionButtons],
+  );
+
+  const specialBudgetColumns = useMemo(
+    () => [
+      { title: "預算名稱", dataIndex: "name", key: "name" },
+      {
+        title: "預算金額",
+        key: "specialAmountTwd",
+        align: "right",
+        render: (_, record) => formatTwd(Number(record.specialAmountTwd) || 0),
+      },
+      {
+        title: "預算日期",
+        key: "specialDateRange",
+        render: (_, record) =>
+          record.specialStartDate && record.specialEndDate
+            ? `${record.specialStartDate} ~ ${record.specialEndDate}`
+            : "--",
+      },
+      {
+        title: "剩餘",
+        key: "remaining",
+        render: (_, record) => {
+          const availableTwd = Number(record.availableTwd || 0);
+          const spentTwd = Number(record.spentTwd || 0);
+          return (
+            <div style={{ minWidth: 220 }}>
+              <Progress
+                percent={Math.round(Number(record.progressPct || 0))}
+                size="small"
+                strokeColor={spentTwd > availableTwd ? "#f5222d" : undefined}
+              />
+              <Text type="secondary">
+                {formatTwd(spentTwd)} / {formatTwd(availableTwd)}
+              </Text>
+            </div>
+          );
+        },
+      },
+      {
+        title: "操作",
+        key: "actions",
+        render: (_, record) => renderBudgetActionButtons(record),
+      },
+    ],
+    [renderBudgetActionButtons],
   );
 
   const DraggableBodyRow = useCallback(
@@ -2494,11 +2558,20 @@ function App() {
     if (!isBudgetModalOpen && !isBudgetSheetOpen) {
       return;
     }
+    const budgetMode = editingBudget?.budgetMode || "RESIDENT";
     budgetForm.setFieldsValue({
       name: editingBudget?.name ?? "",
-      amountTwd: editingBudget?.amountTwd ?? undefined,
+      budgetMode,
       budgetType: editingBudget?.budgetType ?? "MONTHLY",
       startDate: dayjs(editingBudget?.startDate || dayjs()),
+      residentPercent: editingBudget?.residentPercent ?? undefined,
+      specialAmountTwd: editingBudget?.specialAmountTwd ?? undefined,
+      specialStartDate: editingBudget?.specialStartDate
+        ? dayjs(editingBudget.specialStartDate)
+        : dayjs(),
+      specialEndDate: editingBudget?.specialEndDate
+        ? dayjs(editingBudget.specialEndDate)
+        : dayjs(),
     });
   }, [budgetForm, editingBudget, isBudgetModalOpen, isBudgetSheetOpen]);
 
@@ -3065,7 +3138,13 @@ function App() {
       form={budgetForm}
       name={isMobileViewport ? "budget_mobile_form" : "budget_form"}
       layout="vertical"
-      initialValues={{ budgetType: "MONTHLY", startDate: dayjs() }}
+      initialValues={{
+        budgetMode: "RESIDENT",
+        budgetType: "MONTHLY",
+        startDate: dayjs(),
+        specialStartDate: dayjs(),
+        specialEndDate: dayjs(),
+      }}
       autoComplete={isMobileViewport ? "off" : undefined}
       data-lpignore={isMobileViewport ? "true" : undefined}
     >
@@ -3077,40 +3156,111 @@ function App() {
         <Input />
       </Form.Item>
       <Form.Item
-        label="預算金額"
-        name="amountTwd"
-        rules={[{ required: true, message: "請輸入預算金額" }]}
-      >
-        <InputNumber
-          min={1}
-          step={100}
-          precision={0}
-          style={{ width: "100%" }}
-        />
-      </Form.Item>
-      <Form.Item
-        label="預算類型"
-        name="budgetType"
-        rules={[{ required: true, message: "請選擇預算類型" }]}
+        label="預算模式"
+        name="budgetMode"
+        rules={[{ required: true, message: "請選擇預算模式" }]}
       >
         <Select
           getPopupContainer={getSheetPopupContainer}
           options={[
-            { label: "月度預算", value: "MONTHLY" },
-            { label: "季度預算", value: "QUARTERLY" },
-            { label: "年度預算", value: "YEARLY" },
+            { label: "常駐預算", value: "RESIDENT" },
+            { label: "特別預算", value: "SPECIAL" },
           ]}
         />
       </Form.Item>
-      <Form.Item
-        label="預算起始日"
-        name="startDate"
-        rules={[{ required: true, message: "請選擇起始日" }]}
-      >
-        <DatePicker
-          style={{ width: "100%" }}
-          getPopupContainer={getSheetPopupContainer}
-        />
+      <Form.Item shouldUpdate noStyle>
+        {({ getFieldValue }) => {
+          const mode = getFieldValue("budgetMode") || "RESIDENT";
+          if (mode === "SPECIAL") {
+            return (
+              <>
+                <Form.Item
+                  label="固定金額"
+                  name="specialAmountTwd"
+                  rules={[{ required: true, message: "請輸入預算金額" }]}
+                >
+                  <InputNumber
+                    min={1}
+                    step={100}
+                    precision={0}
+                    style={{ width: "100%" }}
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="開始日"
+                  name="specialStartDate"
+                  rules={[{ required: true, message: "請選擇開始日" }]}
+                >
+                  <DatePicker
+                    style={{ width: "100%" }}
+                    getPopupContainer={getSheetPopupContainer}
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="結束日"
+                  name="specialEndDate"
+                  dependencies={["specialStartDate"]}
+                  rules={[
+                    { required: true, message: "請選擇結束日" },
+                    ({ getFieldValue }) => ({
+                      validator(_, value) {
+                        const start = getFieldValue("specialStartDate");
+                        if (!start || !value) return Promise.resolve();
+                        if (dayjs(value).isBefore(dayjs(start), "day")) {
+                          return Promise.reject(
+                            new Error("結束日需晚於或等於開始日"),
+                          );
+                        }
+                        return Promise.resolve();
+                      },
+                    }),
+                  ]}
+                >
+                  <DatePicker
+                    style={{ width: "100%" }}
+                    getPopupContainer={getSheetPopupContainer}
+                  />
+                </Form.Item>
+              </>
+            );
+          }
+
+          return (
+            <>
+              <Form.Item
+                label="預算類型"
+                name="budgetType"
+                rules={[{ required: true, message: "請選擇預算類型" }]}
+              >
+                <Select
+                  getPopupContainer={getSheetPopupContainer}
+                  options={[
+                    { label: "月度預算", value: "MONTHLY" },
+                    { label: "季度預算", value: "QUARTERLY" },
+                    { label: "年度預算", value: "YEARLY" },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item
+                label="預算起始日"
+                name="startDate"
+                rules={[{ required: true, message: "請選擇起始日" }]}
+              >
+                <DatePicker
+                  style={{ width: "100%" }}
+                  getPopupContainer={getSheetPopupContainer}
+                />
+              </Form.Item>
+              <Form.Item
+                label="每月收入占比 (%)"
+                name="residentPercent"
+                rules={[{ required: true, message: "請輸入百分比" }]}
+              >
+                <InputNumber min={0.01} step={1} precision={2} style={{ width: "100%" }} />
+              </Form.Item>
+            </>
+          );
+        }}
       </Form.Item>
     </Form>
   );
@@ -3303,14 +3453,9 @@ function App() {
     expenseActiveMonthIndex >= 0 &&
     expenseActiveMonthIndex < expenseMonthNavOptions.length - 1;
   const activeBudgetCards = useMemo(() => {
-    const today = dayjs().format("YYYY-MM-DD");
-
-    return (budgetRows || []).filter((budget) => {
-      if (!budget?.cycleStart || !budget?.cycleEnd) {
-        return false;
-      }
-      return today >= budget.cycleStart && today <= budget.cycleEnd;
-    });
+    return (budgetRows || []).filter(
+      (budget) => Boolean(budget?.isConfigured) && Boolean(budget?.isActive),
+    );
   }, [budgetRows]);
 
   const handleAddIncomeOverride = useCallback(async () => {
@@ -4550,13 +4695,24 @@ function App() {
                               size="small"
                               className="active-budget-card"
                             >
-                              <Text
-                                type="secondary"
-                                className="active-budget-name"
-                                title={budget.name}
-                              >
-                                {budget.name}
-                              </Text>
+                              <Space size={6} align="center">
+                                <Text
+                                  type="secondary"
+                                  className="active-budget-name"
+                                  title={budget.name}
+                                >
+                                  {budget.name}
+                                </Text>
+                                <Tag
+                                  color={
+                                    budget.budgetMode === "SPECIAL"
+                                      ? "orange"
+                                      : "blue"
+                                  }
+                                >
+                                  {formatBudgetModeLabel(budget.budgetMode)}
+                                </Tag>
+                              </Space>
                               <div
                                 className={`active-budget-remaining ${
                                   Number(budget.remainingTwd) < 0
@@ -4585,7 +4741,7 @@ function App() {
                                 showInfo={false}
                                 strokeColor={
                                   Number(budget.spentTwd || 0) >
-                                  Number(budget.amountTwd || 0)
+                                  Number(budget.availableTwd || 0)
                                     ? "#f5222d"
                                     : undefined
                                 }
@@ -4595,7 +4751,14 @@ function App() {
                                 className="active-budget-meta"
                               >
                                 {formatTwd(Number(budget.spentTwd) || 0)} /{" "}
-                                {formatTwd(Number(budget.amountTwd) || 0)}
+                                {formatTwd(Number(budget.availableTwd) || 0)}
+                                {budget.budgetMode === "SPECIAL" &&
+                                budget.specialStartDate &&
+                                budget.specialEndDate
+                                  ? `（${dayjs(budget.specialStartDate).format("YYYY/MM/DD")}~${dayjs(
+                                      budget.specialEndDate,
+                                    ).format("YYYY/MM/DD")}）`
+                                  : ""}
                               </Text>
                             </Card>
                           ))}
@@ -4861,7 +5024,7 @@ function App() {
                       </Space>
                     </Card>
                   </Col>
-                  <Col xs={24} lg={12}>
+                  <Col xs={24} lg={24}>
                     <Card
                       title={
                         <Space size={8}>
@@ -4897,7 +5060,7 @@ function App() {
                       />
                     </Card>
                   </Col>
-                  <Col xs={24} lg={12}>
+                  <Col xs={24} lg={24}>
                     <Card
                       title={
                         <Space size={8}>
@@ -4924,13 +5087,40 @@ function App() {
                         </Space>
                       }
                     >
-                      <Table
-                        rowKey="id"
-                        dataSource={budgetRows}
-                        columns={budgetColumns}
-                        pagination={false}
-                        locale={{ emptyText: "尚無預算" }}
-                        scroll={{ x: 860 }}
+                      <Tabs
+                        className="settings-budget-tabs"
+                        activeKey={activeBudgetTab}
+                        onChange={setActiveBudgetTab}
+                        items={[
+                          {
+                            key: "resident",
+                            label: "常駐預算",
+                            children: (
+                              <Table
+                                rowKey="id"
+                                dataSource={residentBudgetRows}
+                                columns={residentBudgetColumns}
+                                pagination={false}
+                                locale={{ emptyText: "尚無常駐預算" }}
+                                scroll={{ x: 720 }}
+                              />
+                            ),
+                          },
+                          {
+                            key: "special",
+                            label: "特別預算",
+                            children: (
+                              <Table
+                                rowKey="id"
+                                dataSource={specialBudgetRows}
+                                columns={specialBudgetColumns}
+                                pagination={false}
+                                locale={{ emptyText: "尚無特別預算" }}
+                                scroll={{ x: 820 }}
+                              />
+                            ),
+                          },
+                        ]}
                       />
                     </Card>
                   </Col>

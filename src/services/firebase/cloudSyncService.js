@@ -465,9 +465,21 @@ const applyRemoteBudget = async (remote) => {
     await db.budgets.add({
       remoteKey: remote.remoteKey,
       name: remote.name,
-      amountTwd: Number(remote.amountTwd) || 0,
+      amountTwd:
+        typeof remote.amountTwd === 'number' ? Number(remote.amountTwd) : null,
+      budgetMode: remote.budgetMode || 'RESIDENT',
       budgetType: remote.budgetType || 'MONTHLY',
-      startDate: remote.startDate || nowIso.slice(0, 10),
+      startDate: remote.startDate || null,
+      residentPercent:
+        typeof remote.residentPercent === 'number'
+          ? Number(remote.residentPercent)
+          : null,
+      specialAmountTwd:
+        typeof remote.specialAmountTwd === 'number'
+          ? Number(remote.specialAmountTwd)
+          : null,
+      specialStartDate: remote.specialStartDate ?? null,
+      specialEndDate: remote.specialEndDate ?? null,
       createdAt: remote.createdAt || nowIso,
       updatedAt: remote.updatedAt || nowIso,
       deletedAt: remote.deletedAt ?? null,
@@ -478,9 +490,21 @@ const applyRemoteBudget = async (remote) => {
   if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.budgets.update(local.id, {
     name: remote.name,
-    amountTwd: Number(remote.amountTwd) || 0,
+    amountTwd:
+      typeof remote.amountTwd === 'number' ? Number(remote.amountTwd) : null,
+    budgetMode: remote.budgetMode || local.budgetMode || 'RESIDENT',
     budgetType: remote.budgetType || 'MONTHLY',
-    startDate: remote.startDate || local.startDate,
+    startDate: remote.startDate || local.startDate || null,
+    residentPercent:
+      typeof remote.residentPercent === 'number'
+        ? Number(remote.residentPercent)
+        : null,
+    specialAmountTwd:
+      typeof remote.specialAmountTwd === 'number'
+        ? Number(remote.specialAmountTwd)
+        : null,
+    specialStartDate: remote.specialStartDate ?? null,
+    specialEndDate: remote.specialEndDate ?? null,
     createdAt: remote.createdAt || local.createdAt,
     updatedAt: remote.updatedAt || local.updatedAt,
     deletedAt: remote.deletedAt ?? null,

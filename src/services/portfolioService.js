@@ -71,6 +71,10 @@ const BUDGET_TYPE = {
   QUARTERLY: "QUARTERLY",
   YEARLY: "YEARLY",
 };
+const BUDGET_MODE = {
+  RESIDENT: "RESIDENT",
+  SPECIAL: "SPECIAL",
+};
 
 const EXPENSE_PAYER_OPTIONS = ["Po", "Wei", "共同帳戶"];
 const EXPENSE_KIND_OPTIONS = ["家庭", "個人"];
@@ -127,6 +131,33 @@ const normalizeMonthOverrides = (overrides = []) => {
     .map(([month, incomeTwd]) => ({ month, incomeTwd }))
     .sort((a, b) => a.month.localeCompare(b.month));
 };
+
+const normalizeBudgetMode = (value) => {
+  const normalized = String(value || "").toUpperCase();
+  if (normalized === BUDGET_MODE.SPECIAL) {
+    return BUDGET_MODE.SPECIAL;
+  }
+  return BUDGET_MODE.RESIDENT;
+};
+
+const normalizeBudgetType = (value) => {
+  const normalized = String(value || "").toUpperCase();
+  if (
+    normalized === BUDGET_TYPE.MONTHLY ||
+    normalized === BUDGET_TYPE.QUARTERLY ||
+    normalized === BUDGET_TYPE.YEARLY
+  ) {
+    return normalized;
+  }
+  return BUDGET_TYPE.MONTHLY;
+};
+
+const getMonthsPerCycle = (budgetType) =>
+  budgetType === BUDGET_TYPE.MONTHLY
+    ? 1
+    : budgetType === BUDGET_TYPE.QUARTERLY
+      ? 3
+      : 12;
 
 const resolveIncomeForMonth = ({
   month,
@@ -1758,12 +1789,8 @@ const getBudgetCycleRange = (budget, refDateInput = getNowDate()) => {
     return null;
   }
 
-  const monthsPerCycle =
-    budget.budgetType === BUDGET_TYPE.MONTHLY
-      ? 1
-      : budget.budgetType === BUDGET_TYPE.QUARTERLY
-        ? 3
-        : 12;
+  const budgetType = normalizeBudgetType(budget.budgetType);
+  const monthsPerCycle = getMonthsPerCycle(budgetType);
 
   const monthsDiff = refDate.diff(start, "month");
   const cycleIndex = Math.floor(Math.max(0, monthsDiff) / monthsPerCycle);
@@ -1773,25 +1800,21 @@ const getBudgetCycleRange = (budget, refDateInput = getNowDate()) => {
   return {
     cycleStart: cycleStart.format("YYYY-MM-DD"),
     cycleEnd: cycleEnd.format("YYYY-MM-DD"),
+    cycleIndex,
+    monthsPerCycle,
   };
 };
 
-const computeBudgetRemaining = ({ budget, entries, cycleRange }) => {
-  if (!cycleRange) {
-    return {
-      spentTwd: 0,
-      remainingTwd: Number(budget.amountTwd) || 0,
-      progressPct: 0,
-    };
-  }
-
+const computeBudgetSpentInRange = ({ budgetId, entries, cycleRange }) => {
+  if (!cycleRange) return 0;
   const start = toDayjsDateOnly(cycleRange.cycleStart);
   const end = toDayjsDateOnly(cycleRange.cycleEnd);
-  let spentTwd = 0;
+  if (!start.isValid() || !end.isValid()) return 0;
 
+  let spentTwd = 0;
   for (const entry of entries) {
     if (isDeleted(entry)) continue;
-    if (entry.budgetId !== budget.id) continue;
+    if (Number(entry.budgetId) !== Number(budgetId)) continue;
 
     const amount = Number(entry.amountTwd) || 0;
     if (amount <= 0) continue;
@@ -1799,15 +1822,15 @@ const computeBudgetRemaining = ({ budget, entries, cycleRange }) => {
     if (entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING) {
       const occurred = toDayjsDateOnly(entry.occurredAt);
       if (!occurred.isValid()) continue;
-      if (occurred.isBefore(start, "day") || occurred.isAfter(end, "day"))
+      if (occurred.isBefore(start, "day") || occurred.isAfter(end, "day")) {
         continue;
+      }
       spentTwd += amount;
       continue;
     }
 
     const recurringStart = toDayjsDateOnly(entry.occurredAt);
     if (!recurringStart.isValid()) continue;
-
     const until = entry.recurrenceUntil
       ? toDayjsDateOnly(entry.recurrenceUntil)
       : end;
@@ -1830,13 +1853,178 @@ const computeBudgetRemaining = ({ budget, entries, cycleRange }) => {
     }
   }
 
-  const total = Number(budget.amountTwd) || 0;
-  const remaining = total - spentTwd;
+  return spentTwd;
+};
+
+const sumIncomeForCycle = ({
+  cycleRange,
+  defaultMonthlyIncomeTwd,
+  monthOverridesMap,
+}) => {
+  const start = toDayjsDateOnly(cycleRange?.cycleStart);
+  const end = toDayjsDateOnly(cycleRange?.cycleEnd);
+  if (!start.isValid() || !end.isValid()) return 0;
+  let total = 0;
+  let cursor = start.startOf("month");
+  while (!cursor.isAfter(end, "month")) {
+    const monthKey = cursor.format("YYYY-MM");
+    const income = resolveIncomeForMonth({
+      month: monthKey,
+      defaultMonthlyIncomeTwd,
+      monthOverridesMap,
+    });
+    total += typeof income === "number" ? income : 0;
+    cursor = cursor.add(1, "month");
+  }
+  return total;
+};
+
+const getCycleRangeByIndex = ({ startDate, budgetType, cycleIndex }) => {
+  const start = toDayjsDateOnly(startDate);
+  if (!start.isValid()) return null;
+  const monthsPerCycle = getMonthsPerCycle(normalizeBudgetType(budgetType));
+  const safeIndex = Math.max(0, Number(cycleIndex) || 0);
+  const cycleStart = start.add(safeIndex * monthsPerCycle, "month");
+  const cycleEnd = cycleStart.add(monthsPerCycle, "month").subtract(1, "day");
   return {
+    cycleStart: cycleStart.format("YYYY-MM-DD"),
+    cycleEnd: cycleEnd.format("YYYY-MM-DD"),
+    cycleIndex: safeIndex,
+    monthsPerCycle,
+  };
+};
+
+const buildResidentBudgetStats = ({
+  budget,
+  entries,
+  today,
+  defaultMonthlyIncomeTwd,
+  monthOverridesMap,
+}) => {
+  const cycleRange = getBudgetCycleRange(budget, today);
+  const residentPercent = Number(budget.residentPercent);
+  const isConfigured =
+    Number.isFinite(residentPercent) &&
+    residentPercent > 0 &&
+    Boolean(cycleRange);
+
+  if (!isConfigured) {
+    return {
+      cycleStart: cycleRange?.cycleStart ?? null,
+      cycleEnd: cycleRange?.cycleEnd ?? null,
+      allocatedTwd: 0,
+      carryInTwd: 0,
+      availableTwd: 0,
+      spentTwd: 0,
+      remainingTwd: 0,
+      progressPct: 0,
+      isConfigured: false,
+      isActive: false,
+    };
+  }
+
+  let carryInTwd = 0;
+  let allocatedTwd = 0;
+  let spentTwd = 0;
+  for (let idx = 0; idx <= cycleRange.cycleIndex; idx += 1) {
+    const currentCycle = getCycleRangeByIndex({
+      startDate: budget.startDate,
+      budgetType: budget.budgetType,
+      cycleIndex: idx,
+    });
+    const cycleIncome = sumIncomeForCycle({
+      cycleRange: currentCycle,
+      defaultMonthlyIncomeTwd,
+      monthOverridesMap,
+    });
+    const cycleAllocated = (cycleIncome * residentPercent) / 100;
+    const cycleSpent = computeBudgetSpentInRange({
+      budgetId: budget.id,
+      entries,
+      cycleRange: currentCycle,
+    });
+    if (idx === cycleRange.cycleIndex) {
+      allocatedTwd = cycleAllocated;
+      spentTwd = cycleSpent;
+      break;
+    }
+    carryInTwd = carryInTwd + cycleAllocated - cycleSpent;
+  }
+
+  const availableTwd = carryInTwd + allocatedTwd;
+  const remainingTwd = availableTwd - spentTwd;
+  const progressPct =
+    availableTwd !== 0
+      ? Math.min(100, Math.max(0, (spentTwd / Math.abs(availableTwd)) * 100))
+      : 0;
+
+  return {
+    cycleStart: cycleRange.cycleStart,
+    cycleEnd: cycleRange.cycleEnd,
+    allocatedTwd,
+    carryInTwd,
+    availableTwd,
     spentTwd,
-    remainingTwd: remaining,
-    progressPct:
-      total > 0 ? Math.min(100, Math.max(0, (spentTwd / total) * 100)) : 0,
+    remainingTwd,
+    progressPct,
+    isConfigured: true,
+    isActive: today >= cycleRange.cycleStart && today <= cycleRange.cycleEnd,
+  };
+};
+
+const buildSpecialBudgetStats = ({ budget, entries, today }) => {
+  const startDate = normalizeDateOnly(budget.specialStartDate);
+  const endDate = normalizeDateOnly(budget.specialEndDate);
+  const specialAmountTwd = Number(budget.specialAmountTwd);
+  const isConfigured =
+    Boolean(startDate) &&
+    Boolean(endDate) &&
+    Number.isFinite(specialAmountTwd) &&
+    specialAmountTwd > 0 &&
+    dayjs(endDate).isSameOrAfter(dayjs(startDate), "day");
+
+  if (!isConfigured) {
+    return {
+      cycleStart: startDate ?? null,
+      cycleEnd: endDate ?? null,
+      allocatedTwd: 0,
+      carryInTwd: 0,
+      availableTwd: 0,
+      spentTwd: 0,
+      remainingTwd: 0,
+      progressPct: 0,
+      isConfigured: false,
+      isActive: false,
+    };
+  }
+
+  const cycleRange = {
+    cycleStart: startDate,
+    cycleEnd: endDate,
+  };
+  const spentTwd = computeBudgetSpentInRange({
+    budgetId: budget.id,
+    entries,
+    cycleRange,
+  });
+  const availableTwd = specialAmountTwd;
+  const remainingTwd = availableTwd - spentTwd;
+  const progressPct =
+    availableTwd > 0
+      ? Math.min(100, Math.max(0, (spentTwd / availableTwd) * 100))
+      : 0;
+
+  return {
+    cycleStart: startDate,
+    cycleEnd: endDate,
+    allocatedTwd: specialAmountTwd,
+    carryInTwd: 0,
+    availableTwd,
+    spentTwd,
+    remainingTwd,
+    progressPct,
+    isConfigured: true,
+    isActive: today >= startDate && today <= endDate,
   };
 };
 
@@ -1927,36 +2115,75 @@ export const removeExpenseCategory = async ({ id }) => {
 export const upsertBudget = async ({
   id,
   name,
-  amountTwd,
+  budgetMode,
   budgetType,
   startDate,
+  residentPercent,
+  specialAmountTwd,
+  specialStartDate,
+  specialEndDate,
 }) => {
   const normalizedName = String(name || "").trim();
+  const normalizedMode = normalizeBudgetMode(budgetMode);
+  const normalizedType = normalizeBudgetType(budgetType);
   const normalizedStartDate = normalizeDateOnly(startDate);
-  const normalizedType = String(budgetType || "").toUpperCase();
-  const parsedAmount = Number(amountTwd);
+  const normalizedResidentPercent = Number(residentPercent);
+  const normalizedSpecialAmount = Number(specialAmountTwd);
+  const normalizedSpecialStartDate = normalizeDateOnly(specialStartDate);
+  const normalizedSpecialEndDate = normalizeDateOnly(specialEndDate);
+
   if (!normalizedName) throw new Error("Budget name is required");
-  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0)
-    throw new Error("Budget amount must be positive");
-  if (
-    ![BUDGET_TYPE.MONTHLY, BUDGET_TYPE.QUARTERLY, BUDGET_TYPE.YEARLY].includes(
-      normalizedType,
-    )
-  ) {
-    throw new Error("Invalid budget type");
+  if (normalizedMode === BUDGET_MODE.RESIDENT) {
+    if (!normalizedStartDate) throw new Error("Budget start date is required");
+    if (
+      !Number.isFinite(normalizedResidentPercent) ||
+      normalizedResidentPercent <= 0
+    ) {
+      throw new Error("Resident percent must be positive");
+    }
+  } else if (normalizedMode === BUDGET_MODE.SPECIAL) {
+    if (
+      !Number.isFinite(normalizedSpecialAmount) ||
+      normalizedSpecialAmount <= 0
+    ) {
+      throw new Error("Special budget amount must be positive");
+    }
+    if (!normalizedSpecialStartDate || !normalizedSpecialEndDate) {
+      throw new Error("Special budget date range is required");
+    }
+    if (dayjs(normalizedSpecialEndDate).isBefore(dayjs(normalizedSpecialStartDate), "day")) {
+      throw new Error("Special budget end date must be after start date");
+    }
+  } else {
+    throw new Error("Invalid budget mode");
   }
-  if (!normalizedStartDate) throw new Error("Budget start date is required");
 
   const nowIso = getNowIso();
+  const commonPayload = {
+    name: normalizedName,
+    budgetMode: normalizedMode,
+    budgetType: normalizedMode === BUDGET_MODE.RESIDENT ? normalizedType : null,
+    startDate:
+      normalizedMode === BUDGET_MODE.RESIDENT ? normalizedStartDate : null,
+    residentPercent:
+      normalizedMode === BUDGET_MODE.RESIDENT
+        ? normalizedResidentPercent
+        : null,
+    specialAmountTwd:
+      normalizedMode === BUDGET_MODE.SPECIAL ? normalizedSpecialAmount : null,
+    specialStartDate:
+      normalizedMode === BUDGET_MODE.SPECIAL ? normalizedSpecialStartDate : null,
+    specialEndDate:
+      normalizedMode === BUDGET_MODE.SPECIAL ? normalizedSpecialEndDate : null,
+    amountTwd:
+      normalizedMode === BUDGET_MODE.SPECIAL ? normalizedSpecialAmount : null,
+  };
   const parsedId = Number(id);
   if (Number.isInteger(parsedId) && parsedId > 0) {
     const existing = await db.budgets.get(parsedId);
     if (!existing || isDeleted(existing)) throw new Error("Budget not found");
     await db.budgets.update(parsedId, {
-      name: normalizedName,
-      amountTwd: parsedAmount,
-      budgetType: normalizedType,
-      startDate: normalizedStartDate,
+      ...commonPayload,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
@@ -1970,10 +2197,7 @@ export const upsertBudget = async ({
   const remoteKey = makeRemoteKey("budget");
   const newId = await db.budgets.add({
     remoteKey,
-    name: normalizedName,
-    amountTwd: parsedAmount,
-    budgetType: normalizedType,
-    startDate: normalizedStartDate,
+    ...commonPayload,
     createdAt: nowIso,
     updatedAt: nowIso,
     deletedAt: null,
@@ -2420,28 +2644,54 @@ export const getExpenseDashboardView = async (input = {}) => {
 
   const today = getNowDate();
   const budgetRows = budgets.map((budget) => {
-    const cycleRange = getBudgetCycleRange(budget, today);
-    const stats = computeBudgetRemaining({
-      budget,
-      entries,
-      cycleRange,
-    });
+    const normalizedMode = normalizeBudgetMode(budget.budgetMode);
+    const stats =
+      normalizedMode === BUDGET_MODE.SPECIAL
+        ? buildSpecialBudgetStats({ budget, entries, today })
+        : buildResidentBudgetStats({
+            budget: {
+              ...budget,
+              budgetType: normalizeBudgetType(budget.budgetType),
+            },
+            entries,
+            today,
+            defaultMonthlyIncomeTwd: incomeSettings.defaultMonthlyIncomeTwd,
+            monthOverridesMap,
+          });
     return {
       id: budget.id,
       name: budget.name,
+      budgetMode: normalizedMode,
+      budgetType:
+        normalizedMode === BUDGET_MODE.RESIDENT
+          ? normalizeBudgetType(budget.budgetType)
+          : null,
+      startDate: budget.startDate ?? null,
+      residentPercent:
+        Number.isFinite(Number(budget.residentPercent)) &&
+        Number(budget.residentPercent) > 0
+          ? Number(budget.residentPercent)
+          : null,
+      specialAmountTwd: Number(budget.specialAmountTwd) || null,
+      specialStartDate: normalizeDateOnly(budget.specialStartDate),
+      specialEndDate: normalizeDateOnly(budget.specialEndDate),
+      cycleStart: stats.cycleStart,
+      cycleEnd: stats.cycleEnd,
       amountTwd: Number(budget.amountTwd) || 0,
-      budgetType: budget.budgetType,
-      startDate: budget.startDate,
-      cycleStart: cycleRange?.cycleStart || null,
-      cycleEnd: cycleRange?.cycleEnd || null,
+      allocatedTwd: stats.allocatedTwd,
+      carryInTwd: stats.carryInTwd,
+      availableTwd: stats.availableTwd,
       spentTwd: stats.spentTwd,
       remainingTwd: stats.remainingTwd,
       progressPct: stats.progressPct,
+      isConfigured: stats.isConfigured,
+      isActive: stats.isActive,
       updatedAt: budget.updatedAt,
     };
   });
 
   const selectableBudgets = budgetRows.filter((budget) => {
+    if (!budget.isConfigured) return false;
     if (!budget.cycleStart || !budget.cycleEnd) return false;
     return today >= budget.cycleStart && today <= budget.cycleEnd;
   });
