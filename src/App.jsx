@@ -4698,7 +4698,7 @@ function App() {
                               size="small"
                               className="active-budget-card"
                             >
-                              <Space size={6} align="center">
+                              <div className="active-budget-head">
                                 <Text
                                   type="secondary"
                                   className="active-budget-name"
@@ -4707,6 +4707,7 @@ function App() {
                                   {budget.name}
                                 </Text>
                                 <Tag
+                                  className="active-budget-mode-tag"
                                   color={
                                     budget.budgetMode === "SPECIAL"
                                       ? "orange"
@@ -4715,7 +4716,7 @@ function App() {
                                 >
                                   {formatBudgetModeLabel(budget.budgetMode)}
                                 </Tag>
-                              </Space>
+                              </div>
                               <div
                                 className={`active-budget-remaining ${
                                   Number(budget.remainingTwd) < 0

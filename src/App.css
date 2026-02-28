@@ -1016,6 +1016,13 @@
   flex: 0 0 260px;
 }
 
+.active-budget-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .active-recurring-row {
   width: 100%;
   display: flex;
@@ -1051,11 +1058,18 @@
 
 .active-budget-name {
   display: block;
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.active-budget-mode-tag {
+  flex-shrink: 0;
+  margin-inline-end: 0;
 }
 
 .active-budget-remaining {
