@@ -1088,6 +1088,12 @@
   font-size: 12px;
 }
 
+.active-budget-carry {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
 .active-recurring-amount {
   margin-top: 6px;
   margin-bottom: 8px;

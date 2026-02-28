@@ -2690,11 +2690,7 @@ export const getExpenseDashboardView = async (input = {}) => {
     };
   });
 
-  const selectableBudgets = budgetRows.filter((budget) => {
-    if (!budget.isConfigured) return false;
-    if (!budget.cycleStart || !budget.cycleEnd) return false;
-    return today >= budget.cycleStart && today <= budget.cycleEnd;
-  });
+  const selectableBudgets = budgetRows.filter((budget) => budget.isConfigured);
 
   const recurringExpenseRows = entries
     .filter((entry) => {

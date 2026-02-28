@@ -218,6 +218,32 @@ const formatBudgetCycleLabel = (budgetType) =>
       ? "年度"
       : "月度";
 
+const getResidentCycleRangeForDate = ({
+  startDate,
+  budgetType,
+  refDate,
+}) => {
+  const start = dayjs(startDate);
+  const ref = dayjs(refDate);
+  if (!start.isValid() || !ref.isValid() || ref.isBefore(start, "day")) {
+    return null;
+  }
+  const normalizedType =
+    budgetType === "QUARTERLY" || budgetType === "YEARLY"
+      ? budgetType
+      : "MONTHLY";
+  const monthsPerCycle =
+    normalizedType === "MONTHLY" ? 1 : normalizedType === "QUARTERLY" ? 3 : 12;
+  const monthsDiff = ref.diff(start, "month");
+  const cycleIndex = Math.floor(Math.max(0, monthsDiff) / monthsPerCycle);
+  const cycleStart = start.add(cycleIndex * monthsPerCycle, "month");
+  const cycleEnd = cycleStart.add(monthsPerCycle, "month").subtract(1, "day");
+  return {
+    cycleStart: cycleStart.format("YYYY-MM-DD"),
+    cycleEnd: cycleEnd.format("YYYY-MM-DD"),
+  };
+};
+
 const filterRowsByHoldingTab = (targetRows, tab) => {
   if (tab === "tw") {
     return targetRows.filter((row) => row.market === "TW");
@@ -1138,7 +1164,7 @@ function App() {
         budgetType: budgetMode === "RESIDENT" ? values.budgetType : undefined,
         startDate:
           budgetMode === "RESIDENT"
-            ? values.startDate?.format?.("YYYY-MM-DD") || values.startDate
+            ? dayjs(values.startDate).startOf("month").format("YYYY-MM-DD")
             : undefined,
         residentPercent:
           budgetMode === "RESIDENT" ? values.residentPercent : undefined,
@@ -3242,11 +3268,12 @@ function App() {
                 />
               </Form.Item>
               <Form.Item
-                label="預算起始日"
+                label="起始月份"
                 name="startDate"
                 rules={[{ required: true, message: "請選擇起始日" }]}
               >
                 <DatePicker
+                  picker="month"
                   style={{ width: "100%" }}
                   getPopupContainer={getSheetPopupContainer}
                 />
@@ -3453,10 +3480,36 @@ function App() {
     expenseActiveMonthIndex >= 0 &&
     expenseActiveMonthIndex < expenseMonthNavOptions.length - 1;
   const activeBudgetCards = useMemo(() => {
-    return (budgetRows || []).filter(
-      (budget) => Boolean(budget?.isConfigured) && Boolean(budget?.isActive),
-    );
-  }, [budgetRows]);
+    const monthRefDate = safeActiveExpenseMonth
+      ? dayjs(`${safeActiveExpenseMonth}-01`).endOf("month")
+      : dayjs();
+    const refDate = monthRefDate.format("YYYY-MM-DD");
+
+    return (budgetRows || []).filter((budget) => {
+      if (!budget?.isConfigured) {
+        return false;
+      }
+
+      if (budget.budgetMode === "SPECIAL") {
+        if (!budget.specialStartDate || !budget.specialEndDate) {
+          return false;
+        }
+        return (
+          refDate >= budget.specialStartDate && refDate <= budget.specialEndDate
+        );
+      }
+
+      const cycleRange = getResidentCycleRangeForDate({
+        startDate: budget.startDate,
+        budgetType: budget.budgetType,
+        refDate,
+      });
+      if (!cycleRange) {
+        return false;
+      }
+      return refDate >= cycleRange.cycleStart && refDate <= cycleRange.cycleEnd;
+    });
+  }, [budgetRows, safeActiveExpenseMonth]);
 
   const handleAddIncomeOverride = useCallback(async () => {
     const monthValue = dayjs(newIncomeOverrideMonth).format("YYYY-MM");
@@ -4760,6 +4813,16 @@ function App() {
                                     ).format("YYYY/MM/DD")}）`
                                   : ""}
                               </Text>
+                              {budget.budgetMode === "RESIDENT" &&
+                              budget.isConfigured ? (
+                                <Text
+                                  type="secondary"
+                                  className="active-budget-carry"
+                                >
+                                  帶入{" "}
+                                  {formatTwd(Number(budget.carryInTwd) || 0)}
+                                </Text>
+                              ) : null}
                             </Card>
                           ))}
                         </div>
