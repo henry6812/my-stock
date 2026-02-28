@@ -1897,13 +1897,15 @@ const getCycleRangeByIndex = ({ startDate, budgetType, cycleIndex }) => {
 const buildResidentBudgetStats = ({
   budget,
   entries,
-  today,
+  referenceDate,
+  carryCutoffDate,
   defaultMonthlyIncomeTwd,
   monthOverridesMap,
 }) => {
-  const cycleRange = getBudgetCycleRange(budget, today);
+  const cycleRange = getBudgetCycleRange(budget, referenceDate);
   const residentPercent = Number(budget.residentPercent);
   const startDate = toDayjsDateOnly(budget.startDate);
+  const carryCutoff = toDayjsDateOnly(carryCutoffDate);
   const isConfigured =
     Number.isFinite(residentPercent) &&
     residentPercent > 0 &&
@@ -1915,6 +1917,7 @@ const buildResidentBudgetStats = ({
       cycleEnd: cycleRange?.cycleEnd ?? null,
       allocatedTwd: 0,
       carryInTwd: 0,
+      hasCarryInApplied: false,
       availableTwd: 0,
       spentTwd: 0,
       remainingTwd: 0,
@@ -1930,6 +1933,7 @@ const buildResidentBudgetStats = ({
       cycleEnd: null,
       allocatedTwd: 0,
       carryInTwd: 0,
+      hasCarryInApplied: false,
       availableTwd: 0,
       spentTwd: 0,
       remainingTwd: 0,
@@ -1940,9 +1944,8 @@ const buildResidentBudgetStats = ({
   }
 
   let carryInTwd = 0;
-  let allocatedTwd = 0;
-  let spentTwd = 0;
-  for (let idx = 0; idx <= cycleRange.cycleIndex; idx += 1) {
+  let hasCarryInApplied = false;
+  for (let idx = 0; idx < cycleRange.cycleIndex; idx += 1) {
     const currentCycle = getCycleRangeByIndex({
       startDate: budget.startDate,
       budgetType: budget.budgetType,
@@ -1959,13 +1962,35 @@ const buildResidentBudgetStats = ({
       entries,
       cycleRange: currentCycle,
     });
-    if (idx === cycleRange.cycleIndex) {
-      allocatedTwd = cycleAllocated;
-      spentTwd = cycleSpent;
+    const cycleEnd = toDayjsDateOnly(currentCycle?.cycleEnd);
+    if (
+      carryCutoff.isValid() &&
+      cycleEnd.isValid() &&
+      cycleEnd.isBefore(carryCutoff, "day")
+    ) {
+      hasCarryInApplied = true;
+      carryInTwd = carryInTwd + cycleAllocated - cycleSpent;
+    } else {
       break;
     }
-    carryInTwd = carryInTwd + cycleAllocated - cycleSpent;
   }
+
+  const targetCycle = getCycleRangeByIndex({
+    startDate: budget.startDate,
+    budgetType: budget.budgetType,
+    cycleIndex: cycleRange.cycleIndex,
+  });
+  const targetCycleIncome = sumIncomeForCycle({
+    cycleRange: targetCycle,
+    defaultMonthlyIncomeTwd,
+    monthOverridesMap,
+  });
+  const allocatedTwd = (targetCycleIncome * residentPercent) / 100;
+  const spentTwd = computeBudgetSpentInRange({
+    budgetId: budget.id,
+    entries,
+    cycleRange: targetCycle,
+  });
 
   const availableTwd = carryInTwd + allocatedTwd;
   const remainingTwd = availableTwd - spentTwd;
@@ -1979,12 +2004,15 @@ const buildResidentBudgetStats = ({
     cycleEnd: cycleRange.cycleEnd,
     allocatedTwd,
     carryInTwd,
+    hasCarryInApplied,
     availableTwd,
     spentTwd,
     remainingTwd,
     progressPct,
     isConfigured: true,
-    isActive: today >= cycleRange.cycleStart && today <= cycleRange.cycleEnd,
+    isActive:
+      referenceDate >= cycleRange.cycleStart &&
+      referenceDate <= cycleRange.cycleEnd,
   };
 };
 
@@ -2659,18 +2687,23 @@ export const getExpenseDashboardView = async (input = {}) => {
   const monthBreakdown = computeExpenseBreakdown(expenseRows);
 
   const today = getNowDate();
+  const budgetRefDate = dayjs(`${activeMonth}-01`)
+    .endOf("month")
+    .format("YYYY-MM-DD");
+  const carryCutoffDate = today;
   const budgetRows = budgets.map((budget) => {
     const normalizedMode = normalizeBudgetMode(budget.budgetMode);
     const stats =
       normalizedMode === BUDGET_MODE.SPECIAL
-        ? buildSpecialBudgetStats({ budget, entries, today })
+        ? buildSpecialBudgetStats({ budget, entries, today: budgetRefDate })
         : buildResidentBudgetStats({
             budget: {
               ...budget,
               budgetType: normalizeBudgetType(budget.budgetType),
             },
             entries,
-            today,
+            referenceDate: budgetRefDate,
+            carryCutoffDate,
             defaultMonthlyIncomeTwd: incomeSettings.defaultMonthlyIncomeTwd,
             monthOverridesMap,
           });
@@ -2696,6 +2729,7 @@ export const getExpenseDashboardView = async (input = {}) => {
       amountTwd: Number(budget.amountTwd) || 0,
       allocatedTwd: stats.allocatedTwd,
       carryInTwd: stats.carryInTwd,
+      hasCarryInApplied: stats.hasCarryInApplied ?? false,
       availableTwd: stats.availableTwd,
       spentTwd: stats.spentTwd,
       remainingTwd: stats.remainingTwd,

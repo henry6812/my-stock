@@ -218,32 +218,6 @@ const formatBudgetCycleLabel = (budgetType) =>
       ? "年度"
       : "月度";
 
-const getResidentCycleRangeForDate = ({
-  startDate,
-  budgetType,
-  refDate,
-}) => {
-  const start = dayjs(startDate);
-  const ref = dayjs(refDate);
-  if (!start.isValid() || !ref.isValid() || ref.isBefore(start, "day")) {
-    return null;
-  }
-  const normalizedType =
-    budgetType === "QUARTERLY" || budgetType === "YEARLY"
-      ? budgetType
-      : "MONTHLY";
-  const monthsPerCycle =
-    normalizedType === "MONTHLY" ? 1 : normalizedType === "QUARTERLY" ? 3 : 12;
-  const monthsDiff = ref.diff(start, "month");
-  const cycleIndex = Math.floor(Math.max(0, monthsDiff) / monthsPerCycle);
-  const cycleStart = start.add(cycleIndex * monthsPerCycle, "month");
-  const cycleEnd = cycleStart.add(monthsPerCycle, "month").subtract(1, "day");
-  return {
-    cycleStart: cycleStart.format("YYYY-MM-DD"),
-    cycleEnd: cycleEnd.format("YYYY-MM-DD"),
-  };
-};
-
 const filterRowsByHoldingTab = (targetRows, tab) => {
   if (tab === "tw") {
     return targetRows.filter((row) => row.market === "TW");
@@ -3479,37 +3453,13 @@ function App() {
   const canGoNextExpenseMonth =
     expenseActiveMonthIndex >= 0 &&
     expenseActiveMonthIndex < expenseMonthNavOptions.length - 1;
-  const activeBudgetCards = useMemo(() => {
-    const monthRefDate = safeActiveExpenseMonth
-      ? dayjs(`${safeActiveExpenseMonth}-01`).endOf("month")
-      : dayjs();
-    const refDate = monthRefDate.format("YYYY-MM-DD");
-
-    return (budgetRows || []).filter((budget) => {
-      if (!budget?.isConfigured) {
-        return false;
-      }
-
-      if (budget.budgetMode === "SPECIAL") {
-        if (!budget.specialStartDate || !budget.specialEndDate) {
-          return false;
-        }
-        return (
-          refDate >= budget.specialStartDate && refDate <= budget.specialEndDate
-        );
-      }
-
-      const cycleRange = getResidentCycleRangeForDate({
-        startDate: budget.startDate,
-        budgetType: budget.budgetType,
-        refDate,
-      });
-      if (!cycleRange) {
-        return false;
-      }
-      return refDate >= cycleRange.cycleStart && refDate <= cycleRange.cycleEnd;
-    });
-  }, [budgetRows, safeActiveExpenseMonth]);
+  const activeBudgetCards = useMemo(
+    () =>
+      (budgetRows || []).filter(
+        (budget) => Boolean(budget?.isConfigured) && Boolean(budget?.isActive),
+      ),
+    [budgetRows],
+  );
 
   const handleAddIncomeOverride = useCallback(async () => {
     const monthValue = dayjs(newIncomeOverrideMonth).format("YYYY-MM");
@@ -4814,7 +4764,8 @@ function App() {
                                   : ""}
                               </Text>
                               {budget.budgetMode === "RESIDENT" &&
-                              budget.isConfigured ? (
+                              budget.isConfigured &&
+                              budget.hasCarryInApplied ? (
                                 <Text
                                   type="secondary"
                                   className="active-budget-carry"
