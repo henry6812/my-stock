@@ -6,7 +6,10 @@ import "antd/dist/reset.css";
 import "./index.css";
 import App from "./App";
 
-registerSW({
+const updateSW = registerSW({
+  onNeedRefresh() {
+    updateSW(true);
+  },
   onOfflineReady() {
     console.log("App is ready for offline usage.");
   },
