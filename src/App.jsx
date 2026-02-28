@@ -4719,22 +4719,30 @@ function App() {
                               </div>
                               <div
                                 className={`active-budget-remaining ${
-                                  Number(budget.remainingTwd) < 0
+                                  Number(budget.spentTwd || 0) >
+                                  Number(budget.availableTwd || 0)
                                     ? "active-budget-remaining--over"
                                     : ""
                                 }`}
                               >
                                 <span className="active-budget-remaining-prefix">
-                                  {Number(budget.remainingTwd) < 0
-                                    ? "超過"
-                                    : "還有"}
+                                  已使用
                                 </span>
                                 <span className="active-budget-remaining-value">
-                                  {formatTwd(
-                                    Number(budget.remainingTwd) < 0
-                                      ? Math.abs(Number(budget.remainingTwd))
-                                      : Number(budget.remainingTwd) || 0,
-                                  )}
+                                  {`${(() => {
+                                    const spent = Number(budget.spentTwd || 0);
+                                    const available = Number(
+                                      budget.availableTwd || 0,
+                                    );
+                                    if (
+                                      !Number.isFinite(spent) ||
+                                      !Number.isFinite(available) ||
+                                      available <= 0
+                                    ) {
+                                      return 0;
+                                    }
+                                    return (spent / available) * 100;
+                                  })().toFixed(1)}%`}
                                 </span>
                               </div>
                               <Progress
