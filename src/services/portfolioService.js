@@ -1903,10 +1903,11 @@ const buildResidentBudgetStats = ({
 }) => {
   const cycleRange = getBudgetCycleRange(budget, today);
   const residentPercent = Number(budget.residentPercent);
+  const startDate = toDayjsDateOnly(budget.startDate);
   const isConfigured =
     Number.isFinite(residentPercent) &&
     residentPercent > 0 &&
-    Boolean(cycleRange);
+    startDate.isValid();
 
   if (!isConfigured) {
     return {
@@ -1919,6 +1920,21 @@ const buildResidentBudgetStats = ({
       remainingTwd: 0,
       progressPct: 0,
       isConfigured: false,
+      isActive: false,
+    };
+  }
+
+  if (!cycleRange) {
+    return {
+      cycleStart: null,
+      cycleEnd: null,
+      allocatedTwd: 0,
+      carryInTwd: 0,
+      availableTwd: 0,
+      spentTwd: 0,
+      remainingTwd: 0,
+      progressPct: 0,
+      isConfigured: true,
       isActive: false,
     };
   }
