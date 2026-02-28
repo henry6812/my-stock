@@ -4788,7 +4788,7 @@ function App() {
                                   Number(budget.spentTwd || 0) >
                                   Number(budget.availableTwd || 0)
                                     ? "#f5222d"
-                                    : undefined
+                                    : "#b4f1e9"
                                 }
                               />
                               <Text
