@@ -770,12 +770,38 @@
 
 .expense-income-progress {
   width: min(520px, 92vw);
-  margin: 8px auto 0;
+  margin: 48px auto 0;
+  position: relative;
+}
+
+.expense-income-progress-meta-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.expense-income-progress-meta-left {
+  font-size: 11px;
+  text-align: left;
+}
+
+.expense-income-progress-meta-right {
+  font-size: 11px;
+  text-align: right;
+  flex-shrink: 0;
 }
 
 .expense-income-segmented-track {
   position: relative;
   height: 8px;
+  overflow: visible;
+}
+
+.expense-income-segmented-track-fill {
+  position: relative;
+  height: 100%;
   border-radius: 999px;
   background: #f0f0f0;
   overflow: hidden;
@@ -785,15 +811,16 @@
   position: absolute;
   top: 0;
   height: 100%;
+  will-change: width, left;
 }
 
 .expense-income-segment--recurring {
   left: 0;
-  background: #1677ff;
+  background: #c2c8ce;
 }
 
 .expense-income-segment--onetime {
-  background: #fa8c16;
+  background: #6b9fe8;
 }
 
 .expense-income-segment-divider {
@@ -806,13 +833,54 @@
   z-index: 2;
 }
 
-.expense-income-progress-meta {
-  display: flex;
+.expense-rate-marker {
+  position: absolute;
+  left: 0;
+  top: auto;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 4px;
-  font-size: 12px;
+  pointer-events: none;
+  z-index: 4;
+  will-change: left, transform;
+}
+
+.expense-rate-marker-caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #404040;
+}
+
+.expense-rate-marker-label {
+  margin-bottom: 2px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid #316eb8;
+  background: #dee1fb;
+  color: #154887;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.expense-rate-marker--edge-left {
+  transform: translateX(0);
+}
+
+.expense-rate-marker--edge-left .expense-rate-marker-label {
+  align-self: flex-start;
+}
+
+.expense-rate-marker--edge-right {
+  transform: translateX(-100%);
+}
+
+.expense-rate-marker--edge-right .expense-rate-marker-label {
+  align-self: flex-end;
 }
 
 .income-settings-row {
@@ -1072,5 +1140,4 @@
   .expense-chart-modal-content {
     height: 340px;
   }
-
 }

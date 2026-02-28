@@ -457,6 +457,16 @@ function App() {
   const [newIncomeOverrideMonth, setNewIncomeOverrideMonth] = useState(dayjs());
   const [newIncomeOverrideValue, setNewIncomeOverrideValue] = useState(null);
   const [loadingIncomeSettings, setLoadingIncomeSettings] = useState(false);
+  const [expenseRecurringDisplayPercent, setExpenseRecurringDisplayPercent] =
+    useState(0);
+  const [expenseOneTimeDisplayPercent, setExpenseOneTimeDisplayPercent] =
+    useState(0);
+  const [expenseMarkerDisplayPercent, setExpenseMarkerDisplayPercent] =
+    useState(0);
+  const [expenseRateDisplayPercent, setExpenseRateDisplayPercent] =
+    useState(0);
+  const [showExpenseRateMarkerDisplay, setShowExpenseRateMarkerDisplay] =
+    useState(false);
   const [recurringExpenseRows, setRecurringExpenseRows] = useState([]);
   const [expenseAnalyticsAllHistory, setExpenseAnalyticsAllHistory] = useState(
     DEFAULT_EXPENSE_ANALYTICS,
@@ -493,7 +503,10 @@ function App() {
   const rowAnimationInstanceRef = useRef(null);
   const progressAnimationRef = useRef(null);
   const markerValueAnimationRef = useRef(null);
+  const expenseProgressAnimationRef = useRef(null);
   const animationLockedUntilRef = useRef(0);
+  const expenseShouldAnimateRef = useRef(false);
+  const didRunExpenseInitialAnimationRef = useRef(false);
   const latestTotalTwdRef = useRef(0);
   const latestMarkerWanRef = useRef(0);
   const latestProgressTargetsRef = useRef({
@@ -501,6 +514,13 @@ function App() {
     baselineRatio: 0,
     deltaLeftRatio: 0,
     deltaWidthRatio: 0,
+  });
+  const latestExpenseProgressTargetsRef = useRef({
+    recurringPercent: 0,
+    oneTimePercent: 0,
+    markerPercent: 0,
+    ratePercent: 0,
+    showMarker: false,
   });
   const [expenseForm] = Form.useForm();
   const [categoryForm] = Form.useForm();
@@ -739,6 +759,69 @@ function App() {
     });
   }, []);
 
+  const stopExpenseProgressAnimation = useCallback(() => {
+    if (expenseProgressAnimationRef.current) {
+      expenseProgressAnimationRef.current.pause();
+      expenseProgressAnimationRef.current = null;
+    }
+  }, []);
+
+  const animateExpenseProgress = useCallback(
+    (targetValues) => {
+      stopExpenseProgressAnimation();
+      setExpenseRecurringDisplayPercent(0);
+      setExpenseOneTimeDisplayPercent(0);
+      setExpenseMarkerDisplayPercent(0);
+      setExpenseRateDisplayPercent(0);
+      setShowExpenseRateMarkerDisplay(Boolean(targetValues.showMarker));
+
+      if (!targetValues.showMarker) {
+        return;
+      }
+
+      const animated = {
+        recurring: 0,
+        oneTime: 0,
+        marker: 0,
+        rate: 0,
+      };
+
+      expenseProgressAnimationRef.current = anime({
+        targets: animated,
+        recurring: targetValues.recurringPercent,
+        oneTime: targetValues.oneTimePercent,
+        marker: targetValues.markerPercent,
+        rate: targetValues.ratePercent,
+        duration: NUMBER_ANIMATION_DURATION_MS,
+        easing: "easeOutExpo",
+        update: () => {
+          setExpenseRecurringDisplayPercent(animated.recurring);
+          setExpenseOneTimeDisplayPercent(animated.oneTime);
+          setExpenseMarkerDisplayPercent(animated.marker);
+          setExpenseRateDisplayPercent(animated.rate);
+        },
+        complete: () => {
+          setExpenseRecurringDisplayPercent(
+            latestExpenseProgressTargetsRef.current.recurringPercent,
+          );
+          setExpenseOneTimeDisplayPercent(
+            latestExpenseProgressTargetsRef.current.oneTimePercent,
+          );
+          setExpenseMarkerDisplayPercent(
+            latestExpenseProgressTargetsRef.current.markerPercent,
+          );
+          setExpenseRateDisplayPercent(
+            latestExpenseProgressTargetsRef.current.ratePercent,
+          );
+          setShowExpenseRateMarkerDisplay(
+            latestExpenseProgressTargetsRef.current.showMarker,
+          );
+        },
+      });
+    },
+    [stopExpenseProgressAnimation],
+  );
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -959,6 +1042,7 @@ function App() {
     try {
       const values = await expenseForm.validateFields();
       setLoadingExpenseAction(true);
+      expenseShouldAnimateRef.current = true;
       const isRecurringCreateMode =
         expenseFormMode === "recurring-create" && !editingExpenseEntry;
       await upsertExpenseEntry({
@@ -1261,6 +1345,7 @@ function App() {
     async (record) => {
       try {
         setLoadingExpenseAction(true);
+        expenseShouldAnimateRef.current = true;
         await removeExpenseEntry({ id: record.id });
         await loadExpenseData();
         await performCloudSync();
@@ -1299,6 +1384,7 @@ function App() {
 
     setStoppingRecurringById((prev) => ({ ...prev, [targetId]: true }));
     try {
+      expenseShouldAnimateRef.current = true;
       await stopRecurringExpense({ id: targetId, keepToday: stopKeepToday });
       await loadExpenseData();
       await performCloudSync();
@@ -2215,8 +2301,14 @@ function App() {
       stopNumberAnimations("force");
       stopProgressAnimation("force");
       stopMarkerValueAnimation("force");
+      stopExpenseProgressAnimation();
     },
-    [stopMarkerValueAnimation, stopNumberAnimations, stopProgressAnimation],
+    [
+      stopExpenseProgressAnimation,
+      stopMarkerValueAnimation,
+      stopNumberAnimations,
+      stopProgressAnimation,
+    ],
   );
 
   useEffect(() => {
@@ -3058,29 +3150,81 @@ function App() {
     }
     return Math.min(100, ratio * 100);
   }, [activeIncomeProgress]);
-  const showExpenseSegmentDivider =
-    expenseRecurringSegmentPercent > 0 && expenseOneTimeSegmentPercent > 0;
-  const expenseIncomeProgressMeta = useMemo(() => {
-    if (!activeIncomeProgress?.hasIncome) {
-      return "";
-    }
-    const numerator = Number(activeIncomeProgress?.numerator) || 0;
-    const denominator = Number(activeIncomeProgress?.denominator) || 0;
-    if (expenseTotalMode === "cumulative") {
-      return `累計開支 ${formatTwd(numerator)} / 年收入 ${formatTwd(denominator)}`;
-    }
-    return `本月開支 ${formatTwd(numerator)} / 本月收入 ${formatTwd(denominator)}`;
-  }, [activeIncomeProgress, expenseTotalMode]);
-  const expenseIncomeRateText = useMemo(() => {
-    if (!activeIncomeProgress?.hasIncome) {
-      return "";
-    }
+  const expenseRateRawPercent = useMemo(() => {
     const ratio = Number(activeIncomeProgress?.ratio);
-    if (!Number.isFinite(ratio) || ratio < 0) {
-      return "";
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      return 0;
     }
-    return `支出率 ${(ratio * 100).toFixed(1)}%`;
+    return ratio * 100;
   }, [activeIncomeProgress]);
+  const expenseRateMarkerLeftPercent = useMemo(
+    () => Math.min(100, Math.max(0, expenseRateRawPercent)),
+    [expenseRateRawPercent],
+  );
+  const expenseRateMarkerLabel = useMemo(
+    () => `${Math.max(0, expenseRateDisplayPercent).toFixed(1)}%`,
+    [expenseRateDisplayPercent],
+  );
+  const expenseIncomeProgressMetaLeftText = useMemo(() => {
+    const recurringRatio = Number(activeIncomeProgress?.recurringRatio);
+    const oneTimeRatio = Number(activeIncomeProgress?.oneTimeRatio);
+    const recurringText = Number.isFinite(recurringRatio)
+      ? `${Math.max(0, recurringRatio * 100).toFixed(1)}%`
+      : "--";
+    const oneTimeText = Number.isFinite(oneTimeRatio)
+      ? `${Math.max(0, oneTimeRatio * 100).toFixed(1)}%`
+      : "--";
+    if (!activeIncomeProgress?.hasIncome) {
+      return `尚未設定收入（定期支出 ${recurringText}｜單筆支出 ${oneTimeText}）`;
+    }
+    return `定期支出 ${recurringText}｜單筆支出 ${oneTimeText}`;
+  }, [activeIncomeProgress, expenseTotalMode]);
+  const expenseIncomeProgressMetaRightText = useMemo(() => {
+    const numerator = Number(activeIncomeProgress?.numerator);
+    const denominator = Number(activeIncomeProgress?.denominator);
+    const expenseText = Number.isFinite(numerator) ? formatTwd(numerator) : "--";
+    const incomeText = Number.isFinite(denominator)
+      ? formatTwd(denominator)
+      : "--";
+    return `花費 ${expenseText} / 收入 ${incomeText}`;
+  }, [activeIncomeProgress]);
+  const showExpenseRateMarker = Boolean(activeIncomeProgress?.hasIncome);
+  const showExpenseSegmentDividerDisplay =
+    expenseRecurringDisplayPercent > 0 && expenseOneTimeDisplayPercent > 0;
+  useEffect(() => {
+    const targets = {
+      recurringPercent: Math.min(100, Math.max(0, expenseRecurringSegmentPercent)),
+      oneTimePercent: Math.min(100, Math.max(0, expenseOneTimeSegmentPercent)),
+      markerPercent: Math.min(100, Math.max(0, expenseRateMarkerLeftPercent)),
+      ratePercent: Math.max(0, expenseRateRawPercent),
+      showMarker: Boolean(showExpenseRateMarker),
+    };
+    latestExpenseProgressTargetsRef.current = targets;
+
+    const shouldAnimateNow =
+      !didRunExpenseInitialAnimationRef.current || expenseShouldAnimateRef.current;
+    if (shouldAnimateNow) {
+      didRunExpenseInitialAnimationRef.current = true;
+      expenseShouldAnimateRef.current = false;
+      animateExpenseProgress(targets);
+      return;
+    }
+
+    stopExpenseProgressAnimation();
+    setExpenseRecurringDisplayPercent(targets.recurringPercent);
+    setExpenseOneTimeDisplayPercent(targets.oneTimePercent);
+    setExpenseMarkerDisplayPercent(targets.markerPercent);
+    setExpenseRateDisplayPercent(targets.ratePercent);
+    setShowExpenseRateMarkerDisplay(targets.showMarker);
+  }, [
+    animateExpenseProgress,
+    expenseOneTimeSegmentPercent,
+    expenseRateMarkerLeftPercent,
+    expenseRateRawPercent,
+    expenseRecurringSegmentPercent,
+    showExpenseRateMarker,
+    stopExpenseProgressAnimation,
+  ]);
   const expenseActiveMonthIndex = useMemo(
     () =>
       safeActiveExpenseMonth
@@ -3112,6 +3256,7 @@ function App() {
     }
     try {
       setLoadingIncomeSettings(true);
+      expenseShouldAnimateRef.current = true;
       await setIncomeOverride({ month: monthValue, incomeTwd: incomeValue });
       await loadExpenseData();
       await performCloudSync();
@@ -3136,6 +3281,7 @@ function App() {
     async (month) => {
       try {
         setLoadingIncomeSettings(true);
+        expenseShouldAnimateRef.current = true;
         await removeIncomeOverride({ month });
         await loadExpenseData();
         await performCloudSync();
@@ -3154,6 +3300,7 @@ function App() {
   const handleSaveIncomeSettings = useCallback(async () => {
     try {
       setLoadingIncomeSettings(true);
+      expenseShouldAnimateRef.current = true;
       await saveIncomeSettings({
         defaultMonthlyIncomeTwd,
         monthOverrides: incomeMonthOverrides,
@@ -4088,7 +4235,10 @@ function App() {
                           { label: "月份", value: "month" },
                           { label: "累計", value: "cumulative" },
                         ]}
-                        onChange={(value) => setExpenseTotalMode(value)}
+                        onChange={(value) => {
+                          expenseShouldAnimateRef.current = true;
+                          setExpenseTotalMode(value);
+                        }}
                       />
                       <div className="expense-summary-title">
                         <div className="expense-summary-meta">
@@ -4103,6 +4253,7 @@ function App() {
                                 disabled={!canGoPrevExpenseMonth}
                                 onClick={() => {
                                   if (!canGoPrevExpenseMonth) return;
+                                  expenseShouldAnimateRef.current = true;
                                   setActiveExpenseMonth(
                                     expenseMonthNavOptions[
                                       expenseActiveMonthIndex - 1
@@ -4122,6 +4273,7 @@ function App() {
                                 disabled={!canGoNextExpenseMonth}
                                 onClick={() => {
                                   if (!canGoNextExpenseMonth) return;
+                                  expenseShouldAnimateRef.current = true;
                                   setActiveExpenseMonth(
                                     expenseMonthNavOptions[
                                       expenseActiveMonthIndex + 1
@@ -4159,50 +4311,79 @@ function App() {
                         </div>
                         <div className="expense-income-progress">
                           <div className="expense-income-segmented-track">
-                            <div
-                              className="expense-income-segment expense-income-segment--recurring"
-                              style={{
-                                width: `${Math.min(
-                                  100,
-                                  expenseRecurringSegmentPercent,
-                                )}%`,
-                              }}
-                            />
-                            <div
-                              className="expense-income-segment expense-income-segment--onetime"
-                              style={{
-                                left: `${Math.min(
-                                  100,
-                                  expenseRecurringSegmentPercent,
-                                )}%`,
-                                width: `${Math.min(
-                                  100,
-                                  expenseOneTimeSegmentPercent,
-                                )}%`,
-                              }}
-                            />
-                            {showExpenseSegmentDivider ? (
-                              <span
-                                className="expense-income-segment-divider"
-                                style={{
-                                  left: `${Math.min(
-                                    100,
-                                    expenseRecurringSegmentPercent,
-                                  )}%`,
-                                }}
-                              />
-                            ) : null}
-                          </div>
-                          {expenseIncomeProgressMeta ? (
-                            <div className="expense-income-progress-meta">
-                              <Text type="secondary">
-                                {expenseIncomeProgressMeta}
-                              </Text>
-                              <Text type="secondary">
-                                {expenseIncomeRateText}
-                              </Text>
+                              <div className="expense-income-segmented-track-fill">
+                                <div
+                                  className="expense-income-segment expense-income-segment--recurring"
+                                  style={{
+                                    width: `${Math.min(
+                                      100,
+                                      expenseRecurringDisplayPercent,
+                                    )}%`,
+                                  }}
+                                />
+                                <div
+                                  className="expense-income-segment expense-income-segment--onetime"
+                                  style={{
+                                    left: `${Math.min(
+                                      100,
+                                      expenseRecurringDisplayPercent,
+                                    )}%`,
+                                    width: `${Math.min(
+                                      100,
+                                      expenseOneTimeDisplayPercent,
+                                    )}%`,
+                                  }}
+                                />
+                                {showExpenseSegmentDividerDisplay ? (
+                                  <span
+                                    className="expense-income-segment-divider"
+                                    style={{
+                                      left: `${Math.min(
+                                        100,
+                                        expenseRecurringDisplayPercent,
+                                      )}%`,
+                                    }}
+                                  />
+                                ) : null}
+                              </div>
+                              {showExpenseRateMarkerDisplay ? (
+                                <span
+                                  className={[
+                                    "expense-rate-marker",
+                                    expenseMarkerDisplayPercent <= 5
+                                      ? "expense-rate-marker--edge-left"
+                                      : "",
+                                    expenseMarkerDisplayPercent >= 95
+                                      ? "expense-rate-marker--edge-right"
+                                      : "",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" ")}
+                                  style={{
+                                    left: `${expenseMarkerDisplayPercent}%`,
+                                  }}
+                                >
+                                  <span className="expense-rate-marker-label">
+                                    {expenseRateMarkerLabel}
+                                  </span>
+                                  <span className="expense-rate-marker-caret" />
+                                </span>
+                              ) : null}
                             </div>
-                          ) : null}
+                          <div className="expense-income-progress-meta-row">
+                            <Text
+                              type="secondary"
+                              className="expense-income-progress-meta-left"
+                            >
+                              {expenseIncomeProgressMetaLeftText}
+                            </Text>
+                            <Text
+                              type="secondary"
+                              className="expense-income-progress-meta-right"
+                            >
+                              {expenseIncomeProgressMetaRightText}
+                            </Text>
+                          </div>
                         </div>
                         {expenseTotalMode === "cumulative" && (
                           <Text
