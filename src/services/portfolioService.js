@@ -1367,6 +1367,27 @@ const computeCumulativeExpenseTotal = (entries, endDateInput = getNowDate()) => 
   return total
 }
 
+const computeExpenseBreakdown = (occurrences = []) => {
+  let recurringTotal = 0
+  let oneTimeTotal = 0
+
+  for (const occurrence of occurrences) {
+    const amount = Number(occurrence?.amountTwd) || 0
+    if (amount <= 0) continue
+    if (occurrence?.entryType === EXPENSE_ENTRY_TYPE.RECURRING || occurrence?.isRecurringOccurrence) {
+      recurringTotal += amount
+    } else {
+      oneTimeTotal += amount
+    }
+  }
+
+  return {
+    recurringTotal,
+    oneTimeTotal,
+    total: recurringTotal + oneTimeTotal,
+  }
+}
+
 const normalizePayerKey = (payer) => {
   const normalized = String(payer || '').trim().toLowerCase()
   if (normalized === 'po') return 'po'
@@ -1394,6 +1415,8 @@ const expandExpenseOccurrencesUntilDate = (entries, endDateInput = getNowDate())
           id: entry.id,
           amountTwd: amount,
           occurredAt: occurred.format('YYYY-MM-DD'),
+          entryType: entry.entryType || EXPENSE_ENTRY_TYPE.ONE_TIME,
+          isRecurringOccurrence: false,
           payer: entry.payer ?? null,
           expenseKind: entry.expenseKind ?? null,
           categoryId: entry.categoryId ?? null,
@@ -1425,6 +1448,8 @@ const expandExpenseOccurrencesUntilDate = (entries, endDateInput = getNowDate())
           id: entry.id,
           amountTwd: amount,
           occurredAt: occurrence.format('YYYY-MM-DD'),
+          entryType: entry.entryType || EXPENSE_ENTRY_TYPE.RECURRING,
+          isRecurringOccurrence: true,
           payer: entry.payer ?? null,
           expenseKind: entry.expenseKind ?? null,
           categoryId: entry.categoryId ?? null,
@@ -1473,6 +1498,8 @@ const getOccurrencesForMonth = (entries, month) => (
     id: item.id,
     amountTwd: Number(item.amountTwd) || 0,
     occurredAt: item.occurrenceDate,
+    entryType: item.entryType || EXPENSE_ENTRY_TYPE.ONE_TIME,
+    isRecurringOccurrence: Boolean(item.isRecurringOccurrence),
     payer: item.payer ?? null,
     expenseKind: item.expenseKind ?? null,
     categoryId: item.categoryId ?? null,
@@ -2111,20 +2138,7 @@ export const getExpenseDashboardView = async (input = {}) => {
   }, 0)
   const monthHasIncome = typeof incomeForActiveMonthTwd === 'number' && incomeForActiveMonthTwd > 0
   const yearHasIncome = incomeForCurrentYearTwd > 0
-  const expenseIncomeProgress = {
-    month: {
-      numerator: monthlyExpenseTotalTwd,
-      denominator: monthHasIncome ? incomeForActiveMonthTwd : null,
-      ratio: monthHasIncome ? monthlyExpenseTotalTwd / incomeForActiveMonthTwd : null,
-      hasIncome: monthHasIncome,
-    },
-    cumulative: {
-      numerator: cumulativeExpenseTotalTwd,
-      denominator: yearHasIncome ? incomeForCurrentYearTwd : null,
-      ratio: yearHasIncome ? cumulativeExpenseTotalTwd / incomeForCurrentYearTwd : null,
-      hasIncome: yearHasIncome,
-    },
-  }
+  const monthBreakdown = computeExpenseBreakdown(expenseRows)
 
   const today = getNowDate()
   const budgetRows = budgets.map((budget) => {
@@ -2189,6 +2203,29 @@ export const getExpenseDashboardView = async (input = {}) => {
 
   const allHistoryOccurrences = expandExpenseOccurrencesUntilDate(entries, today)
   const monthOccurrences = getOccurrencesForMonth(entries, activeMonth)
+  const cumulativeBreakdown = computeExpenseBreakdown(allHistoryOccurrences)
+  const expenseIncomeProgress = {
+    month: {
+      numerator: monthlyExpenseTotalTwd,
+      denominator: monthHasIncome ? incomeForActiveMonthTwd : null,
+      ratio: monthHasIncome ? monthlyExpenseTotalTwd / incomeForActiveMonthTwd : null,
+      hasIncome: monthHasIncome,
+      recurringNumerator: monthBreakdown.recurringTotal,
+      oneTimeNumerator: monthBreakdown.oneTimeTotal,
+      recurringRatio: monthHasIncome ? monthBreakdown.recurringTotal / incomeForActiveMonthTwd : null,
+      oneTimeRatio: monthHasIncome ? monthBreakdown.oneTimeTotal / incomeForActiveMonthTwd : null,
+    },
+    cumulative: {
+      numerator: cumulativeExpenseTotalTwd,
+      denominator: yearHasIncome ? incomeForCurrentYearTwd : null,
+      ratio: yearHasIncome ? cumulativeExpenseTotalTwd / incomeForCurrentYearTwd : null,
+      hasIncome: yearHasIncome,
+      recurringNumerator: cumulativeBreakdown.recurringTotal,
+      oneTimeNumerator: cumulativeBreakdown.oneTimeTotal,
+      recurringRatio: yearHasIncome ? cumulativeBreakdown.recurringTotal / incomeForCurrentYearTwd : null,
+      oneTimeRatio: yearHasIncome ? cumulativeBreakdown.oneTimeTotal / incomeForCurrentYearTwd : null,
+    },
+  }
   const expenseAnalyticsAllHistory = buildExpenseAnalytics({
     occurrences: allHistoryOccurrences,
     categoryMap,

@@ -433,8 +433,26 @@ function App() {
   const [defaultMonthlyIncomeTwd, setDefaultMonthlyIncomeTwd] = useState(null);
   const [incomeMonthOverrides, setIncomeMonthOverrides] = useState([]);
   const [incomeProgress, setIncomeProgress] = useState({
-    month: { numerator: 0, denominator: null, ratio: null, hasIncome: false },
-    cumulative: { numerator: 0, denominator: null, ratio: null, hasIncome: false },
+    month: {
+      numerator: 0,
+      denominator: null,
+      ratio: null,
+      hasIncome: false,
+      recurringNumerator: 0,
+      oneTimeNumerator: 0,
+      recurringRatio: null,
+      oneTimeRatio: null,
+    },
+    cumulative: {
+      numerator: 0,
+      denominator: null,
+      ratio: null,
+      hasIncome: false,
+      recurringNumerator: 0,
+      oneTimeNumerator: 0,
+      recurringRatio: null,
+      oneTimeRatio: null,
+    },
   });
   const [newIncomeOverrideMonth, setNewIncomeOverrideMonth] = useState(dayjs());
   const [newIncomeOverrideValue, setNewIncomeOverrideValue] = useState(null);
@@ -895,16 +913,31 @@ function App() {
       setExpenseFirstDate(view.firstExpenseDate || null);
       setExpenseCategoryRows(view.categoryRows ?? []);
       setBudgetRows(view.budgetRows ?? []);
-      setDefaultMonthlyIncomeTwd(view.incomeSettings?.defaultMonthlyIncomeTwd ?? null);
+      setDefaultMonthlyIncomeTwd(
+        view.incomeSettings?.defaultMonthlyIncomeTwd ?? null,
+      );
       setIncomeMonthOverrides(view.incomeSettings?.monthOverrides ?? []);
       setIncomeProgress(
         view.expenseIncomeProgress ?? {
-          month: { numerator: 0, denominator: null, ratio: null, hasIncome: false },
+          month: {
+            numerator: 0,
+            denominator: null,
+            ratio: null,
+            hasIncome: false,
+            recurringNumerator: 0,
+            oneTimeNumerator: 0,
+            recurringRatio: null,
+            oneTimeRatio: null,
+          },
           cumulative: {
             numerator: 0,
             denominator: null,
             ratio: null,
             hasIncome: false,
+            recurringNumerator: 0,
+            oneTimeNumerator: 0,
+            recurringRatio: null,
+            oneTimeRatio: null,
           },
         },
       );
@@ -3011,13 +3044,22 @@ function App() {
     expenseTotalMode === "cumulative"
       ? incomeProgress?.cumulative
       : incomeProgress?.month;
-  const expenseIncomeProgressPercent = useMemo(() => {
-    const ratio = Number(activeIncomeProgress?.ratio);
+  const expenseRecurringSegmentPercent = useMemo(() => {
+    const ratio = Number(activeIncomeProgress?.recurringRatio);
     if (!Number.isFinite(ratio) || ratio <= 0) {
       return 0;
     }
-    return Math.min(100, Math.round(ratio * 100));
+    return Math.min(100, ratio * 100);
   }, [activeIncomeProgress]);
+  const expenseOneTimeSegmentPercent = useMemo(() => {
+    const ratio = Number(activeIncomeProgress?.oneTimeRatio);
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      return 0;
+    }
+    return Math.min(100, ratio * 100);
+  }, [activeIncomeProgress]);
+  const showExpenseSegmentDivider =
+    expenseRecurringSegmentPercent > 0 && expenseOneTimeSegmentPercent > 0;
   const expenseIncomeProgressMeta = useMemo(() => {
     if (!activeIncomeProgress?.hasIncome) {
       return "";
@@ -3076,7 +3118,9 @@ function App() {
       setNewIncomeOverrideValue(null);
       message.success("月份收入覆寫已新增");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "新增月份收入覆寫失敗");
+      message.error(
+        error instanceof Error ? error.message : "新增月份收入覆寫失敗",
+      );
     } finally {
       setLoadingIncomeSettings(false);
     }
@@ -3097,7 +3141,9 @@ function App() {
         await performCloudSync();
         message.success("月份收入覆寫已刪除");
       } catch (error) {
-        message.error(error instanceof Error ? error.message : "刪除月份收入覆寫失敗");
+        message.error(
+          error instanceof Error ? error.message : "刪除月份收入覆寫失敗",
+        );
       } finally {
         setLoadingIncomeSettings(false);
       }
@@ -3116,7 +3162,9 @@ function App() {
       await performCloudSync();
       message.success("收入設定已儲存");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "儲存收入設定失敗");
+      message.error(
+        error instanceof Error ? error.message : "儲存收入設定失敗",
+      );
     } finally {
       setLoadingIncomeSettings(false);
     }
@@ -3137,7 +3185,9 @@ function App() {
   );
 
   const trendMonths = useMemo(() => {
-    const source = Array.isArray(effectiveExpenseAnalytics?.monthlyTotalsAllHistory)
+    const source = Array.isArray(
+      effectiveExpenseAnalytics?.monthlyTotalsAllHistory,
+    )
       ? effectiveExpenseAnalytics.monthlyTotalsAllHistory
       : [];
     const size = expenseTrendRange === "1y" ? 12 : 6;
@@ -3220,15 +3270,15 @@ function App() {
     const personalValue =
       kindAnalysisData.find((item) => item.name === "個人")?.value || 0;
     const weiPersonal =
-      payerRankingData.find((item) => item.name === "Wei 個人")?.value || 0;
+      payerRankingData.find((item) => item.name === "Wei")?.value || 0;
     const poPersonal =
-      payerRankingData.find((item) => item.name === "Po 個人")?.value || 0;
+      payerRankingData.find((item) => item.name === "Po")?.value || 0;
     const familyTotal =
-      payerRankingData.find((item) => item.name === "所有家庭")?.value || 0;
+      payerRankingData.find((item) => item.name === "家庭")?.value || 0;
     const poFamily =
-      familyBalanceData.find((item) => item.name === "Po 家庭")?.value || 0;
+      familyBalanceData.find((item) => item.name === "Po 支付")?.value || 0;
     const weiFamily =
-      familyBalanceData.find((item) => item.name === "Wei 家庭")?.value || 0;
+      familyBalanceData.find((item) => item.name === "Wei 支付")?.value || 0;
     const topCategory = categoryAnalysisData[0];
     const kindTotal = familyValue + personalValue;
     const familyBalanceTotal = poFamily + weiFamily;
@@ -4028,562 +4078,602 @@ function App() {
             <Row gutter={[16, 16]}>
               {activeMainTab === "expense" && (
                 <>
-              <Col xs={24}>
-                <div className="expense-summary-panel expense-summary-panel--plain">
-                  <Segmented
-                    className="expense-summary-toggle"
-                    size="small"
-                    value={expenseTotalMode}
-                    options={[
-                      { label: "月份", value: "month" },
-                      { label: "累計", value: "cumulative" },
-                    ]}
-                    onChange={(value) => setExpenseTotalMode(value)}
-                  />
-                  <div className="expense-summary-title">
-                    <div className="expense-summary-meta">
-                      {expenseTotalMode === "month" ? (
-                        <div className="expense-month-nav">
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<LeftOutlined />}
-                            className="expense-month-nav-btn"
-                            aria-label="上個月份"
-                            disabled={!canGoPrevExpenseMonth}
-                            onClick={() => {
-                              if (!canGoPrevExpenseMonth) return;
-                              setActiveExpenseMonth(
-                                expenseMonthNavOptions[
-                                  expenseActiveMonthIndex - 1
-                                ],
-                              );
-                            }}
-                          />
-                          <div className="expense-month-nav-title">
-                            <Text strong>{expenseMonthTitle}</Text>
-                          </div>
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<RightOutlined />}
-                            className="expense-month-nav-btn"
-                            aria-label="下個月份"
-                            disabled={!canGoNextExpenseMonth}
-                            onClick={() => {
-                              if (!canGoNextExpenseMonth) return;
-                              setActiveExpenseMonth(
-                                expenseMonthNavOptions[
-                                  expenseActiveMonthIndex + 1
-                                ],
-                              );
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <Text strong>累計總支出</Text>
-                      )}
-                    </div>
-                  </div>
-                  <div className="expense-summary-value">
-                    <div className="expense-summary-value-main">
-                      <Statistic
-                        value={expenseSummaryValue}
-                        formatter={(value) => formatTwd(Number(value))}
-                      />
-                      {expenseTotalMode === "cumulative" ? (
-                        <Tooltip title="查看支出走勢">
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<AreaChartOutlined />}
-                            className="expense-summary-trend-btn"
-                            aria-label="查看支出走勢"
-                            onClick={() => {
-                              setActiveExpenseChartKey("trend");
-                              setIsExpenseChartModalOpen(true);
-                            }}
-                          />
-                        </Tooltip>
-                      ) : null}
-                    </div>
-                    <div className="expense-income-progress">
-                      <Progress
-                        percent={expenseIncomeProgressPercent}
-                        showInfo={false}
+                  <Col xs={24}>
+                    <div className="expense-summary-panel expense-summary-panel--plain">
+                      <Segmented
+                        className="expense-summary-toggle"
                         size="small"
+                        value={expenseTotalMode}
+                        options={[
+                          { label: "月份", value: "month" },
+                          { label: "累計", value: "cumulative" },
+                        ]}
+                        onChange={(value) => setExpenseTotalMode(value)}
                       />
-                      {expenseIncomeProgressMeta ? (
-                        <div className="expense-income-progress-meta">
-                          <Text type="secondary">
-                            {expenseIncomeProgressMeta}
-                          </Text>
-                          <Text type="secondary">
-                            {expenseIncomeRateText}
-                          </Text>
-                        </div>
-                      ) : null}
-                    </div>
-                    {expenseTotalMode === "cumulative" && (
-                      <Text
-                        type="secondary"
-                        className="expense-summary-subtext"
-                      >
-                        {expenseFirstDate
-                          ? `自 ${dayjs(expenseFirstDate).format("YYYY/MM/DD")} 起`
-                          : "尚無支出資料"}
-                      </Text>
-                    )}
-                  </div>
-                </div>
-              </Col>
-              <Col xs={24}>
-                <section className="expense-analytics-section">
-                  <Text strong className="expense-analytics-title">
-                    支出圖表
-                  </Text>
-                  <div className="expense-analytics-row">
-                    {expenseChartCards.map((chart) => (
-                      <Card
-                        key={chart.key}
-                        size="small"
-                        className="expense-analytics-card"
-                      >
-                        <div className="expense-analytics-card-head">
-                          <Text strong className="active-recurring-title">
-                            {chart.title}
-                          </Text>
-                          <Space
-                            size={4}
-                            className="active-recurring-card-actions"
-                          >
-                            {chart.key === "trend" ? (
-                              <Segmented
-                                size="small"
-                                value={expenseTrendRange}
-                                options={[
-                                  { label: "近六個月", value: "6m" },
-                                  { label: "近一年", value: "1y" },
-                                ]}
-                                onChange={(value) =>
-                                  setExpenseTrendRange(value)
-                                }
-                              />
-                            ) : null}
-                            <Tooltip title="展開圖表">
+                      <div className="expense-summary-title">
+                        <div className="expense-summary-meta">
+                          {expenseTotalMode === "month" ? (
+                            <div className="expense-month-nav">
                               <Button
                                 type="text"
                                 size="small"
-                                icon={<ExpandOutlined />}
-                                className="active-recurring-stop-btn"
-                                aria-label={`展開${chart.title}`}
+                                icon={<LeftOutlined />}
+                                className="expense-month-nav-btn"
+                                aria-label="上個月份"
+                                disabled={!canGoPrevExpenseMonth}
                                 onClick={() => {
-                                  setActiveExpenseChartKey(chart.key);
+                                  if (!canGoPrevExpenseMonth) return;
+                                  setActiveExpenseMonth(
+                                    expenseMonthNavOptions[
+                                      expenseActiveMonthIndex - 1
+                                    ],
+                                  );
+                                }}
+                              />
+                              <div className="expense-month-nav-title">
+                                <Text strong>{expenseMonthTitle}</Text>
+                              </div>
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<RightOutlined />}
+                                className="expense-month-nav-btn"
+                                aria-label="下個月份"
+                                disabled={!canGoNextExpenseMonth}
+                                onClick={() => {
+                                  if (!canGoNextExpenseMonth) return;
+                                  setActiveExpenseMonth(
+                                    expenseMonthNavOptions[
+                                      expenseActiveMonthIndex + 1
+                                    ],
+                                  );
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <Text strong>累計總支出</Text>
+                          )}
+                        </div>
+                      </div>
+                      <div className="expense-summary-value">
+                        <div className="expense-summary-value-main">
+                          <Statistic
+                            value={expenseSummaryValue}
+                            formatter={(value) => formatTwd(Number(value))}
+                          />
+                          {expenseTotalMode === "cumulative" ? (
+                            <Tooltip title="查看支出走勢">
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<AreaChartOutlined />}
+                                className="expense-summary-trend-btn"
+                                aria-label="查看支出走勢"
+                                onClick={() => {
+                                  setActiveExpenseChartKey("trend");
                                   setIsExpenseChartModalOpen(true);
                                 }}
                               />
                             </Tooltip>
-                          </Space>
+                          ) : null}
                         </div>
-                        <div className="expense-analytics-card-body">
-                          <div className="expense-chart-preview">
-                            {renderExpenseChartPreview(chart.key)}
+                        <div className="expense-income-progress">
+                          <div className="expense-income-segmented-track">
+                            <div
+                              className="expense-income-segment expense-income-segment--recurring"
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  expenseRecurringSegmentPercent,
+                                )}%`,
+                              }}
+                            />
+                            <div
+                              className="expense-income-segment expense-income-segment--onetime"
+                              style={{
+                                left: `${Math.min(
+                                  100,
+                                  expenseRecurringSegmentPercent,
+                                )}%`,
+                                width: `${Math.min(
+                                  100,
+                                  expenseOneTimeSegmentPercent,
+                                )}%`,
+                              }}
+                            />
+                            {showExpenseSegmentDivider ? (
+                              <span
+                                className="expense-income-segment-divider"
+                                style={{
+                                  left: `${Math.min(
+                                    100,
+                                    expenseRecurringSegmentPercent,
+                                  )}%`,
+                                }}
+                              />
+                            ) : null}
                           </div>
+                          {expenseIncomeProgressMeta ? (
+                            <div className="expense-income-progress-meta">
+                              <Text type="secondary">
+                                {expenseIncomeProgressMeta}
+                              </Text>
+                              <Text type="secondary">
+                                {expenseIncomeRateText}
+                              </Text>
+                            </div>
+                          ) : null}
+                        </div>
+                        {expenseTotalMode === "cumulative" && (
                           <Text
                             type="secondary"
-                            className="expense-chart-preview-summary"
+                            className="expense-summary-subtext"
                           >
-                            {expenseChartPreviewSummary[chart.key] ||
-                              "尚無資料"}
+                            {expenseFirstDate
+                              ? `自 ${dayjs(expenseFirstDate).format("YYYY/MM/DD")} 起`
+                              : "尚無支出資料"}
                           </Text>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                </section>
-              </Col>
-              <Col xs={24}>
-                <section className="active-budgets-section">
-                  <Text strong className="active-budgets-title">
-                    目前生效預算
-                  </Text>
-                  {activeBudgetCards.length === 0 ? (
-                    <Text type="secondary">目前沒有生效中的預算</Text>
-                  ) : (
-                    <div className="active-budgets-row">
-                      {activeBudgetCards.map((budget) => (
-                        <Card
-                          key={budget.id}
-                          size="small"
-                          className="active-budget-card"
-                        >
-                          <Text
-                            type="secondary"
-                            className="active-budget-name"
-                            title={budget.name}
-                          >
-                            {budget.name}
-                          </Text>
-                          <div
-                            className={`active-budget-remaining ${
-                              Number(budget.remainingTwd) < 0
-                                ? "active-budget-remaining--over"
-                                : ""
-                            }`}
-                          >
-                            <span className="active-budget-remaining-prefix">
-                              {Number(budget.remainingTwd) < 0
-                                ? "超過"
-                                : "還有"}
-                            </span>
-                            <span className="active-budget-remaining-value">
-                              {formatTwd(
-                                Number(budget.remainingTwd) < 0
-                                  ? Math.abs(Number(budget.remainingTwd))
-                                  : Number(budget.remainingTwd) || 0,
-                              )}
-                            </span>
-                          </div>
-                          <Progress
-                            percent={Math.round(
-                              Number(budget.progressPct || 0),
-                            )}
+                        )}
+                      </div>
+                    </div>
+                  </Col>
+                  <Col xs={24}>
+                    <section className="expense-analytics-section">
+                      <Text strong className="expense-analytics-title">
+                        支出圖表
+                      </Text>
+                      <div className="expense-analytics-row">
+                        {expenseChartCards.map((chart) => (
+                          <Card
+                            key={chart.key}
                             size="small"
-                            showInfo={false}
-                            strokeColor={
-                              Number(budget.spentTwd || 0) >
-                              Number(budget.amountTwd || 0)
-                                ? "#f5222d"
-                                : undefined
-                            }
-                          />
-                          <Text type="secondary" className="active-budget-meta">
-                            {formatTwd(Number(budget.spentTwd) || 0)} /{" "}
-                            {formatTwd(Number(budget.amountTwd) || 0)}
-                          </Text>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              </Col>
-              <Col xs={24}>
-                <section className="active-recurring-section">
-                  <Space size={8} className="active-recurring-title-wrap">
-                    <Text strong className="active-recurring-title">
-                      當前定期支出
-                    </Text>
-                    {isMobileViewport ? (
-                      <Button
-                        type="text"
-                        size="small"
-                        className="title-add-btn"
-                        icon={<PlusOutlined />}
-                        onClick={openRecurringCreateForm}
-                        aria-label="新增定期支出"
-                      />
-                    ) : (
-                      <Tooltip title="新增定期支出">
-                        <Button
-                          type="text"
-                          size="small"
-                          className="title-add-btn"
-                          icon={<PlusOutlined />}
-                          onClick={openRecurringCreateForm}
-                          aria-label="新增定期支出"
-                        />
-                      </Tooltip>
-                    )}
-                  </Space>
-                  {recurringExpenseRows.length === 0 ? (
-                    <Text type="secondary">目前沒有定期支出</Text>
-                  ) : (
-                    <div className="active-recurring-row">
-                      {recurringExpenseRows.map((item) => (
-                        <Card
-                          key={item.id}
-                          size="small"
-                          className="active-recurring-card"
-                        >
-                          <div className="active-recurring-card-head">
-                            <Text
-                              type="secondary"
-                              className="active-budget-name"
-                              title={item.name}
-                            >
-                              {item.name}
-                            </Text>
-                            <Space
-                              size={4}
-                              className="active-recurring-card-actions"
-                            >
-                              <Tooltip title="編輯定期支出">
-                                <Button
-                                  type="text"
-                                  size="small"
-                                  icon={<EditOutlined />}
-                                  className="active-recurring-stop-btn"
-                                  onClick={() => openRecurringEditForm(item)}
-                                  aria-label="編輯定期支出"
-                                />
-                              </Tooltip>
-                              <Tooltip title="取消定期支出">
-                                <Button
-                                  type="text"
-                                  size="small"
-                                  icon={<DeleteOutlined />}
-                                  className="active-recurring-stop-btn"
-                                  loading={Boolean(
-                                    stoppingRecurringById[item.id],
-                                  )}
-                                  onClick={() => openStopRecurringModal(item)}
-                                  aria-label="取消定期支出"
-                                />
-                              </Tooltip>
-                            </Space>
-                          </div>
-                          <div className="active-recurring-amount">
-                            <span className="active-budget-remaining-value">
-                              {formatTwd(Number(item.amountTwd) || 0)}
-                            </span>
-                            <span className="active-budget-remaining-prefix">
-                              /
-                              {item.recurrenceType === "YEARLY"
-                                ? "每年"
-                                : item.recurrenceType === "MONTHLY"
-                                  ? "每月"
-                                  : "--"}
-                            </span>
-                          </div>
-                          <Text type="secondary" className="active-budget-meta">
-                            {formatRecurringScheduleText(item)}
-                            {item.recurrenceUntil
-                              ? `（至 ${dayjs(item.recurrenceUntil).format("YYYY/MM/DD")}）`
-                              : ""}
-                          </Text>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              </Col>
-              <Col xs={24}>
-                <Card
-                  title={
-                    <Space size={8}>
-                      <span>支出列表</span>
-                      {isMobileViewport ? (
-                        <Button
-                          type="text"
-                          size="small"
-                          className="title-add-btn"
-                          icon={<PlusOutlined />}
-                          onClick={() => openExpenseForm()}
-                        />
+                            className="expense-analytics-card"
+                          >
+                            <div className="expense-analytics-card-head">
+                              <Text strong className="active-recurring-title">
+                                {chart.title}
+                              </Text>
+                              <Space
+                                size={4}
+                                className="active-recurring-card-actions"
+                              >
+                                {chart.key === "trend" ? (
+                                  <Segmented
+                                    size="small"
+                                    value={expenseTrendRange}
+                                    options={[
+                                      { label: "近六個月", value: "6m" },
+                                      { label: "近一年", value: "1y" },
+                                    ]}
+                                    onChange={(value) =>
+                                      setExpenseTrendRange(value)
+                                    }
+                                  />
+                                ) : null}
+                                <Tooltip title="展開圖表">
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<ExpandOutlined />}
+                                    className="active-recurring-stop-btn"
+                                    aria-label={`展開${chart.title}`}
+                                    onClick={() => {
+                                      setActiveExpenseChartKey(chart.key);
+                                      setIsExpenseChartModalOpen(true);
+                                    }}
+                                  />
+                                </Tooltip>
+                              </Space>
+                            </div>
+                            <div className="expense-analytics-card-body">
+                              <div className="expense-chart-preview">
+                                {renderExpenseChartPreview(chart.key)}
+                              </div>
+                              <Text
+                                type="secondary"
+                                className="expense-chart-preview-summary"
+                              >
+                                {expenseChartPreviewSummary[chart.key] ||
+                                  "尚無資料"}
+                              </Text>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    </section>
+                  </Col>
+                  <Col xs={24}>
+                    <section className="active-budgets-section">
+                      <Text strong className="active-budgets-title">
+                        目前生效預算
+                      </Text>
+                      {activeBudgetCards.length === 0 ? (
+                        <Text type="secondary">目前沒有生效中的預算</Text>
                       ) : (
-                        <Tooltip title="新增支出">
+                        <div className="active-budgets-row">
+                          {activeBudgetCards.map((budget) => (
+                            <Card
+                              key={budget.id}
+                              size="small"
+                              className="active-budget-card"
+                            >
+                              <Text
+                                type="secondary"
+                                className="active-budget-name"
+                                title={budget.name}
+                              >
+                                {budget.name}
+                              </Text>
+                              <div
+                                className={`active-budget-remaining ${
+                                  Number(budget.remainingTwd) < 0
+                                    ? "active-budget-remaining--over"
+                                    : ""
+                                }`}
+                              >
+                                <span className="active-budget-remaining-prefix">
+                                  {Number(budget.remainingTwd) < 0
+                                    ? "超過"
+                                    : "還有"}
+                                </span>
+                                <span className="active-budget-remaining-value">
+                                  {formatTwd(
+                                    Number(budget.remainingTwd) < 0
+                                      ? Math.abs(Number(budget.remainingTwd))
+                                      : Number(budget.remainingTwd) || 0,
+                                  )}
+                                </span>
+                              </div>
+                              <Progress
+                                percent={Math.round(
+                                  Number(budget.progressPct || 0),
+                                )}
+                                size="small"
+                                showInfo={false}
+                                strokeColor={
+                                  Number(budget.spentTwd || 0) >
+                                  Number(budget.amountTwd || 0)
+                                    ? "#f5222d"
+                                    : undefined
+                                }
+                              />
+                              <Text
+                                type="secondary"
+                                className="active-budget-meta"
+                              >
+                                {formatTwd(Number(budget.spentTwd) || 0)} /{" "}
+                                {formatTwd(Number(budget.amountTwd) || 0)}
+                              </Text>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  </Col>
+                  <Col xs={24}>
+                    <section className="active-recurring-section">
+                      <Space size={8} className="active-recurring-title-wrap">
+                        <Text strong className="active-recurring-title">
+                          當前定期支出
+                        </Text>
+                        {isMobileViewport ? (
                           <Button
                             type="text"
                             size="small"
                             className="title-add-btn"
                             icon={<PlusOutlined />}
-                            onClick={() => openExpenseForm()}
+                            onClick={openRecurringCreateForm}
+                            aria-label="新增定期支出"
                           />
-                        </Tooltip>
+                        ) : (
+                          <Tooltip title="新增定期支出">
+                            <Button
+                              type="text"
+                              size="small"
+                              className="title-add-btn"
+                              icon={<PlusOutlined />}
+                              onClick={openRecurringCreateForm}
+                              aria-label="新增定期支出"
+                            />
+                          </Tooltip>
+                        )}
+                      </Space>
+                      {recurringExpenseRows.length === 0 ? (
+                        <Text type="secondary">目前沒有定期支出</Text>
+                      ) : (
+                        <div className="active-recurring-row">
+                          {recurringExpenseRows.map((item) => (
+                            <Card
+                              key={item.id}
+                              size="small"
+                              className="active-recurring-card"
+                            >
+                              <div className="active-recurring-card-head">
+                                <Text
+                                  type="secondary"
+                                  className="active-budget-name"
+                                  title={item.name}
+                                >
+                                  {item.name}
+                                </Text>
+                                <Space
+                                  size={4}
+                                  className="active-recurring-card-actions"
+                                >
+                                  <Tooltip title="編輯定期支出">
+                                    <Button
+                                      type="text"
+                                      size="small"
+                                      icon={<EditOutlined />}
+                                      className="active-recurring-stop-btn"
+                                      onClick={() =>
+                                        openRecurringEditForm(item)
+                                      }
+                                      aria-label="編輯定期支出"
+                                    />
+                                  </Tooltip>
+                                  <Tooltip title="取消定期支出">
+                                    <Button
+                                      type="text"
+                                      size="small"
+                                      icon={<DeleteOutlined />}
+                                      className="active-recurring-stop-btn"
+                                      loading={Boolean(
+                                        stoppingRecurringById[item.id],
+                                      )}
+                                      onClick={() =>
+                                        openStopRecurringModal(item)
+                                      }
+                                      aria-label="取消定期支出"
+                                    />
+                                  </Tooltip>
+                                </Space>
+                              </div>
+                              <div className="active-recurring-amount">
+                                <span className="active-budget-remaining-value">
+                                  {formatTwd(Number(item.amountTwd) || 0)}
+                                </span>
+                                <span className="active-budget-remaining-prefix">
+                                  /
+                                  {item.recurrenceType === "YEARLY"
+                                    ? "每年"
+                                    : item.recurrenceType === "MONTHLY"
+                                      ? "每月"
+                                      : "--"}
+                                </span>
+                              </div>
+                              <Text
+                                type="secondary"
+                                className="active-budget-meta"
+                              >
+                                {formatRecurringScheduleText(item)}
+                                {item.recurrenceUntil
+                                  ? `（至 ${dayjs(item.recurrenceUntil).format("YYYY/MM/DD")}）`
+                                  : ""}
+                              </Text>
+                            </Card>
+                          ))}
+                        </div>
                       )}
-                    </Space>
-                  }
-                >
-                  <Table
-                    rowKey={(record) => `${record.id}-${record.occurredAt}`}
-                    dataSource={expenseRows}
-                    columns={expenseTableColumns}
-                    pagination={false}
-                    locale={{ emptyText: "尚無支出紀錄" }}
-                    scroll={{ x: 860 }}
-                  />
-                </Card>
-              </Col>
+                    </section>
+                  </Col>
+                  <Col xs={24}>
+                    <Card
+                      title={
+                        <Space size={8}>
+                          <span>支出列表</span>
+                          {isMobileViewport ? (
+                            <Button
+                              type="text"
+                              size="small"
+                              className="title-add-btn"
+                              icon={<PlusOutlined />}
+                              onClick={() => openExpenseForm()}
+                            />
+                          ) : (
+                            <Tooltip title="新增支出">
+                              <Button
+                                type="text"
+                                size="small"
+                                className="title-add-btn"
+                                icon={<PlusOutlined />}
+                                onClick={() => openExpenseForm()}
+                              />
+                            </Tooltip>
+                          )}
+                        </Space>
+                      }
+                    >
+                      <Table
+                        rowKey={(record) => `${record.id}-${record.occurredAt}`}
+                        dataSource={expenseRows}
+                        columns={expenseTableColumns}
+                        pagination={false}
+                        locale={{ emptyText: "尚無支出紀錄" }}
+                        scroll={{ x: 860 }}
+                      />
+                    </Card>
+                  </Col>
                 </>
               )}
               {activeMainTab === "settings" && (
                 <>
-              <Col xs={24}>
-                <Card title="收入設定">
-                  <Space
-                    direction="vertical"
-                    size={12}
-                    style={{ width: "100%" }}
-                  >
-                    <div className="income-settings-row">
-                      <Text type="secondary">預設每月收入 (TWD)</Text>
-                      <InputNumber
-                        min={0}
-                        step={1000}
-                        precision={0}
-                        style={{ width: isMobileViewport ? "100%" : 240 }}
-                        value={defaultMonthlyIncomeTwd ?? undefined}
-                        placeholder="未設定"
-                        onChange={(value) =>
-                          setDefaultMonthlyIncomeTwd(
-                            typeof value === "number" ? value : null,
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="income-settings-row">
-                      <Text type="secondary">新增月份覆寫</Text>
-                      <Space wrap>
-                        <DatePicker
-                          picker="month"
-                          value={dayjs(newIncomeOverrideMonth)}
-                          onChange={(value) =>
-                            setNewIncomeOverrideMonth(value || dayjs())
-                          }
-                          getPopupContainer={getSheetPopupContainer}
-                        />
-                        <InputNumber
-                          min={1}
-                          step={1000}
-                          precision={0}
-                          value={newIncomeOverrideValue ?? undefined}
-                          placeholder="收入金額"
-                          onChange={(value) =>
-                            setNewIncomeOverrideValue(
-                              typeof value === "number" ? value : null,
-                            )
-                          }
-                        />
-                        <Button
-                          onClick={handleAddIncomeOverride}
-                          loading={loadingIncomeSettings}
-                        >
-                          新增覆寫
-                        </Button>
-                      </Space>
-                    </div>
-                    <Table
-                      rowKey="month"
-                      size="small"
-                      pagination={false}
-                      dataSource={incomeMonthOverrides}
-                      locale={{ emptyText: "尚無月份覆寫" }}
-                      columns={[
-                        {
-                          title: "月份",
-                          dataIndex: "month",
-                          key: "month",
-                        },
-                        {
-                          title: "收入 (TWD)",
-                          dataIndex: "incomeTwd",
-                          key: "incomeTwd",
-                          align: "right",
-                          render: (value) => formatTwd(value),
-                        },
-                        {
-                          title: "操作",
-                          key: "actions",
-                          width: 90,
-                          render: (_, record) => (
-                            <Button
-                              danger
-                              size="small"
-                              icon={<DeleteOutlined />}
-                              loading={loadingIncomeSettings}
-                              onClick={() =>
-                                handleRemoveIncomeOverride(record.month)
+                  <Col xs={24}>
+                    <Card title="收入設定">
+                      <Space
+                        direction="vertical"
+                        size={12}
+                        style={{ width: "100%" }}
+                      >
+                        <div className="income-settings-row">
+                          <Text type="secondary">預設每月收入 (TWD)</Text>
+                          <InputNumber
+                            min={0}
+                            step={1000}
+                            precision={0}
+                            style={{ width: isMobileViewport ? "100%" : 240 }}
+                            value={defaultMonthlyIncomeTwd ?? undefined}
+                            placeholder="未設定"
+                            onChange={(value) =>
+                              setDefaultMonthlyIncomeTwd(
+                                typeof value === "number" ? value : null,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="income-settings-row">
+                          <Text type="secondary">新增月份覆寫</Text>
+                          <Space wrap>
+                            <DatePicker
+                              picker="month"
+                              value={dayjs(newIncomeOverrideMonth)}
+                              onChange={(value) =>
+                                setNewIncomeOverrideMonth(value || dayjs())
+                              }
+                              getPopupContainer={getSheetPopupContainer}
+                            />
+                            <InputNumber
+                              min={1}
+                              step={1000}
+                              precision={0}
+                              value={newIncomeOverrideValue ?? undefined}
+                              placeholder="收入金額"
+                              onChange={(value) =>
+                                setNewIncomeOverrideValue(
+                                  typeof value === "number" ? value : null,
+                                )
                               }
                             />
-                          ),
-                        },
-                      ]}
-                    />
-                    <div className="income-settings-actions">
-                      <Button
-                        type="primary"
-                        onClick={handleSaveIncomeSettings}
-                        loading={loadingIncomeSettings}
-                      >
-                        儲存收入設定
-                      </Button>
-                    </div>
-                  </Space>
-                </Card>
-              </Col>
-              <Col xs={24} lg={12}>
-                <Card
-                  title={
-                    <Space size={8}>
-                      <span>類別列表</span>
-                      {isMobileViewport ? (
-                        <Button
-                          type="text"
+                            <Button
+                              onClick={handleAddIncomeOverride}
+                              loading={loadingIncomeSettings}
+                            >
+                              新增覆寫
+                            </Button>
+                          </Space>
+                        </div>
+                        <Table
+                          rowKey="month"
                           size="small"
-                          className="title-add-btn"
-                          icon={<PlusOutlined />}
-                          onClick={() => openCategoryForm()}
+                          pagination={false}
+                          dataSource={incomeMonthOverrides}
+                          locale={{ emptyText: "尚無月份覆寫" }}
+                          columns={[
+                            {
+                              title: "月份",
+                              dataIndex: "month",
+                              key: "month",
+                            },
+                            {
+                              title: "收入 (TWD)",
+                              dataIndex: "incomeTwd",
+                              key: "incomeTwd",
+                              align: "right",
+                              render: (value) => formatTwd(value),
+                            },
+                            {
+                              title: "操作",
+                              key: "actions",
+                              width: 90,
+                              render: (_, record) => (
+                                <Button
+                                  danger
+                                  size="small"
+                                  icon={<DeleteOutlined />}
+                                  loading={loadingIncomeSettings}
+                                  onClick={() =>
+                                    handleRemoveIncomeOverride(record.month)
+                                  }
+                                />
+                              ),
+                            },
+                          ]}
                         />
-                      ) : (
-                        <Tooltip title="新增類別">
+                        <div className="income-settings-actions">
                           <Button
-                            type="text"
-                            size="small"
-                            className="title-add-btn"
-                            icon={<PlusOutlined />}
-                            onClick={() => openCategoryForm()}
-                          />
-                        </Tooltip>
-                      )}
-                    </Space>
-                  }
-                >
-                  <Table
-                    rowKey="id"
-                    dataSource={expenseCategoryRows}
-                    columns={expenseCategoryColumns}
-                    pagination={false}
-                    locale={{ emptyText: "尚無分類" }}
-                  />
-                </Card>
-              </Col>
-              <Col xs={24} lg={12}>
-                <Card
-                  title={
-                    <Space size={8}>
-                      <span>預算列表</span>
-                      {isMobileViewport ? (
-                        <Button
-                          type="text"
-                          size="small"
-                          className="title-add-btn"
-                          icon={<PlusOutlined />}
-                          onClick={() => openBudgetForm()}
-                        />
-                      ) : (
-                        <Tooltip title="新增預算">
-                          <Button
-                            type="text"
-                            size="small"
-                            className="title-add-btn"
-                            icon={<PlusOutlined />}
-                            onClick={() => openBudgetForm()}
-                          />
-                        </Tooltip>
-                      )}
-                    </Space>
-                  }
-                >
-                  <Table
-                    rowKey="id"
-                    dataSource={budgetRows}
-                    columns={budgetColumns}
-                    pagination={false}
-                    locale={{ emptyText: "尚無預算" }}
-                    scroll={{ x: 860 }}
-                  />
-                </Card>
-              </Col>
+                            type="primary"
+                            onClick={handleSaveIncomeSettings}
+                            loading={loadingIncomeSettings}
+                          >
+                            儲存收入設定
+                          </Button>
+                        </div>
+                      </Space>
+                    </Card>
+                  </Col>
+                  <Col xs={24} lg={12}>
+                    <Card
+                      title={
+                        <Space size={8}>
+                          <span>類別列表</span>
+                          {isMobileViewport ? (
+                            <Button
+                              type="text"
+                              size="small"
+                              className="title-add-btn"
+                              icon={<PlusOutlined />}
+                              onClick={() => openCategoryForm()}
+                            />
+                          ) : (
+                            <Tooltip title="新增類別">
+                              <Button
+                                type="text"
+                                size="small"
+                                className="title-add-btn"
+                                icon={<PlusOutlined />}
+                                onClick={() => openCategoryForm()}
+                              />
+                            </Tooltip>
+                          )}
+                        </Space>
+                      }
+                    >
+                      <Table
+                        rowKey="id"
+                        dataSource={expenseCategoryRows}
+                        columns={expenseCategoryColumns}
+                        pagination={false}
+                        locale={{ emptyText: "尚無分類" }}
+                      />
+                    </Card>
+                  </Col>
+                  <Col xs={24} lg={12}>
+                    <Card
+                      title={
+                        <Space size={8}>
+                          <span>預算列表</span>
+                          {isMobileViewport ? (
+                            <Button
+                              type="text"
+                              size="small"
+                              className="title-add-btn"
+                              icon={<PlusOutlined />}
+                              onClick={() => openBudgetForm()}
+                            />
+                          ) : (
+                            <Tooltip title="新增預算">
+                              <Button
+                                type="text"
+                                size="small"
+                                className="title-add-btn"
+                                icon={<PlusOutlined />}
+                                onClick={() => openBudgetForm()}
+                              />
+                            </Tooltip>
+                          )}
+                        </Space>
+                      }
+                    >
+                      <Table
+                        rowKey="id"
+                        dataSource={budgetRows}
+                        columns={budgetColumns}
+                        pagination={false}
+                        locale={{ emptyText: "尚無預算" }}
+                        scroll={{ x: 860 }}
+                      />
+                    </Card>
+                  </Col>
                 </>
               )}
             </Row>

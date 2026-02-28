@@ -773,6 +773,39 @@
   margin: 8px auto 0;
 }
 
+.expense-income-segmented-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: #f0f0f0;
+  overflow: hidden;
+}
+
+.expense-income-segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+
+.expense-income-segment--recurring {
+  left: 0;
+  background: #1677ff;
+}
+
+.expense-income-segment--onetime {
+  background: #fa8c16;
+}
+
+.expense-income-segment-divider {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 1px;
+  height: 100%;
+  background: #ffffff;
+  z-index: 2;
+}
+
 .expense-income-progress-meta {
   display: flex;
   align-items: center;
