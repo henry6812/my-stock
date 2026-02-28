@@ -148,6 +148,32 @@ const DEFAULT_EXPENSE_ANALYTICS = {
   familyBalance: [],
   categoryBreakdown: [],
 };
+const ANTD_TAG_COLOR_POOL = [
+  "magenta",
+  "red",
+  "volcano",
+  "orange",
+  "gold",
+  "lime",
+  "green",
+  "cyan",
+  "blue",
+  "geekblue",
+  "purple",
+];
+
+const getStableTagColor = (seed, fallback = "blue") => {
+  const text = String(seed ?? "").trim();
+  if (!text) {
+    return fallback;
+  }
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) | 0;
+  }
+  const colorIndex = Math.abs(hash) % ANTD_TAG_COLOR_POOL.length;
+  return ANTD_TAG_COLOR_POOL[colorIndex];
+};
 
 const formatSignedPrice = (value, currency = "TWD") => {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -1799,7 +1825,7 @@ function App() {
             record.assetTagLabel ||
             value ||
             "個股";
-          return <Tag color="geekblue">{label}</Tag>;
+          return <Tag color={getStableTagColor(label, "geekblue")}>{label}</Tag>;
         },
       },
       {
@@ -2055,7 +2081,9 @@ function App() {
         dataIndex: "categoryName",
         key: "categoryName",
         render: (value) => (
-          <Tag color={value === "未指定" ? "default" : "processing"}>
+          <Tag
+            color={value === "未指定" ? "default" : getStableTagColor(value, "blue")}
+          >
             {value || "未指定"}
           </Tag>
         ),
@@ -2065,7 +2093,9 @@ function App() {
         dataIndex: "budgetName",
         key: "budgetName",
         render: (value) => (
-          <Tag color={value === "未指定" ? "default" : "gold"}>
+          <Tag
+            color={value === "未指定" ? "default" : getStableTagColor(value, "gold")}
+          >
             {value || "未指定"}
           </Tag>
         ),
@@ -2106,7 +2136,7 @@ function App() {
         title: "分類名稱",
         dataIndex: "name",
         key: "name",
-        render: (value) => <Tag color="processing">{value}</Tag>,
+        render: (value) => <Tag color={getStableTagColor(value, "blue")}>{value}</Tag>,
       },
       {
         title: "更新時間",
@@ -2243,8 +2273,7 @@ function App() {
         key: "budgetType",
         render: (value) => {
           const cycle = formatBudgetCycleLabel(value);
-          const color =
-            value === "YEARLY" ? "purple" : value === "QUARTERLY" ? "blue" : "green";
+          const color = getStableTagColor(cycle, "blue");
           return <Tag color={color}>{cycle}</Tag>;
         },
       },
@@ -4711,11 +4740,12 @@ function App() {
                                 </Text>
                                 <Tag
                                   className="active-budget-mode-tag"
-                                  color={
+                                  color={getStableTagColor(
+                                    formatBudgetModeLabel(budget.budgetMode),
                                     budget.budgetMode === "SPECIAL"
                                       ? "orange"
-                                      : "blue"
-                                  }
+                                      : "blue",
+                                  )}
                                 >
                                   {formatBudgetModeLabel(budget.budgetMode)}
                                 </Tag>
@@ -5130,27 +5160,24 @@ function App() {
 
           {authUser && isMobileViewport && (
             <div className="mobile-main-tabbar">
-              <Button
-                type={activeMainTab === "asset" ? "primary" : "default"}
-                icon={<HomeOutlined />}
-                onClick={() => setActiveMainTab("asset")}
-              >
-                資產總覽
-              </Button>
-              <Button
-                type={activeMainTab === "expense" ? "primary" : "default"}
-                icon={<DollarOutlined />}
-                onClick={() => setActiveMainTab("expense")}
-              >
-                支出分析
-              </Button>
-              <Button
-                type={activeMainTab === "settings" ? "primary" : "default"}
-                icon={<SettingOutlined />}
-                onClick={() => setActiveMainTab("settings")}
-              >
-                設定
-              </Button>
+              <Segmented
+                size="middle"
+                value={activeMainTab}
+                onChange={setActiveMainTab}
+                options={[
+                  { label: "資產總覽", value: "asset", icon: <HomeOutlined /> },
+                  {
+                    label: "支出分析",
+                    value: "expense",
+                    icon: <FundProjectionScreenOutlined />,
+                  },
+                  {
+                    label: "設定",
+                    value: "settings",
+                    icon: <SettingOutlined />,
+                  },
+                ]}
+              />
             </div>
           )}
 

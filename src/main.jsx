@@ -20,7 +20,9 @@ createRoot(document.getElementById("root")).render(
     <ConfigProvider
       theme={{
         token: {
-          colorPrimary: "#165dff",
+          colorPrimary: "#44A194",
+          colorPrimaryHover: "#55b0a4",
+          colorPrimaryActive: "#307c72",
           borderRadius: 10,
           fontFamily:
             "PingFang TC, Noto Sans TC, -apple-system, Segoe UI, sans-serif",
