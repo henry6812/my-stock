@@ -79,6 +79,35 @@
   padding-inline: 10px;
 }
 
+.expense-fab.ant-btn {
+  position: fixed;
+  z-index: 30;
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.expense-fab.ant-btn:hover,
+.expense-fab.ant-btn:focus-visible {
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+.expense-fab--desktop.ant-btn {
+  right: 24px;
+  bottom: 24px;
+}
+
+.expense-fab--mobile.ant-btn {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + env(safe-area-inset-bottom));
+}
+
 .app-content {
   padding: 20px;
   max-width: 1200px;
@@ -1118,6 +1147,10 @@
 }
 
 @media (max-width: 768px) {
+  .expense-main-row {
+    padding-bottom: 88px;
+  }
+
   .holdings-card .ant-card-head {
     flex-direction: column;
     align-items: stretch;
@@ -1146,6 +1179,12 @@
 
   .expense-summary-value .ant-statistic-content {
     font-size: 30px;
+  }
+
+  .expense-fab.ant-btn {
+    width: 50px;
+    min-width: 50px;
+    height: 50px;
   }
 
   .income-settings-row {

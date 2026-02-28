@@ -4065,7 +4065,10 @@ function App() {
               </Space>
             </Card>
           ) : activeMainTab === "asset" ? (
-            <Row gutter={[16, 16]}>
+            <Row
+              gutter={[16, 16]}
+              className={activeMainTab === "expense" ? "expense-main-row" : undefined}
+            >
               <Col xs={24}>
                 <div className="asset-summary-panel">
                   <div className="asset-summary-value">
@@ -4791,32 +4794,9 @@ function App() {
                   </Col>
                   <Col xs={24}>
                     <section className="active-recurring-section">
-                      <Space size={8} className="active-recurring-title-wrap">
-                        <Text strong className="active-recurring-title">
-                          當前定期支出
-                        </Text>
-                        {isMobileViewport ? (
-                          <Button
-                            type="text"
-                            size="small"
-                            className="title-add-btn"
-                            icon={<PlusOutlined />}
-                            onClick={openRecurringCreateForm}
-                            aria-label="新增定期支出"
-                          />
-                        ) : (
-                          <Tooltip title="新增定期支出">
-                            <Button
-                              type="text"
-                              size="small"
-                              className="title-add-btn"
-                              icon={<PlusOutlined />}
-                              onClick={openRecurringCreateForm}
-                              aria-label="新增定期支出"
-                            />
-                          </Tooltip>
-                        )}
-                      </Space>
+                      <Text strong className="active-recurring-title">
+                        當前定期支出
+                      </Text>
                       {recurringExpenseRows.length === 0 ? (
                         <Text type="secondary">目前沒有定期支出</Text>
                       ) : (
@@ -4897,32 +4877,7 @@ function App() {
                     </section>
                   </Col>
                   <Col xs={24}>
-                    <Card
-                      title={
-                        <Space size={8}>
-                          <span>支出列表</span>
-                          {isMobileViewport ? (
-                            <Button
-                              type="text"
-                              size="small"
-                              className="title-add-btn"
-                              icon={<PlusOutlined />}
-                              onClick={() => openExpenseForm()}
-                            />
-                          ) : (
-                            <Tooltip title="新增支出">
-                              <Button
-                                type="text"
-                                size="small"
-                                className="title-add-btn"
-                                icon={<PlusOutlined />}
-                                onClick={() => openExpenseForm()}
-                              />
-                            </Tooltip>
-                          )}
-                        </Space>
-                      }
-                    >
+                    <Card title="支出列表">
                       <Tabs
                         className="expense-category-tabs"
                         activeKey={activeExpenseCategoryTab}
@@ -5151,6 +5106,19 @@ function App() {
               )}
             </Row>
           )}
+
+          {authUser && activeMainTab === "expense" ? (
+            <Button
+              type="primary"
+              shape="circle"
+              icon={<PlusOutlined />}
+              aria-label="新增支出"
+              className={`expense-fab ${
+                isMobileViewport ? "expense-fab--mobile" : "expense-fab--desktop"
+              }`}
+              onClick={() => openExpenseForm()}
+            />
+          ) : null}
 
           {authUser && (
             <div style={{ marginTop: 12, textAlign: "center" }}>
