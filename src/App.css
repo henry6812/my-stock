@@ -793,6 +793,14 @@
   flex-shrink: 0;
 }
 
+.expense-category-tabs {
+  margin-bottom: 8px;
+}
+
+.expense-category-tabs .ant-tabs-nav {
+  margin-bottom: 8px;
+}
+
 .expense-income-segmented-track {
   position: relative;
   height: 8px;

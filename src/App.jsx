@@ -420,6 +420,8 @@ function App() {
   const [editingCashBalance, setEditingCashBalance] = useState(null);
   const [loadingCashActionById, setLoadingCashActionById] = useState({});
   const [expenseRows, setExpenseRows] = useState([]);
+  const [activeExpenseCategoryTab, setActiveExpenseCategoryTab] =
+    useState("all");
   const [expenseMonthOptions, setExpenseMonthOptions] = useState([]);
   const [activeExpenseMonth, setActiveExpenseMonth] = useState(
     dayjs().format("YYYY-MM"),
@@ -2107,6 +2109,70 @@ function App() {
     ],
     [handleRemoveCategory, openCategoryForm],
   );
+
+  const expenseCategoryTabItems = useMemo(() => {
+    const counters = new Map();
+    let uncategorizedCount = 0;
+
+    for (const row of expenseRows) {
+      const rawName =
+        typeof row?.categoryName === "string" ? row.categoryName.trim() : "";
+      if (!rawName || rawName === "未指定") {
+        uncategorizedCount += 1;
+        continue;
+      }
+      counters.set(rawName, (counters.get(rawName) || 0) + 1);
+    }
+
+    const categoryItems = Array.from(counters.entries())
+      .sort((a, b) => {
+        if (a[1] !== b[1]) {
+          return b[1] - a[1];
+        }
+        return a[0].localeCompare(b[0], "zh-Hant");
+      })
+      .map(([name, count]) => ({
+        key: `cat:${name}`,
+        label: `${name} (${count})`,
+      }));
+
+    if (uncategorizedCount > 0) {
+      categoryItems.push({
+        key: "uncategorized",
+        label: `未分類 (${uncategorizedCount})`,
+      });
+    }
+
+    return [
+      { key: "all", label: `全部 (${expenseRows.length})` },
+      ...categoryItems,
+    ];
+  }, [expenseRows]);
+
+  const filteredExpenseRowsByCategory = useMemo(() => {
+    if (activeExpenseCategoryTab === "all") {
+      return expenseRows;
+    }
+    if (activeExpenseCategoryTab === "uncategorized") {
+      return expenseRows.filter((row) => {
+        const rawName =
+          typeof row?.categoryName === "string" ? row.categoryName.trim() : "";
+        return !rawName || rawName === "未指定";
+      });
+    }
+    if (activeExpenseCategoryTab.startsWith("cat:")) {
+      const targetCategory = activeExpenseCategoryTab.slice(4);
+      return expenseRows.filter((row) => row?.categoryName === targetCategory);
+    }
+    return expenseRows;
+  }, [activeExpenseCategoryTab, expenseRows]);
+
+  useEffect(() => {
+    const validKeys = new Set(expenseCategoryTabItems.map((item) => item.key));
+    if (!validKeys.has(activeExpenseCategoryTab)) {
+      setActiveExpenseCategoryTab("all");
+    }
+  }, [activeExpenseCategoryTab, expenseCategoryTabItems]);
 
   const budgetColumns = useMemo(
     () => [
@@ -4671,9 +4737,16 @@ function App() {
                         </Space>
                       }
                     >
+                      <Tabs
+                        className="expense-category-tabs"
+                        activeKey={activeExpenseCategoryTab}
+                        onChange={setActiveExpenseCategoryTab}
+                        items={expenseCategoryTabItems}
+                        style={{ marginBottom: 12 }}
+                      />
                       <Table
                         rowKey={(record) => `${record.id}-${record.occurredAt}`}
-                        dataSource={expenseRows}
+                        dataSource={filteredExpenseRowsByCategory}
                         columns={expenseTableColumns}
                         pagination={false}
                         locale={{ emptyText: "尚無支出紀錄" }}
