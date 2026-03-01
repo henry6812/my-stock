@@ -628,11 +628,17 @@ export const removeHolding = async ({ id }) => {
       syncState: SYNC_PENDING,
     });
 
-    await db.price_snapshots.where("holdingId").equals(parsedId).modify({
-      deletedAt: nowIso,
-      updatedAt: nowIso,
-      syncState: SYNC_PENDING,
-    });
+    const snapshotsToSoftDelete = await db.price_snapshots
+      .where("holdingId")
+      .equals(parsedId)
+      .toArray();
+    for (const snapshot of snapshotsToSoftDelete) {
+      await db.price_snapshots.update(snapshot.id, {
+        deletedAt: nowIso,
+        updatedAt: nowIso,
+        syncState: SYNC_PENDING,
+      });
+    }
 
     const allHoldings = await db.holdings.toArray();
     const remaining = allHoldings.filter(
