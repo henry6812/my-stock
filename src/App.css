@@ -1199,6 +1199,14 @@
   font-size: 12px;
 }
 
+.active-budget-progress.ant-progress {
+  display: block;
+}
+
+.active-budget-progress.ant-progress .ant-progress-inner {
+  height: 8px;
+}
+
 .active-budget-carry {
   display: block;
   margin-top: 2px;

@@ -502,8 +502,7 @@ function App() {
     useState(0);
   const [expenseMarkerDisplayPercent, setExpenseMarkerDisplayPercent] =
     useState(0);
-  const [expenseRateDisplayPercent, setExpenseRateDisplayPercent] =
-    useState(0);
+  const [expenseRateDisplayPercent, setExpenseRateDisplayPercent] = useState(0);
   const [showExpenseRateMarkerDisplay, setShowExpenseRateMarkerDisplay] =
     useState(false);
   const [recurringExpenseRows, setRecurringExpenseRows] = useState([]);
@@ -1825,7 +1824,9 @@ function App() {
             record.assetTagLabel ||
             value ||
             "個股";
-          return <Tag color={getStableTagColor(label, "geekblue")}>{label}</Tag>;
+          return (
+            <Tag color={getStableTagColor(label, "geekblue")}>{label}</Tag>
+          );
         },
       },
       {
@@ -2082,7 +2083,9 @@ function App() {
         key: "categoryName",
         render: (value) => (
           <Tag
-            color={value === "未指定" ? "default" : getStableTagColor(value, "blue")}
+            color={
+              value === "未指定" ? "default" : getStableTagColor(value, "blue")
+            }
           >
             {value || "未指定"}
           </Tag>
@@ -2094,7 +2097,9 @@ function App() {
         key: "budgetName",
         render: (value) => (
           <Tag
-            color={value === "未指定" ? "default" : getStableTagColor(value, "gold")}
+            color={
+              value === "未指定" ? "default" : getStableTagColor(value, "gold")
+            }
           >
             {value || "未指定"}
           </Tag>
@@ -2136,7 +2141,9 @@ function App() {
         title: "分類名稱",
         dataIndex: "name",
         key: "name",
-        render: (value) => <Tag color={getStableTagColor(value, "blue")}>{value}</Tag>,
+        render: (value) => (
+          <Tag color={getStableTagColor(value, "blue")}>{value}</Tag>
+        ),
       },
       {
         title: "更新時間",
@@ -3286,7 +3293,12 @@ function App() {
                 name="residentPercent"
                 rules={[{ required: true, message: "請輸入百分比" }]}
               >
-                <InputNumber min={0.01} step={1} precision={2} style={{ width: "100%" }} />
+                <InputNumber
+                  min={0.01}
+                  step={1}
+                  precision={2}
+                  style={{ width: "100%" }}
+                />
               </Form.Item>
             </>
           );
@@ -3428,7 +3440,9 @@ function App() {
   const expenseIncomeProgressMetaRightText = useMemo(() => {
     const numerator = Number(activeIncomeProgress?.numerator);
     const denominator = Number(activeIncomeProgress?.denominator);
-    const expenseText = Number.isFinite(numerator) ? formatTwd(numerator) : "--";
+    const expenseText = Number.isFinite(numerator)
+      ? formatTwd(numerator)
+      : "--";
     const incomeText = Number.isFinite(denominator)
       ? formatTwd(denominator)
       : "--";
@@ -3439,7 +3453,10 @@ function App() {
     expenseRecurringDisplayPercent > 0 && expenseOneTimeDisplayPercent > 0;
   useEffect(() => {
     const targets = {
-      recurringPercent: Math.min(100, Math.max(0, expenseRecurringSegmentPercent)),
+      recurringPercent: Math.min(
+        100,
+        Math.max(0, expenseRecurringSegmentPercent),
+      ),
       oneTimePercent: Math.min(100, Math.max(0, expenseOneTimeSegmentPercent)),
       markerPercent: Math.min(100, Math.max(0, expenseRateMarkerLeftPercent)),
       ratePercent: Math.max(0, expenseRateRawPercent),
@@ -3448,7 +3465,8 @@ function App() {
     latestExpenseProgressTargetsRef.current = targets;
 
     const shouldAnimateNow =
-      !didRunExpenseInitialAnimationRef.current || expenseShouldAnimateRef.current;
+      !didRunExpenseInitialAnimationRef.current ||
+      expenseShouldAnimateRef.current;
     if (shouldAnimateNow) {
       didRunExpenseInitialAnimationRef.current = true;
       expenseShouldAnimateRef.current = false;
@@ -4096,7 +4114,9 @@ function App() {
           ) : activeMainTab === "asset" ? (
             <Row
               gutter={[16, 16]}
-              className={activeMainTab === "expense" ? "expense-main-row" : undefined}
+              className={
+                activeMainTab === "expense" ? "expense-main-row" : undefined
+              }
             >
               <Col xs={24}>
                 <div className="asset-summary-panel">
@@ -4563,65 +4583,65 @@ function App() {
                         </div>
                         <div className="expense-income-progress">
                           <div className="expense-income-segmented-track">
-                              <div className="expense-income-segmented-track-fill">
-                                <div
-                                  className="expense-income-segment expense-income-segment--recurring"
-                                  style={{
-                                    width: `${Math.min(
-                                      100,
-                                      expenseRecurringDisplayPercent,
-                                    )}%`,
-                                  }}
-                                />
-                                <div
-                                  className="expense-income-segment expense-income-segment--onetime"
+                            <div className="expense-income-segmented-track-fill">
+                              <div
+                                className="expense-income-segment expense-income-segment--recurring"
+                                style={{
+                                  width: `${Math.min(
+                                    100,
+                                    expenseRecurringDisplayPercent,
+                                  )}%`,
+                                }}
+                              />
+                              <div
+                                className="expense-income-segment expense-income-segment--onetime"
+                                style={{
+                                  left: `${Math.min(
+                                    100,
+                                    expenseRecurringDisplayPercent,
+                                  )}%`,
+                                  width: `${Math.min(
+                                    100,
+                                    expenseOneTimeDisplayPercent,
+                                  )}%`,
+                                }}
+                              />
+                              {showExpenseSegmentDividerDisplay ? (
+                                <span
+                                  className="expense-income-segment-divider"
                                   style={{
                                     left: `${Math.min(
                                       100,
                                       expenseRecurringDisplayPercent,
                                     )}%`,
-                                    width: `${Math.min(
-                                      100,
-                                      expenseOneTimeDisplayPercent,
-                                    )}%`,
                                   }}
                                 />
-                                {showExpenseSegmentDividerDisplay ? (
-                                  <span
-                                    className="expense-income-segment-divider"
-                                    style={{
-                                      left: `${Math.min(
-                                        100,
-                                        expenseRecurringDisplayPercent,
-                                      )}%`,
-                                    }}
-                                  />
-                                ) : null}
-                              </div>
-                              {showExpenseRateMarkerDisplay ? (
-                                <span
-                                  className={[
-                                    "expense-rate-marker",
-                                    expenseMarkerDisplayPercent <= 5
-                                      ? "expense-rate-marker--edge-left"
-                                      : "",
-                                    expenseMarkerDisplayPercent >= 95
-                                      ? "expense-rate-marker--edge-right"
-                                      : "",
-                                  ]
-                                    .filter(Boolean)
-                                    .join(" ")}
-                                  style={{
-                                    left: `${expenseMarkerDisplayPercent}%`,
-                                  }}
-                                >
-                                  <span className="expense-rate-marker-label">
-                                    {expenseRateMarkerLabel}
-                                  </span>
-                                  <span className="expense-rate-marker-caret" />
-                                </span>
                               ) : null}
                             </div>
+                            {showExpenseRateMarkerDisplay ? (
+                              <span
+                                className={[
+                                  "expense-rate-marker",
+                                  expenseMarkerDisplayPercent <= 5
+                                    ? "expense-rate-marker--edge-left"
+                                    : "",
+                                  expenseMarkerDisplayPercent >= 95
+                                    ? "expense-rate-marker--edge-right"
+                                    : "",
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                                style={{
+                                  left: `${expenseMarkerDisplayPercent}%`,
+                                }}
+                              >
+                                <span className="expense-rate-marker-label">
+                                  {expenseRateMarkerLabel}
+                                </span>
+                                <span className="expense-rate-marker-caret" />
+                              </span>
+                            ) : null}
+                          </div>
                           <div className="expense-income-progress-meta-row">
                             <Text
                               type="secondary"
@@ -4779,16 +4799,24 @@ function App() {
                                 </span>
                               </div>
                               <Progress
+                                className="active-budget-progress"
                                 percent={Math.round(
-                                  Number(budget.progressPct || 0),
+                                  Math.min(
+                                    100,
+                                    Math.max(
+                                      0,
+                                      Number(budget.progressPct || 0),
+                                    ),
+                                  ),
                                 )}
                                 size="small"
                                 showInfo={false}
+                                trailColor="#edf2f2"
                                 strokeColor={
                                   Number(budget.spentTwd || 0) >
                                   Number(budget.availableTwd || 0)
                                     ? "#f5222d"
-                                    : "#b4f1e9"
+                                    : "#99d2cb"
                                 }
                               />
                               <Text
@@ -5144,7 +5172,9 @@ function App() {
               icon={<PlusOutlined />}
               aria-label="新增支出"
               className={`expense-fab ${
-                isMobileViewport ? "expense-fab--mobile" : "expense-fab--desktop"
+                isMobileViewport
+                  ? "expense-fab--mobile"
+                  : "expense-fab--desktop"
               }`}
               onClick={() => openExpenseForm()}
             />
