@@ -4320,23 +4320,7 @@ function App() {
                   title={
                     <Space size={8}>
                       <span>持股列表</span>
-                      {isMobileViewport ? (
-                        <Button
-                          type="text"
-                          size="small"
-                          className="title-add-btn"
-                          onClick={() => {
-                            if (isMobileViewport) {
-                              setIsAddHoldingSheetOpen(true);
-                            } else {
-                              setIsAddHoldingModalOpen(true);
-                            }
-                          }}
-                          disabled={loadingAddHolding}
-                          icon={<PlusOutlined />}
-                          aria-label="新增持股"
-                        />
-                      ) : (
+                      {!isMobileViewport ? (
                         <Tooltip title="新增持股">
                           <Button
                             type="text"
@@ -4354,7 +4338,7 @@ function App() {
                             aria-label="新增持股"
                           />
                         </Tooltip>
-                      )}
+                      ) : null}
                     </Space>
                   }
                   extra={
@@ -5165,18 +5149,27 @@ function App() {
             </Row>
           )}
 
-          {authUser && activeMainTab === "expense" ? (
+          {authUser &&
+          ((isMobileViewport &&
+            (activeMainTab === "expense" || activeMainTab === "asset")) ||
+            (!isMobileViewport && activeMainTab === "expense")) ? (
             <Button
               type="primary"
               shape="circle"
               icon={<PlusOutlined />}
-              aria-label="新增支出"
+              aria-label={activeMainTab === "asset" ? "新增持股" : "新增支出"}
               className={`expense-fab ${
                 isMobileViewport
                   ? "expense-fab--mobile"
                   : "expense-fab--desktop"
               }`}
-              onClick={() => openExpenseForm()}
+              onClick={() => {
+                if (isMobileViewport && activeMainTab === "asset") {
+                  setIsAddHoldingSheetOpen(true);
+                  return;
+                }
+                openExpenseForm();
+              }}
             />
           ) : null}
 
@@ -5195,16 +5188,17 @@ function App() {
                 value={activeMainTab}
                 onChange={setActiveMainTab}
                 options={[
-                  { label: "資產總覽", value: "asset", icon: <HomeOutlined /> },
                   {
-                    label: "支出分析",
-                    value: "expense",
-                    icon: <FundProjectionScreenOutlined />,
+                    label: <HomeOutlined aria-label="資產總覽" />,
+                    value: "asset",
                   },
                   {
-                    label: "設定",
+                    label: <FundProjectionScreenOutlined aria-label="支出分析" />,
+                    value: "expense",
+                  },
+                  {
+                    label: <SettingOutlined aria-label="設定" />,
                     value: "settings",
-                    icon: <SettingOutlined />,
                   },
                 ]}
               />
