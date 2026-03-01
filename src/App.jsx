@@ -107,7 +107,9 @@ import {
   removeCashAccount,
   getCloudSyncRuntime,
   updateCashAccountBalance,
+  updateCashAccountHolder,
   updateHoldingTag,
+  updateHoldingHolder,
   updateHoldingShares,
   upsertCashAccount,
   upsertHolding,
@@ -244,12 +246,17 @@ const formatBudgetCycleLabel = (budgetType) =>
       ? "年度"
       : "月度";
 
-const filterRowsByHoldingTab = (targetRows, tab) => {
-  if (tab === "tw") {
-    return targetRows.filter((row) => row.market === "TW");
+const filterRowsByHolderTab = (targetRows, tab) => {
+  if (tab === "po") {
+    return targetRows.filter((row) => row.holderName === "Po");
   }
-  if (tab === "us") {
-    return targetRows.filter((row) => row.market === "US");
+  if (tab === "wei") {
+    return targetRows.filter((row) => row.holderName === "Wei");
+  }
+  if (tab === "unset") {
+    return targetRows.filter(
+      (row) => row.holderName === "未設定" || !row.holder,
+    );
   }
   return targetRows;
 };
@@ -420,6 +427,7 @@ function App() {
   const [isPieExpanded, setIsPieExpanded] = useState(false);
   const [activeAllocationTab, setActiveAllocationTab] = useState("assetType");
   const [activeHoldingTab, setActiveHoldingTab] = useState("all");
+  const [activeCashHolderTab, setActiveCashHolderTab] = useState("all");
   const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false);
   const [isAddCashModalOpen, setIsAddCashModalOpen] = useState(false);
   const [isEmailLoginModalOpen, setIsEmailLoginModalOpen] = useState(false);
@@ -451,9 +459,11 @@ function App() {
   const [editingHoldingId, setEditingHoldingId] = useState(null);
   const [editingShares, setEditingShares] = useState(null);
   const [editingHoldingTag, setEditingHoldingTag] = useState(null);
+  const [editingHoldingHolder, setEditingHoldingHolder] = useState(null);
   const [loadingActionById, setLoadingActionById] = useState({});
   const [editingCashAccountId, setEditingCashAccountId] = useState(null);
   const [editingCashBalance, setEditingCashBalance] = useState(null);
+  const [editingCashHolder, setEditingCashHolder] = useState(null);
   const [loadingCashActionById, setLoadingCashActionById] = useState({});
   const [expenseRows, setExpenseRows] = useState([]);
   const [activeExpenseCategoryTab, setActiveExpenseCategoryTab] =
@@ -909,7 +919,7 @@ function App() {
       animateProgress(progressTargets);
       animateMarkerValue(latestMarkerWanRef.current);
       animateVisibleRows(
-        filterRowsByHoldingTab(
+        filterRowsByHolderTab(
           Array.isArray(portfolio.rows) ? portfolio.rows : [],
           activeHoldingTabRef.current,
         ),
@@ -1207,22 +1217,26 @@ function App() {
     setEditingHoldingId(record.id);
     setEditingShares(record.shares);
     setEditingHoldingTag(record.assetTag || "STOCK");
+    setEditingHoldingHolder(record.holder ?? null);
   }, []);
 
   const handleCancelEdit = useCallback(() => {
     setEditingHoldingId(null);
     setEditingShares(null);
     setEditingHoldingTag(null);
+    setEditingHoldingHolder(null);
   }, []);
 
   const handleCashEditClick = useCallback((record) => {
     setEditingCashAccountId(record.id);
     setEditingCashBalance(record.balanceTwd);
+    setEditingCashHolder(record.holder ?? null);
   }, []);
 
   const handleCashCancelEdit = useCallback(() => {
     setEditingCashAccountId(null);
     setEditingCashBalance(null);
+    setEditingCashHolder(null);
   }, []);
 
   const handleSaveShares = useCallback(
@@ -1242,12 +1256,19 @@ function App() {
             assetTag: editingHoldingTag,
           });
         }
+        if ((editingHoldingHolder ?? null) !== (record.holder ?? null)) {
+          await updateHoldingHolder({
+            id: record.id,
+            holder: editingHoldingHolder ?? null,
+          });
+        }
         await loadAllData();
         await performCloudSync();
         setEditingHoldingId(null);
         setEditingShares(null);
         setEditingHoldingTag(null);
-        message.success("股數已更新");
+        setEditingHoldingHolder(null);
+        message.success("持股已更新");
       } catch (error) {
         message.error(error instanceof Error ? error.message : "更新股數失敗");
       } finally {
@@ -1256,6 +1277,7 @@ function App() {
     },
     [
       editingHoldingTag,
+      editingHoldingHolder,
       editingShares,
       loadAllData,
       message,
@@ -1275,6 +1297,7 @@ function App() {
           setEditingHoldingId(null);
           setEditingShares(null);
           setEditingHoldingTag(null);
+          setEditingHoldingHolder(null);
         }
         message.success("持股已移除");
       } catch (error) {
@@ -1300,11 +1323,18 @@ function App() {
           id: record.id,
           balanceTwd: parsedBalance,
         });
+        if ((editingCashHolder ?? null) !== (record.holder ?? null)) {
+          await updateCashAccountHolder({
+            id: record.id,
+            holder: editingCashHolder ?? null,
+          });
+        }
         await loadAllData();
         await performCloudSync();
         setEditingCashAccountId(null);
         setEditingCashBalance(null);
-        message.success("現金餘額已更新");
+        setEditingCashHolder(null);
+        message.success("銀行帳戶已更新");
       } catch (error) {
         message.error(error instanceof Error ? error.message : "更新餘額失敗");
       } finally {
@@ -1313,6 +1343,7 @@ function App() {
     },
     [
       editingCashBalance,
+      editingCashHolder,
       loadAllData,
       message,
       performCloudSync,
@@ -1330,6 +1361,7 @@ function App() {
         if (editingCashAccountId === record.id) {
           setEditingCashAccountId(null);
           setEditingCashBalance(null);
+          setEditingCashHolder(null);
         }
         message.success("銀行帳戶已移除");
       } catch (error) {
@@ -1502,7 +1534,7 @@ function App() {
   );
 
   const filteredRows = useMemo(() => {
-    return filterRowsByHoldingTab(rows, activeHoldingTab);
+    return filterRowsByHolderTab(rows, activeHoldingTab);
   }, [activeHoldingTab, rows]);
 
   useEffect(() => {
@@ -1572,16 +1604,61 @@ function App() {
     ],
   );
 
-  const tabItems = useMemo(() => {
-    const twCount = rows.filter((row) => row.market === "TW").length;
-    const usCount = rows.filter((row) => row.market === "US").length;
-
-    return [
+  const holdingHolderTabItems = useMemo(() => {
+    const poCount = rows.filter((row) => row.holderName === "Po").length;
+    const weiCount = rows.filter((row) => row.holderName === "Wei").length;
+    const unsetCount = rows.filter(
+      (row) => row.holderName === "未設定" || !row.holder,
+    ).length;
+    const items = [
       { key: "all", label: `全部 (${rows.length})` },
-      { key: "tw", label: `台股 (${twCount})` },
-      { key: "us", label: `美股 (${usCount})` },
+      { key: "po", label: `Po (${poCount})` },
+      { key: "wei", label: `Wei (${weiCount})` },
     ];
+    if (unsetCount > 0) {
+      items.push({ key: "unset", label: `未設定 (${unsetCount})` });
+    }
+    return items;
   }, [rows]);
+
+  const filteredCashRows = useMemo(() => {
+    return filterRowsByHolderTab(cashRows, activeCashHolderTab);
+  }, [activeCashHolderTab, cashRows]);
+
+  const cashHolderTabItems = useMemo(() => {
+    const poCount = cashRows.filter((row) => row.holderName === "Po").length;
+    const weiCount = cashRows.filter((row) => row.holderName === "Wei").length;
+    const unsetCount = cashRows.filter(
+      (row) => row.holderName === "未設定" || !row.holder,
+    ).length;
+    const items = [
+      { key: "all", label: `全部 (${cashRows.length})` },
+      { key: "po", label: `Po (${poCount})` },
+      { key: "wei", label: `Wei (${weiCount})` },
+    ];
+    if (unsetCount > 0) {
+      items.push({ key: "unset", label: `未設定 (${unsetCount})` });
+    }
+    return items;
+  }, [cashRows]);
+
+  useEffect(() => {
+    if (
+      activeHoldingTab === "unset" &&
+      !holdingHolderTabItems.some((item) => item.key === "unset")
+    ) {
+      setActiveHoldingTab("all");
+    }
+  }, [activeHoldingTab, holdingHolderTabItems]);
+
+  useEffect(() => {
+    if (
+      activeCashHolderTab === "unset" &&
+      !cashHolderTabItems.some((item) => item.key === "unset")
+    ) {
+      setActiveCashHolderTab("all");
+    }
+  }, [activeCashHolderTab, cashHolderTabItems]);
 
   const marketAllocation = useMemo(() => {
     const result = {
@@ -1830,6 +1907,43 @@ function App() {
         },
       },
       {
+        title: "持有人",
+        dataIndex: "holder",
+        key: "holder",
+        width: 120,
+        render: (value, record) => {
+          if (editingHoldingId === record.id) {
+            return (
+              <Select
+                size="small"
+                value={editingHoldingHolder ?? value ?? undefined}
+                options={[
+                  { value: "Po", label: "Po" },
+                  { value: "Wei", label: "Wei" },
+                ]}
+                allowClear
+                placeholder="未設定"
+                onChange={(next) => setEditingHoldingHolder(next ?? null)}
+                style={{ width: 110 }}
+              />
+            );
+          }
+
+          const holderName = record.holderName || "未設定";
+          return (
+            <Tag
+              color={
+                holderName === "未設定"
+                  ? "default"
+                  : getStableTagColor(holderName, "blue")
+              }
+            >
+              {holderName}
+            </Tag>
+          );
+        },
+      },
+      {
         title: "操作",
         key: "actions",
         fixed: isMobileViewport ? undefined : "right",
@@ -1904,6 +2018,7 @@ function App() {
     dragDisabled,
     editingHoldingId,
     editingHoldingTag,
+    editingHoldingHolder,
     editingShares,
     handleCancelEdit,
     handleEditClick,
@@ -1960,16 +2075,52 @@ function App() {
         },
       },
       {
+        title: "持有人",
+        dataIndex: "holder",
+        key: "holder",
+        width: "18%",
+        render: (value, record) => {
+          if (editingCashAccountId === record.id) {
+            return (
+              <Select
+                size="small"
+                value={editingCashHolder ?? value ?? undefined}
+                options={[
+                  { value: "Po", label: "Po" },
+                  { value: "Wei", label: "Wei" },
+                ]}
+                allowClear
+                placeholder="未設定"
+                onChange={(next) => setEditingCashHolder(next ?? null)}
+                style={{ width: 110 }}
+              />
+            );
+          }
+          const holderName = record.holderName || "未設定";
+          return (
+            <Tag
+              color={
+                holderName === "未設定"
+                  ? "default"
+                  : getStableTagColor(holderName, "blue")
+              }
+            >
+              {holderName}
+            </Tag>
+          );
+        },
+      },
+      {
         title: "更新時間",
         dataIndex: "updatedAt",
         key: "updatedAt",
-        width: "25%",
+        width: "20%",
         render: (value) => formatDateTime(value),
       },
       {
         title: "操作",
         key: "actions",
-        width: "25%",
+        width: "22%",
         render: (_, record) => {
           const rowLoading = Boolean(loadingCashActionById[record.id]);
           const isEditing = editingCashAccountId === record.id;
@@ -2029,6 +2180,7 @@ function App() {
     [
       editingCashAccountId,
       editingCashBalance,
+      editingCashHolder,
       handleCashCancelEdit,
       handleCashEditClick,
       handleRemoveCashAccount,
@@ -2695,6 +2847,7 @@ function App() {
         bankCode: selected?.bankCode,
         bankName: values.bankName,
         accountAlias: values.accountAlias,
+        holder: values.holder ?? null,
         balanceTwd: values.balanceTwd,
       });
       await loadAllData();
@@ -4315,45 +4468,21 @@ function App() {
               )}
 
               <Col xs={24}>
-                <Card
-                  className="holdings-card"
-                  title={
-                    <Space size={8}>
-                      <span>持股列表</span>
-                      {!isMobileViewport ? (
-                        <Tooltip title="新增持股">
-                          <Button
-                            type="text"
-                            size="small"
-                            className="title-add-btn"
-                            onClick={() => {
-                              if (isMobileViewport) {
-                                setIsAddHoldingSheetOpen(true);
-                              } else {
-                                setIsAddHoldingModalOpen(true);
-                              }
-                            }}
-                            disabled={loadingAddHolding}
-                            icon={<PlusOutlined />}
-                            aria-label="新增持股"
-                          />
-                        </Tooltip>
-                      ) : null}
-                    </Space>
-                  }
-                  extra={
-                    <div className="price-update-extra">
-                      <Space>
-                        <Space.Compact>
-                          <Button
-                            type="primary"
-                            onClick={() => handleRefreshPrices("ALL")}
-                            loading={loadingRefresh}
-                            aria-label="更新價格（全部）"
-                          >
-                            更新價格
-                          </Button>
-                          {isMobileViewport ? (
+                {isMobileViewport ? (
+                  <div className="mobile-list-section mobile-list-section--holdings">
+                    <div className="mobile-list-header">
+                      <span className="mobile-list-title">持股列表</span>
+                      <div className="price-update-extra">
+                        <Space>
+                          <Space.Compact>
+                            <Button
+                              type="primary"
+                              onClick={() => handleRefreshPrices("ALL")}
+                              loading={loadingRefresh}
+                              aria-label="更新價格（全部）"
+                            >
+                              更新價格
+                            </Button>
                             <Button
                               type="primary"
                               icon={<DownOutlined />}
@@ -4361,7 +4490,59 @@ function App() {
                               disabled={loadingRefresh}
                               onClick={() => setIsUpdateSheetOpen(true)}
                             />
-                          ) : (
+                          </Space.Compact>
+                        </Space>
+                      </div>
+                    </div>
+                    <div className="mobile-list-body">
+                      <Tabs
+                        activeKey={activeHoldingTab}
+                        onChange={setActiveHoldingTab}
+                        items={holdingHolderTabItems}
+                        style={{ marginBottom: 12 }}
+                      />
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <SortableContext
+                          items={filteredRows.map((row) => row.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <Table
+                            rowKey="id"
+                            dataSource={filteredRows}
+                            columns={tableColumns}
+                            pagination={false}
+                            loading={loadingData || loadingReorder}
+                            scroll={{ x: 860 }}
+                            components={{
+                              body: {
+                                row: DraggableBodyRow,
+                              },
+                            }}
+                          />
+                        </SortableContext>
+                      </DndContext>
+                    </div>
+                  </div>
+                ) : (
+                  <Card
+                    className="holdings-card"
+                    title="持股列表"
+                    extra={
+                      <div className="price-update-extra">
+                        <Space>
+                          <Space.Compact>
+                            <Button
+                              type="primary"
+                              onClick={() => handleRefreshPrices("ALL")}
+                              loading={loadingRefresh}
+                              aria-label="更新價格（全部）"
+                            >
+                              更新價格
+                            </Button>
                             <Dropdown
                               trigger={["click"]}
                               disabled={loadingRefresh}
@@ -4381,100 +4562,124 @@ function App() {
                                 aria-label="選擇更新市場"
                               />
                             </Dropdown>
-                          )}
-                        </Space.Compact>
-                      </Space>
-                    </div>
-                  }
-                >
-                  <Tabs
-                    activeKey={activeHoldingTab}
-                    onChange={setActiveHoldingTab}
-                    items={tabItems}
-                    style={{ marginBottom: 12 }}
-                  />
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
+                          </Space.Compact>
+                        </Space>
+                      </div>
+                    }
                   >
-                    <SortableContext
-                      items={filteredRows.map((row) => row.id)}
-                      strategy={verticalListSortingStrategy}
+                    <Tabs
+                      activeKey={activeHoldingTab}
+                      onChange={setActiveHoldingTab}
+                      items={holdingHolderTabItems}
+                      style={{ marginBottom: 12 }}
+                    />
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
                     >
-                      <Table
-                        rowKey="id"
-                        dataSource={filteredRows}
-                        columns={tableColumns}
-                        pagination={false}
-                        loading={loadingData || loadingReorder}
-                        scroll={{ x: isMobileViewport ? 860 : 980 }}
-                        components={{
-                          body: {
-                            row: DraggableBodyRow,
-                          },
-                        }}
-                      />
-                    </SortableContext>
-                  </DndContext>
-                </Card>
+                      <SortableContext
+                        items={filteredRows.map((row) => row.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <Table
+                          rowKey="id"
+                          dataSource={filteredRows}
+                          columns={tableColumns}
+                          pagination={false}
+                          loading={loadingData || loadingReorder}
+                          scroll={{ x: 980 }}
+                          components={{
+                            body: {
+                              row: DraggableBodyRow,
+                            },
+                          }}
+                        />
+                      </SortableContext>
+                    </DndContext>
+                  </Card>
+                )}
               </Col>
 
               <Col xs={24}>
-                <Card
-                  title={
-                    <Space size={8}>
-                      <span>銀行現金資產</span>
-                      {isMobileViewport ? (
+                {isMobileViewport ? (
+                  <div className="mobile-list-section mobile-list-section--cash">
+                    <div className="mobile-list-header">
+                      <Space size={8}>
+                        <span className="mobile-list-title">銀行現金資產</span>
                         <Button
                           type="text"
                           size="small"
                           className="title-add-btn"
                           onClick={() => {
-                            if (isMobileViewport) {
-                              setIsAddCashSheetOpen(true);
-                            } else {
-                              setIsAddCashModalOpen(true);
-                            }
+                            setIsAddCashSheetOpen(true);
                           }}
                           disabled={loadingAddCashAccount}
                           icon={<PlusOutlined />}
                           aria-label="新增銀行帳戶"
                         />
-                      ) : (
+                      </Space>
+                    </div>
+                    <div className="mobile-list-body">
+                      <Tabs
+                        activeKey={activeCashHolderTab}
+                        onChange={setActiveCashHolderTab}
+                        items={cashHolderTabItems}
+                        style={{ marginBottom: 12 }}
+                      />
+                      <Table
+                        rowKey="id"
+                        dataSource={filteredCashRows}
+                        columns={cashTableColumns}
+                        pagination={false}
+                        tableLayout="fixed"
+                        scroll={{ x: 860 }}
+                        locale={{
+                          emptyText: "尚未新增銀行現金帳戶",
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <Card
+                    title={
+                      <Space size={8}>
+                        <span>銀行現金資產</span>
                         <Tooltip title="新增銀行帳戶">
                           <Button
                             type="text"
                             size="small"
                             className="title-add-btn"
                             onClick={() => {
-                              if (isMobileViewport) {
-                                setIsAddCashSheetOpen(true);
-                              } else {
-                                setIsAddCashModalOpen(true);
-                              }
+                              setIsAddCashModalOpen(true);
                             }}
                             disabled={loadingAddCashAccount}
                             icon={<PlusOutlined />}
                             aria-label="新增銀行帳戶"
                           />
                         </Tooltip>
-                      )}
-                    </Space>
-                  }
-                >
-                  <Table
-                    rowKey="id"
-                    dataSource={cashRows}
-                    columns={cashTableColumns}
-                    pagination={false}
-                    tableLayout="fixed"
-                    scroll={{ x: 860 }}
-                    locale={{
-                      emptyText: "尚未新增銀行現金帳戶",
-                    }}
-                  />
-                </Card>
+                      </Space>
+                    }
+                  >
+                    <Tabs
+                      activeKey={activeCashHolderTab}
+                      onChange={setActiveCashHolderTab}
+                      items={cashHolderTabItems}
+                      style={{ marginBottom: 12 }}
+                    />
+                    <Table
+                      rowKey="id"
+                      dataSource={filteredCashRows}
+                      columns={cashTableColumns}
+                      pagination={false}
+                      tableLayout="fixed"
+                      scroll={{ x: 860 }}
+                      locale={{
+                        emptyText: "尚未新增銀行現金帳戶",
+                      }}
+                    />
+                  </Card>
+                )}
               </Col>
             </Row>
           ) : (
@@ -4919,23 +5124,50 @@ function App() {
                     </section>
                   </Col>
                   <Col xs={24}>
-                    <Card title="支出列表">
-                      <Tabs
-                        className="expense-category-tabs"
-                        activeKey={activeExpenseCategoryTab}
-                        onChange={setActiveExpenseCategoryTab}
-                        items={expenseCategoryTabItems}
-                        style={{ marginBottom: 12 }}
-                      />
-                      <Table
-                        rowKey={(record) => `${record.id}-${record.occurredAt}`}
-                        dataSource={filteredExpenseRowsByCategory}
-                        columns={expenseTableColumns}
-                        pagination={false}
-                        locale={{ emptyText: "尚無支出紀錄" }}
-                        scroll={{ x: 860 }}
-                      />
-                    </Card>
+                    {isMobileViewport ? (
+                      <div className="mobile-list-section mobile-list-section--expense">
+                        <div className="mobile-list-header">
+                          <span className="mobile-list-title">支出列表</span>
+                        </div>
+                        <div className="mobile-list-body">
+                          <Tabs
+                            className="expense-category-tabs"
+                            activeKey={activeExpenseCategoryTab}
+                            onChange={setActiveExpenseCategoryTab}
+                            items={expenseCategoryTabItems}
+                            style={{ marginBottom: 12 }}
+                          />
+                          <Table
+                            rowKey={(record) =>
+                              `${record.id}-${record.occurredAt}`
+                            }
+                            dataSource={filteredExpenseRowsByCategory}
+                            columns={expenseTableColumns}
+                            pagination={false}
+                            locale={{ emptyText: "尚無支出紀錄" }}
+                            scroll={{ x: 860 }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <Card title="支出列表">
+                        <Tabs
+                          className="expense-category-tabs"
+                          activeKey={activeExpenseCategoryTab}
+                          onChange={setActiveExpenseCategoryTab}
+                          items={expenseCategoryTabItems}
+                          style={{ marginBottom: 12 }}
+                        />
+                        <Table
+                          rowKey={(record) => `${record.id}-${record.occurredAt}`}
+                          dataSource={filteredExpenseRowsByCategory}
+                          columns={expenseTableColumns}
+                          pagination={false}
+                          locale={{ emptyText: "尚無支出紀錄" }}
+                          scroll={{ x: 860 }}
+                        />
+                      </Card>
+                    )}
                   </Col>
                 </>
               )}
@@ -5045,11 +5277,11 @@ function App() {
                     </Card>
                   </Col>
                   <Col xs={24} lg={24}>
-                    <Card
-                      title={
-                        <Space size={8}>
-                          <span>類別列表</span>
-                          {isMobileViewport ? (
+                    {isMobileViewport ? (
+                      <div className="mobile-list-section mobile-list-section--category">
+                        <div className="mobile-list-header">
+                          <Space size={8}>
+                            <span className="mobile-list-title">類別列表</span>
                             <Button
                               type="text"
                               size="small"
@@ -5057,7 +5289,23 @@ function App() {
                               icon={<PlusOutlined />}
                               onClick={() => openCategoryForm()}
                             />
-                          ) : (
+                          </Space>
+                        </div>
+                        <div className="mobile-list-body">
+                          <Table
+                            rowKey="id"
+                            dataSource={expenseCategoryRows}
+                            columns={expenseCategoryColumns}
+                            pagination={false}
+                            locale={{ emptyText: "尚無分類" }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <Card
+                        title={
+                          <Space size={8}>
+                            <span>類別列表</span>
                             <Tooltip title="新增類別">
                               <Button
                                 type="text"
@@ -5067,25 +5315,25 @@ function App() {
                                 onClick={() => openCategoryForm()}
                               />
                             </Tooltip>
-                          )}
-                        </Space>
-                      }
-                    >
-                      <Table
-                        rowKey="id"
-                        dataSource={expenseCategoryRows}
-                        columns={expenseCategoryColumns}
-                        pagination={false}
-                        locale={{ emptyText: "尚無分類" }}
-                      />
-                    </Card>
+                          </Space>
+                        }
+                      >
+                        <Table
+                          rowKey="id"
+                          dataSource={expenseCategoryRows}
+                          columns={expenseCategoryColumns}
+                          pagination={false}
+                          locale={{ emptyText: "尚無分類" }}
+                        />
+                      </Card>
+                    )}
                   </Col>
                   <Col xs={24} lg={24}>
-                    <Card
-                      title={
-                        <Space size={8}>
-                          <span>預算列表</span>
-                          {isMobileViewport ? (
+                    {isMobileViewport ? (
+                      <div className="mobile-list-section mobile-list-section--budget">
+                        <div className="mobile-list-header">
+                          <Space size={8}>
+                            <span className="mobile-list-title">預算列表</span>
                             <Button
                               type="text"
                               size="small"
@@ -5093,7 +5341,51 @@ function App() {
                               icon={<PlusOutlined />}
                               onClick={() => openBudgetForm()}
                             />
-                          ) : (
+                          </Space>
+                        </div>
+                        <div className="mobile-list-body">
+                          <Tabs
+                            className="settings-budget-tabs"
+                            activeKey={activeBudgetTab}
+                            onChange={setActiveBudgetTab}
+                            items={[
+                              {
+                                key: "resident",
+                                label: "常駐預算",
+                                children: (
+                                  <Table
+                                    rowKey="id"
+                                    dataSource={residentBudgetRows}
+                                    columns={residentBudgetColumns}
+                                    pagination={false}
+                                    locale={{ emptyText: "尚無常駐預算" }}
+                                    scroll={{ x: 720 }}
+                                  />
+                                ),
+                              },
+                              {
+                                key: "special",
+                                label: "特別預算",
+                                children: (
+                                  <Table
+                                    rowKey="id"
+                                    dataSource={specialBudgetRows}
+                                    columns={specialBudgetColumns}
+                                    pagination={false}
+                                    locale={{ emptyText: "尚無特別預算" }}
+                                    scroll={{ x: 820 }}
+                                  />
+                                ),
+                              },
+                            ]}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <Card
+                        title={
+                          <Space size={8}>
+                            <span>預算列表</span>
                             <Tooltip title="新增預算">
                               <Button
                                 type="text"
@@ -5103,46 +5395,46 @@ function App() {
                                 onClick={() => openBudgetForm()}
                               />
                             </Tooltip>
-                          )}
-                        </Space>
-                      }
-                    >
-                      <Tabs
-                        className="settings-budget-tabs"
-                        activeKey={activeBudgetTab}
-                        onChange={setActiveBudgetTab}
-                        items={[
-                          {
-                            key: "resident",
-                            label: "常駐預算",
-                            children: (
-                              <Table
-                                rowKey="id"
-                                dataSource={residentBudgetRows}
-                                columns={residentBudgetColumns}
-                                pagination={false}
-                                locale={{ emptyText: "尚無常駐預算" }}
-                                scroll={{ x: 720 }}
-                              />
-                            ),
-                          },
-                          {
-                            key: "special",
-                            label: "特別預算",
-                            children: (
-                              <Table
-                                rowKey="id"
-                                dataSource={specialBudgetRows}
-                                columns={specialBudgetColumns}
-                                pagination={false}
-                                locale={{ emptyText: "尚無特別預算" }}
-                                scroll={{ x: 820 }}
-                              />
-                            ),
-                          },
-                        ]}
-                      />
-                    </Card>
+                          </Space>
+                        }
+                      >
+                        <Tabs
+                          className="settings-budget-tabs"
+                          activeKey={activeBudgetTab}
+                          onChange={setActiveBudgetTab}
+                          items={[
+                            {
+                              key: "resident",
+                              label: "常駐預算",
+                              children: (
+                                <Table
+                                  rowKey="id"
+                                  dataSource={residentBudgetRows}
+                                  columns={residentBudgetColumns}
+                                  pagination={false}
+                                  locale={{ emptyText: "尚無常駐預算" }}
+                                  scroll={{ x: 720 }}
+                                />
+                              ),
+                            },
+                            {
+                              key: "special",
+                              label: "特別預算",
+                              children: (
+                                <Table
+                                  rowKey="id"
+                                  dataSource={specialBudgetRows}
+                                  columns={specialBudgetColumns}
+                                  pagination={false}
+                                  locale={{ emptyText: "尚無特別預算" }}
+                                  scroll={{ x: 820 }}
+                                />
+                              ),
+                            },
+                          ]}
+                        />
+                      </Card>
+                    )}
                   </Col>
                 </>
               )}
@@ -5152,7 +5444,8 @@ function App() {
           {authUser &&
           ((isMobileViewport &&
             (activeMainTab === "expense" || activeMainTab === "asset")) ||
-            (!isMobileViewport && activeMainTab === "expense")) ? (
+            (!isMobileViewport &&
+              (activeMainTab === "expense" || activeMainTab === "asset"))) ? (
             <Button
               type="primary"
               shape="circle"
@@ -5164,8 +5457,12 @@ function App() {
                   : "expense-fab--desktop"
               }`}
               onClick={() => {
-                if (isMobileViewport && activeMainTab === "asset") {
-                  setIsAddHoldingSheetOpen(true);
+                if (activeMainTab === "asset") {
+                  if (isMobileViewport) {
+                    setIsAddHoldingSheetOpen(true);
+                  } else {
+                    setIsAddHoldingModalOpen(true);
+                  }
                   return;
                 }
                 openExpenseForm();

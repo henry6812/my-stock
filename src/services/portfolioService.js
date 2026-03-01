@@ -34,6 +34,8 @@ const DEFAULT_HOLDING_TAG_OPTIONS = [
   { value: "ETF", label: "ETF" },
   { value: "BOND", label: "債券" },
 ];
+const HOLDING_HOLDER_OPTIONS = ["Po", "Wei"];
+const CASH_ACCOUNT_HOLDER_OPTIONS = ["Po", "Wei"];
 
 const SYNC_PENDING = "pending";
 const SYNC_SYNCED = "synced";
@@ -203,6 +205,22 @@ const normalizeAssetTag = (assetTag) =>
     .trim()
     .toUpperCase();
 
+const normalizeHoldingHolder = (holder) => {
+  const normalized = String(holder ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+  return HOLDING_HOLDER_OPTIONS.includes(normalized) ? normalized : null;
+};
+
+const normalizeCashAccountHolder = (holder) => {
+  const normalized = String(holder ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+  return CASH_ACCOUNT_HOLDER_OPTIONS.includes(normalized) ? normalized : null;
+};
+
 const ensureHoldingTagOptions = async () => {
   const config = await db.app_config.get("holding_tags");
   const options = Array.isArray(config?.options) ? config.options : [];
@@ -311,6 +329,7 @@ const recordCashBalanceSnapshot = async ({
     bankCode: cashAccount.bankCode ?? null,
     bankName: cashAccount.bankName,
     accountAlias: cashAccount.accountAlias,
+    holder: normalizeCashAccountHolder(cashAccount.holder),
     balanceTwd: Number(balanceTwd) || 0,
     capturedAt,
     updatedAt: capturedAt,
@@ -421,7 +440,13 @@ export const removeIncomeOverride = async ({ month }) => {
   });
 };
 
-export const upsertHolding = async ({ symbol, market, shares, assetTag }) => {
+export const upsertHolding = async ({
+  symbol,
+  market,
+  shares,
+  assetTag,
+  holder,
+}) => {
   const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW;
   const normalizedSymbol = normalizeSymbol(symbol, normalizedMarket);
   const parsedShares = Number(shares);
@@ -430,6 +455,7 @@ export const upsertHolding = async ({ symbol, market, shares, assetTag }) => {
     assetTag !== undefined &&
     assetTag !== null &&
     String(assetTag).trim() !== "";
+  const hasHolderInput = holder !== undefined;
 
   if (!normalizedSymbol) {
     throw new Error("Stock symbol is required");
@@ -449,9 +475,13 @@ export const upsertHolding = async ({ symbol, market, shares, assetTag }) => {
     const nextAssetTag = hasAssetTagInput
       ? resolveHoldingTag({ inputTag: assetTag, options })
       : existing.assetTag || getDefaultHoldingTag(options);
+    const nextHolder = hasHolderInput
+      ? normalizeHoldingHolder(holder)
+      : normalizeHoldingHolder(existing.holder);
     await db.holdings.update(existing.id, {
       shares: parsedShares,
       assetTag: nextAssetTag,
+      holder: nextHolder,
       updatedAt: nowIso,
       deletedAt: null,
       syncState: SYNC_PENDING,
@@ -481,6 +511,7 @@ export const upsertHolding = async ({ symbol, market, shares, assetTag }) => {
     symbol: normalizedSymbol,
     market: normalizedMarket,
     assetTag: nextAssetTag,
+    holder: normalizeHoldingHolder(holder),
     shares: parsedShares,
     companyName: normalizedSymbol,
     sortOrder: maxSortOrder + 1,
@@ -516,6 +547,28 @@ export const updateHoldingTag = async ({ id, assetTag }) => {
 
   await db.holdings.update(parsedId, {
     assetTag: nextAssetTag,
+    updatedAt: getNowIso(),
+    syncState: SYNC_PENDING,
+  });
+  const updatedHolding = await db.holdings.get(parsedId);
+  if (updatedHolding) {
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
+  }
+};
+
+export const updateHoldingHolder = async ({ id, holder }) => {
+  const parsedId = Number(id);
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error("Holding not found");
+  }
+
+  const existing = await db.holdings.get(parsedId);
+  if (!existing || isDeleted(existing)) {
+    throw new Error("Holding not found");
+  }
+
+  await db.holdings.update(parsedId, {
+    holder: normalizeHoldingHolder(holder),
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
   });
@@ -891,11 +944,13 @@ export const upsertCashAccount = async ({
   bankName,
   accountAlias,
   balanceTwd,
+  holder,
 }) => {
   const normalizedBankCode =
     typeof bankCode === "string" ? bankCode.trim() : undefined;
   const normalizedBankName = String(bankName ?? "").trim();
   const normalizedAlias = String(accountAlias ?? "").trim();
+  const normalizedHolder = normalizeCashAccountHolder(holder);
   const parsedBalance = Number(balanceTwd);
 
   if (!normalizedBankName) {
@@ -909,8 +964,8 @@ export const upsertCashAccount = async ({
   }
 
   const existing = await db.cash_accounts
-    .where("[bankName+accountAlias]")
-    .equals([normalizedBankName, normalizedAlias])
+    .where("[bankName+accountAlias+holder]")
+    .equals([normalizedBankName, normalizedAlias, normalizedHolder])
     .first();
 
   const nowIso = getNowIso();
@@ -919,6 +974,7 @@ export const upsertCashAccount = async ({
       bankCode: normalizedBankCode || null,
       bankName: normalizedBankName,
       accountAlias: normalizedAlias,
+      holder: normalizedHolder,
       balanceTwd: parsedBalance,
       updatedAt: nowIso,
       deletedAt: null,
@@ -943,6 +999,7 @@ export const upsertCashAccount = async ({
     bankCode: normalizedBankCode || null,
     bankName: normalizedBankName,
     accountAlias: normalizedAlias,
+    holder: normalizedHolder,
     balanceTwd: parsedBalance,
     createdAt: nowIso,
     updatedAt: nowIso,
@@ -963,6 +1020,28 @@ export const upsertCashAccount = async ({
     id,
     created: true,
   };
+};
+
+export const updateCashAccountHolder = async ({ id, holder }) => {
+  const parsedId = Number(id);
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error("Cash account not found");
+  }
+
+  const existing = await db.cash_accounts.get(parsedId);
+  if (!existing || isDeleted(existing)) {
+    throw new Error("Cash account not found");
+  }
+
+  await db.cash_accounts.update(parsedId, {
+    holder: normalizeCashAccountHolder(holder),
+    updatedAt: getNowIso(),
+    syncState: SYNC_PENDING,
+  });
+  const updatedCash = await db.cash_accounts.get(parsedId);
+  if (updatedCash) {
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash);
+  }
 };
 
 export const updateCashAccountBalance = async ({ id, balanceTwd }) => {
@@ -1055,6 +1134,8 @@ export const getCashAccountsView = async () => {
       bankCode: item.bankCode || undefined,
       bankName: item.bankName,
       accountAlias: item.accountAlias,
+      holder: normalizeCashAccountHolder(item.holder),
+      holderName: normalizeCashAccountHolder(item.holder) || "未設定",
       balanceTwd: Number(item.balanceTwd) || 0,
       updatedAt: item.updatedAt,
     };
@@ -1129,6 +1210,8 @@ export const getPortfolioView = async () => {
       symbol: holding.symbol,
       companyName: holding.companyName,
       market: holding.market,
+      holder: normalizeHoldingHolder(holding.holder),
+      holderName: normalizeHoldingHolder(holding.holder) || "未設定",
       assetTag: holding.assetTag || defaultTag,
       assetTagLabel:
         tagLabelMap.get(holding.assetTag || defaultTag) ||

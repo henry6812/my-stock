@@ -4,6 +4,10 @@ const marketOptions = [
   { value: "TW", label: "台股 (TW)" },
   { value: "US", label: "美股 (US)" },
 ];
+const holderOptions = [
+  { value: "Po", label: "Po" },
+  { value: "Wei", label: "Wei" },
+];
 
 function HoldingForm({
   onSubmit,
@@ -59,6 +63,15 @@ function HoldingForm({
           options={holdingTagOptions}
           style={isVerticalLayout ? { width: "100%" } : { width: 140 }}
           getPopupContainer={popupContainer}
+        />
+      </Form.Item>
+      <Form.Item label="持有人" name="holder">
+        <Select
+          allowClear
+          options={holderOptions}
+          style={isVerticalLayout ? { width: "100%" } : { width: 120 }}
+          getPopupContainer={popupContainer}
+          placeholder="未設定"
         />
       </Form.Item>
       <Form.Item

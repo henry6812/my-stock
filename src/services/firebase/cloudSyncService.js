@@ -235,6 +235,7 @@ const applyRemoteHolding = async (remote) => {
       symbol: remote.symbol,
       market: remote.market,
       assetTag: remote.assetTag ?? 'STOCK',
+      holder: remote.holder ?? null,
       shares: remote.shares,
       companyName: remote.companyName || remote.symbol,
       sortOrder: Number(remote.sortOrder) || 1,
@@ -248,6 +249,7 @@ const applyRemoteHolding = async (remote) => {
   if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.holdings.update(local.id, {
     assetTag: remote.assetTag ?? local.assetTag ?? 'STOCK',
+    holder: remote.holder ?? local.holder ?? null,
     shares: remote.shares,
     companyName: remote.companyName || local.companyName,
     sortOrder: Number(remote.sortOrder) || local.sortOrder,
@@ -323,14 +325,25 @@ const applyRemoteSyncMeta = async (remote) => {
 
 const applyRemoteCashAccount = async (remote) => {
   if (!remote.bankName || !remote.accountAlias) return
-  const key = [remote.bankName, remote.accountAlias]
-  const local = await db.cash_accounts.where('[bankName+accountAlias]').equals(key).first()
+  const normalizedHolder = remote.holder ?? null
+  const key = [remote.bankName, remote.accountAlias, normalizedHolder]
+  let local = await db.cash_accounts
+    .where('[bankName+accountAlias+holder]')
+    .equals(key)
+    .first()
+  if (!local && normalizedHolder === null) {
+    local = await db.cash_accounts
+      .where('[bankName+accountAlias]')
+      .equals([remote.bankName, remote.accountAlias])
+      .first()
+  }
   const nowIso = getNowIso()
   if (!local) {
     await db.cash_accounts.add({
       bankCode: remote.bankCode ?? null,
       bankName: remote.bankName,
       accountAlias: remote.accountAlias,
+      holder: normalizedHolder,
       balanceTwd: Number(remote.balanceTwd) || 0,
       createdAt: remote.createdAt || nowIso,
       updatedAt: remote.updatedAt || nowIso,
@@ -344,6 +357,7 @@ const applyRemoteCashAccount = async (remote) => {
     bankCode: remote.bankCode ?? null,
     bankName: remote.bankName,
     accountAlias: remote.accountAlias,
+    holder: normalizedHolder,
     balanceTwd: Number(remote.balanceTwd) || 0,
     createdAt: remote.createdAt || local.createdAt,
     updatedAt: remote.updatedAt || local.updatedAt,
@@ -354,7 +368,17 @@ const applyRemoteCashAccount = async (remote) => {
 
 const applyRemoteCashBalanceSnapshot = async (remote) => {
   if (!remote.bankName || !remote.accountAlias || !remote.capturedAt) return
-  const cashAccount = await db.cash_accounts.where('[bankName+accountAlias]').equals([remote.bankName, remote.accountAlias]).first()
+  const normalizedHolder = remote.holder ?? null
+  let cashAccount = await db.cash_accounts
+    .where('[bankName+accountAlias+holder]')
+    .equals([remote.bankName, remote.accountAlias, normalizedHolder])
+    .first()
+  if (!cashAccount && normalizedHolder === null) {
+    cashAccount = await db.cash_accounts
+      .where('[bankName+accountAlias]')
+      .equals([remote.bankName, remote.accountAlias])
+      .first()
+  }
   if (!cashAccount) return
   const local = await db.cash_balance_snapshots.where('[cashAccountId+capturedAt]').equals([cashAccount.id, remote.capturedAt]).first()
   if (!local) {
@@ -363,6 +387,7 @@ const applyRemoteCashBalanceSnapshot = async (remote) => {
       bankCode: remote.bankCode ?? cashAccount.bankCode ?? null,
       bankName: remote.bankName,
       accountAlias: remote.accountAlias,
+      holder: normalizedHolder,
       balanceTwd: Number(remote.balanceTwd) || 0,
       capturedAt: remote.capturedAt,
       updatedAt: remote.updatedAt ?? remote.capturedAt,
@@ -376,6 +401,7 @@ const applyRemoteCashBalanceSnapshot = async (remote) => {
     bankCode: remote.bankCode ?? local.bankCode ?? null,
     bankName: remote.bankName,
     accountAlias: remote.accountAlias,
+    holder: normalizedHolder,
     balanceTwd: Number(remote.balanceTwd) || 0,
     updatedAt: remote.updatedAt ?? local.updatedAt,
     deletedAt: remote.deletedAt ?? null,

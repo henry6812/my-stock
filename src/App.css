@@ -745,6 +745,30 @@
   margin-inline-start: auto;
 }
 
+.mobile-list-section {
+  margin-bottom: 12px;
+}
+
+.mobile-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px 8px;
+}
+
+.mobile-list-title {
+  font-weight: 600;
+}
+
+.mobile-list-body {
+  padding: 0;
+}
+
+.mobile-list-section .ant-table-wrapper {
+  background: transparent;
+}
+
 .holding-main-text {
   font-weight: 500;
 }

@@ -1,4 +1,4 @@
-import { AutoComplete, Form, Input, InputNumber } from "antd";
+import { AutoComplete, Form, Input, InputNumber, Select } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 function CashAccountForm({
@@ -67,7 +67,7 @@ function CashAccountForm({
   const handleFinish = async (values) => {
     const shouldReset = await onSubmit(values);
     if (shouldReset !== false) {
-      form.resetFields(["bankName", "accountAlias", "balanceTwd"]);
+      form.resetFields(["bankName", "accountAlias", "holder", "balanceTwd"]);
     }
   };
 
@@ -144,6 +144,18 @@ function CashAccountForm({
           autoCapitalize={disableAutofill ? "none" : undefined}
           spellCheck={disableAutofill ? false : undefined}
           data-lpignore={disableAutofill ? "true" : undefined}
+        />
+      </Form.Item>
+
+      <Form.Item label="持有人" name="holder">
+        <Select
+          allowClear
+          options={[
+            { label: "Po", value: "Po" },
+            { label: "Wei", value: "Wei" },
+          ]}
+          placeholder="未設定"
+          getPopupContainer={popupContainer}
         />
       </Form.Item>
 

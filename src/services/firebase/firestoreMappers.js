@@ -13,13 +13,13 @@ export const buildSnapshotKey = ({ market, symbol, capturedAt }) => (
   `${market}_${symbol}_${capturedAt}`
 )
 
-export const buildCashAccountKey = ({ bankCode, bankName, accountAlias }) => (
-  `${bankCode || 'NA'}_${String(bankName || '').trim()}_${String(accountAlias || '').trim()}`
+export const buildCashAccountKey = ({ bankCode, bankName, accountAlias, holder }) => (
+  `${bankCode || 'NA'}_${String(bankName || '').trim()}_${String(accountAlias || '').trim()}_${String(holder || 'UNSET').trim()}`
     .replaceAll('/', '_')
 )
 
-export const buildCashBalanceSnapshotKey = ({ bankCode, bankName, accountAlias, capturedAt }) => (
-  `${buildCashAccountKey({ bankCode, bankName, accountAlias })}_${capturedAt}`
+export const buildCashBalanceSnapshotKey = ({ bankCode, bankName, accountAlias, holder, capturedAt }) => (
+  `${buildCashAccountKey({ bankCode, bankName, accountAlias, holder })}_${capturedAt}`
 )
 
 export const buildExpenseEntryKey = (entry) => (
@@ -40,6 +40,7 @@ export const holdingToRemote = (holding) => ({
   symbol: holding.symbol,
   market: holding.market,
   assetTag: holding.assetTag ?? 'STOCK',
+  holder: holding.holder ?? null,
   shares: holding.shares,
   companyName: holding.companyName,
   sortOrder: holding.sortOrder,
@@ -86,6 +87,7 @@ export const cashAccountToRemote = (cashAccount) => ({
   bankCode: cashAccount.bankCode ?? null,
   bankName: cashAccount.bankName,
   accountAlias: cashAccount.accountAlias,
+  holder: cashAccount.holder ?? null,
   balanceTwd: cashAccount.balanceTwd,
   createdAt: cashAccount.createdAt ?? null,
   updatedAt: cashAccount.updatedAt,
@@ -98,6 +100,7 @@ export const cashBalanceSnapshotToRemote = (snapshot) => ({
   bankCode: snapshot.bankCode ?? null,
   bankName: snapshot.bankName,
   accountAlias: snapshot.accountAlias,
+  holder: snapshot.holder ?? null,
   balanceTwd: snapshot.balanceTwd,
   capturedAt: snapshot.capturedAt,
   updatedAt: snapshot.updatedAt,
@@ -178,6 +181,7 @@ export const remoteToHolding = (data) => ({
   symbol: data.symbol,
   market: data.market,
   assetTag: data.assetTag ?? 'STOCK',
+  holder: data.holder ?? null,
   shares: data.shares,
   companyName: data.companyName,
   sortOrder: data.sortOrder,
@@ -220,6 +224,7 @@ export const remoteToCashAccount = (data) => ({
   bankCode: data.bankCode ?? undefined,
   bankName: data.bankName,
   accountAlias: data.accountAlias,
+  holder: data.holder ?? null,
   balanceTwd: data.balanceTwd,
   createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
@@ -231,6 +236,7 @@ export const remoteToCashBalanceSnapshot = (data) => ({
   bankCode: data.bankCode ?? undefined,
   bankName: data.bankName,
   accountAlias: data.accountAlias,
+  holder: data.holder ?? null,
   balanceTwd: data.balanceTwd,
   capturedAt: toIso(data.capturedAt) ?? data.capturedAt,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
