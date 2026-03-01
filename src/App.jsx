@@ -4947,17 +4947,17 @@ function App() {
                                 >
                                   {budget.name}
                                 </Text>
-                                <Tag
-                                  className="active-budget-mode-tag"
-                                  color={getStableTagColor(
-                                    formatBudgetModeLabel(budget.budgetMode),
-                                    budget.budgetMode === "SPECIAL"
-                                      ? "orange"
-                                      : "blue",
-                                  )}
-                                >
-                                  {formatBudgetModeLabel(budget.budgetMode)}
-                                </Tag>
+                                {budget.budgetMode === "SPECIAL" ? (
+                                  <Tag
+                                    className="active-budget-mode-tag"
+                                    color={getStableTagColor(
+                                      formatBudgetModeLabel(budget.budgetMode),
+                                      "orange",
+                                    )}
+                                  >
+                                    {formatBudgetModeLabel(budget.budgetMode)}
+                                  </Tag>
+                                ) : null}
                               </div>
                               <div
                                 className={`active-budget-remaining ${

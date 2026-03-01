@@ -2114,7 +2114,7 @@ const buildSpecialBudgetStats = ({ budget, entries, today }) => {
     Boolean(endDate) &&
     Number.isFinite(specialAmountTwd) &&
     specialAmountTwd > 0 &&
-    dayjs(endDate).isSameOrAfter(dayjs(startDate), "day");
+    !dayjs(endDate).isBefore(dayjs(startDate), "day");
 
   if (!isConfigured) {
     return {
