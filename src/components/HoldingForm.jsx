@@ -65,13 +65,16 @@ function HoldingForm({
           getPopupContainer={popupContainer}
         />
       </Form.Item>
-      <Form.Item label="持有人" name="holder">
+      <Form.Item
+        label="持有人"
+        name="holder"
+        rules={[{ required: true, message: "請選擇持有人" }]}
+      >
         <Select
-          allowClear
           options={holderOptions}
           style={isVerticalLayout ? { width: "100%" } : { width: 120 }}
           getPopupContainer={popupContainer}
-          placeholder="未設定"
+          placeholder="請選擇持有人"
         />
       </Form.Item>
       <Form.Item

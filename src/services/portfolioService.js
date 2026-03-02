@@ -14,12 +14,14 @@ import {
   sleepForRateLimit,
 } from "./priceProviders/finnhubProvider";
 import {
+  deleteCollectionDoc,
   getSyncRuntimeState,
   initCloudSync,
   writeCollectionRecord,
   stopCloudSync,
   syncNowWithCloud,
 } from "./firebase/cloudSyncService";
+import { buildHoldingKey } from "./firebase/firestoreMappers";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -101,6 +103,24 @@ const toDayjsDateOnly = (value) => dayjs(normalizeDateOnly(value));
 
 const mirrorToCloud = async (collectionName, record) => {
   await writeCollectionRecord({ collectionName, record });
+};
+
+const migrateHoldingCloudKeyIfNeeded = async ({
+  previousHolding,
+  nextHolding,
+}) => {
+  if (!previousHolding || !nextHolding) {
+    return;
+  }
+  const previousDocKey = buildHoldingKey(previousHolding);
+  const nextDocKey = buildHoldingKey(nextHolding);
+  if (previousDocKey === nextDocKey) {
+    return;
+  }
+  await deleteCollectionDoc({
+    collectionName: CLOUD_COLLECTION.HOLDINGS,
+    docId: previousDocKey,
+  });
 };
 
 const normalizeIncomeValue = (value) => {
@@ -449,16 +469,20 @@ export const upsertHolding = async ({
 }) => {
   const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW;
   const normalizedSymbol = normalizeSymbol(symbol, normalizedMarket);
+  const normalizedHolder = normalizeHoldingHolder(holder);
   const parsedShares = Number(shares);
   const options = await ensureHoldingTagOptions();
   const hasAssetTagInput =
     assetTag !== undefined &&
     assetTag !== null &&
     String(assetTag).trim() !== "";
-  const hasHolderInput = holder !== undefined;
 
   if (!normalizedSymbol) {
     throw new Error("Stock symbol is required");
+  }
+
+  if (!normalizedHolder) {
+    throw new Error("請選擇持有人");
   }
 
   if (!Number.isFinite(parsedShares) || parsedShares <= 0) {
@@ -466,8 +490,8 @@ export const upsertHolding = async ({
   }
 
   const existing = await db.holdings
-    .where("[symbol+market]")
-    .equals([normalizedSymbol, normalizedMarket])
+    .where("[symbol+market+holder]")
+    .equals([normalizedSymbol, normalizedMarket, normalizedHolder])
     .first();
   const nowIso = getNowIso();
 
@@ -475,13 +499,10 @@ export const upsertHolding = async ({
     const nextAssetTag = hasAssetTagInput
       ? resolveHoldingTag({ inputTag: assetTag, options })
       : existing.assetTag || getDefaultHoldingTag(options);
-    const nextHolder = hasHolderInput
-      ? normalizeHoldingHolder(holder)
-      : normalizeHoldingHolder(existing.holder);
     await db.holdings.update(existing.id, {
       shares: parsedShares,
       assetTag: nextAssetTag,
-      holder: nextHolder,
+      holder: normalizedHolder,
       updatedAt: nowIso,
       deletedAt: null,
       syncState: SYNC_PENDING,
@@ -511,7 +532,7 @@ export const upsertHolding = async ({
     symbol: normalizedSymbol,
     market: normalizedMarket,
     assetTag: nextAssetTag,
-    holder: normalizeHoldingHolder(holder),
+    holder: normalizedHolder,
     shares: parsedShares,
     companyName: normalizedSymbol,
     sortOrder: maxSortOrder + 1,
@@ -558,23 +579,43 @@ export const updateHoldingTag = async ({ id, assetTag }) => {
 
 export const updateHoldingHolder = async ({ id, holder }) => {
   const parsedId = Number(id);
+  const normalizedHolder = normalizeHoldingHolder(holder);
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
     throw new Error("Holding not found");
+  }
+  if (!normalizedHolder) {
+    throw new Error("請選擇持有人");
   }
 
   const existing = await db.holdings.get(parsedId);
   if (!existing || isDeleted(existing)) {
     throw new Error("Holding not found");
   }
+  if (normalizeHoldingHolder(existing.holder) === normalizedHolder) {
+    return;
+  }
+
+  const conflict = await db.holdings
+    .where("[symbol+market+holder]")
+    .equals([existing.symbol, existing.market, normalizedHolder])
+    .and((item) => item.id !== parsedId && !isDeleted(item))
+    .first();
+  if (conflict) {
+    throw new Error("同持有人的該股票已存在");
+  }
 
   await db.holdings.update(parsedId, {
-    holder: normalizeHoldingHolder(holder),
+    holder: normalizedHolder,
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
   });
   const updatedHolding = await db.holdings.get(parsedId);
   if (updatedHolding) {
     await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
+    await migrateHoldingCloudKeyIfNeeded({
+      previousHolding: existing,
+      nextHolding: updatedHolding,
+    });
   }
 };
 
@@ -773,6 +814,7 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
     holdingId: holding.id,
     symbol: holding.symbol,
     market: holding.market,
+    holder: normalizeHoldingHolder(holding.holder),
     price: quote.price,
     currency: quote.currency,
     fxRateToTwd,
@@ -885,6 +927,7 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
         holdingId: holding.id,
         symbol: holding.symbol,
         market: holding.market,
+        holder: normalizeHoldingHolder(holding.holder),
         price: quote.price,
         currency: quote.currency,
         fxRateToTwd: usdTwdRate,

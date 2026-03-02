@@ -1921,9 +1921,8 @@ function App() {
                   { value: "Po", label: "Po" },
                   { value: "Wei", label: "Wei" },
                 ]}
-                allowClear
-                placeholder="未設定"
-                onChange={(next) => setEditingHoldingHolder(next ?? null)}
+                placeholder="請選擇"
+                onChange={(next) => setEditingHoldingHolder(next)}
                 style={{ width: 110 }}
               />
             );

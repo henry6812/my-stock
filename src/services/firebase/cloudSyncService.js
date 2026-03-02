@@ -228,14 +228,30 @@ const buildMutationPayload = ({ collectionName, record }) => {
 
 const applyRemoteHolding = async (remote) => {
   if (!remote.symbol || !remote.market) return
-  const local = await db.holdings.where('[symbol+market]').equals([remote.symbol, remote.market]).first()
+  const normalizedHolder = remote.holder ?? null
+  const key = [remote.symbol, remote.market, normalizedHolder]
+  let local = await db.holdings
+    .where('[symbol+market+holder]')
+    .equals(key)
+    .first()
+  if (!local && normalizedHolder === null) {
+    const candidates = await db.holdings
+      .where('[symbol+market]')
+      .equals([remote.symbol, remote.market])
+      .toArray()
+    if (candidates.length === 1) {
+      ;[local] = candidates
+    } else {
+      local = candidates.find((item) => (item.holder ?? null) === null)
+    }
+  }
   const nowIso = getNowIso()
   if (!local) {
     await db.holdings.add({
       symbol: remote.symbol,
       market: remote.market,
       assetTag: remote.assetTag ?? 'STOCK',
-      holder: remote.holder ?? null,
+      holder: normalizedHolder,
       shares: remote.shares,
       companyName: remote.companyName || remote.symbol,
       sortOrder: Number(remote.sortOrder) || 1,
@@ -249,7 +265,7 @@ const applyRemoteHolding = async (remote) => {
   if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.holdings.update(local.id, {
     assetTag: remote.assetTag ?? local.assetTag ?? 'STOCK',
-    holder: remote.holder ?? local.holder ?? null,
+    holder: normalizedHolder,
     shares: remote.shares,
     companyName: remote.companyName || local.companyName,
     sortOrder: Number(remote.sortOrder) || local.sortOrder,
@@ -262,7 +278,22 @@ const applyRemoteHolding = async (remote) => {
 
 const applyRemoteSnapshot = async (remote) => {
   if (!remote.symbol || !remote.market || !remote.capturedAt) return
-  const holding = await db.holdings.where('[symbol+market]').equals([remote.symbol, remote.market]).first()
+  const normalizedHolder = remote.holder ?? null
+  let holding = await db.holdings
+    .where('[symbol+market+holder]')
+    .equals([remote.symbol, remote.market, normalizedHolder])
+    .first()
+  if (!holding) {
+    const candidates = await db.holdings
+      .where('[symbol+market]')
+      .equals([remote.symbol, remote.market])
+      .toArray()
+    if (candidates.length === 1) {
+      ;[holding] = candidates
+    } else if (normalizedHolder === null) {
+      holding = candidates.find((item) => (item.holder ?? null) === null)
+    }
+  }
   if (!holding) return
   const local = await db.price_snapshots.where('[holdingId+capturedAt]').equals([holding.id, remote.capturedAt]).first()
   if (!local) {
@@ -270,6 +301,7 @@ const applyRemoteSnapshot = async (remote) => {
       holdingId: holding.id,
       symbol: remote.symbol,
       market: remote.market,
+      holder: normalizedHolder,
       price: remote.price,
       currency: remote.currency,
       fxRateToTwd: remote.fxRateToTwd,
@@ -283,6 +315,7 @@ const applyRemoteSnapshot = async (remote) => {
   }
   if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.price_snapshots.update(local.id, {
+    holder: normalizedHolder,
     price: remote.price,
     currency: remote.currency,
     fxRateToTwd: remote.fxRateToTwd,

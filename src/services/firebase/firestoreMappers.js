@@ -7,10 +7,12 @@ const toIso = (value) => {
   return null
 }
 
-export const buildHoldingKey = ({ market, symbol }) => `${market}_${symbol}`
+export const buildHoldingKey = ({ market, symbol, holder }) => (
+  `${market}_${symbol}_${String(holder || 'UNSET').trim()}`
+)
 
-export const buildSnapshotKey = ({ market, symbol, capturedAt }) => (
-  `${market}_${symbol}_${capturedAt}`
+export const buildSnapshotKey = ({ market, symbol, holder, capturedAt }) => (
+  `${market}_${symbol}_${String(holder || 'UNSET').trim()}_${capturedAt}`
 )
 
 export const buildCashAccountKey = ({ bankCode, bankName, accountAlias, holder }) => (
@@ -53,6 +55,7 @@ export const holdingToRemote = (holding) => ({
 export const snapshotToRemote = (snapshot) => ({
   symbol: snapshot.symbol,
   market: snapshot.market,
+  holder: snapshot.holder ?? null,
   price: snapshot.price,
   currency: snapshot.currency,
   fxRateToTwd: snapshot.fxRateToTwd,
@@ -193,6 +196,7 @@ export const remoteToHolding = (data) => ({
 export const remoteToSnapshot = (data) => ({
   symbol: data.symbol,
   market: data.market,
+  holder: data.holder ?? null,
   price: data.price,
   currency: data.currency,
   fxRateToTwd: data.fxRateToTwd,
