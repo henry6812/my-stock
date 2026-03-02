@@ -978,6 +978,7 @@
   display: inline-flex;
   flex-direction: column;
   align-items: center;
+  width: 0;
   pointer-events: none;
   z-index: 4;
   will-change: left, transform;
@@ -992,7 +993,10 @@
 }
 
 .expense-rate-marker-label {
-  margin-bottom: 2px;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
   padding: 2px 4px;
   border-radius: 4px;
   border: 1px solid #44a194;
@@ -1004,19 +1008,22 @@
 }
 
 .expense-rate-marker--edge-left {
-  transform: translateX(0);
+  transform: translateX(-50%);
 }
 
 .expense-rate-marker--edge-left .expense-rate-marker-label {
-  align-self: flex-start;
+  left: 0;
+  transform: none;
 }
 
 .expense-rate-marker--edge-right {
-  transform: translateX(-100%);
+  transform: translateX(-50%);
 }
 
 .expense-rate-marker--edge-right .expense-rate-marker-label {
-  align-self: flex-end;
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 .income-settings-row {

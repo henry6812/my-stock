@@ -1712,14 +1712,22 @@ const buildMonthlyTotalsSeries = (occurrences, endDateInput = getNowDate()) => {
       : end.format("YYYY-MM");
   const endMonth = end.format("YYYY-MM");
   const totals = new Map();
+  const recurringTotals = new Map();
 
   for (const occurrence of occurrences) {
     const month = normalizeDateOnly(occurrence.occurredAt)?.slice(0, 7);
     if (!month) continue;
+    const amount = Number(occurrence.amountTwd) || 0;
     totals.set(
       month,
-      (totals.get(month) || 0) + (Number(occurrence.amountTwd) || 0),
+      (totals.get(month) || 0) + amount,
     );
+    if (
+      occurrence.isRecurringOccurrence ||
+      occurrence.entryType === EXPENSE_ENTRY_TYPE.RECURRING
+    ) {
+      recurringTotals.set(month, (recurringTotals.get(month) || 0) + amount);
+    }
   }
 
   const series = [];
@@ -1730,6 +1738,7 @@ const buildMonthlyTotalsSeries = (occurrences, endDateInput = getNowDate()) => {
     series.push({
       month,
       totalTwd: Number(totals.get(month) || 0),
+      recurringTwd: Number(recurringTotals.get(month) || 0),
     });
     cursor = cursor.add(1, "month");
   }
@@ -1810,6 +1819,15 @@ const buildExpenseAnalytics = ({
             month,
             totalTwd: occurrences.reduce(
               (sum, item) => sum + (Number(item.amountTwd) || 0),
+              0,
+            ),
+            recurringTwd: occurrences.reduce(
+              (sum, item) =>
+                sum +
+                (item.isRecurringOccurrence ||
+                item.entryType === EXPENSE_ENTRY_TYPE.RECURRING
+                  ? Number(item.amountTwd) || 0
+                  : 0),
               0,
             ),
           },

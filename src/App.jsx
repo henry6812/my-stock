@@ -3906,7 +3906,16 @@ function App() {
               <Line
                 type="monotone"
                 dataKey="totalTwd"
+                name="總支出"
                 stroke="#1677ff"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="recurringTwd"
+                name="定期支出"
+                stroke="#13c2c2"
                 strokeWidth={2}
                 dot={false}
               />
@@ -4041,10 +4050,20 @@ function App() {
               <Line
                 type="monotone"
                 dataKey="totalTwd"
+                name="總支出"
                 stroke="#1677ff"
                 strokeWidth={3}
                 dot={{ r: 3 }}
               />
+              <Line
+                type="monotone"
+                dataKey="recurringTwd"
+                name="定期支出"
+                stroke="#13c2c2"
+                strokeWidth={3}
+                dot={{ r: 3 }}
+              />
+              <Legend />
             </LineChart>
           </ResponsiveContainer>
         );
