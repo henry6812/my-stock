@@ -22,6 +22,7 @@ import {
   syncNowWithCloud,
 } from "./firebase/cloudSyncService";
 import { buildHoldingKey } from "./firebase/firestoreMappers";
+import { parseNumericLike } from "../utils/number";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -125,7 +126,10 @@ const migrateHoldingCloudKeyIfNeeded = async ({
 
 const normalizeIncomeValue = (value) => {
   if (value === null || value === undefined || value === "") return null;
-  const parsed = Number(value);
+  const parsed = parseNumericLike(value, {
+    fallback: Number.NaN,
+    context: "normalizeIncomeValue",
+  });
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error("Income must be a positive number");
   }
@@ -350,7 +354,10 @@ const recordCashBalanceSnapshot = async ({
     bankName: cashAccount.bankName,
     accountAlias: cashAccount.accountAlias,
     holder: normalizeCashAccountHolder(cashAccount.holder),
-    balanceTwd: Number(balanceTwd) || 0,
+    balanceTwd: parseNumericLike(balanceTwd, {
+      fallback: 0,
+      context: "recordCashBalanceSnapshot.balanceTwd",
+    }),
     capturedAt,
     updatedAt: capturedAt,
     deletedAt: null,
@@ -1177,7 +1184,11 @@ export const getCashAccountsView = async () => {
 
   let totalCashTwd = 0;
   const rows = cashAccounts.map((item) => {
-    totalCashTwd += Number(item.balanceTwd) || 0;
+    const balanceTwd = parseNumericLike(item.balanceTwd, {
+      fallback: 0,
+      context: "getCashAccountsView.balanceTwd",
+    });
+    totalCashTwd += balanceTwd;
     return {
       id: item.id,
       bankCode: item.bankCode || undefined,
@@ -1185,7 +1196,7 @@ export const getCashAccountsView = async () => {
       accountAlias: item.accountAlias,
       holder: normalizeCashAccountHolder(item.holder),
       holderName: normalizeCashAccountHolder(item.holder) || "未設定",
-      balanceTwd: Number(item.balanceTwd) || 0,
+      balanceTwd,
       updatedAt: item.updatedAt,
     };
   });
@@ -1194,6 +1205,121 @@ export const getCashAccountsView = async () => {
     rows,
     totalCashTwd,
   };
+};
+
+export const repairNumericFields = async () => {
+  const nowIso = getNowIso();
+  let updatedRows = 0;
+
+  const holdings = await db.holdings.toArray();
+  for (const row of holdings) {
+    const nextShares = parseNumericLike(row.shares, {
+      fallback: 0,
+      context: "repairNumericFields.holdings.shares",
+    });
+    const nextSortOrder = Math.max(
+      1,
+      Math.round(
+        parseNumericLike(row.sortOrder, {
+          fallback: 1,
+          context: "repairNumericFields.holdings.sortOrder",
+        }),
+      ),
+    );
+    if (row.shares === nextShares && row.sortOrder === nextSortOrder) {
+      continue;
+    }
+    await db.holdings.update(row.id, {
+      shares: nextShares,
+      sortOrder: nextSortOrder,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
+    const updated = await db.holdings.get(row.id);
+    if (updated) {
+      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updated);
+    }
+    updatedRows += 1;
+  }
+
+  const snapshots = await db.price_snapshots.toArray();
+  for (const row of snapshots) {
+    const nextPrice = parseNumericLike(row.price, {
+      fallback: 0,
+      context: "repairNumericFields.price_snapshots.price",
+    });
+    const nextFxRateToTwd = parseNumericLike(row.fxRateToTwd, {
+      fallback: 0,
+      context: "repairNumericFields.price_snapshots.fxRateToTwd",
+    });
+    const nextValueTwd = parseNumericLike(row.valueTwd, {
+      fallback: 0,
+      context: "repairNumericFields.price_snapshots.valueTwd",
+    });
+    if (
+      row.price === nextPrice &&
+      row.fxRateToTwd === nextFxRateToTwd &&
+      row.valueTwd === nextValueTwd
+    ) {
+      continue;
+    }
+    await db.price_snapshots.update(row.id, {
+      price: nextPrice,
+      fxRateToTwd: nextFxRateToTwd,
+      valueTwd: nextValueTwd,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
+    const updated = await db.price_snapshots.get(row.id);
+    if (updated) {
+      await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, updated);
+    }
+    updatedRows += 1;
+  }
+
+  const cashAccounts = await db.cash_accounts.toArray();
+  for (const row of cashAccounts) {
+    const nextBalanceTwd = parseNumericLike(row.balanceTwd, {
+      fallback: 0,
+      context: "repairNumericFields.cash_accounts.balanceTwd",
+    });
+    if (row.balanceTwd === nextBalanceTwd) {
+      continue;
+    }
+    await db.cash_accounts.update(row.id, {
+      balanceTwd: nextBalanceTwd,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
+    const updated = await db.cash_accounts.get(row.id);
+    if (updated) {
+      await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updated);
+    }
+    updatedRows += 1;
+  }
+
+  const cashSnapshots = await db.cash_balance_snapshots.toArray();
+  for (const row of cashSnapshots) {
+    const nextBalanceTwd = parseNumericLike(row.balanceTwd, {
+      fallback: 0,
+      context: "repairNumericFields.cash_balance_snapshots.balanceTwd",
+    });
+    if (row.balanceTwd === nextBalanceTwd) {
+      continue;
+    }
+    await db.cash_balance_snapshots.update(row.id, {
+      balanceTwd: nextBalanceTwd,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
+    const updated = await db.cash_balance_snapshots.get(row.id);
+    if (updated) {
+      await mirrorToCloud(CLOUD_COLLECTION.CASH_BALANCE_SNAPSHOTS, updated);
+    }
+    updatedRows += 1;
+  }
+
+  return { updatedRows };
 };
 
 export const getPortfolioView = async () => {
@@ -1214,42 +1340,55 @@ export const getPortfolioView = async () => {
   for (const holding of holdings) {
     const { latestSnapshot, previousSnapshot } =
       await getLatestTwoSnapshotsByHoldingId(holding.id);
-    const hasLatestPrice = typeof latestSnapshot?.price === "number";
+    const latestPrice = parseNumericLike(latestSnapshot?.price, {
+      fallback: Number.NaN,
+      context: "getPortfolioView.latestSnapshot.price",
+    });
+    const hasLatestPrice = Number.isFinite(latestPrice);
     const fxRateToTwd =
       holding.market === MARKET.US
-        ? typeof latestSnapshot?.fxRateToTwd === "number"
-          ? latestSnapshot.fxRateToTwd
-          : 1
+        ? parseNumericLike(latestSnapshot?.fxRateToTwd, {
+            fallback: 1,
+            context: "getPortfolioView.latestSnapshot.fxRateToTwd",
+          })
         : 1;
     const latestValueTwd = hasLatestPrice
-      ? latestSnapshot.price * holding.shares * fxRateToTwd
-      : latestSnapshot?.valueTwd;
-    const prevPrice =
-      typeof previousSnapshot?.price === "number"
-        ? previousSnapshot.price
-        : undefined;
-    const prevValueTwd =
-      typeof previousSnapshot?.valueTwd === "number"
-        ? previousSnapshot.valueTwd
-        : undefined;
+      ? latestPrice *
+        parseNumericLike(holding.shares, {
+          fallback: 0,
+          context: "getPortfolioView.holding.shares",
+        }) *
+        fxRateToTwd
+      : parseNumericLike(latestSnapshot?.valueTwd, {
+          fallback: Number.NaN,
+          context: "getPortfolioView.latestSnapshot.valueTwd",
+        });
+    const prevPrice = parseNumericLike(previousSnapshot?.price, {
+      fallback: Number.NaN,
+      context: "getPortfolioView.previousSnapshot.price",
+    });
+    const prevValueTwd = parseNumericLike(previousSnapshot?.valueTwd, {
+      fallback: Number.NaN,
+      context: "getPortfolioView.previousSnapshot.valueTwd",
+    });
     const hasPreviousSnapshot = Boolean(previousSnapshot);
     const priceChange =
-      hasLatestPrice && typeof prevPrice === "number"
-        ? latestSnapshot.price - prevPrice
+      hasLatestPrice && Number.isFinite(prevPrice)
+        ? latestPrice - prevPrice
         : undefined;
     const valueChangeTwd =
-      typeof latestValueTwd === "number" && typeof prevValueTwd === "number"
+      Number.isFinite(latestValueTwd) && Number.isFinite(prevValueTwd)
         ? latestValueTwd - prevValueTwd
         : undefined;
     const priceChangePct =
-      typeof priceChange === "number" &&
-      typeof prevPrice === "number" &&
+      Number.isFinite(priceChange) &&
+      Number.isFinite(prevPrice) &&
       prevPrice !== 0
         ? (priceChange / prevPrice) * 100
         : null;
     const valueChangePct =
-      typeof valueChangeTwd === "number" &&
-      typeof prevValueTwd === "number" &&
+      Number.isFinite(valueChangeTwd) &&
+      Number.isFinite(prevValueTwd) &&
       prevValueTwd !== 0
         ? (valueChangeTwd / prevValueTwd) * 100
         : null;
@@ -1266,8 +1405,11 @@ export const getPortfolioView = async () => {
         tagLabelMap.get(holding.assetTag || defaultTag) ||
         holding.assetTag ||
         defaultTag,
-      shares: holding.shares,
-      latestPrice: latestSnapshot?.price,
+      shares: parseNumericLike(holding.shares, {
+        fallback: 0,
+        context: "getPortfolioView.row.shares",
+      }),
+      latestPrice: hasLatestPrice ? latestPrice : undefined,
       prevPrice,
       priceChange,
       priceChangePct,
@@ -1280,7 +1422,7 @@ export const getPortfolioView = async () => {
       latestCapturedAt: latestSnapshot?.capturedAt,
     };
 
-    if (typeof row.latestValueTwd === "number") {
+    if (Number.isFinite(row.latestValueTwd)) {
       stockTotalTwd += row.latestValueTwd;
     }
 
@@ -1296,8 +1438,12 @@ export const getPortfolioView = async () => {
       holding.id,
       baselineAt,
     );
-    if (typeof baselineSnapshot?.valueTwd === "number") {
-      baselineStockTotalTwd += baselineSnapshot.valueTwd;
+    const baselineValueTwd = parseNumericLike(baselineSnapshot?.valueTwd, {
+      fallback: Number.NaN,
+      context: "getPortfolioView.baselineSnapshot.valueTwd",
+    });
+    if (Number.isFinite(baselineValueTwd)) {
+      baselineStockTotalTwd += baselineValueTwd;
     }
   }
 
@@ -1310,8 +1456,12 @@ export const getPortfolioView = async () => {
       cashAccount.id,
       baselineAt,
     );
-    if (typeof baselineSnapshot?.balanceTwd === "number") {
-      baselineCashTotalTwd += baselineSnapshot.balanceTwd;
+    const baselineBalance = parseNumericLike(baselineSnapshot?.balanceTwd, {
+      fallback: Number.NaN,
+      context: "getPortfolioView.baselineCashSnapshot.balanceTwd",
+    });
+    if (Number.isFinite(baselineBalance)) {
+      baselineCashTotalTwd += baselineBalance;
       continue;
     }
 
@@ -1319,8 +1469,15 @@ export const getPortfolioView = async () => {
     // snapshot after baseline as an approximation of baseline value.
     const firstSnapshotAfterBaseline =
       await getEarliestCashBalanceSnapshotAfter(cashAccount.id, baselineAt);
-    if (typeof firstSnapshotAfterBaseline?.balanceTwd === "number") {
-      baselineCashTotalTwd += firstSnapshotAfterBaseline.balanceTwd;
+    const firstBalanceAfterBaseline = parseNumericLike(
+      firstSnapshotAfterBaseline?.balanceTwd,
+      {
+        fallback: Number.NaN,
+        context: "getPortfolioView.firstSnapshotAfterBaseline.balanceTwd",
+      },
+    );
+    if (Number.isFinite(firstBalanceAfterBaseline)) {
+      baselineCashTotalTwd += firstBalanceAfterBaseline;
       continue;
     }
 
@@ -1333,7 +1490,10 @@ export const getPortfolioView = async () => {
       cashAccount.updatedAt &&
       cashAccount.updatedAt <= baselineAt
     ) {
-      const fallbackBalance = Number(cashAccount.balanceTwd);
+      const fallbackBalance = parseNumericLike(cashAccount.balanceTwd, {
+        fallback: Number.NaN,
+        context: "getPortfolioView.cashAccount.balanceTwd",
+      });
       if (Number.isFinite(fallbackBalance)) {
         baselineCashTotalTwd += fallbackBalance;
       }

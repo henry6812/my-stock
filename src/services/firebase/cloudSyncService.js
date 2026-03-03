@@ -7,6 +7,7 @@ import {
   setDoc,
 } from 'firebase/firestore'
 import { db } from '../../db/database'
+import { parseNumericLike } from '../../utils/number'
 import { firestoreDb, assertFirebaseConfigured } from './firebaseApp'
 import {
   buildCashBalanceSnapshotKey,
@@ -252,9 +253,15 @@ const applyRemoteHolding = async (remote) => {
       market: remote.market,
       assetTag: remote.assetTag ?? 'STOCK',
       holder: normalizedHolder,
-      shares: remote.shares,
+      shares: parseNumericLike(remote.shares, {
+        fallback: 0,
+        context: 'applyRemoteHolding.shares',
+      }),
       companyName: remote.companyName || remote.symbol,
-      sortOrder: Number(remote.sortOrder) || 1,
+      sortOrder: parseNumericLike(remote.sortOrder, {
+        fallback: 1,
+        context: 'applyRemoteHolding.sortOrder',
+      }),
       createdAt: remote.createdAt || nowIso,
       updatedAt: remote.updatedAt || nowIso,
       deletedAt: remote.deletedAt ?? null,
@@ -266,9 +273,15 @@ const applyRemoteHolding = async (remote) => {
   await db.holdings.update(local.id, {
     assetTag: remote.assetTag ?? local.assetTag ?? 'STOCK',
     holder: normalizedHolder,
-    shares: remote.shares,
+    shares: parseNumericLike(remote.shares, {
+      fallback: 0,
+      context: 'applyRemoteHolding.shares',
+    }),
     companyName: remote.companyName || local.companyName,
-    sortOrder: Number(remote.sortOrder) || local.sortOrder,
+    sortOrder: parseNumericLike(remote.sortOrder, {
+      fallback: local.sortOrder ?? 1,
+      context: 'applyRemoteHolding.sortOrder',
+    }),
     createdAt: remote.createdAt || local.createdAt,
     updatedAt: remote.updatedAt || local.updatedAt,
     deletedAt: remote.deletedAt ?? null,
@@ -302,10 +315,19 @@ const applyRemoteSnapshot = async (remote) => {
       symbol: remote.symbol,
       market: remote.market,
       holder: normalizedHolder,
-      price: remote.price,
+      price: parseNumericLike(remote.price, {
+        fallback: 0,
+        context: 'applyRemoteSnapshot.price',
+      }),
       currency: remote.currency,
-      fxRateToTwd: remote.fxRateToTwd,
-      valueTwd: remote.valueTwd,
+      fxRateToTwd: parseNumericLike(remote.fxRateToTwd, {
+        fallback: 0,
+        context: 'applyRemoteSnapshot.fxRateToTwd',
+      }),
+      valueTwd: parseNumericLike(remote.valueTwd, {
+        fallback: 0,
+        context: 'applyRemoteSnapshot.valueTwd',
+      }),
       capturedAt: remote.capturedAt,
       updatedAt: remote.updatedAt ?? remote.capturedAt,
       deletedAt: remote.deletedAt ?? null,
@@ -316,10 +338,19 @@ const applyRemoteSnapshot = async (remote) => {
   if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.price_snapshots.update(local.id, {
     holder: normalizedHolder,
-    price: remote.price,
+    price: parseNumericLike(remote.price, {
+      fallback: 0,
+      context: 'applyRemoteSnapshot.price',
+    }),
     currency: remote.currency,
-    fxRateToTwd: remote.fxRateToTwd,
-    valueTwd: remote.valueTwd,
+    fxRateToTwd: parseNumericLike(remote.fxRateToTwd, {
+      fallback: 0,
+      context: 'applyRemoteSnapshot.fxRateToTwd',
+    }),
+    valueTwd: parseNumericLike(remote.valueTwd, {
+      fallback: 0,
+      context: 'applyRemoteSnapshot.valueTwd',
+    }),
     updatedAt: remote.updatedAt ?? local.updatedAt,
     deletedAt: remote.deletedAt ?? null,
     syncState: SYNC_SYNCED,
@@ -377,7 +408,10 @@ const applyRemoteCashAccount = async (remote) => {
       bankName: remote.bankName,
       accountAlias: remote.accountAlias,
       holder: normalizedHolder,
-      balanceTwd: Number(remote.balanceTwd) || 0,
+      balanceTwd: parseNumericLike(remote.balanceTwd, {
+        fallback: 0,
+        context: 'applyRemoteCashAccount.balanceTwd',
+      }),
       createdAt: remote.createdAt || nowIso,
       updatedAt: remote.updatedAt || nowIso,
       deletedAt: remote.deletedAt ?? null,
@@ -391,7 +425,10 @@ const applyRemoteCashAccount = async (remote) => {
     bankName: remote.bankName,
     accountAlias: remote.accountAlias,
     holder: normalizedHolder,
-    balanceTwd: Number(remote.balanceTwd) || 0,
+    balanceTwd: parseNumericLike(remote.balanceTwd, {
+      fallback: 0,
+      context: 'applyRemoteCashAccount.balanceTwd',
+    }),
     createdAt: remote.createdAt || local.createdAt,
     updatedAt: remote.updatedAt || local.updatedAt,
     deletedAt: remote.deletedAt ?? null,
@@ -421,7 +458,10 @@ const applyRemoteCashBalanceSnapshot = async (remote) => {
       bankName: remote.bankName,
       accountAlias: remote.accountAlias,
       holder: normalizedHolder,
-      balanceTwd: Number(remote.balanceTwd) || 0,
+      balanceTwd: parseNumericLike(remote.balanceTwd, {
+        fallback: 0,
+        context: 'applyRemoteCashBalanceSnapshot.balanceTwd',
+      }),
       capturedAt: remote.capturedAt,
       updatedAt: remote.updatedAt ?? remote.capturedAt,
       deletedAt: remote.deletedAt ?? null,
@@ -435,7 +475,10 @@ const applyRemoteCashBalanceSnapshot = async (remote) => {
     bankName: remote.bankName,
     accountAlias: remote.accountAlias,
     holder: normalizedHolder,
-    balanceTwd: Number(remote.balanceTwd) || 0,
+    balanceTwd: parseNumericLike(remote.balanceTwd, {
+      fallback: 0,
+      context: 'applyRemoteCashBalanceSnapshot.balanceTwd',
+    }),
     updatedAt: remote.updatedAt ?? local.updatedAt,
     deletedAt: remote.deletedAt ?? null,
     syncState: SYNC_SYNCED,

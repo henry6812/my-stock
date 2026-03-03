@@ -124,6 +124,7 @@ import {
   removeExpenseCategory,
   upsertBudget,
   removeBudget,
+  repairNumericFields,
 } from "./services/portfolioService";
 import {
   loginWithEmailPassword,
@@ -134,6 +135,7 @@ import {
 import { CLOUD_SYNC_UPDATED_EVENT } from "./services/firebase/cloudSyncService";
 import { getBankDirectory } from "./services/bankProviders/twBankDirectoryProvider";
 import { formatDateTime, formatPrice, formatTwd } from "./utils/formatters";
+import { parseNumericLike } from "./utils/number";
 import "./App.css";
 
 const { Header, Content } = Layout;
@@ -211,7 +213,10 @@ const formatChangePercent = (value) => {
 };
 
 const floorToTenThousand = (value) => {
-  const parsed = Number(value);
+  const parsed = parseNumericLike(value, {
+    fallback: Number.NaN,
+    context: "floorToTenThousand",
+  });
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return 0;
   }
@@ -645,7 +650,10 @@ function App() {
   );
 
   const animateTotalValue = useCallback((targetValue) => {
-    const parsedTarget = Number(targetValue);
+    const parsedTarget = parseNumericLike(targetValue, {
+      fallback: Number.NaN,
+      context: "animateTotalValue.targetValue",
+    });
     if (!Number.isFinite(parsedTarget) || parsedTarget <= 0) {
       setDisplayTotalTwd(Number.isFinite(parsedTarget) ? parsedTarget : 0);
       return;
@@ -886,23 +894,34 @@ function App() {
       getPortfolioView(),
       getTrend(range),
     ]);
+    const normalizedTotalTwd = parseNumericLike(portfolio.totalTwd, {
+      fallback: 0,
+      context: "loadAllData.portfolio.totalTwd",
+    });
+    const normalizedBaselineTotalTwd = parseNumericLike(
+      portfolio.baselineTotalTwd,
+      {
+        fallback: 0,
+        context: "loadAllData.portfolio.baselineTotalTwd",
+      },
+    );
 
     setRows(portfolio.rows);
     setCashRows(portfolio.cashRows ?? []);
-    setTotalTwd(portfolio.totalTwd);
-    latestTotalTwdRef.current = portfolio.totalTwd;
-    setBaselineTotalTwd(portfolio.baselineTotalTwd ?? 0);
+    setTotalTwd(normalizedTotalTwd);
+    latestTotalTwdRef.current = normalizedTotalTwd;
+    setBaselineTotalTwd(normalizedBaselineTotalTwd);
     setTotalChangeTwd(portfolio.totalChangeTwd);
     setTotalChangePct(portfolio.totalChangePct ?? null);
     setLastUpdatedAt(portfolio.lastUpdatedAt);
     setSyncError(portfolio.syncStatus === "error" ? portfolio.syncError : "");
     setTrend(trendData);
     const progressTargets = getProgressDisplayTargets(
-      portfolio.totalTwd,
-      portfolio.baselineTotalTwd ?? 0,
+      normalizedTotalTwd,
+      normalizedBaselineTotalTwd,
     );
     const targetMarkerWan = Math.floor(
-      floorToTenThousand(portfolio.totalTwd) / 10000,
+      floorToTenThousand(normalizedTotalTwd) / 10000,
     );
     latestMarkerWanRef.current = Number.isFinite(targetMarkerWan)
       ? Math.max(0, targetMarkerWan)
@@ -918,7 +937,7 @@ function App() {
       stopProgressAnimation("manual");
       stopMarkerValueAnimation("manual");
       beginNumberAnimationLock();
-      animateTotalValue(portfolio.totalTwd);
+      animateTotalValue(normalizedTotalTwd);
       animateProgress(progressTargets);
       animateMarkerValue(latestMarkerWanRef.current);
       animateVisibleRows(
@@ -932,7 +951,7 @@ function App() {
         stopNumberAnimations("auto");
         stopProgressAnimation("auto");
         stopMarkerValueAnimation("auto");
-        setDisplayTotalTwd(portfolio.totalTwd);
+        setDisplayTotalTwd(normalizedTotalTwd);
         setRowAnimationValues({});
         setProgressDisplayRatio(progressTargets.currentRatio);
         setBaselineDisplayRatio(progressTargets.baselineRatio);
@@ -2538,6 +2557,12 @@ function App() {
         setCloudSyncError("");
         await initSync(user.uid);
         await Promise.all([loadAllData(), loadExpenseData()]);
+        const repairResult = await repairNumericFields();
+        if (repairResult.updatedRows > 0) {
+          console.info(
+            `[Numeric Repair] repaired rows: ${repairResult.updatedRows}`,
+          );
+        }
         refreshCloudRuntime();
         await performCloudSync();
         await Promise.all([loadAllData(), loadExpenseData()]);

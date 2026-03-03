@@ -1,3 +1,5 @@
+import { parseNumericLike } from '../../utils/number'
+
 const toIso = (value) => {
   if (!value) return null
   if (typeof value === 'string') return value
@@ -185,9 +187,15 @@ export const remoteToHolding = (data) => ({
   market: data.market,
   assetTag: data.assetTag ?? 'STOCK',
   holder: data.holder ?? null,
-  shares: data.shares,
+  shares: parseNumericLike(data.shares, {
+    fallback: 0,
+    context: 'remoteToHolding.shares',
+  }),
   companyName: data.companyName,
-  sortOrder: data.sortOrder,
+  sortOrder: parseNumericLike(data.sortOrder, {
+    fallback: 1,
+    context: 'remoteToHolding.sortOrder',
+  }),
   createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),
@@ -197,10 +205,19 @@ export const remoteToSnapshot = (data) => ({
   symbol: data.symbol,
   market: data.market,
   holder: data.holder ?? null,
-  price: data.price,
+  price: parseNumericLike(data.price, {
+    fallback: 0,
+    context: 'remoteToSnapshot.price',
+  }),
   currency: data.currency,
-  fxRateToTwd: data.fxRateToTwd,
-  valueTwd: data.valueTwd,
+  fxRateToTwd: parseNumericLike(data.fxRateToTwd, {
+    fallback: 0,
+    context: 'remoteToSnapshot.fxRateToTwd',
+  }),
+  valueTwd: parseNumericLike(data.valueTwd, {
+    fallback: 0,
+    context: 'remoteToSnapshot.valueTwd',
+  }),
   capturedAt: toIso(data.capturedAt) ?? data.capturedAt,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),
@@ -229,7 +246,10 @@ export const remoteToCashAccount = (data) => ({
   bankName: data.bankName,
   accountAlias: data.accountAlias,
   holder: data.holder ?? null,
-  balanceTwd: data.balanceTwd,
+  balanceTwd: parseNumericLike(data.balanceTwd, {
+    fallback: 0,
+    context: 'remoteToCashAccount.balanceTwd',
+  }),
   createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),
@@ -241,7 +261,10 @@ export const remoteToCashBalanceSnapshot = (data) => ({
   bankName: data.bankName,
   accountAlias: data.accountAlias,
   holder: data.holder ?? null,
-  balanceTwd: data.balanceTwd,
+  balanceTwd: parseNumericLike(data.balanceTwd, {
+    fallback: 0,
+    context: 'remoteToCashBalanceSnapshot.balanceTwd',
+  }),
   capturedAt: toIso(data.capturedAt) ?? data.capturedAt,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),
