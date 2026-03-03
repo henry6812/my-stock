@@ -554,6 +554,7 @@ function App() {
   const activeHoldingTabRef = useRef("all");
   const shouldAnimateNumbersRef = useRef(false);
   const didRunInitialAnimationRef = useRef(false);
+  const loadRequestSeqRef = useRef(0);
   const totalAnimationRef = useRef(null);
   const rowAnimationTargetRef = useRef([]);
   const rowAnimationInstanceRef = useRef(null);
@@ -656,12 +657,12 @@ function App() {
     });
     if (!Number.isFinite(parsedTarget) || parsedTarget <= 0) {
       setDisplayTotalTwd(Number.isFinite(parsedTarget) ? parsedTarget : 0);
-      return;
+      return false;
     }
 
     const target = { value: parsedTarget * 0.99999 };
     setDisplayTotalTwd(target.value);
-    totalAnimationRef.current = anime({
+    const instance = anime({
       targets: target,
       value: parsedTarget,
       duration: NUMBER_ANIMATION_DURATION_MS,
@@ -670,15 +671,20 @@ function App() {
         setDisplayTotalTwd(target.value);
       },
       complete: () => {
+        if (totalAnimationRef.current === instance) {
+          totalAnimationRef.current = null;
+        }
         setDisplayTotalTwd(latestTotalTwdRef.current);
       },
     });
+    totalAnimationRef.current = instance;
+    return true;
   }, []);
 
   const animateVisibleRows = useCallback((visibleRows) => {
     if (!Array.isArray(visibleRows) || visibleRows.length === 0) {
       setRowAnimationValues({});
-      return;
+      return false;
     }
 
     const targets = visibleRows
@@ -710,7 +716,7 @@ function App() {
 
     if (targets.length === 0) {
       setRowAnimationValues({});
-      return;
+      return false;
     }
 
     rowAnimationTargetRef.current = targets;
@@ -724,7 +730,7 @@ function App() {
       }, {}),
     );
 
-    rowAnimationInstanceRef.current = anime({
+    const instance = anime({
       targets,
       duration: NUMBER_ANIMATION_DURATION_MS,
       easing: "easeOutExpo",
@@ -748,12 +754,30 @@ function App() {
         );
       },
       complete: () => {
+        if (rowAnimationInstanceRef.current === instance) {
+          rowAnimationInstanceRef.current = null;
+        }
         setRowAnimationValues({});
       },
     });
+    rowAnimationInstanceRef.current = instance;
+    return true;
   }, []);
 
   const animateProgress = useCallback((targetRatios) => {
+    const hasAnyProgress =
+      targetRatios.currentRatio > 0 ||
+      targetRatios.baselineRatio > 0 ||
+      targetRatios.deltaLeftRatio > 0 ||
+      targetRatios.deltaWidthRatio > 0;
+    if (!hasAnyProgress) {
+      setProgressDisplayRatio(targetRatios.currentRatio);
+      setBaselineDisplayRatio(targetRatios.baselineRatio);
+      setDeltaDisplayLeftRatio(targetRatios.deltaLeftRatio);
+      setDeltaDisplayWidthRatio(targetRatios.deltaWidthRatio);
+      return false;
+    }
+
     const target = {
       current: 0,
       baseline: 0,
@@ -765,7 +789,7 @@ function App() {
     setDeltaDisplayLeftRatio(0);
     setDeltaDisplayWidthRatio(0);
 
-    progressAnimationRef.current = anime({
+    const instance = anime({
       targets: target,
       current: targetRatios.currentRatio,
       baseline: targetRatios.baselineRatio,
@@ -780,6 +804,9 @@ function App() {
         setDeltaDisplayWidthRatio(target.deltaWidth);
       },
       complete: () => {
+        if (progressAnimationRef.current === instance) {
+          progressAnimationRef.current = null;
+        }
         setProgressDisplayRatio(latestProgressTargetsRef.current.currentRatio);
         setBaselineDisplayRatio(latestProgressTargetsRef.current.baselineRatio);
         setDeltaDisplayLeftRatio(
@@ -790,6 +817,8 @@ function App() {
         );
       },
     });
+    progressAnimationRef.current = instance;
+    return true;
   }, []);
 
   const animateMarkerValue = useCallback((targetWan) => {
@@ -798,13 +827,13 @@ function App() {
 
     if (safeTargetWan === 0) {
       setMarkerDisplayWan(0);
-      return;
+      return false;
     }
 
     const target = { wan: 0 };
     setMarkerDisplayWan(0);
 
-    markerValueAnimationRef.current = anime({
+    const instance = anime({
       targets: target,
       wan: safeTargetWan,
       duration: NUMBER_ANIMATION_DURATION_MS,
@@ -813,9 +842,14 @@ function App() {
         setMarkerDisplayWan(Math.floor(target.wan));
       },
       complete: () => {
+        if (markerValueAnimationRef.current === instance) {
+          markerValueAnimationRef.current = null;
+        }
         setMarkerDisplayWan(latestMarkerWanRef.current);
       },
     });
+    markerValueAnimationRef.current = instance;
+    return true;
   }, []);
 
   const stopExpenseProgressAnimation = useCallback(() => {
@@ -890,10 +924,16 @@ function App() {
   );
 
   const loadAllData = useCallback(async () => {
+    const requestId = loadRequestSeqRef.current + 1;
+    loadRequestSeqRef.current = requestId;
+
     const [portfolio, trendData] = await Promise.all([
       getPortfolioView(),
       getTrend(range),
     ]);
+    if (requestId !== loadRequestSeqRef.current) {
+      return;
+    }
     const normalizedTotalTwd = parseNumericLike(portfolio.totalTwd, {
       fallback: 0,
       context: "loadAllData.portfolio.totalTwd",
@@ -927,6 +967,15 @@ function App() {
       ? Math.max(0, targetMarkerWan)
       : 0;
     latestProgressTargetsRef.current = progressTargets;
+    const applyLatestDisplayState = () => {
+      setDisplayTotalTwd(normalizedTotalTwd);
+      setRowAnimationValues({});
+      setProgressDisplayRatio(progressTargets.currentRatio);
+      setBaselineDisplayRatio(progressTargets.baselineRatio);
+      setDeltaDisplayLeftRatio(progressTargets.deltaLeftRatio);
+      setDeltaDisplayWidthRatio(progressTargets.deltaWidthRatio);
+      setMarkerDisplayWan(latestMarkerWanRef.current);
+    };
 
     const shouldAnimateNow =
       !didRunInitialAnimationRef.current || shouldAnimateNumbersRef.current;
@@ -936,28 +985,44 @@ function App() {
       stopNumberAnimations("manual");
       stopProgressAnimation("manual");
       stopMarkerValueAnimation("manual");
-      beginNumberAnimationLock();
-      animateTotalValue(normalizedTotalTwd);
-      animateProgress(progressTargets);
-      animateMarkerValue(latestMarkerWanRef.current);
-      animateVisibleRows(
+      const totalAnimationStarted = animateTotalValue(normalizedTotalTwd);
+      const progressAnimationStarted = animateProgress(progressTargets);
+      const markerAnimationStarted = animateMarkerValue(
+        latestMarkerWanRef.current,
+      );
+      const rowAnimationStarted = animateVisibleRows(
         filterRowsByHolderTab(
           Array.isArray(portfolio.rows) ? portfolio.rows : [],
           activeHoldingTabRef.current,
         ),
       );
+      const startedAnyAnimation =
+        totalAnimationStarted ||
+        progressAnimationStarted ||
+        markerAnimationStarted ||
+        rowAnimationStarted;
+      if (startedAnyAnimation) {
+        beginNumberAnimationLock();
+      } else {
+        applyLatestDisplayState();
+      }
     } else {
-      if (!isNumberAnimationLocked()) {
-        stopNumberAnimations("auto");
-        stopProgressAnimation("auto");
-        stopMarkerValueAnimation("auto");
-        setDisplayTotalTwd(normalizedTotalTwd);
-        setRowAnimationValues({});
-        setProgressDisplayRatio(progressTargets.currentRatio);
-        setBaselineDisplayRatio(progressTargets.baselineRatio);
-        setDeltaDisplayLeftRatio(progressTargets.deltaLeftRatio);
-        setDeltaDisplayWidthRatio(progressTargets.deltaWidthRatio);
-        setMarkerDisplayWan(latestMarkerWanRef.current);
+      const locked = isNumberAnimationLocked();
+      const hasLiveAnimations = Boolean(
+        totalAnimationRef.current ||
+          progressAnimationRef.current ||
+          markerValueAnimationRef.current ||
+          rowAnimationInstanceRef.current,
+      );
+      const hasStaleLock = locked && !hasLiveAnimations;
+      if (!locked || hasStaleLock) {
+        if (hasStaleLock) {
+          animationLockedUntilRef.current = 0;
+        }
+        stopNumberAnimations("force");
+        stopProgressAnimation("force");
+        stopMarkerValueAnimation("force");
+        applyLatestDisplayState();
       }
     }
 
