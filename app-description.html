@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Stock App 說明文件</title>
+    <style>
+      :root {
+        --text: #1f2937;
+        --muted: #6b7280;
+        --line: #d1d5db;
+        --accent: #0f766e;
+        --bg: #f8fafc;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+        color: var(--text);
+        background: white;
+        line-height: 1.55;
+      }
+      .page {
+        max-width: 820px;
+        margin: 28px auto;
+        padding: 30px 34px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, #ffffff, var(--bg));
+      }
+      h1 { margin: 0 0 6px 0; font-size: 30px; color: #0b3a35; }
+      h2 {
+        font-size: 18px;
+        margin: 24px 0 8px;
+        padding-left: 10px;
+        border-left: 4px solid var(--accent);
+      }
+      p { margin: 8px 0; }
+      ul { margin: 8px 0 0 20px; }
+      li { margin: 4px 0; }
+      .meta { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+      .card {
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin: 8px 0;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .tag {
+        display: inline-block;
+        border: 1px solid #99f6e4;
+        color: #115e59;
+        background: #f0fdfa;
+        border-radius: 999px;
+        font-size: 12px;
+        padding: 2px 10px;
+        margin-right: 6px;
+      }
+      @media print {
+        .page { border: none; margin: 0; max-width: none; padding: 0; background: white; }
+        body { margin: 14mm; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <h1>My Stock Portfolio App</h1>
+      <div class="meta">文件日期：2026-03-03</div>
+
+      <p>
+        這是一個以 <strong>local-first</strong> 為核心的個人資產管理 Web App，主要用於追蹤台股/美股持股現值，
+        同時整合現金帳戶、收支、預算與趨勢分析，支援 PWA 安裝及跨裝置同步。
+      </p>
+
+      <h2>產品定位</h2>
+      <div class="card">
+        <p>
+          面向個人與家庭財務管理情境，提供「持股 + 現金 + 支出 + 預算」的一站式檢視，
+          讓使用者可以在手機或桌機快速掌握總資產與金流變化。
+        </p>
+        <span class="tag">PWA</span>
+        <span class="tag">離線優先</span>
+        <span class="tag">跨裝置同步</span>
+      </div>
+
+      <h2>核心功能</h2>
+      <ul>
+        <li>持股管理：新增/編輯/刪除持股，支援排序、標籤、持有人欄位。</li>
+        <li>即時估值：整合美股/台股價格來源與 USD/TWD 匯率，計算總現值與報酬。</li>
+        <li>價格更新策略：台股採多層 fallback（Finnhub → TWSE → TPEX 快照/官方 API/代理）。</li>
+        <li>趨勢分析：提供 24h / 1w / 1m 等維度的現值走勢圖。</li>
+        <li>現金帳戶：維護帳戶餘額與帳戶持有人，納入總資產統計。</li>
+        <li>收支與預算：支援支出分類、定期支出、預算設定與分析儀表。</li>
+        <li>雲端同步：Google 登入 + Firebase Firestore，保留 local-first 使用體驗。</li>
+      </ul>
+
+      <h2>系統架構</h2>
+      <div class="grid">
+        <div class="card">
+          <strong>前端層</strong>
+          <ul>
+            <li>React 19 + Vite</li>
+            <li>Ant Design UI</li>
+            <li>Recharts 圖表</li>
+            <li>animejs 動畫</li>
+          </ul>
+        </div>
+        <div class="card">
+          <strong>資料層</strong>
+          <ul>
+            <li>Dexie / IndexedDB</li>
+            <li>Firestore 雲端同步</li>
+            <li>價格/匯率 Provider 抽象</li>
+            <li>本地快照 fallback</li>
+          </ul>
+        </div>
+      </div>
+
+      <h2>資料模型（IndexedDB）</h2>
+      <ul>
+        <li><code>holdings</code>：持股資料</li>
+        <li><code>price_snapshots</code>：價格快照（用於趨勢）</li>
+        <li><code>fx_rates</code>：匯率資料</li>
+        <li><code>sync_meta</code>：同步狀態</li>
+        <li><code>expense_entries</code>：支出資料（可擴充）</li>
+      </ul>
+
+      <h2>部署與運維重點</h2>
+      <ul>
+        <li>已具備 GitHub Pages 佈署流程（CI workflow）。</li>
+        <li>需要設定 Finnhub API Key 與 Firebase 相關環境變數。</li>
+        <li>建議啟用 Firebase App Check（reCAPTCHA v3）降低濫用風險。</li>
+      </ul>
+
+      <h2>總結</h2>
+      <p>
+        My Stock Portfolio App 具備完整的個人資產追蹤核心能力，並透過 local-first + 雲端同步策略同時兼顧可用性與資料一致性。
+        以目前架構可持續擴充至更多市場、更多資產類型與更進階的財務分析需求。
+      </p>
+    </main>
+  </body>
+</html>

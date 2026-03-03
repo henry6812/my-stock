@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Stock App 核心賣點</title>
+    <style>
+      :root {
+        --text: #0f172a;
+        --muted: #475569;
+        --line: #cbd5e1;
+        --accent: #0f766e;
+        --bg: #f8fafc;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+        color: var(--text);
+        background: white;
+        line-height: 1.6;
+      }
+      .page {
+        max-width: 820px;
+        margin: 22px auto;
+        padding: 30px 34px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, #ffffff, var(--bg));
+      }
+      h1 {
+        margin: 0;
+        font-size: 30px;
+        color: #0b3a35;
+      }
+      .meta {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      h2 {
+        font-size: 18px;
+        margin: 22px 0 10px;
+        padding-left: 10px;
+        border-left: 4px solid var(--accent);
+      }
+      p { margin: 8px 0; }
+      ul { margin: 8px 0 0 20px; }
+      li { margin: 6px 0; }
+      .highlight {
+        border: 1px solid #99f6e4;
+        background: #f0fdfa;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-top: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: white;
+        padding: 12px 14px;
+      }
+      .badge {
+        display: inline-block;
+        border-radius: 999px;
+        background: #e2e8f0;
+        color: #0f172a;
+        padding: 2px 10px;
+        font-size: 12px;
+        margin-right: 6px;
+      }
+      @media print {
+        body { margin: 14mm; }
+        .page { border: none; margin: 0; padding: 0; max-width: none; background: white; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <h1>My Stock Portfolio App</h1>
+      <div class="meta">文件主題：核心賣點說明 | 日期：2026-03-03</div>
+
+      <div class="highlight">
+        <strong>一句話定位：</strong>
+        這是一款「離線可用 + 跨裝置同步」的個人資產管理 App，將股票、現金與收支整合在同一個畫面，幫助使用者快速掌握真實總資產。
+      </div>
+
+      <h2>核心賣點</h2>
+      <ul>
+        <li><strong>Local-first 體驗：</strong>資料優先儲存在 IndexedDB，本機可立即操作，網路不穩時仍可查看與管理持股。</li>
+        <li><strong>跨裝置同步：</strong>透過 Google 登入與 Firebase Firestore，同一份資料可在手機與桌機之間持續同步。</li>
+        <li><strong>多來源報價容錯：</strong>台股採用 Finnhub、TWSE、TPEX 快照與 API 的多層 fallback，降低單一來源失效風險。</li>
+        <li><strong>資產全貌整合：</strong>同時管理持股、現金帳戶、收支與預算，不只看投資，也看整體財務健康。</li>
+        <li><strong>可安裝式 PWA：</strong>支援桌面與手機安裝，打開速度快，使用流程接近原生 App。</li>
+      </ul>
+
+      <h2>為什麼這些賣點有價值</h2>
+      <div class="cards">
+        <div class="card">
+          <strong>穩定性</strong>
+          <p>即使 API 波動或網路異常，仍可用本地資料與 fallback 機制維持主要功能。</p>
+        </div>
+        <div class="card">
+          <strong>效率</strong>
+          <p>從持股更新到資產總覽都在同一個流程，減少切換工具與手動彙整成本。</p>
+        </div>
+        <div class="card">
+          <strong>可信度</strong>
+          <p>本地快照、匯率資料與走勢記錄可回溯，便於檢視資產變化與決策依據。</p>
+        </div>
+        <div class="card">
+          <strong>可擴充性</strong>
+          <p>現有架構已具備資料抽象層，未來可擴展更多市場與資產類型。</p>
+        </div>
+      </div>
+
+      <h2>技術支撐亮點</h2>
+      <p>
+        <span class="badge">React + Vite</span>
+        <span class="badge">Dexie / IndexedDB</span>
+        <span class="badge">Firebase Firestore</span>
+        <span class="badge">PWA</span>
+        <span class="badge">Recharts</span>
+      </p>
+      <p>前端效能、離線能力、雲端同步與視覺化分析完整結合，形成可持續演進的產品基礎。</p>
+
+      <h2>結論</h2>
+      <p>
+        My Stock Portfolio App 的核心競爭力在於：<strong>離線優先的穩定使用體驗</strong>、
+        <strong>多來源資料容錯</strong>與<strong>完整資產視圖</strong>。它不是單純看股價的工具，而是可落地使用的個人財務中樞。
+      </p>
+    </main>
+  </body>
+</html>

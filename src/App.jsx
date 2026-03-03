@@ -535,6 +535,9 @@ function App() {
     useState(false);
   const [selectedRecurringToStop, setSelectedRecurringToStop] = useState(null);
   const [stopKeepToday, setStopKeepToday] = useState(true);
+  const shouldShowStopOptions = Boolean(
+    selectedRecurringToStop?.hasOccurrenceToday,
+  );
   const [rowAnimationValues, setRowAnimationValues] = useState({});
   const [progressDisplayRatio, setProgressDisplayRatio] = useState(0);
   const [baselineDisplayRatio, setBaselineDisplayRatio] = useState(0);
@@ -1469,11 +1472,15 @@ function App() {
       message.error("找不到要取消的定期支出");
       return;
     }
+    const effectiveKeepToday = shouldShowStopOptions ? stopKeepToday : false;
 
     setStoppingRecurringById((prev) => ({ ...prev, [targetId]: true }));
     try {
       expenseShouldAnimateRef.current = true;
-      await stopRecurringExpense({ id: targetId, keepToday: stopKeepToday });
+      await stopRecurringExpense({
+        id: targetId,
+        keepToday: effectiveKeepToday,
+      });
       await loadExpenseData();
       await performCloudSync();
       message.success("定期支出已取消");
@@ -1496,6 +1503,7 @@ function App() {
     message,
     performCloudSync,
     selectedRecurringToStop,
+    shouldShowStopOptions,
     stopKeepToday,
   ]);
 
@@ -5585,17 +5593,19 @@ function App() {
               <Text type="secondary">
                 已發生的紀錄會保留，未來將不再產生這筆定期支出。
               </Text>
-              <Radio.Group
-                value={stopKeepToday}
-                onChange={(event) =>
-                  setStopKeepToday(Boolean(event.target.value))
-                }
-              >
-                <Space direction="vertical">
-                  <Radio value>保留今天，從明天起停止</Radio>
-                  <Radio value={false}>連今天一起停止</Radio>
-                </Space>
-              </Radio.Group>
+              {shouldShowStopOptions ? (
+                <Radio.Group
+                  value={stopKeepToday}
+                  onChange={(event) =>
+                    setStopKeepToday(Boolean(event.target.value))
+                  }
+                >
+                  <Space direction="vertical">
+                    <Radio value>保留今天，從明天起停止</Radio>
+                    <Radio value={false}>連今天一起停止</Radio>
+                  </Space>
+                </Radio.Group>
+              ) : null}
             </Space>
           </Modal>
 

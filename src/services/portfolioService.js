@@ -2837,6 +2837,7 @@ export const getExpenseDashboardView = async (input = {}) => {
   const monthBreakdown = computeExpenseBreakdown(expenseRows);
 
   const today = getNowDate();
+  const todayObj = toDayjsDateOnly(today);
   const budgetRefDate = dayjs(`${activeMonth}-01`)
     .endOf("month")
     .format("YYYY-MM-DD");
@@ -2899,24 +2900,36 @@ export const getExpenseDashboardView = async (input = {}) => {
       if (untilDate && untilDate < today) return false;
       return true;
     })
-    .map((entry) => ({
-      id: entry.id,
-      name: entry.name,
-      payer: entry.payer ?? null,
-      expenseKind: entry.expenseKind ?? null,
-      amountTwd: Number(entry.amountTwd) || 0,
-      entryType: entry.entryType ?? EXPENSE_ENTRY_TYPE.RECURRING,
-      recurrenceType: entry.recurrenceType ?? null,
-      monthlyDay: entry.monthlyDay ?? null,
-      yearlyMonth: entry.yearlyMonth ?? null,
-      yearlyDay: entry.yearlyDay ?? null,
-      recurrenceUntil: entry.recurrenceUntil ?? null,
-      occurredAt: entry.occurredAt ?? null,
-      categoryId: entry.categoryId ?? null,
-      budgetId: entry.budgetId ?? null,
-      updatedAt: entry.updatedAt ?? null,
-      createdAt: entry.createdAt ?? null,
-    }))
+    .map((entry) => {
+      const candidate = todayObj.isValid()
+        ? resolveRecurringOccurrenceDate(entry, todayObj.clone().startOf("month"))
+        : null;
+      const hasOccurrenceToday = Boolean(
+        candidate &&
+          candidate.isSame(todayObj, "day") &&
+          entryIsActiveOnDate(entry, candidate),
+      );
+
+      return {
+        id: entry.id,
+        name: entry.name,
+        payer: entry.payer ?? null,
+        expenseKind: entry.expenseKind ?? null,
+        amountTwd: Number(entry.amountTwd) || 0,
+        entryType: entry.entryType ?? EXPENSE_ENTRY_TYPE.RECURRING,
+        recurrenceType: entry.recurrenceType ?? null,
+        monthlyDay: entry.monthlyDay ?? null,
+        yearlyMonth: entry.yearlyMonth ?? null,
+        yearlyDay: entry.yearlyDay ?? null,
+        recurrenceUntil: entry.recurrenceUntil ?? null,
+        occurredAt: entry.occurredAt ?? null,
+        categoryId: entry.categoryId ?? null,
+        budgetId: entry.budgetId ?? null,
+        hasOccurrenceToday,
+        updatedAt: entry.updatedAt ?? null,
+        createdAt: entry.createdAt ?? null,
+      };
+    })
     .sort((a, b) => {
       const updatedCompare = (b.updatedAt || "").localeCompare(
         a.updatedAt || "",
