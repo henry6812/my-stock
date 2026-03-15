@@ -3165,13 +3165,13 @@ function App() {
   }, [progressMaxTwd]);
 
   const visibleProgressStops = useMemo(() => {
-    if (!isMobileViewport || progressStops.length <= 5) {
+    if (!isMobileViewport) {
       return progressStops;
     }
-    return progressStops.filter(
-      (_, index) =>
-        index === 0 || index === progressStops.length - 1 || index % 2 === 0,
-    );
+    if (progressStops.length <= 1) {
+      return progressStops;
+    }
+    return [progressStops[0], progressStops[progressStops.length - 1]];
   }, [isMobileViewport, progressStops]);
 
   const currentRatio = progressLayoutMetrics.currentRatio;
