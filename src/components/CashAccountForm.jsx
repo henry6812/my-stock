@@ -8,18 +8,14 @@ function CashAccountForm({
   popupContainer,
   formId,
   disableAutofill = false,
+  holderOptions = [],
 }) {
   const [form] = Form.useForm();
-  const [bankKeyword, setBankKeyword] = useState("");
   const [isBankFocused, setIsBankFocused] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const blurCloseTimerRef = useRef(null);
   const bankNameValue = Form.useWatch("bankName", form);
-
-  useEffect(() => {
-    const next = typeof bankNameValue === "string" ? bankNameValue : "";
-    setBankKeyword(next);
-  }, [bankNameValue]);
+  const bankKeyword = typeof bankNameValue === "string" ? bankNameValue : "";
 
   useEffect(
     () => () => {
@@ -97,7 +93,6 @@ function CashAccountForm({
           options={bankOptionsDisplay}
           filterOption={false}
           onChange={(value) => {
-            setBankKeyword(value);
             form.setFieldValue("bankName", value);
             setManualOpen(true);
           }}
@@ -105,7 +100,6 @@ function CashAccountForm({
             if (value === "__hint__") {
               return;
             }
-            setBankKeyword(value);
             form.setFieldValue("bankName", value);
             setManualOpen(false);
             setIsBankFocused(false);
@@ -150,10 +144,7 @@ function CashAccountForm({
       <Form.Item label="持有人" name="holder">
         <Select
           allowClear
-          options={[
-            { label: "Po", value: "Po" },
-            { label: "Wei", value: "Wei" },
-          ]}
+          options={holderOptions}
           placeholder="未設定"
           getPopupContainer={popupContainer}
         />

@@ -37,8 +37,7 @@ const DEFAULT_HOLDING_TAG_OPTIONS = [
   { value: "ETF", label: "ETF" },
   { value: "BOND", label: "債券" },
 ];
-const HOLDING_HOLDER_OPTIONS = ["Po", "Wei"];
-const CASH_ACCOUNT_HOLDER_OPTIONS = ["Po", "Wei"];
+const DEFAULT_HOLDER_OPTIONS = ["Po", "Wei"];
 
 const SYNC_PENDING = "pending";
 const SYNC_SYNCED = "synced";
@@ -81,8 +80,8 @@ const BUDGET_MODE = {
   SPECIAL: "SPECIAL",
 };
 
-const EXPENSE_PAYER_OPTIONS = ["Po", "Wei", "共同帳戶"];
 const EXPENSE_KIND_OPTIONS = ["家庭", "個人"];
+const HOLDER_OPTIONS_KEY = "holder_options";
 const INCOME_SETTINGS_KEY = "income_settings";
 
 const isDeleted = (item) => Boolean(item?.deletedAt);
@@ -158,6 +157,74 @@ const normalizeMonthOverrides = (overrides = []) => {
     .sort((a, b) => a.month.localeCompare(b.month));
 };
 
+const normalizeHolderOptionValue = (value) => String(value ?? "").trim();
+
+const normalizeConfiguredHolder = (holder, holderOptions = []) => {
+  const normalized = normalizeHolderOptionValue(holder);
+  if (!normalized) {
+    return null;
+  }
+  return holderOptions.includes(normalized) ? normalized : null;
+};
+
+const normalizeHolderOptions = (options = []) => {
+  const normalizedOptions = [];
+  const seen = new Set();
+
+  for (const option of options) {
+    const normalized = normalizeHolderOptionValue(option);
+    if (!normalized) {
+      throw new Error("持有人名稱不可空白");
+    }
+    const dedupeKey = normalized.toLowerCase();
+    if (seen.has(dedupeKey)) {
+      throw new Error(`持有人名稱不可重複：${normalized}`);
+    }
+    seen.add(dedupeKey);
+    normalizedOptions.push(normalized);
+  }
+
+  if (normalizedOptions.length === 0) {
+    throw new Error("至少需要保留 1 位持有人");
+  }
+
+  return normalizedOptions;
+};
+
+const normalizeHolderRenameMap = ({
+  renameMap = {},
+  previousOptions = [],
+  nextOptions = [],
+}) => {
+  const previousSet = new Set(previousOptions);
+  const nextSet = new Set(nextOptions);
+  const normalizedMap = {};
+  const seenPrevious = new Set();
+
+  for (const [fromRaw, toRaw] of Object.entries(renameMap)) {
+    const from = normalizeHolderOptionValue(fromRaw);
+    const to = normalizeHolderOptionValue(toRaw);
+
+    if (!from || !to || from === to) {
+      continue;
+    }
+    if (!previousSet.has(from)) {
+      throw new Error(`找不到原持有人：${from}`);
+    }
+    if (!nextSet.has(to)) {
+      throw new Error(`改名後的持有人不存在：${to}`);
+    }
+    const fromKey = from.toLowerCase();
+    if (seenPrevious.has(fromKey)) {
+      throw new Error(`重複的持有人改名來源：${from}`);
+    }
+    seenPrevious.add(fromKey);
+    normalizedMap[from] = to;
+  }
+
+  return normalizedMap;
+};
+
 const normalizeBudgetMode = (value) => {
   const normalized = String(value || "").toUpperCase();
   if (normalized === BUDGET_MODE.SPECIAL) {
@@ -229,22 +296,6 @@ const normalizeAssetTag = (assetTag) =>
     .trim()
     .toUpperCase();
 
-const normalizeHoldingHolder = (holder) => {
-  const normalized = String(holder ?? "").trim();
-  if (!normalized) {
-    return null;
-  }
-  return HOLDING_HOLDER_OPTIONS.includes(normalized) ? normalized : null;
-};
-
-const normalizeCashAccountHolder = (holder) => {
-  const normalized = String(holder ?? "").trim();
-  if (!normalized) {
-    return null;
-  }
-  return CASH_ACCOUNT_HOLDER_OPTIONS.includes(normalized) ? normalized : null;
-};
-
 const ensureHoldingTagOptions = async () => {
   const config = await db.app_config.get("holding_tags");
   const options = Array.isArray(config?.options) ? config.options : [];
@@ -258,6 +309,29 @@ const ensureHoldingTagOptions = async () => {
     updatedAt: getNowIso(),
   });
   return DEFAULT_HOLDING_TAG_OPTIONS;
+};
+
+const ensureHolderOptions = async () => {
+  const config = await db.app_config.get(HOLDER_OPTIONS_KEY);
+  const options = Array.isArray(config?.options) ? config.options : [];
+  if (options.length > 0) {
+    return normalizeHolderOptions(options);
+  }
+
+  const normalizedDefaults = normalizeHolderOptions(DEFAULT_HOLDER_OPTIONS);
+  await db.app_config.put({
+    key: HOLDER_OPTIONS_KEY,
+    options: normalizedDefaults,
+    updatedAt: getNowIso(),
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  });
+  return normalizedDefaults;
+};
+
+const getActiveExpenseEntries = async () => {
+  const entries = await db.expense_entries.toArray();
+  return entries.filter((item) => !isDeleted(item));
 };
 
 const getDefaultHoldingTag = (options) => {
@@ -353,7 +427,7 @@ const recordCashBalanceSnapshot = async ({
     bankCode: cashAccount.bankCode ?? null,
     bankName: cashAccount.bankName,
     accountAlias: cashAccount.accountAlias,
-    holder: normalizeCashAccountHolder(cashAccount.holder),
+    holder: normalizeHolderOptionValue(cashAccount.holder) || null,
     balanceTwd: parseNumericLike(balanceTwd, {
       fallback: 0,
       context: "recordCashBalanceSnapshot.balanceTwd",
@@ -409,9 +483,221 @@ export const stopSync = () => {
 };
 
 export const syncNow = async () => syncNowWithCloud();
+export const getHolderOptions = async () => ensureHolderOptions();
 export const getCloudSyncRuntime = () => getSyncRuntimeState();
 
 export const getHoldingTagOptions = async () => ensureHoldingTagOptions();
+
+export const getHolderUsageSummary = async ({ holders = [] } = {}) => {
+  const targetHolders =
+    Array.isArray(holders) && holders.length > 0
+      ? normalizeHolderOptions(holders)
+      : [];
+  const targetSet = new Set(targetHolders);
+  const summaryMap = new Map(
+    targetHolders.map((holder) => [
+      holder,
+      { holder, holdingCount: 0, cashAccountCount: 0, expenseEntryCount: 0 },
+    ]),
+  );
+
+  const [holdings, cashAccounts, expenseEntries] = await Promise.all([
+    getActiveHoldings(),
+    getActiveCashAccounts(),
+    getActiveExpenseEntries(),
+  ]);
+
+  for (const holding of holdings) {
+    const holder = normalizeHolderOptionValue(holding.holder);
+    if (!targetSet.has(holder)) continue;
+    summaryMap.get(holder).holdingCount += 1;
+  }
+  for (const cashAccount of cashAccounts) {
+    const holder = normalizeHolderOptionValue(cashAccount.holder);
+    if (!targetSet.has(holder)) continue;
+    summaryMap.get(holder).cashAccountCount += 1;
+  }
+  for (const entry of expenseEntries) {
+    const payer = normalizeHolderOptionValue(entry.payer);
+    if (!targetSet.has(payer)) continue;
+    summaryMap.get(payer).expenseEntryCount += 1;
+  }
+
+  return Array.from(summaryMap.values()).map((item) => ({
+    ...item,
+    totalAffected:
+      item.holdingCount + item.cashAccountCount + item.expenseEntryCount,
+  }));
+};
+
+export const saveHolderOptions = async ({ options = [], renameMap = {} } = {}) => {
+  const previousOptions = await ensureHolderOptions();
+  const nextOptions = normalizeHolderOptions(options);
+  const normalizedRenameMap = normalizeHolderRenameMap({
+    renameMap,
+    previousOptions,
+    nextOptions,
+  });
+  const renamedSources = new Set(Object.keys(normalizedRenameMap));
+  const nextOptionSet = new Set(nextOptions);
+  const removedHolders = previousOptions.filter(
+    (holder) => !renamedSources.has(holder) && !nextOptionSet.has(holder),
+  );
+  const removedHolderSet = new Set(removedHolders);
+  const nowIso = getNowIso();
+  const changedHoldingPairs = [];
+  const changedCashAccounts = [];
+  const changedExpenseEntries = [];
+  const resolveNextHolderValue = (value) => {
+    const normalized = normalizeHolderOptionValue(value);
+    if (!normalized) {
+      return null;
+    }
+    if (normalizedRenameMap[normalized]) {
+      return normalizedRenameMap[normalized];
+    }
+    if (removedHolderSet.has(normalized)) {
+      return null;
+    }
+    return normalized;
+  };
+  const [activeHoldings, activeCashAccounts] = await Promise.all([
+    getActiveHoldings(),
+    getActiveCashAccounts(),
+  ]);
+  const nextHoldingKeys = new Map();
+  for (const holding of activeHoldings) {
+    const nextHolder = resolveNextHolderValue(holding.holder);
+    const key = [holding.symbol, holding.market, nextHolder || "__UNSET__"].join(
+      "::",
+    );
+    if (nextHoldingKeys.has(key)) {
+      throw new Error(
+        `持有人調整後，持股 ${holding.symbol} (${holding.market}) 會出現重複紀錄，請先手動整理`,
+      );
+    }
+    nextHoldingKeys.set(key, holding.id);
+  }
+  const nextCashKeys = new Map();
+  for (const cashAccount of activeCashAccounts) {
+    const nextHolder = resolveNextHolderValue(cashAccount.holder);
+    const key = [
+      cashAccount.bankName,
+      cashAccount.accountAlias,
+      nextHolder || "__UNSET__",
+    ].join("::");
+    if (nextCashKeys.has(key)) {
+      throw new Error(
+        `持有人調整後，帳戶 ${cashAccount.bankName} / ${cashAccount.accountAlias} 會出現重複紀錄，請先手動整理`,
+      );
+    }
+    nextCashKeys.set(key, cashAccount.id);
+  }
+
+  await db.transaction(
+    "rw",
+    db.app_config,
+    db.holdings,
+    db.cash_accounts,
+    db.expense_entries,
+    async () => {
+      const holdings = await getActiveHoldings();
+      for (const holding of holdings) {
+        const currentHolder = normalizeHolderOptionValue(holding.holder);
+        const nextHolder = resolveNextHolderValue(currentHolder);
+
+        if ((currentHolder || null) === nextHolder) {
+          continue;
+        }
+
+        await db.holdings.update(holding.id, {
+          holder: nextHolder,
+          updatedAt: nowIso,
+          syncState: SYNC_PENDING,
+        });
+        const updatedHolding = await db.holdings.get(holding.id);
+        if (updatedHolding) {
+          changedHoldingPairs.push({
+            previousHolding: holding,
+            nextHolding: updatedHolding,
+          });
+        }
+      }
+
+      const cashAccounts = await getActiveCashAccounts();
+      for (const cashAccount of cashAccounts) {
+        const currentHolder = normalizeHolderOptionValue(cashAccount.holder);
+        const nextHolder = resolveNextHolderValue(currentHolder);
+
+        if ((currentHolder || null) === nextHolder) {
+          continue;
+        }
+
+        await db.cash_accounts.update(cashAccount.id, {
+          holder: nextHolder,
+          updatedAt: nowIso,
+          syncState: SYNC_PENDING,
+        });
+        const updatedCashAccount = await db.cash_accounts.get(cashAccount.id);
+        if (updatedCashAccount) {
+          changedCashAccounts.push(updatedCashAccount);
+        }
+      }
+
+      const expenseEntries = await getActiveExpenseEntries();
+      for (const entry of expenseEntries) {
+        const currentPayer = normalizeHolderOptionValue(entry.payer);
+        const nextPayer = resolveNextHolderValue(currentPayer);
+
+        if ((currentPayer || null) === nextPayer) {
+          continue;
+        }
+
+        await db.expense_entries.update(entry.id, {
+          payer: nextPayer,
+          updatedAt: nowIso,
+          syncState: SYNC_PENDING,
+        });
+        const updatedExpenseEntry = await db.expense_entries.get(entry.id);
+        if (updatedExpenseEntry) {
+          changedExpenseEntries.push(updatedExpenseEntry);
+        }
+      }
+
+      await db.app_config.put({
+        key: HOLDER_OPTIONS_KEY,
+        options: nextOptions,
+        updatedAt: nowIso,
+        deletedAt: null,
+        syncState: SYNC_PENDING,
+      });
+    },
+  );
+
+  const configRecord = await db.app_config.get(HOLDER_OPTIONS_KEY);
+  if (configRecord) {
+    await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, configRecord);
+  }
+  for (const pair of changedHoldingPairs) {
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, pair.nextHolding);
+    await migrateHoldingCloudKeyIfNeeded(pair);
+  }
+  for (const cashAccount of changedCashAccounts) {
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, cashAccount);
+  }
+  for (const entry of changedExpenseEntries) {
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, entry);
+  }
+
+  return {
+    options: nextOptions,
+    removedHolders,
+    renamedCount: Object.keys(normalizedRenameMap).length,
+    updatedHoldingCount: changedHoldingPairs.length,
+    updatedCashAccountCount: changedCashAccounts.length,
+    updatedExpenseEntryCount: changedExpenseEntries.length,
+  };
+};
 
 export const getIncomeSettings = async () => {
   const config = await db.app_config.get(INCOME_SETTINGS_KEY);
@@ -476,7 +762,8 @@ export const upsertHolding = async ({
 }) => {
   const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW;
   const normalizedSymbol = normalizeSymbol(symbol, normalizedMarket);
-  const normalizedHolder = normalizeHoldingHolder(holder);
+  const holderOptions = await ensureHolderOptions();
+  const normalizedHolder = normalizeConfiguredHolder(holder, holderOptions);
   const parsedShares = Number(shares);
   const options = await ensureHoldingTagOptions();
   const hasAssetTagInput =
@@ -586,7 +873,8 @@ export const updateHoldingTag = async ({ id, assetTag }) => {
 
 export const updateHoldingHolder = async ({ id, holder }) => {
   const parsedId = Number(id);
-  const normalizedHolder = normalizeHoldingHolder(holder);
+  const holderOptions = await ensureHolderOptions();
+  const normalizedHolder = normalizeConfiguredHolder(holder, holderOptions);
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
     throw new Error("Holding not found");
   }
@@ -598,7 +886,9 @@ export const updateHoldingHolder = async ({ id, holder }) => {
   if (!existing || isDeleted(existing)) {
     throw new Error("Holding not found");
   }
-  if (normalizeHoldingHolder(existing.holder) === normalizedHolder) {
+  if (
+    normalizeConfiguredHolder(existing.holder, holderOptions) === normalizedHolder
+  ) {
     return;
   }
 
@@ -821,7 +1111,7 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
     holdingId: holding.id,
     symbol: holding.symbol,
     market: holding.market,
-    holder: normalizeHoldingHolder(holding.holder),
+    holder: normalizeHolderOptionValue(holding.holder) || null,
     price: quote.price,
     currency: quote.currency,
     fxRateToTwd,
@@ -934,7 +1224,7 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
         holdingId: holding.id,
         symbol: holding.symbol,
         market: holding.market,
-        holder: normalizeHoldingHolder(holding.holder),
+        holder: normalizeHolderOptionValue(holding.holder) || null,
         price: quote.price,
         currency: quote.currency,
         fxRateToTwd: usdTwdRate,
@@ -1006,7 +1296,8 @@ export const upsertCashAccount = async ({
     typeof bankCode === "string" ? bankCode.trim() : undefined;
   const normalizedBankName = String(bankName ?? "").trim();
   const normalizedAlias = String(accountAlias ?? "").trim();
-  const normalizedHolder = normalizeCashAccountHolder(holder);
+  const holderOptions = await ensureHolderOptions();
+  const normalizedHolder = normalizeConfiguredHolder(holder, holderOptions);
   const parsedBalance = Number(balanceTwd);
 
   if (!normalizedBankName) {
@@ -1080,6 +1371,7 @@ export const upsertCashAccount = async ({
 
 export const updateCashAccountHolder = async ({ id, holder }) => {
   const parsedId = Number(id);
+  const holderOptions = await ensureHolderOptions();
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
     throw new Error("Cash account not found");
   }
@@ -1090,7 +1382,7 @@ export const updateCashAccountHolder = async ({ id, holder }) => {
   }
 
   await db.cash_accounts.update(parsedId, {
-    holder: normalizeCashAccountHolder(holder),
+    holder: normalizeConfiguredHolder(holder, holderOptions),
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
   });
@@ -1174,6 +1466,7 @@ export const removeCashAccount = async ({ id }) => {
 };
 
 export const getCashAccountsView = async () => {
+  const holderOptions = await ensureHolderOptions();
   const cashAccounts = await getActiveCashAccounts();
   cashAccounts.sort((a, b) => {
     if (!a?.updatedAt && !b?.updatedAt) return 0;
@@ -1194,8 +1487,9 @@ export const getCashAccountsView = async () => {
       bankCode: item.bankCode || undefined,
       bankName: item.bankName,
       accountAlias: item.accountAlias,
-      holder: normalizeCashAccountHolder(item.holder),
-      holderName: normalizeCashAccountHolder(item.holder) || "未設定",
+      holder: normalizeConfiguredHolder(item.holder, holderOptions),
+      holderName:
+        normalizeConfiguredHolder(item.holder, holderOptions) || "未設定",
       balanceTwd,
       updatedAt: item.updatedAt,
     };
@@ -1327,6 +1621,7 @@ export const getPortfolioView = async () => {
   const holdings = allHoldings.filter((item) => !isDeleted(item));
   holdings.sort(sortHoldingsByOrder);
   const allCashAccounts = await db.cash_accounts.toArray();
+  const holderOptions = await ensureHolderOptions();
   const tagOptions = await ensureHoldingTagOptions();
   const tagLabelMap = new Map(
     tagOptions.map((item) => [item.value, item.label]),
@@ -1398,8 +1693,9 @@ export const getPortfolioView = async () => {
       symbol: holding.symbol,
       companyName: holding.companyName,
       market: holding.market,
-      holder: normalizeHoldingHolder(holding.holder),
-      holderName: normalizeHoldingHolder(holding.holder) || "未設定",
+      holder: normalizeConfiguredHolder(holding.holder, holderOptions),
+      holderName:
+        normalizeConfiguredHolder(holding.holder, holderOptions) || "未設定",
       assetTag: holding.assetTag || defaultTag,
       assetTagLabel:
         tagLabelMap.get(holding.assetTag || defaultTag) ||
@@ -1822,13 +2118,15 @@ const computeExpenseBreakdown = (occurrences = []) => {
   };
 };
 
-const normalizePayerKey = (payer) => {
-  const normalized = String(payer || "")
-    .trim()
-    .toLowerCase();
-  if (normalized === "po") return "po";
-  if (normalized === "wei") return "wei";
-  return normalized;
+const normalizeExpensePayer = (payer, holderOptions = []) => {
+  const normalized = normalizeHolderOptionValue(payer);
+  if (!normalized) {
+    return null;
+  }
+  if (normalized === "共同帳戶") {
+    return normalized;
+  }
+  return normalizeConfiguredHolder(normalized, holderOptions);
 };
 
 const expandExpenseOccurrencesUntilDate = (
@@ -1963,6 +2261,7 @@ const getOccurrencesForMonth = (entries, month) =>
 const buildExpenseAnalytics = ({
   occurrences,
   categoryMap,
+  holderOptions = [],
   trendMode = "all",
   month,
   today = getNowDate(),
@@ -1972,16 +2271,14 @@ const buildExpenseAnalytics = ({
     個人: 0,
     未指定: 0,
   };
-  const payerRankingBucket = {
-    wei_personal: 0,
-    po_personal: 0,
-    family_total: 0,
-  };
-  const familyBalanceBucket = {
-    po_family: 0,
-    wei_family: 0,
-    other_family: 0,
-  };
+  const holderSet = new Set(holderOptions);
+  const payerRankingBucket = new Map(
+    holderOptions.map((holder) => [holder, 0]),
+  );
+  const familyBalanceBucket = new Map(
+    holderOptions.map((holder) => [holder, 0]),
+  );
+  let familyTotal = 0;
   const categoryBucket = new Map();
 
   for (const occurrence of occurrences) {
@@ -1991,19 +2288,24 @@ const buildExpenseAnalytics = ({
       occurrence.expenseKind === "家庭" || occurrence.expenseKind === "個人"
         ? occurrence.expenseKind
         : "未指定";
-    const payerKey = normalizePayerKey(occurrence.payer);
+    const payer = normalizeExpensePayer(occurrence.payer, holderOptions);
 
     kindBucket[kind] += amount;
 
-    if (kind === "個人") {
-      if (payerKey === "wei") payerRankingBucket.wei_personal += amount;
-      if (payerKey === "po") payerRankingBucket.po_personal += amount;
+    if (kind === "個人" && payer && holderSet.has(payer)) {
+      payerRankingBucket.set(
+        payer,
+        (payerRankingBucket.get(payer) || 0) + amount,
+      );
     }
     if (kind === "家庭") {
-      payerRankingBucket.family_total += amount;
-      if (payerKey === "po") familyBalanceBucket.po_family += amount;
-      else if (payerKey === "wei") familyBalanceBucket.wei_family += amount;
-      else familyBalanceBucket.other_family += amount;
+      familyTotal += amount;
+      if (payer && holderSet.has(payer)) {
+        familyBalanceBucket.set(
+          payer,
+          (familyBalanceBucket.get(payer) || 0) + amount,
+        );
+      }
     }
 
     const categoryName = occurrence.categoryId
@@ -2045,39 +2347,22 @@ const buildExpenseAnalytics = ({
       { key: "未指定", value: kindBucket.未指定 },
     ],
     payerRanking: [
-      {
-        key: "wei_personal",
-        label: "Wei",
-        value: payerRankingBucket.wei_personal,
-      },
-      {
-        key: "po_personal",
-        label: "Po",
-        value: payerRankingBucket.po_personal,
-      },
+      ...holderOptions.map((holder) => ({
+        key: `personal:${holder}`,
+        label: holder,
+        value: payerRankingBucket.get(holder) || 0,
+      })),
       {
         key: "family_total",
         label: "家庭",
-        value: payerRankingBucket.family_total,
+        value: familyTotal,
       },
     ],
-    familyBalance: [
-      {
-        key: "po_family",
-        label: "Po",
-        value: familyBalanceBucket.po_family,
-      },
-      {
-        key: "wei_family",
-        label: "Wei",
-        value: familyBalanceBucket.wei_family,
-      },
-      {
-        key: "other_family",
-        label: "其他家庭",
-        value: familyBalanceBucket.other_family,
-      },
-    ],
+    familyBalance: holderOptions.map((holder) => ({
+      key: `family:${holder}`,
+      label: holder,
+      value: familyBalanceBucket.get(holder) || 0,
+    })),
     categoryBreakdown: Array.from(categoryBucket.entries())
       .map(([name, value]) => ({
         key: name,
@@ -2608,11 +2893,13 @@ export const removeBudget = async ({ id }) => {
 export const upsertExpenseEntry = async (input) => {
   const nowIso = getNowIso();
   const name = String(input?.name || "").trim();
+  const holderOptions = await ensureHolderOptions();
   const payerRaw = String(input?.payer || "").trim();
   const normalizedPayerRaw = payerRaw === "共同" ? "共同帳戶" : payerRaw;
-  const payer = EXPENSE_PAYER_OPTIONS.includes(normalizedPayerRaw)
-    ? normalizedPayerRaw
-    : null;
+  const payer =
+    normalizedPayerRaw === "共同帳戶"
+      ? "共同帳戶"
+      : normalizeConfiguredHolder(normalizedPayerRaw, holderOptions);
   const expenseKindRaw = String(input?.expenseKind || "").trim();
   const expenseKind = EXPENSE_KIND_OPTIONS.includes(expenseKindRaw)
     ? expenseKindRaw
@@ -2915,6 +3202,7 @@ export const getExpenseDashboardView = async (input = {}) => {
   const budgets = (await db.budgets.toArray()).filter(
     (item) => !isDeleted(item),
   );
+  const holderOptions = await ensureHolderOptions();
 
   const expenseRows = expandRecurringOccurrencesForMonth(
     entries,
@@ -2942,7 +3230,10 @@ export const getExpenseDashboardView = async (input = {}) => {
   const budgetMap = new Map(budgets.map((item) => [item.id, item.name]));
   const decoratedExpenseRows = expenseRows.map((row) => ({
     ...row,
-    payerName: row.payer === "共同" ? "共同帳戶" : row.payer || "未指定",
+    payerName:
+      normalizeExpensePayer(row.payer, holderOptions) ||
+      (row.payer === "共同" ? "共同帳戶" : row.payer) ||
+      "未指定",
     expenseKindName: row.expenseKind ? row.expenseKind : "未指定",
     categoryName: row.categoryId
       ? categoryMap.get(row.categoryId) || "未指定"
@@ -3145,12 +3436,14 @@ export const getExpenseDashboardView = async (input = {}) => {
   const expenseAnalyticsAllHistory = buildExpenseAnalytics({
     occurrences: allHistoryOccurrences,
     categoryMap,
+    holderOptions,
     trendMode: "all",
     today,
   });
   const expenseAnalyticsByMonth = buildExpenseAnalytics({
     occurrences: monthOccurrences,
     categoryMap,
+    holderOptions,
     trendMode: "month",
     month: activeMonth,
     today,

@@ -99,6 +99,8 @@ import {
   initSync,
   refreshPrices,
   refreshHoldingPrice,
+  getHolderOptions,
+  getHolderUsageSummary,
   getHoldingTagOptions,
   removeHolding,
   reorderHoldings,
@@ -114,6 +116,7 @@ import {
   upsertCashAccount,
   upsertHolding,
   getExpenseDashboardView,
+  saveHolderOptions,
   saveIncomeSettings,
   setIncomeOverride,
   removeIncomeOverride,
@@ -144,7 +147,6 @@ const PULL_REFRESH_MAX = 96;
 const PULL_REFRESH_TRIGGER = 68;
 const NUMBER_ANIMATION_DURATION_MS = 2000;
 const PROGRESS_UNIT_TWD = 10000000;
-const PROGRESS_MIN_MAX_TWD = 30000000;
 const DEFAULT_EXPENSE_ANALYTICS = {
   monthlyTotalsAllHistory: [],
   kindBreakdown: [],
@@ -165,6 +167,16 @@ const ANTD_TAG_COLOR_POOL = [
   "geekblue",
   "purple",
 ];
+const CHART_COLOR_POOL = [
+  "#1677ff",
+  "#52c41a",
+  "#faad14",
+  "#eb2f96",
+  "#13c2c2",
+  "#722ed1",
+  "#fa8c16",
+  "#2f54eb",
+];
 
 const getStableTagColor = (seed, fallback = "blue") => {
   const text = String(seed ?? "").trim();
@@ -178,6 +190,44 @@ const getStableTagColor = (seed, fallback = "blue") => {
   const colorIndex = Math.abs(hash) % ANTD_TAG_COLOR_POOL.length;
   return ANTD_TAG_COLOR_POOL[colorIndex];
 };
+
+const getStableChartColor = (seed, fallback = "#1677ff") => {
+  const text = String(seed ?? "").trim();
+  if (!text) {
+    return fallback;
+  }
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) | 0;
+  }
+  const colorIndex = Math.abs(hash) % CHART_COLOR_POOL.length;
+  return CHART_COLOR_POOL[colorIndex];
+};
+
+let holderDraftIdSequence = 0;
+
+const createHolderDraftRow = (value = "", originalValue = value) => {
+  holderDraftIdSequence += 1;
+  return {
+    id: `holder-draft-${holderDraftIdSequence}`,
+    value,
+    originalValue,
+  };
+};
+
+const createHolderDraftRows = (options = []) =>
+  options.map((option) => createHolderDraftRow(option, option));
+
+const HOLDER_TAB_PREFIX = "holder:";
+const HOLDER_TAB_ALL = "all";
+const HOLDER_TAB_UNSET = "unset";
+
+const getHolderTabKey = (holder) => `${HOLDER_TAB_PREFIX}${holder}`;
+
+const getHolderValueFromTabKey = (tabKey) =>
+  typeof tabKey === "string" && tabKey.startsWith(HOLDER_TAB_PREFIX)
+    ? tabKey.slice(HOLDER_TAB_PREFIX.length)
+    : null;
 
 const formatSignedPrice = (value, currency = "TWD") => {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -223,11 +273,22 @@ const floorToTenThousand = (value) => {
   return Math.floor(parsed / 10000) * 10000;
 };
 
-const formatStopLabel = (value) => {
-  if (value === 0) {
+const formatNetWorthScaleLabel = (value) => {
+  const flooredValue = floorToTenThousand(value);
+  if (flooredValue <= 0) {
     return "0";
   }
-  return `${Math.round(value / 10000)}萬`;
+  const totalWan = Math.round(flooredValue / 10000);
+  if (totalWan < 10000) {
+    return `${totalWan}萬`;
+  }
+
+  const yi = Math.floor(totalWan / 10000);
+  const wan = totalWan % 10000;
+  if (wan === 0) {
+    return `${yi}億`;
+  }
+  return `${yi}億${wan}萬`;
 };
 
 const formatRecurringScheduleText = (row) => {
@@ -252,13 +313,11 @@ const formatBudgetCycleLabel = (budgetType) =>
       : "月度";
 
 const filterRowsByHolderTab = (targetRows, tab) => {
-  if (tab === "po") {
-    return targetRows.filter((row) => row.holderName === "Po");
+  const holderValue = getHolderValueFromTabKey(tab);
+  if (holderValue) {
+    return targetRows.filter((row) => row.holder === holderValue);
   }
-  if (tab === "wei") {
-    return targetRows.filter((row) => row.holderName === "Wei");
-  }
-  if (tab === "unset") {
+  if (tab === HOLDER_TAB_UNSET) {
     return targetRows.filter(
       (row) => row.holderName === "未設定" || !row.holder,
     );
@@ -272,15 +331,16 @@ const getProgressDisplayTargets = (currentTotal, baselineTotal) => {
   const flooredCurrent = floorToTenThousand(currentTotal);
   const flooredBaseline = floorToTenThousand(baselineTotal);
   const maxValue = Math.max(
-    flooredCurrent,
+    flooredCurrent + PROGRESS_UNIT_TWD,
     flooredBaseline,
-    PROGRESS_MIN_MAX_TWD,
+    PROGRESS_UNIT_TWD,
   );
   const progressMax =
     Math.ceil(maxValue / PROGRESS_UNIT_TWD) * PROGRESS_UNIT_TWD || 0;
 
   if (progressMax <= 0) {
     return {
+      progressMaxTwd: 0,
       currentRatio: 0,
       baselineRatio: 0,
       deltaLeftRatio: 0,
@@ -292,11 +352,24 @@ const getProgressDisplayTargets = (currentTotal, baselineTotal) => {
   const baselineRatio = clampRatio(flooredBaseline / progressMax);
 
   return {
+    progressMaxTwd: progressMax,
     currentRatio,
     baselineRatio,
     deltaLeftRatio: Math.min(currentRatio, baselineRatio),
     deltaWidthRatio: Math.abs(currentRatio - baselineRatio),
   };
+};
+
+const buildProgressStops = (progressMaxTwd) => {
+  const stops = [];
+  for (
+    let value = 0;
+    value <= progressMaxTwd;
+    value += PROGRESS_UNIT_TWD
+  ) {
+    stops.push(value);
+  }
+  return stops;
 };
 
 const RowContext = createContext({
@@ -431,8 +504,8 @@ function App() {
   const [isTrendExpanded, setIsTrendExpanded] = useState(false);
   const [isPieExpanded, setIsPieExpanded] = useState(false);
   const [activeAllocationTab, setActiveAllocationTab] = useState("assetType");
-  const [activeHoldingTab, setActiveHoldingTab] = useState("all");
-  const [activeCashHolderTab, setActiveCashHolderTab] = useState("all");
+  const [activeHoldingTab, setActiveHoldingTab] = useState(HOLDER_TAB_ALL);
+  const [activeCashHolderTab, setActiveCashHolderTab] = useState(HOLDER_TAB_ALL);
   const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false);
   const [isAddCashModalOpen, setIsAddCashModalOpen] = useState(false);
   const [isEmailLoginModalOpen, setIsEmailLoginModalOpen] = useState(false);
@@ -461,6 +534,11 @@ function App() {
     { value: "ETF", label: "ETF" },
     { value: "BOND", label: "債券" },
   ]);
+  const [holderOptions, setHolderOptions] = useState(["Po", "Wei"]);
+  const [holderDraftRows, setHolderDraftRows] = useState(() =>
+    createHolderDraftRows(["Po", "Wei"]),
+  );
+  const [loadingHolderSettings, setLoadingHolderSettings] = useState(false);
   const [editingHoldingId, setEditingHoldingId] = useState(null);
   const [editingShares, setEditingShares] = useState(null);
   const [editingHoldingTag, setEditingHoldingTag] = useState(null);
@@ -551,7 +629,7 @@ function App() {
   const [markerDisplayWan, setMarkerDisplayWan] = useState(0);
   const pullStartYRef = useRef(0);
   const pullingRef = useRef(false);
-  const activeHoldingTabRef = useRef("all");
+  const activeHoldingTabRef = useRef(HOLDER_TAB_ALL);
   const shouldAnimateNumbersRef = useRef(false);
   const didRunInitialAnimationRef = useRef(false);
   const loadRequestSeqRef = useRef(0);
@@ -1173,6 +1251,26 @@ function App() {
     [activeExpenseMonth],
   );
 
+  const loadHolderOptionSettings = useCallback(async () => {
+    const options = await getHolderOptions();
+    setHolderOptions(options);
+    setHolderDraftRows(createHolderDraftRows(options));
+    return options;
+  }, []);
+
+  const holderSelectOptions = useMemo(
+    () => holderOptions.map((holder) => ({ value: holder, label: holder })),
+    [holderOptions],
+  );
+
+  const expensePayerOptions = useMemo(
+    () => [
+      ...holderSelectOptions,
+      { label: "共同帳戶", value: "共同帳戶" },
+    ],
+    [holderSelectOptions],
+  );
+
   const handleSubmitExpense = useCallback(async () => {
     try {
       const values = await expenseForm.validateFields();
@@ -1481,10 +1579,6 @@ function App() {
     [isMobileViewport],
   );
 
-  const openRecurringCreateForm = useCallback(() => {
-    openExpenseForm(null, { mode: "recurring-create" });
-  }, [openExpenseForm]);
-
   const openRecurringEditForm = useCallback(
     (record) => {
       openExpenseForm(record, { mode: "normal" });
@@ -1653,7 +1747,7 @@ function App() {
       const reorderedTabRows = arrayMove(currentRows, oldIndex, newIndex);
 
       let orderedIds = [];
-      if (activeHoldingTab === "all") {
+      if (activeHoldingTab === HOLDER_TAB_ALL) {
         orderedIds = reorderedTabRows.map((row) => row.id);
       } else {
         const reorderedIds = reorderedTabRows.map((row) => row.id);
@@ -1697,58 +1791,58 @@ function App() {
   );
 
   const holdingHolderTabItems = useMemo(() => {
-    const poCount = rows.filter((row) => row.holderName === "Po").length;
-    const weiCount = rows.filter((row) => row.holderName === "Wei").length;
+    const items = [{ key: HOLDER_TAB_ALL, label: `全部 (${rows.length})` }];
+    for (const holder of holderOptions) {
+      const count = rows.filter((row) => row.holder === holder).length;
+      items.push({
+        key: getHolderTabKey(holder),
+        label: `${holder} (${count})`,
+      });
+    }
     const unsetCount = rows.filter(
       (row) => row.holderName === "未設定" || !row.holder,
     ).length;
-    const items = [
-      { key: "all", label: `全部 (${rows.length})` },
-      { key: "po", label: `Po (${poCount})` },
-      { key: "wei", label: `Wei (${weiCount})` },
-    ];
     if (unsetCount > 0) {
-      items.push({ key: "unset", label: `未設定 (${unsetCount})` });
+      items.push({ key: HOLDER_TAB_UNSET, label: `未設定 (${unsetCount})` });
     }
     return items;
-  }, [rows]);
+  }, [holderOptions, rows]);
 
   const filteredCashRows = useMemo(() => {
     return filterRowsByHolderTab(cashRows, activeCashHolderTab);
   }, [activeCashHolderTab, cashRows]);
 
   const cashHolderTabItems = useMemo(() => {
-    const poCount = cashRows.filter((row) => row.holderName === "Po").length;
-    const weiCount = cashRows.filter((row) => row.holderName === "Wei").length;
+    const items = [
+      { key: HOLDER_TAB_ALL, label: `全部 (${cashRows.length})` },
+    ];
+    for (const holder of holderOptions) {
+      const count = cashRows.filter((row) => row.holder === holder).length;
+      items.push({
+        key: getHolderTabKey(holder),
+        label: `${holder} (${count})`,
+      });
+    }
     const unsetCount = cashRows.filter(
       (row) => row.holderName === "未設定" || !row.holder,
     ).length;
-    const items = [
-      { key: "all", label: `全部 (${cashRows.length})` },
-      { key: "po", label: `Po (${poCount})` },
-      { key: "wei", label: `Wei (${weiCount})` },
-    ];
     if (unsetCount > 0) {
-      items.push({ key: "unset", label: `未設定 (${unsetCount})` });
+      items.push({ key: HOLDER_TAB_UNSET, label: `未設定 (${unsetCount})` });
     }
     return items;
-  }, [cashRows]);
+  }, [cashRows, holderOptions]);
 
   useEffect(() => {
-    if (
-      activeHoldingTab === "unset" &&
-      !holdingHolderTabItems.some((item) => item.key === "unset")
-    ) {
-      setActiveHoldingTab("all");
+    if (!holdingHolderTabItems.some((item) => item.key === activeHoldingTab)) {
+      setActiveHoldingTab(HOLDER_TAB_ALL);
     }
   }, [activeHoldingTab, holdingHolderTabItems]);
 
   useEffect(() => {
     if (
-      activeCashHolderTab === "unset" &&
-      !cashHolderTabItems.some((item) => item.key === "unset")
+      !cashHolderTabItems.some((item) => item.key === activeCashHolderTab)
     ) {
-      setActiveCashHolderTab("all");
+      setActiveCashHolderTab(HOLDER_TAB_ALL);
     }
   }, [activeCashHolderTab, cashHolderTabItems]);
 
@@ -2009,10 +2103,7 @@ function App() {
               <Select
                 size="small"
                 value={editingHoldingHolder ?? value ?? undefined}
-                options={[
-                  { value: "Po", label: "Po" },
-                  { value: "Wei", label: "Wei" },
-                ]}
+                options={holderSelectOptions}
                 placeholder="請選擇"
                 onChange={(next) => setEditingHoldingHolder(next)}
                 style={{ width: 110 }}
@@ -2116,6 +2207,7 @@ function App() {
     handleRemoveHolding,
     renderPriceDelta,
     handleSaveShares,
+    holderSelectOptions,
     holdingTagOptions,
     isMobileViewport,
     loadingActionById,
@@ -2176,10 +2268,7 @@ function App() {
               <Select
                 size="small"
                 value={editingCashHolder ?? value ?? undefined}
-                options={[
-                  { value: "Po", label: "Po" },
-                  { value: "Wei", label: "Wei" },
-                ]}
+                options={holderSelectOptions}
                 allowClear
                 placeholder="未設定"
                 onChange={(next) => setEditingCashHolder(next ?? null)}
@@ -2276,6 +2365,7 @@ function App() {
       handleCashEditClick,
       handleRemoveCashAccount,
       handleSaveCashBalance,
+      holderSelectOptions,
       loadingCashActionById,
     ],
   );
@@ -2621,7 +2711,11 @@ function App() {
         setCloudSyncStatus("syncing");
         setCloudSyncError("");
         await initSync(user.uid);
-        await Promise.all([loadAllData(), loadExpenseData()]);
+        await Promise.all([
+          loadAllData(),
+          loadExpenseData(),
+          loadHolderOptionSettings(),
+        ]);
         const repairResult = await repairNumericFields();
         if (repairResult.updatedRows > 0) {
           console.info(
@@ -2630,7 +2724,11 @@ function App() {
         }
         refreshCloudRuntime();
         await performCloudSync();
-        await Promise.all([loadAllData(), loadExpenseData()]);
+        await Promise.all([
+          loadAllData(),
+          loadExpenseData(),
+          loadHolderOptionSettings(),
+        ]);
         if (!alive) {
           return;
         }
@@ -2656,13 +2754,23 @@ function App() {
       unsubscribe();
       stopSync();
     };
-  }, [loadAllData, loadExpenseData, performCloudSync, refreshCloudRuntime]);
+  }, [
+    loadAllData,
+    loadExpenseData,
+    loadHolderOptionSettings,
+    performCloudSync,
+    refreshCloudRuntime,
+  ]);
 
   useEffect(() => {
     const bootstrap = async () => {
       setLoadingData(true);
       try {
-        await Promise.all([loadAllData(), loadExpenseData()]);
+        await Promise.all([
+          loadAllData(),
+          loadExpenseData(),
+          loadHolderOptionSettings(),
+        ]);
       } catch (error) {
         message.error(error instanceof Error ? error.message : "載入資料失敗");
       } finally {
@@ -2671,12 +2779,16 @@ function App() {
     };
 
     bootstrap();
-  }, [loadAllData, loadExpenseData, message]);
+  }, [loadAllData, loadExpenseData, loadHolderOptionSettings, message]);
 
   useEffect(() => {
     const onCloudUpdated = async () => {
       try {
-        await Promise.all([loadAllData(), loadExpenseData()]);
+        await Promise.all([
+          loadAllData(),
+          loadExpenseData(),
+          loadHolderOptionSettings(),
+        ]);
         refreshCloudRuntime();
         setCloudLastSyncedAt(new Date().toISOString());
       } catch {
@@ -2688,7 +2800,7 @@ function App() {
     return () => {
       window.removeEventListener(CLOUD_SYNC_UPDATED_EVENT, onCloudUpdated);
     };
-  }, [loadAllData, loadExpenseData, refreshCloudRuntime]);
+  }, [loadAllData, loadExpenseData, loadHolderOptionSettings, refreshCloudRuntime]);
 
   useEffect(() => {
     const onResize = () => {
@@ -2747,6 +2859,12 @@ function App() {
   }, []);
 
   useEffect(() => {
+    loadHolderOptionSettings().catch(() => {
+      // Keep built-in default options.
+    });
+  }, [loadHolderOptionSettings]);
+
+  useEffect(() => {
     if (!authUser) {
       return undefined;
     }
@@ -2786,7 +2904,7 @@ function App() {
     };
 
     loadBankOptions();
-  }, [isAddCashModalOpen, isAddCashSheetOpen, message]);
+  }, [isAddCashModalOpen, isAddCashSheetOpen, loadingBankOptions, message]);
 
   useEffect(() => {
     if (!activeExpenseMonth) return;
@@ -3027,32 +3145,23 @@ function App() {
     [priceUpdatedRelativeText],
   );
 
-  const flooredCurrentTwd = useMemo(
-    () => floorToTenThousand(totalTwd),
-    [totalTwd],
-  );
   const flooredBaselineTwd = useMemo(
     () => floorToTenThousand(baselineTotalTwd),
     [baselineTotalTwd],
   );
   const currentMarkerWanLabel = useMemo(
-    () => `${Math.max(0, markerDisplayWan).toLocaleString("zh-TW")} 萬`,
+    () => formatNetWorthScaleLabel(Math.max(0, markerDisplayWan) * 10000),
     [markerDisplayWan],
   );
 
-  const progressMaxTwd = useMemo(() => {
-    const unit = 10000000;
-    const maxValue = Math.max(flooredCurrentTwd, flooredBaselineTwd, 30000000);
-    return Math.ceil(maxValue / unit) * unit;
-  }, [flooredBaselineTwd, flooredCurrentTwd]);
+  const progressLayoutMetrics = useMemo(
+    () => getProgressDisplayTargets(totalTwd, baselineTotalTwd),
+    [baselineTotalTwd, totalTwd],
+  );
+  const progressMaxTwd = progressLayoutMetrics.progressMaxTwd;
 
   const progressStops = useMemo(() => {
-    const unit = 10000000;
-    const stops = [];
-    for (let value = 0; value <= progressMaxTwd; value += unit) {
-      stops.push(value);
-    }
-    return stops;
+    return buildProgressStops(progressMaxTwd);
   }, [progressMaxTwd]);
 
   const visibleProgressStops = useMemo(() => {
@@ -3065,19 +3174,8 @@ function App() {
     );
   }, [isMobileViewport, progressStops]);
 
-  const currentRatio = useMemo(() => {
-    if (progressMaxTwd <= 0) {
-      return 0;
-    }
-    return Math.min(1, Math.max(0, flooredCurrentTwd / progressMaxTwd));
-  }, [flooredCurrentTwd, progressMaxTwd]);
-
-  const baselineRatio = useMemo(() => {
-    if (progressMaxTwd <= 0) {
-      return 0;
-    }
-    return Math.min(1, Math.max(0, flooredBaselineTwd / progressMaxTwd));
-  }, [flooredBaselineTwd, progressMaxTwd]);
+  const currentRatio = progressLayoutMetrics.currentRatio;
+  const baselineRatio = progressLayoutMetrics.baselineRatio;
 
   const isMarkerOverlap = useMemo(
     () => Math.abs(currentRatio - baselineRatio) <= 0.02,
@@ -3268,11 +3366,7 @@ function App() {
         <Select
           allowClear
           getPopupContainer={getSheetPopupContainer}
-          options={[
-            { label: "Po", value: "Po" },
-            { label: "Wei", value: "Wei" },
-            { label: "共同帳戶", value: "共同帳戶" },
-          ]}
+          options={expensePayerOptions}
         />
       </Form.Item>
       <Form.Item label="種類" name="expenseKind">
@@ -3686,7 +3780,7 @@ function App() {
       return `尚未設定收入（定期支出 ${recurringText}｜單筆支出 ${oneTimeText}）`;
     }
     return `定期支出 ${recurringText}｜單筆支出 ${oneTimeText}`;
-  }, [activeIncomeProgress, expenseTotalMode]);
+  }, [activeIncomeProgress]);
   const expenseIncomeProgressMetaRightText = useMemo(() => {
     const numerator = Number(activeIncomeProgress?.numerator);
     const denominator = Number(activeIncomeProgress?.denominator);
@@ -3834,6 +3928,122 @@ function App() {
     performCloudSync,
   ]);
 
+  const handleHolderDraftValueChange = useCallback((id, value) => {
+    setHolderDraftRows((current) =>
+      current.map((row) => (row.id === id ? { ...row, value } : row)),
+    );
+  }, []);
+
+  const handleAddHolderDraftRow = useCallback(() => {
+    setHolderDraftRows((current) => [...current, createHolderDraftRow("")]);
+  }, []);
+
+  const handleRemoveHolderDraftRow = useCallback((id) => {
+    setHolderDraftRows((current) => current.filter((row) => row.id !== id));
+  }, []);
+
+  const hasHolderSettingChanges = useMemo(() => {
+    const normalizedDraftValues = holderDraftRows.map((row) => row.value.trim());
+    if (normalizedDraftValues.length !== holderOptions.length) {
+      return true;
+    }
+    return normalizedDraftValues.some((value, index) => value !== holderOptions[index]);
+  }, [holderDraftRows, holderOptions]);
+
+  const handleSaveHolderSettings = useCallback(async () => {
+    const trimmedRows = holderDraftRows.map((row) => ({
+      ...row,
+      value: row.value.trim(),
+      originalValue: row.originalValue.trim(),
+    }));
+    const nextOptions = trimmedRows.map((row) => row.value);
+    const renameMap = {};
+    const representedOriginals = new Set();
+
+    for (const row of trimmedRows) {
+      if (row.originalValue) {
+        representedOriginals.add(row.originalValue);
+      }
+      if (row.originalValue && row.value && row.originalValue !== row.value) {
+        renameMap[row.originalValue] = row.value;
+      }
+    }
+
+    const removedHolders = holderOptions.filter(
+      (holder) =>
+        !representedOriginals.has(holder) && !nextOptions.includes(holder),
+    );
+
+    try {
+      if (removedHolders.length > 0) {
+        const usageSummary = await getHolderUsageSummary({
+          holders: removedHolders,
+        });
+        const hasAffectedRecords = usageSummary.some(
+          (item) => item.totalAffected > 0,
+        );
+
+        if (hasAffectedRecords) {
+          const confirmed = await new Promise((resolve) => {
+            Modal.confirm({
+              title: "移除持有人後，相關資料會改成未設定",
+              content: (
+                <Space direction="vertical" size={8}>
+                  {usageSummary
+                    .filter((item) => item.totalAffected > 0)
+                    .map((item) => (
+                      <Text key={item.holder}>
+                        {`${item.holder}：持股 ${item.holdingCount} 筆、現金帳戶 ${item.cashAccountCount} 筆、支出 ${item.expenseEntryCount} 筆`}
+                      </Text>
+                    ))}
+                </Space>
+              ),
+              okText: "確認儲存",
+              cancelText: "取消",
+              onOk: () => resolve(true),
+              onCancel: () => resolve(false),
+            });
+          });
+
+          if (!confirmed) {
+            return;
+          }
+        }
+      }
+
+      setLoadingHolderSettings(true);
+      await saveHolderOptions({
+        options: nextOptions,
+        renameMap,
+      });
+      setEditingHoldingId(null);
+      setEditingCashAccountId(null);
+      setEditingHoldingHolder(null);
+      setEditingCashHolder(null);
+      await Promise.all([
+        loadHolderOptionSettings(),
+        loadAllData(),
+        loadExpenseData(),
+      ]);
+      await performCloudSync();
+      message.success("持有人設定已儲存");
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "儲存持有人設定失敗",
+      );
+    } finally {
+      setLoadingHolderSettings(false);
+    }
+  }, [
+    holderDraftRows,
+    holderOptions,
+    loadAllData,
+    loadExpenseData,
+    loadHolderOptionSettings,
+    message,
+    performCloudSync,
+  ]);
+
   const effectiveExpenseAnalytics = useMemo(
     () =>
       expenseTotalMode === "cumulative"
@@ -3884,17 +4094,11 @@ function App() {
   const familyBalanceData = useMemo(
     () =>
       (effectiveExpenseAnalytics?.familyBalance ?? [])
-        .filter((item) => item.key === "po_family" || item.key === "wei_family")
         .filter((item) => Number(item.value) > 0)
         .map((item) => ({
           name: item.label,
           value: Number(item.value) || 0,
-          color:
-            item.key === "po_family"
-              ? "#fa8c16"
-              : item.key === "wei_family"
-                ? "#13c2c2"
-                : "#8c8c8c",
+          color: getStableChartColor(item.label, "#1677ff"),
         })),
     [effectiveExpenseAnalytics],
   );
@@ -3927,26 +4131,31 @@ function App() {
       kindAnalysisData.find((item) => item.name === "家庭")?.value || 0;
     const personalValue =
       kindAnalysisData.find((item) => item.name === "個人")?.value || 0;
-    const payerRankingMap = new Map(
-      (effectiveExpenseAnalytics?.payerRanking ?? []).map((item) => [
-        item.key,
-        Number(item.value) || 0,
-      ]),
+    const rankingItems = (effectiveExpenseAnalytics?.payerRanking ?? []).map(
+      (item) => ({
+        ...item,
+        value: Number(item.value) || 0,
+      }),
     );
-    const familyBalanceMap = new Map(
-      (effectiveExpenseAnalytics?.familyBalance ?? []).map((item) => [
-        item.key,
-        Number(item.value) || 0,
-      ]),
-    );
-    const weiPersonal = payerRankingMap.get("wei_personal") || 0;
-    const poPersonal = payerRankingMap.get("po_personal") || 0;
-    const familyTotal = payerRankingMap.get("family_total") || 0;
-    const poFamily = familyBalanceMap.get("po_family") || 0;
-    const weiFamily = familyBalanceMap.get("wei_family") || 0;
+    const familyTotal =
+      rankingItems.find((item) => item.key === "family_total")?.value || 0;
+    const topPersonalRanking = rankingItems
+      .filter((item) => item.key !== "family_total" && item.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 2);
+    const familyBalanceItems = (effectiveExpenseAnalytics?.familyBalance ?? [])
+      .map((item) => ({
+        ...item,
+        value: Number(item.value) || 0,
+      }))
+      .filter((item) => item.value > 0)
+      .sort((a, b) => b.value - a.value);
     const topCategory = categoryAnalysisData[0];
     const kindTotal = familyValue + personalValue;
-    const familyBalanceTotal = poFamily + weiFamily;
+    const familyBalanceTotal = familyBalanceItems.reduce(
+      (sum, item) => sum + item.value,
+      0,
+    );
     const categoryTotal = categoryAnalysisData.reduce(
       (sum, item) => sum + (Number(item.value) || 0),
       0,
@@ -3954,14 +4163,27 @@ function App() {
 
     const formatPercent = (value, total) =>
       total > 0 ? `${((value / total) * 100).toFixed(1)}%` : "--";
+    const rankingSummaryParts = topPersonalRanking.map(
+      (item) => `${item.label} ${formatTwd(item.value)}`,
+    );
+    if (familyTotal > 0) {
+      rankingSummaryParts.push(`家庭 ${formatTwd(familyTotal)}`);
+    }
+    const familyBalanceSummary = familyBalanceItems
+      .slice(0, 2)
+      .map((item) => `${item.label} ${formatPercent(item.value, familyBalanceTotal)}`)
+      .join(" / ");
 
     return {
       trend: latestTrend
         ? `最新：${formatTwd(latestTrend.totalTwd)}`
         : "尚無資料",
       kind: `家庭 ${formatPercent(familyValue, kindTotal)} / 個人 ${formatPercent(personalValue, kindTotal)}`,
-      ranking: `Wei ${formatTwd(weiPersonal)} · Po ${formatTwd(poPersonal)} · 家庭 ${formatTwd(familyTotal)}`,
-      family_balance: `Po ${formatPercent(poFamily, familyBalanceTotal)} / Wei ${formatPercent(weiFamily, familyBalanceTotal)}`,
+      ranking:
+        rankingSummaryParts.length > 0
+          ? rankingSummaryParts.join(" · ")
+          : "尚無資料",
+      family_balance: familyBalanceSummary || "尚無資料",
       category: topCategory
         ? `${topCategory.name}：${formatPercent(Number(topCategory.value) || 0, categoryTotal)}`
         : "尚無資料",
@@ -4422,7 +4644,7 @@ function App() {
                                   : "0%",
                             }}
                           >
-                            {formatStopLabel(stop)}
+                            {formatNetWorthScaleLabel(stop)}
                           </span>
                         ))}
                       </div>
@@ -5392,6 +5614,66 @@ function App() {
                       </Space>
                     </Card>
                   </Col>
+                  <Col xs={24}>
+                    <Card title="持有人設定">
+                      <Space
+                        direction="vertical"
+                        size={12}
+                        style={{ width: "100%" }}
+                      >
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="這份持有人名單會同步套用到持股、現金帳戶、支出人與資產總覽篩選。"
+                          description="移除仍在使用中的持有人時，相關資料會改成未設定；支出的「共同帳戶」會保留為固定選項。"
+                        />
+                        {holderDraftRows.map((row, index) => (
+                          <Space.Compact
+                            key={row.id}
+                            style={{ width: "100%" }}
+                          >
+                            <Input
+                              value={row.value}
+                              placeholder={`持有人 ${index + 1}`}
+                              disabled={loadingHolderSettings}
+                              onChange={(event) =>
+                                handleHolderDraftValueChange(
+                                  row.id,
+                                  event.target.value,
+                                )
+                              }
+                            />
+                            <Button
+                              danger
+                              icon={<DeleteOutlined />}
+                              disabled={
+                                loadingHolderSettings ||
+                                holderDraftRows.length <= 1
+                              }
+                              onClick={() => handleRemoveHolderDraftRow(row.id)}
+                            />
+                          </Space.Compact>
+                        ))}
+                        <Space wrap>
+                          <Button
+                            icon={<PlusOutlined />}
+                            onClick={handleAddHolderDraftRow}
+                            disabled={loadingHolderSettings}
+                          >
+                            新增持有人
+                          </Button>
+                          <Button
+                            type="primary"
+                            onClick={handleSaveHolderSettings}
+                            loading={loadingHolderSettings}
+                            disabled={!hasHolderSettingChanges}
+                          >
+                            儲存持有人設定
+                          </Button>
+                        </Space>
+                      </Space>
+                    </Card>
+                  </Col>
                   <Col xs={24} lg={24}>
                     {isMobileViewport ? (
                       <div className="mobile-list-section mobile-list-section--category">
@@ -5771,6 +6053,7 @@ function App() {
               formId="mobile-holding-form"
               popupContainer={getSheetPopupContainer}
               disableAutofill
+              holderOptions={holderSelectOptions}
               holdingTagOptions={holdingTagOptions}
             />
           </MobileFormSheetLayout>
@@ -5791,6 +6074,7 @@ function App() {
               formId="mobile-cash-form"
               popupContainer={getSheetPopupContainer}
               disableAutofill
+              holderOptions={holderSelectOptions}
             />
           </MobileFormSheetLayout>
 
@@ -5830,6 +6114,7 @@ function App() {
               layout="vertical"
               formId="desktop-holding-form"
               popupContainer={getSheetPopupContainer}
+              holderOptions={holderSelectOptions}
               holdingTagOptions={holdingTagOptions}
             />
           </Modal>
@@ -5871,6 +6156,7 @@ function App() {
               bankOptions={bankOptions}
               formId="desktop-cash-form"
               popupContainer={getSheetPopupContainer}
+              holderOptions={holderSelectOptions}
             />
           </Modal>
 

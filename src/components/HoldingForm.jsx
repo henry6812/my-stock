@@ -4,10 +4,6 @@ const marketOptions = [
   { value: "TW", label: "台股 (TW)" },
   { value: "US", label: "美股 (US)" },
 ];
-const holderOptions = [
-  { value: "Po", label: "Po" },
-  { value: "Wei", label: "Wei" },
-];
 
 function HoldingForm({
   onSubmit,
@@ -15,6 +11,7 @@ function HoldingForm({
   formId,
   popupContainer,
   disableAutofill = false,
+  holderOptions = [],
   holdingTagOptions = [
     { value: "STOCK", label: "個股" },
     { value: "ETF", label: "ETF" },
