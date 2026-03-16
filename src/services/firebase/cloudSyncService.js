@@ -45,6 +45,7 @@ const SYNC_SYNCED = 'synced'
 export const CLOUD_SYNC_UPDATED_EVENT = 'cloud-sync-updated'
 const LOCAL_SYNC_UID_KEY = 'cloud_sync_last_uid'
 const SYNC_READY_TIMEOUT_MS = 15_000
+const MIGRATED_DOC_KEY_TTL_MS = 5 * 60 * 1000
 
 const COLLECTIONS = {
   HOLDINGS: 'holdings',
@@ -65,6 +66,7 @@ let realtimeUnsubscribers = []
 let onlineHandler = null
 let offlineHandler = null
 let firstSnapshotTracker = null
+const migratedDocKeyTracker = new Map()
 
 const runtimeState = {
   connected: typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -76,6 +78,50 @@ const runtimeState = {
 }
 
 const getNowIso = () => new Date().toISOString()
+
+const buildMigratedDocTrackerKey = ({ collectionName, docId }) => (
+  `${collectionName}:${docId}`
+)
+
+const pruneMigratedDocKeyTracker = () => {
+  const nowMs = Date.now()
+  for (const [key, entry] of migratedDocKeyTracker.entries()) {
+    if (!entry || nowMs - entry.recordedAtMs > MIGRATED_DOC_KEY_TTL_MS) {
+      migratedDocKeyTracker.delete(key)
+    }
+  }
+}
+
+const shouldIgnoreMigratedDocEvent = ({ collectionName, docId, remoteUpdatedAt }) => {
+  if (!collectionName || !docId) {
+    return false
+  }
+  pruneMigratedDocKeyTracker()
+  const entry = migratedDocKeyTracker.get(
+    buildMigratedDocTrackerKey({ collectionName, docId }),
+  )
+  if (!entry) {
+    return false
+  }
+  if (!remoteUpdatedAt) {
+    return true
+  }
+  return !isRemoteNewer(entry.updatedAt, remoteUpdatedAt)
+}
+
+export const registerMigratedDocKey = ({ collectionName, docId, updatedAt }) => {
+  if (!collectionName || !docId) {
+    return
+  }
+  pruneMigratedDocKeyTracker()
+  migratedDocKeyTracker.set(
+    buildMigratedDocTrackerKey({ collectionName, docId }),
+    {
+      updatedAt: updatedAt ?? getNowIso(),
+      recordedAtMs: Date.now(),
+    },
+  )
+}
 
 const getLastSyncedUid = () => {
   if (typeof window === 'undefined') {
@@ -230,19 +276,28 @@ const buildMutationPayload = ({ collectionName, record }) => {
 const applyRemoteHolding = async (remote) => {
   if (!remote.symbol || !remote.market) return
   const normalizedHolder = remote.holder ?? null
+  if (
+    shouldIgnoreMigratedDocEvent({
+      collectionName: COLLECTIONS.HOLDINGS,
+      docId: buildHoldingKey({ ...remote, holder: normalizedHolder }),
+      remoteUpdatedAt: remote.updatedAt,
+    })
+  ) {
+    return
+  }
   const key = [remote.symbol, remote.market, normalizedHolder]
   let local = await db.holdings
     .where('[symbol+market+holder]')
     .equals(key)
     .first()
-  if (!local && normalizedHolder === null) {
+  if (!local) {
     const candidates = await db.holdings
       .where('[symbol+market]')
       .equals([remote.symbol, remote.market])
       .toArray()
     if (candidates.length === 1) {
       ;[local] = candidates
-    } else {
+    } else if (normalizedHolder === null) {
       local = candidates.find((item) => (item.holder ?? null) === null)
     }
   }
@@ -390,16 +445,30 @@ const applyRemoteSyncMeta = async (remote) => {
 const applyRemoteCashAccount = async (remote) => {
   if (!remote.bankName || !remote.accountAlias) return
   const normalizedHolder = remote.holder ?? null
+  if (
+    shouldIgnoreMigratedDocEvent({
+      collectionName: COLLECTIONS.CASH_ACCOUNTS,
+      docId: buildCashAccountKey({ ...remote, holder: normalizedHolder }),
+      remoteUpdatedAt: remote.updatedAt,
+    })
+  ) {
+    return
+  }
   const key = [remote.bankName, remote.accountAlias, normalizedHolder]
   let local = await db.cash_accounts
     .where('[bankName+accountAlias+holder]')
     .equals(key)
     .first()
-  if (!local && normalizedHolder === null) {
-    local = await db.cash_accounts
+  if (!local) {
+    const candidates = await db.cash_accounts
       .where('[bankName+accountAlias]')
       .equals([remote.bankName, remote.accountAlias])
-      .first()
+      .toArray()
+    if (candidates.length === 1) {
+      ;[local] = candidates
+    } else if (normalizedHolder === null) {
+      local = candidates.find((item) => (item.holder ?? null) === null)
+    }
   }
   const nowIso = getNowIso()
   if (!local) {
@@ -723,6 +792,7 @@ const stopRealtimeSyncInternal = () => {
   }
   runtimeState.listenersReady = false
   firstSnapshotTracker = null
+  migratedDocKeyTracker.clear()
 }
 
 export const writeCollectionDoc = async ({ collectionName, docId, payload, merge = true }) => {
@@ -872,4 +942,5 @@ export const stopCloudSync = () => {
   currentUid = null
   runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
   runtimeState.outboxPending = 0
+  migratedDocKeyTracker.clear()
 }

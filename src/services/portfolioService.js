@@ -17,11 +17,12 @@ import {
   deleteCollectionDoc,
   getSyncRuntimeState,
   initCloudSync,
+  registerMigratedDocKey,
   writeCollectionRecord,
   stopCloudSync,
   syncNowWithCloud,
 } from "./firebase/cloudSyncService";
-import { buildHoldingKey } from "./firebase/firestoreMappers";
+import { buildCashAccountKey, buildHoldingKey } from "./firebase/firestoreMappers";
 import { parseNumericLike } from "../utils/number";
 
 dayjs.extend(utc);
@@ -117,8 +118,36 @@ const migrateHoldingCloudKeyIfNeeded = async ({
   if (previousDocKey === nextDocKey) {
     return;
   }
+  registerMigratedDocKey({
+    collectionName: CLOUD_COLLECTION.HOLDINGS,
+    docId: previousDocKey,
+    updatedAt: nextHolding.updatedAt,
+  });
   await deleteCollectionDoc({
     collectionName: CLOUD_COLLECTION.HOLDINGS,
+    docId: previousDocKey,
+  });
+};
+
+const migrateCashAccountCloudKeyIfNeeded = async ({
+  previousCashAccount,
+  nextCashAccount,
+}) => {
+  if (!previousCashAccount || !nextCashAccount) {
+    return;
+  }
+  const previousDocKey = buildCashAccountKey(previousCashAccount);
+  const nextDocKey = buildCashAccountKey(nextCashAccount);
+  if (previousDocKey === nextDocKey) {
+    return;
+  }
+  registerMigratedDocKey({
+    collectionName: CLOUD_COLLECTION.CASH_ACCOUNTS,
+    docId: previousDocKey,
+    updatedAt: nextCashAccount.updatedAt,
+  });
+  await deleteCollectionDoc({
+    collectionName: CLOUD_COLLECTION.CASH_ACCOUNTS,
     docId: previousDocKey,
   });
 };
@@ -1357,6 +1386,7 @@ export const upsertCashAccount = async ({
 export const updateCashAccountHolder = async ({ id, holder }) => {
   const parsedId = Number(id);
   const holderOptions = await ensureHolderOptions();
+  const normalizedHolder = normalizeConfiguredHolder(holder, holderOptions);
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
     throw new Error("Cash account not found");
   }
@@ -1365,15 +1395,31 @@ export const updateCashAccountHolder = async ({ id, holder }) => {
   if (!existing || isDeleted(existing)) {
     throw new Error("Cash account not found");
   }
+  if ((existing.holder ?? null) === (normalizedHolder ?? null)) {
+    return;
+  }
+
+  const conflict = await db.cash_accounts
+    .where("[bankName+accountAlias+holder]")
+    .equals([existing.bankName, existing.accountAlias, normalizedHolder])
+    .and((item) => item.id !== parsedId && !isDeleted(item))
+    .first();
+  if (conflict) {
+    throw new Error("同持有人的該銀行帳戶已存在");
+  }
 
   await db.cash_accounts.update(parsedId, {
-    holder: normalizeConfiguredHolder(holder, holderOptions),
+    holder: normalizedHolder,
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
   });
   const updatedCash = await db.cash_accounts.get(parsedId);
   if (updatedCash) {
     await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash);
+    await migrateCashAccountCloudKeyIfNeeded({
+      previousCashAccount: existing,
+      nextCashAccount: updatedCash,
+    });
   }
 };
 

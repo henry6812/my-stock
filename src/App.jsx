@@ -1434,17 +1434,17 @@ function App() {
 
       try {
         setRowLoading(record.id, true);
+        if ((editingHoldingHolder ?? null) !== (record.holder ?? null)) {
+          await updateHoldingHolder({
+            id: record.id,
+            holder: editingHoldingHolder ?? null,
+          });
+        }
         await updateHoldingShares({ id: record.id, shares: parsedShares });
         if (editingHoldingTag) {
           await updateHoldingTag({
             id: record.id,
             assetTag: editingHoldingTag,
-          });
-        }
-        if ((editingHoldingHolder ?? null) !== (record.holder ?? null)) {
-          await updateHoldingHolder({
-            id: record.id,
-            holder: editingHoldingHolder ?? null,
           });
         }
         await loadAllData();
@@ -1504,16 +1504,16 @@ function App() {
 
       try {
         setCashRowLoading(record.id, true);
-        await updateCashAccountBalance({
-          id: record.id,
-          balanceTwd: parsedBalance,
-        });
         if ((editingCashHolder ?? null) !== (record.holder ?? null)) {
           await updateCashAccountHolder({
             id: record.id,
             holder: editingCashHolder ?? null,
           });
         }
+        await updateCashAccountBalance({
+          id: record.id,
+          balanceTwd: parsedBalance,
+        });
         await loadAllData();
         await performCloudSync();
         setEditingCashAccountId(null);
