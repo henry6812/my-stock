@@ -1,5 +1,6 @@
 const MIN_SENTINEL = Symbol('db-min')
 const MAX_SENTINEL = Symbol('db-max')
+const APP_CONFIG_STORAGE_KEY = 'my-stock:app_config'
 
 export const DB_MIN_KEY = MIN_SENTINEL
 export const DB_MAX_KEY = MAX_SENTINEL
@@ -140,7 +141,9 @@ class InMemoryQuery {
     const rows = await this.toArray()
     const ids = new Set(rows.map((row) => row[this.table.primaryKey]))
     const before = this.table.rows.length
-    this.table.rows = this.table.rows.filter((row) => !ids.has(row[this.table.primaryKey]))
+    this.table._setRows(
+      this.table.rows.filter((row) => !ids.has(row[this.table.primaryKey])),
+    )
     return before - this.table.rows.length
   }
 }
@@ -157,6 +160,10 @@ class InMemoryTable {
     const id = this.autoIncrementValue
     this.autoIncrementValue += 1
     return id
+  }
+
+  _setRows(rows) {
+    this.rows = rows
   }
 
   async toArray() {
@@ -216,14 +223,16 @@ class InMemoryTable {
 
   async delete(key) {
     const before = this.rows.length
-    this.rows = this.rows.filter(
-      (item) => compareKey(toComparable(item[this.primaryKey]), toComparable(key)) !== 0,
+    this._setRows(
+      this.rows.filter(
+        (item) => compareKey(toComparable(item[this.primaryKey]), toComparable(key)) !== 0,
+      ),
     )
     return before - this.rows.length
   }
 
   async clear() {
-    this.rows = []
+    this._setRows([])
     this.autoIncrementValue = 1
   }
 
@@ -238,6 +247,109 @@ class InMemoryTable {
   }
 }
 
+const getStorage = () => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+class PersistedInMemoryTable extends InMemoryTable {
+  constructor({ storageKey, ...options }) {
+    super(options)
+    this.storageKey = storageKey
+    this._hydrate()
+  }
+
+  _hydrate() {
+    const storage = getStorage()
+    if (!storage) {
+      return
+    }
+
+    try {
+      const raw = storage.getItem(this.storageKey)
+      if (!raw) {
+        return
+      }
+      const parsed = JSON.parse(raw)
+      const rows = Array.isArray(parsed?.rows)
+        ? parsed.rows.filter((row) => isObject(row))
+        : []
+      this.rows = rows.map((row) => cloneRow(row))
+      if (
+        this.autoIncrement &&
+        Number.isInteger(parsed?.autoIncrementValue) &&
+        parsed.autoIncrementValue > 0
+      ) {
+        this.autoIncrementValue = parsed.autoIncrementValue
+      }
+    } catch {
+      this.rows = []
+      this.autoIncrementValue = 1
+    }
+  }
+
+  _persist() {
+    const storage = getStorage()
+    if (!storage) {
+      return
+    }
+
+    try {
+      storage.setItem(
+        this.storageKey,
+        JSON.stringify({
+          rows: this.rows,
+          autoIncrementValue: this.autoIncrementValue,
+        }),
+      )
+    } catch {
+      // Ignore storage failures and continue with in-memory behavior.
+    }
+  }
+
+  _setRows(rows) {
+    super._setRows(rows)
+    this._persist()
+  }
+
+  _nextId() {
+    const id = super._nextId()
+    this._persist()
+    return id
+  }
+
+  async add(data) {
+    const key = await super.add(data)
+    this._persist()
+    return key
+  }
+
+  async put(data) {
+    const key = await super.put(data)
+    this._persist()
+    return key
+  }
+
+  async update(key, changes) {
+    const updatedCount = await super.update(key, changes)
+    if (updatedCount > 0) {
+      this._persist()
+    }
+    return updatedCount
+  }
+
+  async clear() {
+    await super.clear()
+    this._persist()
+  }
+}
+
 class StockDatabase {
   constructor() {
     this.holdings = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
@@ -246,7 +358,10 @@ class StockDatabase {
     this.sync_meta = new InMemoryTable({ primaryKey: 'key' })
     this.expense_entries = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
     this.cash_accounts = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
-    this.app_config = new InMemoryTable({ primaryKey: 'key' })
+    this.app_config = new PersistedInMemoryTable({
+      primaryKey: 'key',
+      storageKey: APP_CONFIG_STORAGE_KEY,
+    })
     this.outbox = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
     this.cash_balance_snapshots = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
     this.expense_categories = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })

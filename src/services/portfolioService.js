@@ -302,12 +302,6 @@ const ensureHoldingTagOptions = async () => {
   if (options.length > 0) {
     return options;
   }
-
-  await db.app_config.put({
-    key: "holding_tags",
-    options: DEFAULT_HOLDING_TAG_OPTIONS,
-    updatedAt: getNowIso(),
-  });
   return DEFAULT_HOLDING_TAG_OPTIONS;
 };
 
@@ -317,16 +311,7 @@ const ensureHolderOptions = async () => {
   if (options.length > 0) {
     return normalizeHolderOptions(options);
   }
-
-  const normalizedDefaults = normalizeHolderOptions(DEFAULT_HOLDER_OPTIONS);
-  await db.app_config.put({
-    key: HOLDER_OPTIONS_KEY,
-    options: normalizedDefaults,
-    updatedAt: getNowIso(),
-    deletedAt: null,
-    syncState: SYNC_PENDING,
-  });
-  return normalizedDefaults;
+  return normalizeHolderOptions(DEFAULT_HOLDER_OPTIONS);
 };
 
 const getActiveExpenseEntries = async () => {
