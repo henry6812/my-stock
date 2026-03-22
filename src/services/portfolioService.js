@@ -14,6 +14,8 @@ import {
   sleepForRateLimit,
 } from "./priceProviders/finnhubProvider";
 import {
+  applyCollectionRecordLocally,
+  assertCloudWriteReady,
   deleteCollectionDoc,
   getSyncRuntimeState,
   initCloudSync,
@@ -102,8 +104,56 @@ const normalizeDateOnly = (value) => {
 
 const toDayjsDateOnly = (value) => dayjs(normalizeDateOnly(value));
 
+const ensureCloudWritable = () => {
+  assertCloudWriteReady();
+};
+
 const mirrorToCloud = async (collectionName, record) => {
   await writeCollectionRecord({ collectionName, record });
+  await applyCollectionRecordLocally({
+    collectionName,
+    record,
+    preferLocalId: Number.isInteger(record?.id) ? record.id : undefined,
+  });
+};
+
+const getExpenseCategoryRemoteKeyById = async (categoryId) => {
+  if (!Number.isInteger(categoryId)) {
+    return null;
+  }
+  const category = await db.expense_categories.get(categoryId);
+  return category?.remoteKey ?? null;
+};
+
+const getBudgetRemoteKeyById = async (budgetId) => {
+  if (!Number.isInteger(budgetId)) {
+    return null;
+  }
+  const budget = await db.budgets.get(budgetId);
+  return budget?.remoteKey ?? null;
+};
+
+const withExpenseAssociationKeys = async (entry) => {
+  const categoryId = Number.isInteger(entry?.categoryId) ? entry.categoryId : null;
+  const budgetId = Number.isInteger(entry?.budgetId) ? entry.budgetId : null;
+  const [categoryRemoteKey, budgetRemoteKey] = await Promise.all([
+    getExpenseCategoryRemoteKeyById(categoryId),
+    getBudgetRemoteKeyById(budgetId),
+  ]);
+  return {
+    ...entry,
+    categoryId,
+    budgetId,
+    categoryRemoteKey,
+    budgetRemoteKey,
+  };
+};
+
+const requireLocalId = (record, entityLabel) => {
+  if (!record?.id) {
+    throw new Error(`${entityLabel} 同步後未能建立本地快取`);
+  }
+  return record.id;
 };
 
 const migrateHoldingCloudKeyIfNeeded = async ({
@@ -452,13 +502,12 @@ const recordCashBalanceSnapshot = async ({
     syncState: SYNC_PENDING,
   };
 
-  await db.cash_balance_snapshots.add(snapshot);
   await mirrorToCloud(CLOUD_COLLECTION.CASH_BALANCE_SNAPSHOTS, snapshot);
 };
 
 const setSyncMeta = async ({ status, errorMessage = "" }) => {
   const nowIso = getNowIso();
-  await db.sync_meta.put({
+  await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, {
     key: SYNC_KEY_PRICES,
     lastUpdatedAt: nowIso,
     status,
@@ -467,10 +516,6 @@ const setSyncMeta = async ({ status, errorMessage = "" }) => {
     deletedAt: null,
     syncState: SYNC_PENDING,
   });
-  const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES);
-  if (syncMeta) {
-    await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta);
-  }
   return nowIso;
 };
 
@@ -545,6 +590,7 @@ export const getHolderUsageSummary = async ({ holders = [] } = {}) => {
 };
 
 export const saveHolderOptions = async ({ options = [], renameMap = {} } = {}) => {
+  ensureCloudWritable();
   const previousOptions = await ensureHolderOptions();
   const nextOptions = normalizeHolderOptions(options);
   const normalizedRenameMap = normalizeHolderRenameMap({
@@ -608,99 +654,77 @@ export const saveHolderOptions = async ({ options = [], renameMap = {} } = {}) =
     nextCashKeys.set(key, cashAccount.id);
   }
 
-  await db.transaction(
-    "rw",
-    db.app_config,
-    db.holdings,
-    db.cash_accounts,
-    db.expense_entries,
-    async () => {
-      const holdings = await getActiveHoldings();
-      for (const holding of holdings) {
-        const currentHolder = normalizeHolderOptionValue(holding.holder);
-        const nextHolder = resolveNextHolderValue(currentHolder);
+  const holdings = await getActiveHoldings();
+  for (const holding of holdings) {
+    const currentHolder = normalizeHolderOptionValue(holding.holder);
+    const nextHolder = resolveNextHolderValue(currentHolder);
 
-        if ((currentHolder || null) === nextHolder) {
-          continue;
-        }
+    if ((currentHolder || null) === nextHolder) {
+      continue;
+    }
 
-        await db.holdings.update(holding.id, {
-          holder: nextHolder,
-          updatedAt: nowIso,
-          syncState: SYNC_PENDING,
-        });
-        const updatedHolding = await db.holdings.get(holding.id);
-        if (updatedHolding) {
-          changedHoldingPairs.push({
-            previousHolding: holding,
-            nextHolding: updatedHolding,
-          });
-        }
-      }
-
-      const cashAccounts = await getActiveCashAccounts();
-      for (const cashAccount of cashAccounts) {
-        const currentHolder = normalizeHolderOptionValue(cashAccount.holder);
-        const nextHolder = resolveNextHolderValue(currentHolder);
-
-        if ((currentHolder || null) === nextHolder) {
-          continue;
-        }
-
-        await db.cash_accounts.update(cashAccount.id, {
-          holder: nextHolder,
-          updatedAt: nowIso,
-          syncState: SYNC_PENDING,
-        });
-        const updatedCashAccount = await db.cash_accounts.get(cashAccount.id);
-        if (updatedCashAccount) {
-          changedCashAccounts.push(updatedCashAccount);
-        }
-      }
-
-      const expenseEntries = await getActiveExpenseEntries();
-      for (const entry of expenseEntries) {
-        const currentPayer = normalizeHolderOptionValue(entry.payer);
-        const nextPayer = resolveNextHolderValue(currentPayer);
-
-        if ((currentPayer || null) === nextPayer) {
-          continue;
-        }
-
-        await db.expense_entries.update(entry.id, {
-          payer: nextPayer,
-          updatedAt: nowIso,
-          syncState: SYNC_PENDING,
-        });
-        const updatedExpenseEntry = await db.expense_entries.get(entry.id);
-        if (updatedExpenseEntry) {
-          changedExpenseEntries.push(updatedExpenseEntry);
-        }
-      }
-
-      await db.app_config.put({
-        key: HOLDER_OPTIONS_KEY,
-        options: nextOptions,
-        updatedAt: nowIso,
-        deletedAt: null,
-        syncState: SYNC_PENDING,
-      });
-    },
-  );
-
-  const configRecord = await db.app_config.get(HOLDER_OPTIONS_KEY);
-  if (configRecord) {
-    await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, configRecord);
+    const nextHolding = {
+      ...holding,
+      holder: nextHolder,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    };
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, nextHolding);
+    changedHoldingPairs.push({
+      previousHolding: holding,
+      nextHolding,
+    });
   }
+
+  const cashAccounts = await getActiveCashAccounts();
+  for (const cashAccount of cashAccounts) {
+    const currentHolder = normalizeHolderOptionValue(cashAccount.holder);
+    const nextHolder = resolveNextHolderValue(currentHolder);
+
+    if ((currentHolder || null) === nextHolder) {
+      continue;
+    }
+
+    const nextCashAccount = {
+      ...cashAccount,
+      holder: nextHolder,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    };
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, nextCashAccount);
+    changedCashAccounts.push(nextCashAccount);
+  }
+
+  const expenseEntries = await getActiveExpenseEntries();
+  for (const entry of expenseEntries) {
+    const currentPayer = normalizeHolderOptionValue(entry.payer);
+    const nextPayer = resolveNextHolderValue(currentPayer);
+
+    if ((currentPayer || null) === nextPayer) {
+      continue;
+    }
+
+    const nextEntry = await withExpenseAssociationKeys({
+      ...entry,
+      payer: nextPayer,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, nextEntry);
+    changedExpenseEntries.push(nextEntry);
+  }
+
+  const configRecord = {
+    key: HOLDER_OPTIONS_KEY,
+    options: nextOptions,
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  };
+  await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, configRecord);
+
   for (const pair of changedHoldingPairs) {
-    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, pair.nextHolding);
     await migrateHoldingCloudKeyIfNeeded(pair);
-  }
-  for (const cashAccount of changedCashAccounts) {
-    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, cashAccount);
-  }
-  for (const entry of changedExpenseEntries) {
-    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, entry);
   }
 
   return {
@@ -724,6 +748,7 @@ export const getIncomeSettings = async () => {
 };
 
 export const saveIncomeSettings = async (input = {}) => {
+  ensureCloudWritable();
   const nowIso = getNowIso();
   const defaultMonthlyIncomeTwd = normalizeIncomeValue(
     input.defaultMonthlyIncomeTwd,
@@ -737,7 +762,6 @@ export const saveIncomeSettings = async (input = {}) => {
     deletedAt: null,
     syncState: SYNC_PENDING,
   };
-  await db.app_config.put(record);
   await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, record);
 };
 
@@ -774,6 +798,7 @@ export const upsertHolding = async ({
   assetTag,
   holder,
 }) => {
+  ensureCloudWritable();
   const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW;
   const normalizedSymbol = normalizeSymbol(symbol, normalizedMarket);
   const holderOptions = await ensureHolderOptions();
@@ -807,20 +832,22 @@ export const upsertHolding = async ({
     const nextAssetTag = hasAssetTagInput
       ? resolveHoldingTag({ inputTag: assetTag, options })
       : existing.assetTag || getDefaultHoldingTag(options);
-    await db.holdings.update(existing.id, {
+    const nextHolding = {
+      ...existing,
       shares: parsedShares,
       assetTag: nextAssetTag,
       holder: normalizedHolder,
       updatedAt: nowIso,
       deletedAt: null,
       syncState: SYNC_PENDING,
-    });
-    const updatedHolding = await db.holdings.get(existing.id);
-    if (updatedHolding) {
-      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
-    }
+    };
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, nextHolding);
+    const updatedHolding = await db.holdings
+      .where("[symbol+market+holder]")
+      .equals([normalizedSymbol, normalizedMarket, normalizedHolder])
+      .first();
     return {
-      id: existing.id,
+      id: requireLocalId(updatedHolding ?? existing, "持股"),
       created: false,
     };
   }
@@ -836,7 +863,7 @@ export const upsertHolding = async ({
     ? resolveHoldingTag({ inputTag: assetTag, options })
     : getDefaultHoldingTag(options);
 
-  const id = await db.holdings.add({
+  const nextHolding = {
     symbol: normalizedSymbol,
     market: normalizedMarket,
     assetTag: nextAssetTag,
@@ -848,19 +875,21 @@ export const upsertHolding = async ({
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  });
-  const insertedHolding = await db.holdings.get(id);
-  if (insertedHolding) {
-    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, insertedHolding);
-  }
+  };
+  await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, nextHolding);
+  const insertedHolding = await db.holdings
+    .where("[symbol+market+holder]")
+    .equals([normalizedSymbol, normalizedMarket, normalizedHolder])
+    .first();
 
   return {
-    id,
+    id: requireLocalId(insertedHolding, "持股"),
     created: true,
   };
 };
 
 export const updateHoldingTag = async ({ id, assetTag }) => {
+  ensureCloudWritable();
   const parsedId = Number(id);
   const options = await ensureHoldingTagOptions();
   const nextAssetTag = resolveHoldingTag({ inputTag: assetTag, options });
@@ -874,18 +903,16 @@ export const updateHoldingTag = async ({ id, assetTag }) => {
     throw new Error("Holding not found");
   }
 
-  await db.holdings.update(parsedId, {
+  await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
+    ...existing,
     assetTag: nextAssetTag,
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
   });
-  const updatedHolding = await db.holdings.get(parsedId);
-  if (updatedHolding) {
-    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
-  }
 };
 
 export const updateHoldingHolder = async ({ id, holder }) => {
+  ensureCloudWritable();
   const parsedId = Number(id);
   const holderOptions = await ensureHolderOptions();
   const normalizedHolder = normalizeConfiguredHolder(holder, holderOptions);
@@ -915,22 +942,21 @@ export const updateHoldingHolder = async ({ id, holder }) => {
     throw new Error("同持有人的該股票已存在");
   }
 
-  await db.holdings.update(parsedId, {
+  const nextHolding = {
+    ...existing,
     holder: normalizedHolder,
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
+  };
+  await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, nextHolding);
+  await migrateHoldingCloudKeyIfNeeded({
+    previousHolding: existing,
+    nextHolding,
   });
-  const updatedHolding = await db.holdings.get(parsedId);
-  if (updatedHolding) {
-    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
-    await migrateHoldingCloudKeyIfNeeded({
-      previousHolding: existing,
-      nextHolding: updatedHolding,
-    });
-  }
 };
 
 export const updateHoldingShares = async ({ id, shares }) => {
+  ensureCloudWritable();
   const parsedId = Number(id);
   const parsedShares = Number(shares);
 
@@ -947,92 +973,66 @@ export const updateHoldingShares = async ({ id, shares }) => {
     throw new Error("Holding not found");
   }
 
-  await db.holdings.update(parsedId, {
+  await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
+    ...existing,
     shares: parsedShares,
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
   });
-  const updatedHolding = await db.holdings.get(parsedId);
-  if (updatedHolding) {
-    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
-  }
 };
 
 export const removeHolding = async ({ id }) => {
+  ensureCloudWritable();
   const parsedId = Number(id);
 
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
     throw new Error("Holding not found");
   }
 
-  let nowIso;
-  await db.transaction("rw", db.holdings, db.price_snapshots, async () => {
-    const existing = await db.holdings.get(parsedId);
-    if (!existing || isDeleted(existing)) {
-      throw new Error("Holding not found");
-    }
-
-    nowIso = getNowIso();
-
-    await db.holdings.update(parsedId, {
-      deletedAt: nowIso,
-      updatedAt: nowIso,
-      syncState: SYNC_PENDING,
-    });
-
-    const snapshotsToSoftDelete = await db.price_snapshots
-      .where("holdingId")
-      .equals(parsedId)
-      .toArray();
-    for (const snapshot of snapshotsToSoftDelete) {
-      await db.price_snapshots.update(snapshot.id, {
-        deletedAt: nowIso,
-        updatedAt: nowIso,
-        syncState: SYNC_PENDING,
-      });
-    }
-
-    const allHoldings = await db.holdings.toArray();
-    const remaining = allHoldings.filter(
-      (item) => !isDeleted(item) && item.id !== parsedId,
-    );
-    remaining.sort(sortHoldingsByOrder);
-
-    for (let i = 0; i < remaining.length; i += 1) {
-      await db.holdings.update(remaining[i].id, {
-        sortOrder: i + 1,
-        updatedAt: nowIso,
-        syncState: SYNC_PENDING,
-      });
-    }
-  });
-
-  const deletedHolding = await db.holdings.get(parsedId);
-  if (deletedHolding) {
-    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, deletedHolding);
+  const existing = await db.holdings.get(parsedId);
+  if (!existing || isDeleted(existing)) {
+    throw new Error("Holding not found");
   }
+
+  const nowIso = getNowIso();
+  await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
+    ...existing,
+    deletedAt: nowIso,
+    updatedAt: nowIso,
+    syncState: SYNC_PENDING,
+  });
 
   const affectedSnapshots = await db.price_snapshots
     .where("holdingId")
     .equals(parsedId)
     .toArray();
   for (const snapshot of affectedSnapshots) {
-    if (snapshot.updatedAt === nowIso || snapshot.deletedAt) {
-      await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot);
-    }
+    await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, {
+      ...snapshot,
+      deletedAt: nowIso,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
   }
 
   const remaining = (await db.holdings.toArray()).filter(
     (item) => !isDeleted(item),
   );
   for (const holding of remaining) {
-    if (holding.updatedAt === nowIso) {
-      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, holding);
-    }
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
+      ...holding,
+      sortOrder: remaining
+        .slice()
+        .sort(sortHoldingsByOrder)
+        .findIndex((item) => item.id === holding.id) + 1,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
   }
 };
 
 export const reorderHoldings = async ({ orderedIds }) => {
+  ensureCloudWritable();
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
     throw new Error("orderedIds is required");
   }
@@ -1047,43 +1047,37 @@ export const reorderHoldings = async ({ orderedIds }) => {
     throw new Error("orderedIds contains duplicate id");
   }
 
-  let nowIso;
-  await db.transaction("rw", db.holdings, async () => {
-    const holdings = (await db.holdings.toArray()).filter(
-      (item) => !isDeleted(item),
-    );
-    const existingIds = holdings.map((item) => item.id);
+  const holdings = (await db.holdings.toArray()).filter(
+    (item) => !isDeleted(item),
+  );
+  const existingIds = holdings.map((item) => item.id);
 
-    if (existingIds.length !== normalizedIds.length) {
-      throw new Error("orderedIds does not match holdings length");
-    }
+  if (existingIds.length !== normalizedIds.length) {
+    throw new Error("orderedIds does not match holdings length");
+  }
 
-    const existingIdSet = new Set(existingIds);
-    for (const id of normalizedIds) {
-      if (!existingIdSet.has(id)) {
-        throw new Error("orderedIds contains unknown id");
-      }
+  const existingIdSet = new Set(existingIds);
+  for (const id of normalizedIds) {
+    if (!existingIdSet.has(id)) {
+      throw new Error("orderedIds contains unknown id");
     }
+  }
 
-    nowIso = getNowIso();
-    for (let i = 0; i < normalizedIds.length; i += 1) {
-      await db.holdings.update(normalizedIds[i], {
-        sortOrder: i + 1,
-        updatedAt: nowIso,
-        syncState: SYNC_PENDING,
-      });
-    }
-  });
-
-  const holdings = await db.holdings.where("id").anyOf(normalizedIds).toArray();
-  for (const holding of holdings) {
-    if (holding.updatedAt === nowIso) {
-      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, holding);
-    }
+  const nowIso = getNowIso();
+  for (let i = 0; i < normalizedIds.length; i += 1) {
+    const holding = holdings.find((item) => item.id === normalizedIds[i]);
+    if (!holding) continue;
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
+      ...holding,
+      sortOrder: i + 1,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
   }
 };
 
 export const refreshHoldingPrice = async ({ holdingId }) => {
+  ensureCloudWritable();
   const parsedHoldingId = Number(holdingId);
   if (!Number.isInteger(parsedHoldingId) || parsedHoldingId <= 0) {
     throw new Error("Holding not found");
@@ -1100,7 +1094,7 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
   if (holding.market === MARKET.US) {
     const fx = await getUsdTwdRate();
     fxRateToTwd = fx.rate;
-    await db.fx_rates.put({
+    const fxRecord = {
       pair: FX_PAIR_USD_TWD,
       rate: fx.rate,
       fetchedAt: fx.fetchedAt,
@@ -1108,11 +1102,8 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
       updatedAt: getNowIso(),
       deletedAt: null,
       syncState: SYNC_PENDING,
-    });
-    const fxRate = await db.fx_rates.get(FX_PAIR_USD_TWD);
-    if (fxRate) {
-      await mirrorToCloud(CLOUD_COLLECTION.FX_RATES, fxRate);
-    }
+    };
+    await mirrorToCloud(CLOUD_COLLECTION.FX_RATES, fxRecord);
   }
 
   const nowIso = getNowIso();
@@ -1121,7 +1112,7 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
       ? quote.price * holding.shares * fxRateToTwd
       : quote.price * holding.shares;
 
-  await db.price_snapshots.add({
+  const snapshotRecord = {
     holdingId: holding.id,
     symbol: holding.symbol,
     market: holding.market,
@@ -1134,28 +1125,18 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
-  });
-  const insertedSnapshot = await db.price_snapshots
-    .where("[holdingId+capturedAt]")
-    .equals([holding.id, nowIso])
-    .first();
-  if (insertedSnapshot) {
-    await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, insertedSnapshot);
-  }
+  };
+  await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshotRecord);
 
   if (quote.name && quote.name !== holding.companyName) {
-    await db.holdings.update(holding.id, {
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
+      ...holding,
       companyName: quote.name,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
-    const updatedHolding = await db.holdings.get(holding.id);
-    if (updatedHolding) {
-      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
-    }
   }
-
-  await db.sync_meta.put({
+  await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, {
     key: SYNC_KEY_PRICES,
     lastUpdatedAt: nowIso,
     status: "success",
@@ -1164,10 +1145,6 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
     deletedAt: null,
     syncState: SYNC_PENDING,
   });
-  const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES);
-  if (syncMeta) {
-    await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta);
-  }
 
   return {
     updatedAt: nowIso,
@@ -1175,6 +1152,7 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
 };
 
 export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
+  ensureCloudWritable();
   const normalized = String(inputMarket ?? "ALL").toUpperCase();
   const market =
     normalized === "TW" || normalized === "US" || normalized === "ALL"
@@ -1204,7 +1182,7 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
     if (usHoldings.length > 0) {
       const fx = await getUsdTwdRate();
       usdTwdRate = fx.rate;
-      await db.fx_rates.put({
+      await mirrorToCloud(CLOUD_COLLECTION.FX_RATES, {
         pair: FX_PAIR_USD_TWD,
         rate: fx.rate,
         fetchedAt: fx.fetchedAt,
@@ -1213,10 +1191,6 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
         deletedAt: null,
         syncState: SYNC_PENDING,
       });
-      const fxRate = await db.fx_rates.get(FX_PAIR_USD_TWD);
-      if (fxRate) {
-        await mirrorToCloud(CLOUD_COLLECTION.FX_RATES, fxRate);
-      }
     }
 
     const nowIso = getNowIso();
@@ -1250,26 +1224,22 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
       });
 
       if (quote.name && quote.name !== holding.companyName) {
-        await db.holdings.update(holding.id, {
+        await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
+          ...holding,
           companyName: quote.name,
           updatedAt: nowIso,
           syncState: SYNC_PENDING,
         });
-        const updatedHolding = await db.holdings.get(holding.id);
-        if (updatedHolding) {
-          await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updatedHolding);
-        }
       }
     }
 
     if (snapshots.length > 0) {
-      await db.price_snapshots.bulkAdd(snapshots);
       for (const snapshot of snapshots) {
         await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot);
       }
     }
 
-    await db.sync_meta.put({
+    await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, {
       key: SYNC_KEY_PRICES,
       lastUpdatedAt: nowIso,
       status: "success",
@@ -1278,10 +1248,6 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
       deletedAt: null,
       syncState: SYNC_PENDING,
     });
-    const syncMeta = await db.sync_meta.get(SYNC_KEY_PRICES);
-    if (syncMeta) {
-      await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, syncMeta);
-    }
 
     return {
       updatedCount: snapshots.length,
@@ -1306,6 +1272,7 @@ export const upsertCashAccount = async ({
   balanceTwd,
   holder,
 }) => {
+  ensureCloudWritable();
   const normalizedBankCode =
     typeof bankCode === "string" ? bankCode.trim() : undefined;
   const normalizedBankName = String(bankName ?? "").trim();
@@ -1331,7 +1298,8 @@ export const upsertCashAccount = async ({
 
   const nowIso = getNowIso();
   if (existing) {
-    await db.cash_accounts.update(existing.id, {
+    const nextCash = {
+      ...existing,
       bankCode: normalizedBankCode || null,
       bankName: normalizedBankName,
       accountAlias: normalizedAlias,
@@ -1340,23 +1308,20 @@ export const upsertCashAccount = async ({
       updatedAt: nowIso,
       deletedAt: null,
       syncState: SYNC_PENDING,
+    };
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, nextCash);
+    await recordCashBalanceSnapshot({
+      cashAccount: nextCash,
+      balanceTwd: parsedBalance,
+      capturedAt: nowIso,
     });
-    const updatedCash = await db.cash_accounts.get(existing.id);
-    if (updatedCash) {
-      await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash);
-      await recordCashBalanceSnapshot({
-        cashAccount: updatedCash,
-        balanceTwd: parsedBalance,
-        capturedAt: nowIso,
-      });
-    }
     return {
       id: existing.id,
       created: false,
     };
   }
 
-  const id = await db.cash_accounts.add({
+  const nextCash = {
     bankCode: normalizedBankCode || null,
     bankName: normalizedBankName,
     accountAlias: normalizedAlias,
@@ -1366,24 +1331,26 @@ export const upsertCashAccount = async ({
     updatedAt: nowIso,
     deletedAt: null,
     syncState: SYNC_PENDING,
+  };
+  await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, nextCash);
+  const insertedCash = await db.cash_accounts
+    .where("[bankName+accountAlias+holder]")
+    .equals([normalizedBankName, normalizedAlias, normalizedHolder])
+    .first();
+  await recordCashBalanceSnapshot({
+    cashAccount: insertedCash ?? nextCash,
+    balanceTwd: parsedBalance,
+    capturedAt: nowIso,
   });
-  const insertedCash = await db.cash_accounts.get(id);
-  if (insertedCash) {
-    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, insertedCash);
-    await recordCashBalanceSnapshot({
-      cashAccount: insertedCash,
-      balanceTwd: parsedBalance,
-      capturedAt: nowIso,
-    });
-  }
 
   return {
-    id,
+    id: requireLocalId(insertedCash, "銀行帳戶"),
     created: true,
   };
 };
 
 export const updateCashAccountHolder = async ({ id, holder }) => {
+  ensureCloudWritable();
   const parsedId = Number(id);
   const holderOptions = await ensureHolderOptions();
   const normalizedHolder = normalizeConfiguredHolder(holder, holderOptions);
@@ -1408,22 +1375,21 @@ export const updateCashAccountHolder = async ({ id, holder }) => {
     throw new Error("同持有人的該銀行帳戶已存在");
   }
 
-  await db.cash_accounts.update(parsedId, {
+  const nextCashAccount = {
+    ...existing,
     holder: normalizedHolder,
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
+  };
+  await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, nextCashAccount);
+  await migrateCashAccountCloudKeyIfNeeded({
+    previousCashAccount: existing,
+    nextCashAccount,
   });
-  const updatedCash = await db.cash_accounts.get(parsedId);
-  if (updatedCash) {
-    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash);
-    await migrateCashAccountCloudKeyIfNeeded({
-      previousCashAccount: existing,
-      nextCashAccount: updatedCash,
-    });
-  }
 };
 
 export const updateCashAccountBalance = async ({ id, balanceTwd }) => {
+  ensureCloudWritable();
   const parsedId = Number(id);
   const parsedBalance = Number(balanceTwd);
 
@@ -1451,23 +1417,22 @@ export const updateCashAccountBalance = async ({ id, balanceTwd }) => {
     capturedAt: beforeIso,
   });
 
-  await db.cash_accounts.update(parsedId, {
+  const updatedCash = {
+    ...existing,
     balanceTwd: parsedBalance,
     updatedAt: afterIso,
     syncState: SYNC_PENDING,
+  };
+  await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash);
+  await recordCashBalanceSnapshot({
+    cashAccount: updatedCash,
+    balanceTwd: parsedBalance,
+    capturedAt: afterIso,
   });
-  const updatedCash = await db.cash_accounts.get(parsedId);
-  if (updatedCash) {
-    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updatedCash);
-    await recordCashBalanceSnapshot({
-      cashAccount: updatedCash,
-      balanceTwd: parsedBalance,
-      capturedAt: afterIso,
-    });
-  }
 };
 
 export const removeCashAccount = async ({ id }) => {
+  ensureCloudWritable();
   const parsedId = Number(id);
 
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
@@ -1480,20 +1445,18 @@ export const removeCashAccount = async ({ id }) => {
   }
 
   const nowIso = getNowIso();
-  await db.cash_accounts.update(parsedId, {
+  const deletedCash = {
+    ...existing,
     deletedAt: nowIso,
     updatedAt: nowIso,
     syncState: SYNC_PENDING,
+  };
+  await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, deletedCash);
+  await recordCashBalanceSnapshot({
+    cashAccount: deletedCash,
+    balanceTwd: 0,
+    capturedAt: nowIso,
   });
-  const deletedCash = await db.cash_accounts.get(parsedId);
-  if (deletedCash) {
-    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, deletedCash);
-    await recordCashBalanceSnapshot({
-      cashAccount: deletedCash,
-      balanceTwd: 0,
-      capturedAt: nowIso,
-    });
-  }
 };
 
 export const getCashAccountsView = async () => {
@@ -1533,6 +1496,7 @@ export const getCashAccountsView = async () => {
 };
 
 export const repairNumericFields = async () => {
+  ensureCloudWritable();
   const nowIso = getNowIso();
   let updatedRows = 0;
 
@@ -1554,16 +1518,13 @@ export const repairNumericFields = async () => {
     if (row.shares === nextShares && row.sortOrder === nextSortOrder) {
       continue;
     }
-    await db.holdings.update(row.id, {
+    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
+      ...row,
       shares: nextShares,
       sortOrder: nextSortOrder,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
-    const updated = await db.holdings.get(row.id);
-    if (updated) {
-      await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, updated);
-    }
     updatedRows += 1;
   }
 
@@ -1588,17 +1549,14 @@ export const repairNumericFields = async () => {
     ) {
       continue;
     }
-    await db.price_snapshots.update(row.id, {
+    await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, {
+      ...row,
       price: nextPrice,
       fxRateToTwd: nextFxRateToTwd,
       valueTwd: nextValueTwd,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
-    const updated = await db.price_snapshots.get(row.id);
-    if (updated) {
-      await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, updated);
-    }
     updatedRows += 1;
   }
 
@@ -1611,15 +1569,12 @@ export const repairNumericFields = async () => {
     if (row.balanceTwd === nextBalanceTwd) {
       continue;
     }
-    await db.cash_accounts.update(row.id, {
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, {
+      ...row,
       balanceTwd: nextBalanceTwd,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
-    const updated = await db.cash_accounts.get(row.id);
-    if (updated) {
-      await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, updated);
-    }
     updatedRows += 1;
   }
 
@@ -1632,15 +1587,12 @@ export const repairNumericFields = async () => {
     if (row.balanceTwd === nextBalanceTwd) {
       continue;
     }
-    await db.cash_balance_snapshots.update(row.id, {
+    await mirrorToCloud(CLOUD_COLLECTION.CASH_BALANCE_SNAPSHOTS, {
+      ...row,
       balanceTwd: nextBalanceTwd,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
-    const updated = await db.cash_balance_snapshots.get(row.id);
-    if (updated) {
-      await mirrorToCloud(CLOUD_COLLECTION.CASH_BALANCE_SNAPSHOTS, updated);
-    }
     updatedRows += 1;
   }
 
@@ -2699,6 +2651,7 @@ const buildSpecialBudgetStats = ({ budget, entries, today }) => {
 };
 
 export const upsertExpenseCategory = async ({ id, name }) => {
+  ensureCloudWritable();
   const normalizedName = String(name || "").trim();
   if (!normalizedName) {
     throw new Error("Category name is required");
@@ -2711,20 +2664,17 @@ export const upsertExpenseCategory = async ({ id, name }) => {
     if (!existing || isDeleted(existing)) {
       throw new Error("Category not found");
     }
-    await db.expense_categories.update(parsedId, {
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, {
+      ...existing,
       name: normalizedName,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
-    const updated = await db.expense_categories.get(parsedId);
-    if (updated) {
-      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, updated);
-    }
     return { id: parsedId, created: false };
   }
 
   const remoteKey = makeRemoteKey("category");
-  const newId = await db.expense_categories.add({
+  await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, {
     remoteKey,
     name: normalizedName,
     createdAt: nowIso,
@@ -2732,14 +2682,12 @@ export const upsertExpenseCategory = async ({ id, name }) => {
     deletedAt: null,
     syncState: SYNC_PENDING,
   });
-  const inserted = await db.expense_categories.get(newId);
-  if (inserted) {
-    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, inserted);
-  }
-  return { id: newId, created: true };
+  const inserted = await db.expense_categories.where("remoteKey").equals(remoteKey).first();
+  return { id: requireLocalId(inserted, "分類"), created: true };
 };
 
 export const removeExpenseCategory = async ({ id }) => {
+  ensureCloudWritable();
   const parsedId = Number(id);
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
     throw new Error("Category not found");
@@ -2749,7 +2697,8 @@ export const removeExpenseCategory = async ({ id }) => {
     throw new Error("Category not found");
   }
   const nowIso = getNowIso();
-  await db.expense_categories.update(parsedId, {
+  await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, {
+    ...existing,
     deletedAt: nowIso,
     updatedAt: nowIso,
     syncState: SYNC_PENDING,
@@ -2760,25 +2709,13 @@ export const removeExpenseCategory = async ({ id }) => {
     .equals(parsedId)
     .toArray();
   for (const entry of entries) {
-    await db.expense_entries.update(entry.id, {
+    const nextEntry = await withExpenseAssociationKeys({
+      ...entry,
       categoryId: null,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
-  }
-
-  const deleted = await db.expense_categories.get(parsedId);
-  if (deleted) {
-    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, deleted);
-  }
-  const updatedEntries = await db.expense_entries
-    .where("categoryId")
-    .equals(null)
-    .toArray();
-  for (const entry of updatedEntries) {
-    if (entry.updatedAt === nowIso) {
-      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, entry);
-    }
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, nextEntry);
   }
 };
 
@@ -2793,6 +2730,7 @@ export const upsertBudget = async ({
   specialStartDate,
   specialEndDate,
 }) => {
+  ensureCloudWritable();
   const normalizedName = String(name || "").trim();
   const normalizedMode = normalizeBudgetMode(budgetMode);
   const normalizedType = normalizeBudgetType(budgetType);
@@ -2852,20 +2790,17 @@ export const upsertBudget = async ({
   if (Number.isInteger(parsedId) && parsedId > 0) {
     const existing = await db.budgets.get(parsedId);
     if (!existing || isDeleted(existing)) throw new Error("Budget not found");
-    await db.budgets.update(parsedId, {
+    await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, {
+      ...existing,
       ...commonPayload,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
-    const updated = await db.budgets.get(parsedId);
-    if (updated) {
-      await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, updated);
-    }
     return { id: parsedId, created: false };
   }
 
   const remoteKey = makeRemoteKey("budget");
-  const newId = await db.budgets.add({
+  await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, {
     remoteKey,
     ...commonPayload,
     createdAt: nowIso,
@@ -2873,14 +2808,12 @@ export const upsertBudget = async ({
     deletedAt: null,
     syncState: SYNC_PENDING,
   });
-  const inserted = await db.budgets.get(newId);
-  if (inserted) {
-    await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, inserted);
-  }
-  return { id: newId, created: true };
+  const inserted = await db.budgets.where("remoteKey").equals(remoteKey).first();
+  return { id: requireLocalId(inserted, "預算"), created: true };
 };
 
 export const removeBudget = async ({ id }) => {
+  ensureCloudWritable();
   const parsedId = Number(id);
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
     throw new Error("Budget not found");
@@ -2890,7 +2823,8 @@ export const removeBudget = async ({ id }) => {
     throw new Error("Budget not found");
   }
   const nowIso = getNowIso();
-  await db.budgets.update(parsedId, {
+  await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, {
+    ...existing,
     deletedAt: nowIso,
     updatedAt: nowIso,
     syncState: SYNC_PENDING,
@@ -2900,28 +2834,18 @@ export const removeBudget = async ({ id }) => {
     .equals(parsedId)
     .toArray();
   for (const entry of entries) {
-    await db.expense_entries.update(entry.id, {
+    const nextEntry = await withExpenseAssociationKeys({
+      ...entry,
       budgetId: null,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
-  }
-  const deleted = await db.budgets.get(parsedId);
-  if (deleted) {
-    await mirrorToCloud(CLOUD_COLLECTION.BUDGETS, deleted);
-  }
-  const maybeUpdatedEntries = await db.expense_entries
-    .where("budgetId")
-    .equals(null)
-    .toArray();
-  for (const entry of maybeUpdatedEntries) {
-    if (entry.updatedAt === nowIso) {
-      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, entry);
-    }
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, nextEntry);
   }
 };
 
 export const upsertExpenseEntry = async (input) => {
+  ensureCloudWritable();
   const nowIso = getNowIso();
   const name = String(input?.name || "").trim();
   const holderOptions = await ensureHolderOptions();
@@ -3007,16 +2931,17 @@ export const upsertExpenseEntry = async (input) => {
 
     if (editingRecurringFutureOnly) {
       const until = dayjs(today).subtract(1, "day").format("YYYY-MM-DD");
-      await db.expense_entries.update(parsedId, {
+      const closed = await withExpenseAssociationKeys({
+        ...existing,
         recurrenceUntil: until,
         updatedAt: nowIso,
         syncState: SYNC_PENDING,
       });
-      const closed = await db.expense_entries.get(parsedId);
-      if (closed) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, closed);
+      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, closed);
 
-      const newId = await db.expense_entries.add({
-        remoteKey: makeRemoteKey("expense"),
+      const remoteKey = makeRemoteKey("expense");
+      const nextEntry = await withExpenseAssociationKeys({
+        remoteKey,
         name,
         payer,
         expenseKind,
@@ -3037,13 +2962,13 @@ export const upsertExpenseEntry = async (input) => {
         deletedAt: null,
         syncState: SYNC_PENDING,
       });
-      const inserted = await db.expense_entries.get(newId);
-      if (inserted)
-        await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, inserted);
-      return { id: newId, created: true };
+      await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, nextEntry);
+      const inserted = await db.expense_entries.where("remoteKey").equals(remoteKey).first();
+      return { id: requireLocalId(inserted, "支出"), created: true };
     }
 
-    await db.expense_entries.update(parsedId, {
+    const updated = await withExpenseAssociationKeys({
+      ...existing,
       name,
       payer,
       expenseKind,
@@ -3072,13 +2997,12 @@ export const upsertExpenseEntry = async (input) => {
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
-    const updated = await db.expense_entries.get(parsedId);
-    if (updated) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, updated);
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, updated);
     return { id: parsedId, created: false };
   }
 
   const remoteKey = makeRemoteKey("expense");
-  const newId = await db.expense_entries.add({
+  const nextEntry = await withExpenseAssociationKeys({
     remoteKey,
     name,
     payer,
@@ -3111,12 +3035,13 @@ export const upsertExpenseEntry = async (input) => {
     deletedAt: null,
     syncState: SYNC_PENDING,
   });
-  const inserted = await db.expense_entries.get(newId);
-  if (inserted) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, inserted);
-  return { id: newId, created: true };
+  await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, nextEntry);
+  const inserted = await db.expense_entries.where("remoteKey").equals(remoteKey).first();
+  return { id: requireLocalId(inserted, "支出"), created: true };
 };
 
 export const removeExpenseEntry = async ({ id }) => {
+  ensureCloudWritable();
   const parsedId = Number(id);
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
     throw new Error("Expense not found");
@@ -3126,16 +3051,17 @@ export const removeExpenseEntry = async ({ id }) => {
     throw new Error("Expense not found");
   }
   const nowIso = getNowIso();
-  await db.expense_entries.update(parsedId, {
+  const deleted = await withExpenseAssociationKeys({
+    ...existing,
     deletedAt: nowIso,
     updatedAt: nowIso,
     syncState: SYNC_PENDING,
   });
-  const deleted = await db.expense_entries.get(parsedId);
-  if (deleted) await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, deleted);
+  await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, deleted);
 };
 
 export const stopRecurringExpense = async ({ id, keepToday }) => {
+  ensureCloudWritable();
   const parsedId = Number(id);
   if (!Number.isInteger(parsedId) || parsedId <= 0) {
     throw new Error("Expense not found");
@@ -3154,16 +3080,13 @@ export const stopRecurringExpense = async ({ id, keepToday }) => {
   const cutoffDate = keepToday ? today : today.subtract(1, "day");
   const recurrenceUntil = cutoffDate.format("YYYY-MM-DD");
 
-  await db.expense_entries.update(parsedId, {
+  const updated = await withExpenseAssociationKeys({
+    ...existing,
     recurrenceUntil,
     updatedAt: nowIso,
     syncState: SYNC_PENDING,
   });
-
-  const updated = await db.expense_entries.get(parsedId);
-  if (updated) {
-    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, updated);
-  }
+  await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_ENTRIES, updated);
 };
 
 export const getExpenseMonthOptions = async () => {

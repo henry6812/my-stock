@@ -5,6 +5,7 @@ function MobileFormSheetLayout({
   open,
   onClose,
   loading = false,
+  submitDisabled = false,
   submitText = "儲存",
   onSubmit,
   submitFormId,
@@ -36,6 +37,7 @@ function MobileFormSheetLayout({
           block
           className="sheet-submit-btn"
           loading={loading}
+          disabled={submitDisabled}
           onClick={submitFormId ? undefined : onSubmit}
           htmlType={submitFormId ? "submit" : "button"}
           form={submitFormId}

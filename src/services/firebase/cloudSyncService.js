@@ -69,7 +69,9 @@ let firstSnapshotTracker = null
 const migratedDocKeyTracker = new Map()
 
 const runtimeState = {
+  authenticated: false,
   connected: typeof navigator !== 'undefined' ? navigator.onLine : true,
+  firestoreAvailable: Boolean(firestoreDb),
   listenersReady: false,
   outboxPending: 0,
   lastCloudApplyAt: null,
@@ -78,6 +80,13 @@ const runtimeState = {
 }
 
 const getNowIso = () => new Date().toISOString()
+const hasFirestore = () => Boolean(firestoreDb)
+const isCloudReadOnly = () => (
+  !runtimeState.authenticated
+  || !runtimeState.connected
+  || !runtimeState.listenersReady
+  || !runtimeState.firestoreAvailable
+)
 
 const buildMigratedDocTrackerKey = ({ collectionName, docId }) => (
   `${collectionName}:${docId}`
@@ -123,17 +132,6 @@ export const registerMigratedDocKey = ({ collectionName, docId, updatedAt }) => 
   )
 }
 
-const getLastSyncedUid = () => {
-  if (typeof window === 'undefined') {
-    return null
-  }
-  try {
-    return window.localStorage.getItem(LOCAL_SYNC_UID_KEY)
-  } catch {
-    return null
-  }
-}
-
 const setLastSyncedUid = (uid) => {
   if (typeof window === 'undefined') {
     return
@@ -158,6 +156,21 @@ const ensureFirestore = () => {
     throw new Error('No active sync user.')
   }
   return firestoreDb
+}
+
+export const assertCloudWriteReady = () => {
+  if (!runtimeState.authenticated || !currentUid) {
+    throw new Error('請先登入後再修改資料')
+  }
+  if (!runtimeState.firestoreAvailable) {
+    throw new Error('Firebase 服務目前不可用')
+  }
+  if (!runtimeState.connected) {
+    throw new Error('目前離線，暫時只能檢視資料')
+  }
+  if (!runtimeState.listenersReady) {
+    throw new Error('雲端同步尚未完成，請稍後再試')
+  }
 }
 
 const userCollection = (name) => (
@@ -273,7 +286,99 @@ const buildMutationPayload = ({ collectionName, record }) => {
   throw new Error(`Unsupported collection for mutation: ${collectionName}`)
 }
 
-const applyRemoteHolding = async (remote) => {
+const resolveLocalExpenseCategoryId = async (remoteKey) => {
+  if (!remoteKey) {
+    return null
+  }
+  const category = await db.expense_categories.where('remoteKey').equals(remoteKey).first()
+  return category?.id ?? null
+}
+
+const resolveLocalBudgetId = async (remoteKey) => {
+  if (!remoteKey) {
+    return null
+  }
+  const budget = await db.budgets.where('remoteKey').equals(remoteKey).first()
+  return budget?.id ?? null
+}
+
+const relinkExpenseEntriesForCategory = async (remoteKey, categoryId) => {
+  if (!remoteKey) {
+    return
+  }
+  const entries = await db.expense_entries.where('categoryRemoteKey').equals(remoteKey).toArray()
+  for (const entry of entries) {
+    await db.expense_entries.update(entry.id, {
+      categoryId,
+      syncState: SYNC_SYNCED,
+    })
+  }
+}
+
+const relinkExpenseEntriesForBudget = async (remoteKey, budgetId) => {
+  if (!remoteKey) {
+    return
+  }
+  const entries = await db.expense_entries.where('budgetRemoteKey').equals(remoteKey).toArray()
+  for (const entry of entries) {
+    await db.expense_entries.update(entry.id, {
+      budgetId,
+      syncState: SYNC_SYNCED,
+    })
+  }
+}
+
+const findLocalHoldingByRemote = async (remote) => {
+  if (!remote.symbol || !remote.market) {
+    return undefined
+  }
+  const normalizedHolder = remote.holder ?? null
+  let local = await db.holdings
+    .where('[symbol+market+holder]')
+    .equals([remote.symbol, remote.market, normalizedHolder])
+    .first()
+  if (local) {
+    return local
+  }
+  const candidates = await db.holdings
+    .where('[symbol+market]')
+    .equals([remote.symbol, remote.market])
+    .toArray()
+  if (candidates.length === 1) {
+    return candidates[0]
+  }
+  if (normalizedHolder === null) {
+    return candidates.find((item) => (item.holder ?? null) === null)
+  }
+  return undefined
+}
+
+const findLocalCashAccountByRemote = async (remote) => {
+  if (!remote.bankName || !remote.accountAlias) {
+    return undefined
+  }
+  const normalizedHolder = remote.holder ?? null
+  let local = await db.cash_accounts
+    .where('[bankName+accountAlias+holder]')
+    .equals([remote.bankName, remote.accountAlias, normalizedHolder])
+    .first()
+  if (local) {
+    return local
+  }
+  const candidates = await db.cash_accounts
+    .where('[bankName+accountAlias]')
+    .equals([remote.bankName, remote.accountAlias])
+    .toArray()
+  if (candidates.length === 1) {
+    return candidates[0]
+  }
+  if (normalizedHolder === null) {
+    return candidates.find((item) => (item.holder ?? null) === null)
+  }
+  return undefined
+}
+
+const applyRemoteHolding = async (remote, { preferLocalId } = {}) => {
   if (!remote.symbol || !remote.market) return
   const normalizedHolder = remote.holder ?? null
   if (
@@ -285,21 +390,9 @@ const applyRemoteHolding = async (remote) => {
   ) {
     return
   }
-  const key = [remote.symbol, remote.market, normalizedHolder]
-  let local = await db.holdings
-    .where('[symbol+market+holder]')
-    .equals(key)
-    .first()
-  if (!local) {
-    const candidates = await db.holdings
-      .where('[symbol+market]')
-      .equals([remote.symbol, remote.market])
-      .toArray()
-    if (candidates.length === 1) {
-      ;[local] = candidates
-    } else if (normalizedHolder === null) {
-      local = candidates.find((item) => (item.holder ?? null) === null)
-    }
+  let local = await findLocalHoldingByRemote({ ...remote, holder: normalizedHolder })
+  if (!local && Number.isInteger(preferLocalId)) {
+    local = await db.holdings.get(preferLocalId)
   }
   const nowIso = getNowIso()
   if (!local) {
@@ -347,21 +440,7 @@ const applyRemoteHolding = async (remote) => {
 const applyRemoteSnapshot = async (remote) => {
   if (!remote.symbol || !remote.market || !remote.capturedAt) return
   const normalizedHolder = remote.holder ?? null
-  let holding = await db.holdings
-    .where('[symbol+market+holder]')
-    .equals([remote.symbol, remote.market, normalizedHolder])
-    .first()
-  if (!holding) {
-    const candidates = await db.holdings
-      .where('[symbol+market]')
-      .equals([remote.symbol, remote.market])
-      .toArray()
-    if (candidates.length === 1) {
-      ;[holding] = candidates
-    } else if (normalizedHolder === null) {
-      holding = candidates.find((item) => (item.holder ?? null) === null)
-    }
-  }
+  let holding = await findLocalHoldingByRemote({ ...remote, holder: normalizedHolder })
   if (!holding) return
   const local = await db.price_snapshots.where('[holdingId+capturedAt]').equals([holding.id, remote.capturedAt]).first()
   if (!local) {
@@ -442,7 +521,7 @@ const applyRemoteSyncMeta = async (remote) => {
   })
 }
 
-const applyRemoteCashAccount = async (remote) => {
+const applyRemoteCashAccount = async (remote, { preferLocalId } = {}) => {
   if (!remote.bankName || !remote.accountAlias) return
   const normalizedHolder = remote.holder ?? null
   if (
@@ -454,21 +533,9 @@ const applyRemoteCashAccount = async (remote) => {
   ) {
     return
   }
-  const key = [remote.bankName, remote.accountAlias, normalizedHolder]
-  let local = await db.cash_accounts
-    .where('[bankName+accountAlias+holder]')
-    .equals(key)
-    .first()
-  if (!local) {
-    const candidates = await db.cash_accounts
-      .where('[bankName+accountAlias]')
-      .equals([remote.bankName, remote.accountAlias])
-      .toArray()
-    if (candidates.length === 1) {
-      ;[local] = candidates
-    } else if (normalizedHolder === null) {
-      local = candidates.find((item) => (item.holder ?? null) === null)
-    }
+  let local = await findLocalCashAccountByRemote({ ...remote, holder: normalizedHolder })
+  if (!local && Number.isInteger(preferLocalId)) {
+    local = await db.cash_accounts.get(preferLocalId)
   }
   const nowIso = getNowIso()
   if (!local) {
@@ -508,16 +575,7 @@ const applyRemoteCashAccount = async (remote) => {
 const applyRemoteCashBalanceSnapshot = async (remote) => {
   if (!remote.bankName || !remote.accountAlias || !remote.capturedAt) return
   const normalizedHolder = remote.holder ?? null
-  let cashAccount = await db.cash_accounts
-    .where('[bankName+accountAlias+holder]')
-    .equals([remote.bankName, remote.accountAlias, normalizedHolder])
-    .first()
-  if (!cashAccount && normalizedHolder === null) {
-    cashAccount = await db.cash_accounts
-      .where('[bankName+accountAlias]')
-      .equals([remote.bankName, remote.accountAlias])
-      .first()
-  }
+  let cashAccount = await findLocalCashAccountByRemote({ ...remote, holder: normalizedHolder })
   if (!cashAccount) return
   const local = await db.cash_balance_snapshots.where('[cashAccountId+capturedAt]').equals([cashAccount.id, remote.capturedAt]).first()
   if (!local) {
@@ -558,6 +616,12 @@ const applyRemoteExpenseEntry = async (remote) => {
   if (!remote.remoteKey || !remote.name) return
   const local = await db.expense_entries.where('remoteKey').equals(remote.remoteKey).first()
   const nowIso = getNowIso()
+  const categoryId = remote.categoryRemoteKey
+    ? await resolveLocalExpenseCategoryId(remote.categoryRemoteKey)
+    : (Number.isInteger(remote.legacyCategoryId) ? remote.legacyCategoryId : null)
+  const budgetId = remote.budgetRemoteKey
+    ? await resolveLocalBudgetId(remote.budgetRemoteKey)
+    : (Number.isInteger(remote.legacyBudgetId) ? remote.legacyBudgetId : null)
   if (!local) {
     await db.expense_entries.add({
       remoteKey: remote.remoteKey,
@@ -572,8 +636,10 @@ const applyRemoteExpenseEntry = async (remote) => {
       yearlyMonth: remote.yearlyMonth ?? null,
       yearlyDay: remote.yearlyDay ?? null,
       recurrenceUntil: remote.recurrenceUntil ?? null,
-      categoryId: remote.categoryId ?? null,
-      budgetId: remote.budgetId ?? null,
+      categoryId,
+      budgetId,
+      categoryRemoteKey: remote.categoryRemoteKey ?? null,
+      budgetRemoteKey: remote.budgetRemoteKey ?? null,
       createdAt: remote.createdAt || nowIso,
       updatedAt: remote.updatedAt || nowIso,
       deletedAt: remote.deletedAt ?? null,
@@ -594,8 +660,10 @@ const applyRemoteExpenseEntry = async (remote) => {
     yearlyMonth: remote.yearlyMonth ?? null,
     yearlyDay: remote.yearlyDay ?? null,
     recurrenceUntil: remote.recurrenceUntil ?? null,
-    categoryId: remote.categoryId ?? null,
-    budgetId: remote.budgetId ?? null,
+    categoryId,
+    budgetId,
+    categoryRemoteKey: remote.categoryRemoteKey ?? null,
+    budgetRemoteKey: remote.budgetRemoteKey ?? null,
     createdAt: remote.createdAt || local.createdAt,
     updatedAt: remote.updatedAt || local.updatedAt,
     deletedAt: remote.deletedAt ?? null,
@@ -608,7 +676,7 @@ const applyRemoteExpenseCategory = async (remote) => {
   const local = await db.expense_categories.where('remoteKey').equals(remote.remoteKey).first()
   const nowIso = getNowIso()
   if (!local) {
-    await db.expense_categories.add({
+    const id = await db.expense_categories.add({
       remoteKey: remote.remoteKey,
       name: remote.name,
       createdAt: remote.createdAt || nowIso,
@@ -616,6 +684,7 @@ const applyRemoteExpenseCategory = async (remote) => {
       deletedAt: remote.deletedAt ?? null,
       syncState: SYNC_SYNCED,
     })
+    await relinkExpenseEntriesForCategory(remote.remoteKey, id)
     return
   }
   if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
@@ -626,6 +695,7 @@ const applyRemoteExpenseCategory = async (remote) => {
     deletedAt: remote.deletedAt ?? null,
     syncState: SYNC_SYNCED,
   })
+  await relinkExpenseEntriesForCategory(remote.remoteKey, local.id)
 }
 
 const applyRemoteBudget = async (remote) => {
@@ -633,7 +703,7 @@ const applyRemoteBudget = async (remote) => {
   const local = await db.budgets.where('remoteKey').equals(remote.remoteKey).first()
   const nowIso = getNowIso()
   if (!local) {
-    await db.budgets.add({
+    const id = await db.budgets.add({
       remoteKey: remote.remoteKey,
       name: remote.name,
       amountTwd:
@@ -656,6 +726,7 @@ const applyRemoteBudget = async (remote) => {
       deletedAt: remote.deletedAt ?? null,
       syncState: SYNC_SYNCED,
     })
+    await relinkExpenseEntriesForBudget(remote.remoteKey, id)
     return
   }
   if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
@@ -681,6 +752,7 @@ const applyRemoteBudget = async (remote) => {
     deletedAt: remote.deletedAt ?? null,
     syncState: SYNC_SYNCED,
   })
+  await relinkExpenseEntriesForBudget(remote.remoteKey, local.id)
 }
 
 const applyRemoteAppConfig = async (remote) => {
@@ -697,9 +769,139 @@ const applyRemoteAppConfig = async (remote) => {
   })
 }
 
+export const applyCollectionRecordLocally = async ({
+  collectionName,
+  record,
+  preferLocalId,
+}) => {
+  const mutation = buildMutationPayload({ collectionName, record })
+  const { payload, docId } = mutation
+
+  if (collectionName === COLLECTIONS.HOLDINGS) {
+    await applyRemoteHolding(remoteToHolding(payload), { preferLocalId })
+  } else if (collectionName === COLLECTIONS.PRICE_SNAPSHOTS) {
+    await applyRemoteSnapshot(remoteToSnapshot(payload))
+  } else if (collectionName === COLLECTIONS.FX_RATES) {
+    await applyRemoteFxRate(remoteToFxRate(payload))
+  } else if (collectionName === COLLECTIONS.SYNC_META) {
+    await applyRemoteSyncMeta(remoteToSyncMeta(payload))
+  } else if (collectionName === COLLECTIONS.CASH_ACCOUNTS) {
+    await applyRemoteCashAccount(remoteToCashAccount(payload), { preferLocalId })
+  } else if (collectionName === COLLECTIONS.CASH_BALANCE_SNAPSHOTS) {
+    await applyRemoteCashBalanceSnapshot(remoteToCashBalanceSnapshot(payload))
+  } else if (collectionName === COLLECTIONS.EXPENSE_ENTRIES) {
+    await applyRemoteExpenseEntry(remoteToExpenseEntry(payload))
+  } else if (collectionName === COLLECTIONS.EXPENSE_CATEGORIES) {
+    await applyRemoteExpenseCategory(remoteToExpenseCategory(payload))
+  } else if (collectionName === COLLECTIONS.BUDGETS) {
+    await applyRemoteBudget(remoteToBudget(payload))
+  } else if (collectionName === COLLECTIONS.APP_CONFIG) {
+    await applyRemoteAppConfig(remoteToAppConfig(payload))
+  } else {
+    throw new Error(`Unsupported collection for local apply: ${collectionName}`)
+  }
+
+  emitCloudUpdated()
+  return docId
+}
+
+export const removeCollectionDocLocally = async ({ collectionName, docId, snapshotData = null }) => {
+  if (!collectionName) {
+    return
+  }
+
+  if (collectionName === COLLECTIONS.HOLDINGS) {
+    const remote = snapshotData ? remoteToHolding(snapshotData) : null
+    const holding = remote ? await findLocalHoldingByRemote(remote) : undefined
+    if (!holding) return
+    const snapshots = await db.price_snapshots.where('holdingId').equals(holding.id).toArray()
+    for (const item of snapshots) {
+      await db.price_snapshots.delete(item.id)
+    }
+    await db.holdings.delete(holding.id)
+  } else if (collectionName === COLLECTIONS.PRICE_SNAPSHOTS) {
+    const remote = snapshotData ? remoteToSnapshot(snapshotData) : null
+    if (!remote) return
+    const holding = await findLocalHoldingByRemote(remote)
+    if (!holding) return
+    const snapshot = await db.price_snapshots
+      .where('[holdingId+capturedAt]')
+      .equals([holding.id, remote.capturedAt])
+      .first()
+    if (snapshot) {
+      await db.price_snapshots.delete(snapshot.id)
+    }
+  } else if (collectionName === COLLECTIONS.FX_RATES) {
+    if (docId) {
+      await db.fx_rates.delete(docId)
+    }
+  } else if (collectionName === COLLECTIONS.SYNC_META) {
+    if (docId) {
+      await db.sync_meta.delete(docId)
+    }
+  } else if (collectionName === COLLECTIONS.CASH_ACCOUNTS) {
+    const remote = snapshotData ? remoteToCashAccount(snapshotData) : null
+    const cashAccount = remote ? await findLocalCashAccountByRemote(remote) : undefined
+    if (!cashAccount) return
+    const snapshots = await db.cash_balance_snapshots
+      .where('cashAccountId')
+      .equals(cashAccount.id)
+      .toArray()
+    for (const item of snapshots) {
+      await db.cash_balance_snapshots.delete(item.id)
+    }
+    await db.cash_accounts.delete(cashAccount.id)
+  } else if (collectionName === COLLECTIONS.CASH_BALANCE_SNAPSHOTS) {
+    const remote = snapshotData ? remoteToCashBalanceSnapshot(snapshotData) : null
+    if (!remote) return
+    const cashAccount = await findLocalCashAccountByRemote(remote)
+    if (!cashAccount) return
+    const snapshot = await db.cash_balance_snapshots
+      .where('[cashAccountId+capturedAt]')
+      .equals([cashAccount.id, remote.capturedAt])
+      .first()
+    if (snapshot) {
+      await db.cash_balance_snapshots.delete(snapshot.id)
+    }
+  } else if (collectionName === COLLECTIONS.EXPENSE_ENTRIES) {
+    const remote = snapshotData ? remoteToExpenseEntry(snapshotData) : null
+    if (!remote?.remoteKey) return
+    const entry = await db.expense_entries.where('remoteKey').equals(remote.remoteKey).first()
+    if (entry) {
+      await db.expense_entries.delete(entry.id)
+    }
+  } else if (collectionName === COLLECTIONS.EXPENSE_CATEGORIES) {
+    const remote = snapshotData ? remoteToExpenseCategory(snapshotData) : null
+    if (!remote?.remoteKey) return
+    const category = await db.expense_categories.where('remoteKey').equals(remote.remoteKey).first()
+    if (!category) return
+    await relinkExpenseEntriesForCategory(remote.remoteKey, null)
+    await db.expense_categories.delete(category.id)
+  } else if (collectionName === COLLECTIONS.BUDGETS) {
+    const remote = snapshotData ? remoteToBudget(snapshotData) : null
+    if (!remote?.remoteKey) return
+    const budget = await db.budgets.where('remoteKey').equals(remote.remoteKey).first()
+    if (!budget) return
+    await relinkExpenseEntriesForBudget(remote.remoteKey, null)
+    await db.budgets.delete(budget.id)
+  } else if (collectionName === COLLECTIONS.APP_CONFIG) {
+    const key = snapshotData ? remoteToAppConfig(snapshotData).key : docId
+    if (key) {
+      await db.app_config.delete(key)
+    }
+  }
+
+  emitCloudUpdated()
+}
+
 const applyRealtimeSnapshot = async (collectionName, snapshot) => {
   for (const change of snapshot.docChanges()) {
     if (change.type === 'removed') {
+      await removeCollectionDocLocally({
+        collectionName,
+        docId: change.doc.id,
+        snapshotData: change.doc.data(),
+      })
       continue
     }
     const data = change.doc.data()
@@ -824,32 +1026,32 @@ export const writeCollectionRecord = async ({ collectionName, record }) => {
   })
 }
 
-export const getSyncRuntimeState = () => ({ ...runtimeState })
+export const getSyncRuntimeState = () => ({
+  ...runtimeState,
+  readOnly: isCloudReadOnly(),
+})
 
 export const stopRealtimeSync = () => {
   stopRealtimeSyncInternal()
 }
 
 export const startRealtimeSync = async (uid) => {
-  const lastSyncedUid = getLastSyncedUid()
-  const shouldClearOnSwitch = Boolean(uid && uid !== lastSyncedUid)
-
   stopRealtimeSyncInternal()
 
-  if (shouldClearOnSwitch) {
-    await clearLocalCloudBackedData()
-  }
-
   currentUid = uid
+  runtimeState.authenticated = Boolean(uid)
   runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
+  runtimeState.firestoreAvailable = hasFirestore()
   runtimeState.outboxPending = 0
+  runtimeState.lastError = ''
 
   if (!uid) {
+    setLastSyncedUid(null)
     return
   }
 
-  runtimeState.lastError = ''
   runtimeState.listenersReady = false
+  await clearLocalCloudBackedData()
   firstSnapshotTracker = {
     pending: new Set([
       COLLECTIONS.HOLDINGS,
@@ -940,7 +1142,12 @@ export const stopCloudSync = () => {
   stopRealtimeSyncInternal()
   syncInFlight = null
   currentUid = null
+  runtimeState.authenticated = false
   runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
+  runtimeState.firestoreAvailable = hasFirestore()
+  runtimeState.lastError = ''
   runtimeState.outboxPending = 0
   migratedDocKeyTracker.clear()
+  setLastSyncedUid(null)
+  void clearLocalCloudBackedData()
 }

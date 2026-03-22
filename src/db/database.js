@@ -1,6 +1,17 @@
 const MIN_SENTINEL = Symbol('db-min')
 const MAX_SENTINEL = Symbol('db-max')
 const APP_CONFIG_STORAGE_KEY = 'my-stock:app_config'
+const TABLE_STORAGE_KEYS = {
+  holdings: 'my-stock:holdings',
+  priceSnapshots: 'my-stock:price_snapshots',
+  fxRates: 'my-stock:fx_rates',
+  syncMeta: 'my-stock:sync_meta',
+  expenseEntries: 'my-stock:expense_entries',
+  cashAccounts: 'my-stock:cash_accounts',
+  cashBalanceSnapshots: 'my-stock:cash_balance_snapshots',
+  expenseCategories: 'my-stock:expense_categories',
+  budgets: 'my-stock:budgets',
+}
 
 export const DB_MIN_KEY = MIN_SENTINEL
 export const DB_MAX_KEY = MAX_SENTINEL
@@ -352,20 +363,54 @@ class PersistedInMemoryTable extends InMemoryTable {
 
 class StockDatabase {
   constructor() {
-    this.holdings = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
-    this.price_snapshots = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
-    this.fx_rates = new InMemoryTable({ primaryKey: 'pair' })
-    this.sync_meta = new InMemoryTable({ primaryKey: 'key' })
-    this.expense_entries = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
-    this.cash_accounts = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
+    this.holdings = new PersistedInMemoryTable({
+      primaryKey: 'id',
+      autoIncrement: true,
+      storageKey: TABLE_STORAGE_KEYS.holdings,
+    })
+    this.price_snapshots = new PersistedInMemoryTable({
+      primaryKey: 'id',
+      autoIncrement: true,
+      storageKey: TABLE_STORAGE_KEYS.priceSnapshots,
+    })
+    this.fx_rates = new PersistedInMemoryTable({
+      primaryKey: 'pair',
+      storageKey: TABLE_STORAGE_KEYS.fxRates,
+    })
+    this.sync_meta = new PersistedInMemoryTable({
+      primaryKey: 'key',
+      storageKey: TABLE_STORAGE_KEYS.syncMeta,
+    })
+    this.expense_entries = new PersistedInMemoryTable({
+      primaryKey: 'id',
+      autoIncrement: true,
+      storageKey: TABLE_STORAGE_KEYS.expenseEntries,
+    })
+    this.cash_accounts = new PersistedInMemoryTable({
+      primaryKey: 'id',
+      autoIncrement: true,
+      storageKey: TABLE_STORAGE_KEYS.cashAccounts,
+    })
     this.app_config = new PersistedInMemoryTable({
       primaryKey: 'key',
       storageKey: APP_CONFIG_STORAGE_KEY,
     })
     this.outbox = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
-    this.cash_balance_snapshots = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
-    this.expense_categories = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
-    this.budgets = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
+    this.cash_balance_snapshots = new PersistedInMemoryTable({
+      primaryKey: 'id',
+      autoIncrement: true,
+      storageKey: TABLE_STORAGE_KEYS.cashBalanceSnapshots,
+    })
+    this.expense_categories = new PersistedInMemoryTable({
+      primaryKey: 'id',
+      autoIncrement: true,
+      storageKey: TABLE_STORAGE_KEYS.expenseCategories,
+    })
+    this.budgets = new PersistedInMemoryTable({
+      primaryKey: 'id',
+      autoIncrement: true,
+      storageKey: TABLE_STORAGE_KEYS.budgets,
+    })
   }
 
   async transaction(_mode, ...args) {
@@ -382,6 +427,6 @@ export const db = new StockDatabase()
 export const SYNC_KEY_PRICES = 'prices'
 export const FX_PAIR_USD_TWD = 'USD_TWD'
 
-export const isInMemoryDb = true
-export const hasPersistentLocalDb = false
+export const isInMemoryDb = false
+export const hasPersistentLocalDb = true
 export const isIndexedDbEnabled = false

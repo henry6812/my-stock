@@ -11,6 +11,7 @@ function HoldingForm({
   formId,
   popupContainer,
   disableAutofill = false,
+  disabled = false,
   holderOptions = [],
   holdingTagOptions = [
     { value: "STOCK", label: "個股" },
@@ -46,6 +47,7 @@ function HoldingForm({
         rules={[{ required: true, message: "請選擇市場" }]}
       >
         <Select
+          disabled={disabled}
           options={marketOptions}
           style={isVerticalLayout ? { width: "100%" } : { width: 140 }}
           getPopupContainer={popupContainer}
@@ -57,6 +59,7 @@ function HoldingForm({
         rules={[{ required: true, message: "請選擇分類" }]}
       >
         <Select
+          disabled={disabled}
           options={holdingTagOptions}
           style={isVerticalLayout ? { width: "100%" } : { width: 140 }}
           getPopupContainer={popupContainer}
@@ -68,6 +71,7 @@ function HoldingForm({
         rules={[{ required: true, message: "請選擇持有人" }]}
       >
         <Select
+          disabled={disabled}
           options={holderOptions}
           style={isVerticalLayout ? { width: "100%" } : { width: 120 }}
           getPopupContainer={popupContainer}
@@ -80,6 +84,7 @@ function HoldingForm({
         rules={[{ required: true, message: "請輸入代號" }]}
       >
         <Input
+          disabled={disabled}
           placeholder="例如 2330 或 AAPL"
           style={isVerticalLayout ? { width: "100%" } : { width: 180 }}
           autoComplete={disableAutofill ? "new-password" : undefined}
@@ -95,6 +100,7 @@ function HoldingForm({
         rules={[{ required: true, message: "請輸入股數" }]}
       >
         <InputNumber
+          disabled={disabled}
           min={0.0001}
           step={1}
           precision={4}

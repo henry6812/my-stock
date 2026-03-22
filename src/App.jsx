@@ -518,6 +518,10 @@ function App() {
   const [cloudSyncStatus, setCloudSyncStatus] = useState("idle");
   const [cloudSyncError, setCloudSyncError] = useState("");
   const [cloudLastSyncedAt, setCloudLastSyncedAt] = useState();
+  const [cloudReadOnly, setCloudReadOnly] = useState(true);
+  const [cloudReadOnlyReason, setCloudReadOnlyReason] = useState("");
+  const isCloudReadOnly = Boolean(authUser) && cloudReadOnly;
+  const isWriteDisabled = !authUser || !authReady || cloudReadOnly;
   const [pullDistance, setPullDistance] = useState(0);
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const [activeMainTab, setActiveMainTab] = useState("asset");
@@ -1155,28 +1159,40 @@ function App() {
 
   const refreshCloudRuntime = useCallback(() => {
     const runtime = getCloudSyncRuntime();
+    setCloudReadOnly(Boolean(runtime.readOnly));
     if (runtime.lastError) {
       setCloudSyncStatus("error");
       setCloudSyncError(runtime.lastError);
+      setCloudReadOnlyReason(runtime.lastError);
       return runtime;
     }
     if (!authUser) {
       setCloudSyncStatus("idle");
       setCloudSyncError("");
+      setCloudReadOnlyReason("請先登入後再修改資料。");
+      return runtime;
+    }
+    if (!runtime.firestoreAvailable) {
+      setCloudSyncStatus("error");
+      setCloudSyncError("Firebase 服務目前不可用");
+      setCloudReadOnlyReason("Firebase 服務目前不可用。");
       return runtime;
     }
     if (!runtime.connected) {
       setCloudSyncStatus("offline");
       setCloudSyncError("");
+      setCloudReadOnlyReason("目前離線，暫時只能檢視資料。");
       return runtime;
     }
     if (!runtime.listenersReady) {
       setCloudSyncStatus("syncing");
       setCloudSyncError("");
+      setCloudReadOnlyReason("雲端同步尚未完成，請稍後再試。");
       return runtime;
     }
     setCloudSyncStatus("success");
     setCloudSyncError("");
+    setCloudReadOnlyReason("");
     return runtime;
   }, [authUser]);
 
@@ -2027,7 +2043,11 @@ function App() {
         align: "center",
         render: (_, record) => (
           <DragHandle
-            disabled={dragDisabled || Boolean(loadingActionById[record.id])}
+            disabled={
+              isWriteDisabled ||
+              dragDisabled ||
+              Boolean(loadingActionById[record.id])
+            }
           />
         ),
       },
@@ -2184,17 +2204,18 @@ function App() {
           if (isEditing) {
             return (
               <Space>
-                <Button
+              <Button
                   type="primary"
                   size="small"
                   loading={rowLoading}
+                  disabled={isWriteDisabled}
                   onClick={() => handleSaveShares(record)}
                 >
                   儲存
                 </Button>
                 <Button
                   size="small"
-                  disabled={rowLoading}
+                  disabled={rowLoading || isWriteDisabled}
                   onClick={handleCancelEdit}
                 >
                   取消
@@ -2207,7 +2228,7 @@ function App() {
             <Space>
               <Button
                 size="small"
-                disabled={editingHoldingId !== null || loadingReorder}
+                disabled={isWriteDisabled || editingHoldingId !== null || loadingReorder}
                 loading={rowLoading}
                 onClick={() => handleEditClick(record)}
                 icon={<EditOutlined />}
@@ -2220,13 +2241,16 @@ function App() {
                 cancelText="取消"
                 onConfirm={() => handleRemoveHolding(record)}
                 okButtonProps={{ danger: true, loading: rowLoading }}
-                disabled={editingHoldingId !== null || loadingReorder}
+                disabled={isWriteDisabled || editingHoldingId !== null || loadingReorder}
               >
                 <Button
                   danger
                   size="small"
                   disabled={
-                    editingHoldingId !== null || rowLoading || loadingReorder
+                    isWriteDisabled ||
+                    editingHoldingId !== null ||
+                    rowLoading ||
+                    loadingReorder
                   }
                   icon={<DeleteOutlined />}
                   aria-label="移除持股"
@@ -2242,8 +2266,9 @@ function App() {
       ? columns.filter((column) => column.key !== "drag")
       : columns;
   }, [
-    dragDisabled,
-    editingHoldingId,
+      dragDisabled,
+      isWriteDisabled,
+      editingHoldingId,
     editingHoldingTag,
     editingHoldingHolder,
     editingShares,
@@ -2357,13 +2382,14 @@ function App() {
                   type="primary"
                   size="small"
                   loading={rowLoading}
+                  disabled={isWriteDisabled}
                   onClick={() => handleSaveCashBalance(record)}
                 >
                   儲存
                 </Button>
                 <Button
                   size="small"
-                  disabled={rowLoading}
+                  disabled={rowLoading || isWriteDisabled}
                   onClick={handleCashCancelEdit}
                 >
                   取消
@@ -2377,6 +2403,7 @@ function App() {
               <Button
                 size="small"
                 loading={rowLoading}
+                disabled={isWriteDisabled || rowLoading}
                 onClick={() => handleCashEditClick(record)}
                 icon={<EditOutlined />}
                 aria-label="編輯現金餘額"
@@ -2388,11 +2415,12 @@ function App() {
                 cancelText="取消"
                 onConfirm={() => handleRemoveCashAccount(record)}
                 okButtonProps={{ danger: true, loading: rowLoading }}
+                disabled={isWriteDisabled}
               >
                 <Button
                   danger
                   size="small"
-                  disabled={rowLoading}
+                  disabled={isWriteDisabled || rowLoading}
                   icon={<DeleteOutlined />}
                   aria-label="移除銀行帳戶"
                 />
@@ -2411,6 +2439,7 @@ function App() {
       handleRemoveCashAccount,
       handleSaveCashBalance,
       holderSelectOptions,
+      isWriteDisabled,
       loadingCashActionById,
     ],
   );
@@ -2495,6 +2524,7 @@ function App() {
               <Button
                 size="small"
                 icon={<EditOutlined />}
+                disabled={isWriteDisabled}
                 onClick={() => openExpenseForm(record)}
               />
               <Popconfirm
@@ -2502,15 +2532,21 @@ function App() {
                 onConfirm={() => handleRemoveExpense(record)}
                 okText="刪除"
                 cancelText="取消"
+                disabled={isWriteDisabled}
               >
-                <Button danger size="small" icon={<DeleteOutlined />} />
+                <Button
+                  danger
+                  size="small"
+                  disabled={isWriteDisabled}
+                  icon={<DeleteOutlined />}
+                />
               </Popconfirm>
             </Space>
           );
         },
       },
     ],
-    [handleRemoveExpense, openExpenseForm],
+    [handleRemoveExpense, isWriteDisabled, openExpenseForm],
   );
 
   const expenseCategoryColumns = useMemo(
@@ -2537,6 +2573,7 @@ function App() {
             <Button
               size="small"
               icon={<EditOutlined />}
+              disabled={isWriteDisabled}
               onClick={() => openCategoryForm(record)}
             />
             <Popconfirm
@@ -2544,14 +2581,20 @@ function App() {
               onConfirm={() => handleRemoveCategory(record)}
               okText="刪除"
               cancelText="取消"
+              disabled={isWriteDisabled}
             >
-              <Button danger size="small" icon={<DeleteOutlined />} />
+              <Button
+                danger
+                size="small"
+                disabled={isWriteDisabled}
+                icon={<DeleteOutlined />}
+              />
             </Popconfirm>
           </Space>
         ),
       },
     ],
-    [handleRemoveCategory, openCategoryForm],
+    [handleRemoveCategory, isWriteDisabled, openCategoryForm],
   );
 
   const expenseCategoryTabItems = useMemo(() => {
@@ -2624,6 +2667,7 @@ function App() {
         <Button
           size="small"
           icon={<EditOutlined />}
+          disabled={isWriteDisabled}
           onClick={() => openBudgetForm(record)}
         />
         <Popconfirm
@@ -2631,12 +2675,18 @@ function App() {
           onConfirm={() => handleRemoveBudget(record)}
           okText="刪除"
           cancelText="取消"
+          disabled={isWriteDisabled}
         >
-          <Button danger size="small" icon={<DeleteOutlined />} />
+          <Button
+            danger
+            size="small"
+            disabled={isWriteDisabled}
+            icon={<DeleteOutlined />}
+          />
         </Popconfirm>
       </Space>
     ),
-    [handleRemoveBudget, openBudgetForm],
+    [handleRemoveBudget, isWriteDisabled, openBudgetForm],
   );
 
   const residentBudgetRows = useMemo(
@@ -2748,6 +2798,8 @@ function App() {
         setCloudSyncStatus("idle");
         setCloudSyncError("");
         setCloudLastSyncedAt(undefined);
+        setCloudReadOnly(true);
+        setCloudReadOnlyReason("請先登入後再修改資料。");
         setAuthReady(true);
         return;
       }
@@ -3128,7 +3180,7 @@ function App() {
 
   const cloudSyncText = useMemo(() => {
     if (!authUser) {
-      return "未登入（僅本機）";
+      return "未登入";
     }
     if (cloudSyncStatus === "syncing") {
       return "即時同步連線中...";
@@ -3390,6 +3442,7 @@ function App() {
       form={expenseForm}
       name={isMobileViewport ? "expense_mobile_form" : "expense_form"}
       layout="vertical"
+      disabled={isWriteDisabled}
       initialValues={{ entryType: "ONE_TIME", occurredAt: dayjs() }}
       autoComplete={isMobileViewport ? "off" : undefined}
       data-lpignore={isMobileViewport ? "true" : undefined}
@@ -3545,6 +3598,7 @@ function App() {
       form={categoryForm}
       name={isMobileViewport ? "category_mobile_form" : "category_form"}
       layout="vertical"
+      disabled={isWriteDisabled}
       autoComplete={isMobileViewport ? "off" : undefined}
       data-lpignore={isMobileViewport ? "true" : undefined}
     >
@@ -3563,6 +3617,7 @@ function App() {
       form={budgetForm}
       name={isMobileViewport ? "budget_mobile_form" : "budget_form"}
       layout="vertical"
+      disabled={isWriteDisabled}
       initialValues={{
         budgetMode: "RESIDENT",
         budgetType: "MONTHLY",
@@ -4640,6 +4695,15 @@ function App() {
               style={{ marginBottom: 16 }}
             />
           )}
+          {authUser && isCloudReadOnly && (
+            <Alert
+              type="warning"
+              showIcon
+              title="目前為唯讀模式"
+              description={cloudReadOnlyReason || "請等待雲端同步完成後再修改資料。"}
+              style={{ marginBottom: 16 }}
+            />
+          )}
           {!authUser ? (
             <Card style={{ maxWidth: 420, margin: "24px auto 0" }} title="登入">
               <Space direction="vertical" size={12} style={{ width: "100%" }}>
@@ -4862,6 +4926,7 @@ function App() {
                               type="primary"
                               onClick={() => handleRefreshPrices("ALL")}
                               loading={loadingRefresh}
+                              disabled={isWriteDisabled}
                               aria-label="更新價格（全部）"
                             >
                               更新價格
@@ -4870,7 +4935,7 @@ function App() {
                               type="primary"
                               icon={<DownOutlined />}
                               aria-label="選擇更新市場"
-                              disabled={loadingRefresh}
+                              disabled={isWriteDisabled || loadingRefresh}
                               onClick={() => setIsUpdateSheetOpen(true)}
                             />
                           </Space.Compact>
@@ -4929,13 +4994,14 @@ function App() {
                               type="primary"
                               onClick={() => handleRefreshPrices("ALL")}
                               loading={loadingRefresh}
+                              disabled={isWriteDisabled}
                               aria-label="更新價格（全部）"
                             >
                               更新價格
                             </Button>
                             <Dropdown
                               trigger={["click"]}
-                              disabled={loadingRefresh}
+                              disabled={isWriteDisabled || loadingRefresh}
                               classNames={{ root: "price-update-menu" }}
                               menu={{
                                 items: updateMenuItems,
@@ -5004,7 +5070,7 @@ function App() {
                           onClick={() => {
                             setIsAddCashSheetOpen(true);
                           }}
-                          disabled={loadingAddCashAccount}
+                          disabled={isWriteDisabled || loadingAddCashAccount}
                           icon={<PlusOutlined />}
                           aria-label="新增銀行帳戶"
                         />
@@ -5043,7 +5109,7 @@ function App() {
                             onClick={() => {
                               setIsAddCashModalOpen(true);
                             }}
-                            disabled={loadingAddCashAccount}
+                            disabled={isWriteDisabled || loadingAddCashAccount}
                             icon={<PlusOutlined />}
                             aria-label="新增銀行帳戶"
                           />
@@ -5462,6 +5528,7 @@ function App() {
                                       size="small"
                                       icon={<EditOutlined />}
                                       className="active-recurring-stop-btn"
+                                      disabled={isWriteDisabled}
                                       onClick={() =>
                                         openRecurringEditForm(item)
                                       }
@@ -5477,6 +5544,7 @@ function App() {
                                       loading={Boolean(
                                         stoppingRecurringById[item.id],
                                       )}
+                                      disabled={isWriteDisabled}
                                       onClick={() =>
                                         openStopRecurringModal(item)
                                       }
@@ -5592,6 +5660,7 @@ function App() {
                             <DatePicker
                               picker="month"
                               value={dayjs(newIncomeOverrideMonth)}
+                              disabled={isWriteDisabled}
                               onChange={(value) =>
                                 setNewIncomeOverrideMonth(value || dayjs())
                               }
@@ -5601,6 +5670,7 @@ function App() {
                               min={1}
                               step={1000}
                               precision={0}
+                              disabled={isWriteDisabled}
                               value={newIncomeOverrideValue ?? undefined}
                               placeholder="收入金額"
                               onChange={(value) =>
@@ -5612,6 +5682,7 @@ function App() {
                             <Button
                               onClick={handleAddIncomeOverride}
                               loading={loadingIncomeSettings}
+                              disabled={isWriteDisabled}
                             >
                               新增覆寫
                             </Button>
@@ -5646,6 +5717,7 @@ function App() {
                                   size="small"
                                   icon={<DeleteOutlined />}
                                   loading={loadingIncomeSettings}
+                                  disabled={isWriteDisabled}
                                   onClick={() =>
                                     handleRemoveIncomeOverride(record.month)
                                   }
@@ -5659,6 +5731,7 @@ function App() {
                             type="primary"
                             onClick={handleSaveIncomeSettings}
                             loading={loadingIncomeSettings}
+                            disabled={isWriteDisabled}
                           >
                             儲存收入設定
                           </Button>
@@ -5687,7 +5760,7 @@ function App() {
                             <Input
                               value={row.value}
                               placeholder={`持有人 ${index + 1}`}
-                              disabled={loadingHolderSettings}
+                              disabled={isWriteDisabled || loadingHolderSettings}
                               onChange={(event) =>
                                 handleHolderDraftValueChange(
                                   row.id,
@@ -5699,6 +5772,7 @@ function App() {
                               danger
                               icon={<DeleteOutlined />}
                               disabled={
+                                isWriteDisabled ||
                                 loadingHolderSettings ||
                                 holderDraftRows.length <= 1
                               }
@@ -5710,7 +5784,7 @@ function App() {
                           <Button
                             icon={<PlusOutlined />}
                             onClick={handleAddHolderDraftRow}
-                            disabled={loadingHolderSettings}
+                            disabled={isWriteDisabled || loadingHolderSettings}
                           >
                             新增持有人
                           </Button>
@@ -5718,7 +5792,7 @@ function App() {
                             type="primary"
                             onClick={handleSaveHolderSettings}
                             loading={loadingHolderSettings}
-                            disabled={!hasHolderSettingChanges}
+                            disabled={isWriteDisabled || !hasHolderSettingChanges}
                           >
                             儲存持有人設定
                           </Button>
@@ -5737,6 +5811,7 @@ function App() {
                               size="small"
                               className="title-add-btn"
                               icon={<PlusOutlined />}
+                              disabled={isWriteDisabled}
                               onClick={() => openCategoryForm()}
                             />
                           </Space>
@@ -5762,6 +5837,7 @@ function App() {
                                 size="small"
                                 className="title-add-btn"
                                 icon={<PlusOutlined />}
+                                disabled={isWriteDisabled}
                                 onClick={() => openCategoryForm()}
                               />
                             </Tooltip>
@@ -5789,6 +5865,7 @@ function App() {
                               size="small"
                               className="title-add-btn"
                               icon={<PlusOutlined />}
+                              disabled={isWriteDisabled}
                               onClick={() => openBudgetForm()}
                             />
                           </Space>
@@ -5842,6 +5919,7 @@ function App() {
                                 size="small"
                                 className="title-add-btn"
                                 icon={<PlusOutlined />}
+                                disabled={isWriteDisabled}
                                 onClick={() => openBudgetForm()}
                               />
                             </Tooltip>
@@ -5906,6 +5984,7 @@ function App() {
                   ? "expense-fab--mobile"
                   : "expense-fab--desktop"
               }`}
+              disabled={isWriteDisabled}
               onClick={() => {
                 if (activeMainTab === "asset") {
                   if (isMobileViewport) {
@@ -6007,6 +6086,7 @@ function App() {
             onOk={confirmStopRecurring}
             okText="確認取消"
             cancelText="取消"
+            okButtonProps={{ disabled: isWriteDisabled }}
             confirmLoading={Boolean(
               Number.isInteger(Number(selectedRecurringToStop?.id))
                 ? stoppingRecurringById[Number(selectedRecurringToStop?.id)]
@@ -6019,6 +6099,7 @@ function App() {
               </Text>
               {shouldShowStopOptions ? (
                 <Radio.Group
+                  disabled={isWriteDisabled}
                   value={stopKeepToday}
                   onChange={(event) =>
                     setStopKeepToday(Boolean(event.target.value))
@@ -6068,7 +6149,7 @@ function App() {
                   setIsUpdateSheetOpen(false);
                   handleRefreshPrices("TW");
                 }}
-                disabled={loadingRefresh}
+                disabled={isWriteDisabled || loadingRefresh}
                 loading={loadingRefresh}
               >
                 更新台股
@@ -6079,7 +6160,7 @@ function App() {
                   setIsUpdateSheetOpen(false);
                   handleRefreshPrices("US");
                 }}
-                disabled={loadingRefresh}
+                disabled={isWriteDisabled || loadingRefresh}
                 loading={loadingRefresh}
               >
                 更新美股
@@ -6095,6 +6176,7 @@ function App() {
             open={isMobileViewport && isAddHoldingSheetOpen}
             onClose={() => setIsAddHoldingSheetOpen(false)}
             loading={loadingAddHolding}
+            submitDisabled={isWriteDisabled}
             submitText="新增持股"
             submitFormId="mobile-holding-form"
             className="holding-sheet"
@@ -6105,6 +6187,7 @@ function App() {
               formId="mobile-holding-form"
               popupContainer={getSheetPopupContainer}
               disableAutofill
+              disabled={isWriteDisabled}
               holderOptions={holderSelectOptions}
               holdingTagOptions={holdingTagOptions}
             />
@@ -6115,6 +6198,7 @@ function App() {
             open={isMobileViewport && isAddCashSheetOpen}
             onClose={() => setIsAddCashSheetOpen(false)}
             loading={loadingAddCashAccount}
+            submitDisabled={isWriteDisabled}
             submitText="新增銀行帳戶"
             submitFormId="mobile-cash-form"
             className="cash-sheet"
@@ -6126,6 +6210,7 @@ function App() {
               formId="mobile-cash-form"
               popupContainer={getSheetPopupContainer}
               disableAutofill
+              disabled={isWriteDisabled}
               holderOptions={holderSelectOptions}
             />
           </MobileFormSheetLayout>
@@ -6142,7 +6227,7 @@ function App() {
               <Button
                 key="cancel"
                 onClick={() => setIsAddHoldingModalOpen(false)}
-                disabled={loadingAddHolding}
+                disabled={isWriteDisabled || loadingAddHolding}
               >
                 取消
               </Button>,
@@ -6152,6 +6237,7 @@ function App() {
                 htmlType="submit"
                 form="desktop-holding-form"
                 loading={loadingAddHolding}
+                disabled={isWriteDisabled}
               >
                 新增持股
               </Button>,
@@ -6166,6 +6252,7 @@ function App() {
               layout="vertical"
               formId="desktop-holding-form"
               popupContainer={getSheetPopupContainer}
+              disabled={isWriteDisabled}
               holderOptions={holderSelectOptions}
               holdingTagOptions={holdingTagOptions}
             />
@@ -6183,7 +6270,7 @@ function App() {
               <Button
                 key="cancel"
                 onClick={() => setIsAddCashModalOpen(false)}
-                disabled={loadingAddCashAccount}
+                disabled={isWriteDisabled || loadingAddCashAccount}
               >
                 取消
               </Button>,
@@ -6193,6 +6280,7 @@ function App() {
                 htmlType="submit"
                 form="desktop-cash-form"
                 loading={loadingAddCashAccount}
+                disabled={isWriteDisabled}
               >
                 新增銀行帳戶
               </Button>,
@@ -6208,6 +6296,7 @@ function App() {
               bankOptions={bankOptions}
               formId="desktop-cash-form"
               popupContainer={getSheetPopupContainer}
+              disabled={isWriteDisabled}
               holderOptions={holderSelectOptions}
             />
           </Modal>
@@ -6228,6 +6317,7 @@ function App() {
               expenseForm.resetFields();
             }}
             loading={loadingExpenseAction}
+            submitDisabled={isWriteDisabled}
             submitText="儲存"
             onSubmit={handleSubmitExpense}
           >
@@ -6243,6 +6333,7 @@ function App() {
               categoryForm.resetFields();
             }}
             loading={loadingCategoryAction}
+            submitDisabled={isWriteDisabled}
             submitText="儲存"
             onSubmit={handleSubmitCategory}
           >
@@ -6258,6 +6349,7 @@ function App() {
               budgetForm.resetFields();
             }}
             loading={loadingBudgetAction}
+            submitDisabled={isWriteDisabled}
             submitText="儲存"
             onSubmit={handleSubmitBudget}
           >
@@ -6283,6 +6375,7 @@ function App() {
             }}
             onOk={handleSubmitExpense}
             confirmLoading={loadingExpenseAction}
+            okButtonProps={{ disabled: isWriteDisabled }}
             okText="儲存"
             destroyOnHidden
           >
@@ -6301,6 +6394,7 @@ function App() {
             }}
             onOk={handleSubmitCategory}
             confirmLoading={loadingCategoryAction}
+            okButtonProps={{ disabled: isWriteDisabled }}
             okText="儲存"
             destroyOnHidden
           >
@@ -6319,6 +6413,7 @@ function App() {
             }}
             onOk={handleSubmitBudget}
             confirmLoading={loadingBudgetAction}
+            okButtonProps={{ disabled: isWriteDisabled }}
             okText="儲存"
             destroyOnHidden
           >

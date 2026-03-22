@@ -8,6 +8,7 @@ function CashAccountForm({
   popupContainer,
   formId,
   disableAutofill = false,
+  disabled = false,
   holderOptions = [],
 }) {
   const [form] = Form.useForm();
@@ -85,6 +86,7 @@ function CashAccountForm({
         rules={[{ required: true, message: "請輸入銀行名稱" }]}
       >
         <AutoComplete
+          disabled={disabled}
           className="cash-bank-autocomplete"
           style={{ width: "100%" }}
           getPopupContainer={popupContainer}
@@ -132,6 +134,7 @@ function CashAccountForm({
         rules={[{ required: true, message: "請輸入帳戶別名" }]}
       >
         <Input
+          disabled={disabled}
           placeholder="例如：薪轉帳戶、緊急預備金"
           autoComplete={disableAutofill ? "new-password" : undefined}
           autoCorrect={disableAutofill ? "off" : undefined}
@@ -143,6 +146,7 @@ function CashAccountForm({
 
       <Form.Item label="持有人" name="holder">
         <Select
+          disabled={disabled}
           allowClear
           options={holderOptions}
           placeholder="未設定"
@@ -155,7 +159,13 @@ function CashAccountForm({
         name="balanceTwd"
         rules={[{ required: true, message: "請輸入餘額" }]}
       >
-        <InputNumber min={0} step={1000} precision={0} style={{ width: "100%" }} />
+        <InputNumber
+          disabled={disabled}
+          min={0}
+          step={1000}
+          precision={0}
+          style={{ width: "100%" }}
+        />
       </Form.Item>
     </Form>
   );
