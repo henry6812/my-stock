@@ -45,6 +45,7 @@ import {
   LeftOutlined,
   RightOutlined,
   DeleteOutlined,
+  DownloadOutlined,
   DollarOutlined,
   EditOutlined,
   ExpandOutlined,
@@ -311,6 +312,25 @@ const formatBudgetCycleLabel = (budgetType) =>
     : budgetType === "YEARLY"
       ? "年度"
       : "月度";
+
+const escapeCsvValue = (value) => {
+  const normalizedValue = String(value ?? "");
+  const escapedValue = normalizedValue.replace(/"/g, '""');
+  return `"${escapedValue}"`;
+};
+
+const createHoldingsCsvContent = (rows) => {
+  const header = ["股票名稱", "代號", "持股股數"];
+  const records = rows.map((row) => [
+    row.companyName || row.symbol,
+    row.symbol,
+    row.shares,
+  ]);
+
+  return [header, ...records]
+    .map((record) => record.map((value) => escapeCsvValue(value)).join(","))
+    .join("\r\n");
+};
 
 const filterRowsByHolderTab = (targetRows, tab) => {
   const holderValue = getHolderValueFromTabKey(tab);
@@ -1722,6 +1742,31 @@ function App() {
   const filteredRows = useMemo(() => {
     return filterRowsByHolderTab(rows, activeHoldingTab);
   }, [activeHoldingTab, rows]);
+
+  const handleExportHoldingsCsv = useCallback(() => {
+    if (typeof document === "undefined" || rows.length === 0) {
+      return;
+    }
+
+    const csvContent = createHoldingsCsvContent(rows);
+    const blob = new Blob([`\uFEFF${csvContent}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = downloadUrl;
+    link.download = `my-stock-holdings-${dayjs().format("YYYYMMDD-HHmmss")}.csv`;
+    link.style.display = "none";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    window.setTimeout(() => {
+      URL.revokeObjectURL(downloadUrl);
+    }, 0);
+  }, [rows]);
 
   useEffect(() => {
     activeHoldingTabRef.current = activeHoldingTab;
@@ -4870,8 +4915,15 @@ function App() {
                     className="holdings-card"
                     title="持股列表"
                     extra={
-                      <div className="price-update-extra">
-                        <Space>
+                      <div className="holdings-card-actions">
+                        <Button
+                          icon={<DownloadOutlined />}
+                          onClick={handleExportHoldingsCsv}
+                          disabled={loadingData || rows.length === 0}
+                        >
+                          匯出 CSV
+                        </Button>
+                        <div className="price-update-extra">
                           <Space.Compact>
                             <Button
                               type="primary"
@@ -4901,7 +4953,7 @@ function App() {
                               />
                             </Dropdown>
                           </Space.Compact>
-                        </Space>
+                        </div>
                       </div>
                     }
                   >

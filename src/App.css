@@ -557,6 +557,12 @@
   }
 }
 
+.holdings-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .price-update-extra {
   display: flex;
   align-items: flex-end;
@@ -1276,6 +1282,10 @@
 
   .holdings-card .ant-card-extra {
     margin-inline-start: 0;
+  }
+
+  .holdings-card-actions {
+    align-items: flex-start;
   }
 
   .price-update-extra {
