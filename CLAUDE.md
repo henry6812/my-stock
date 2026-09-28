@@ -33,6 +33,8 @@ Firestore rule 部署（只在使用者要求時執行）：`firebase deploy --o
 
 這是一個中文 (zh-TW) 個人理財 PWA：股票持股 (TW + US)、現金帳戶、支出與預算，並可選擇透過 Firebase 進行跨裝置同步。
 
+> `docs/技術導覽.md`（給非工程師 PM 的整體導覽）與 `docs/code-review-notes.md`（實際讀 code 後整理的「文件 vs code 不符」與 dead code 清單）是理解此專案「文件與現況落差」的最佳起點 — 動手改東西前值得先掃一遍。
+
 ### Data layer — 重要注意事項
 
 PWA manifest 仍寫著「IndexedDB / Dexie」— **這是錯的**（README 已更新為正確描述）。`src/db/database.js` 是手刻的 in-memory store (`InMemoryTable`、`InMemoryQuery`)，每張表分別 persist 到 `window.localStorage`。匯出的 flags 已明確說明：
@@ -64,14 +66,20 @@ Query API 模仿 Dexie (`db.holdings.where('...').equals(...).toArray()`、compo
 
 ### Price providers — 明確的 fallback chain
 
-`src/services/priceProviders/` — 順序很重要，且在 `finnhubProvider.getHoldingQuote` 中是寫死的：
+`src/services/priceProviders/` — 順序很重要，且在 `finnhubProvider.getHoldingQuote` 中是寫死的（`finnhubProvider.js:55-91`）：
 
-1. **US stocks**：只用 Finnhub。
-2. **TW stocks**：Finnhub → `twseRwdProvider` → `twseProvider` (full snapshot) → `tpexProvider`（自己內部又會嘗試 `public/data/tpex_off_market.json` same-origin snapshot、TPEX 官方 API，最後是 `VITE_TPEX_PROXY_URL`）。
+1. **US stocks**：只用 Finnhub (`/quote`)。
+2. **TW stocks**：**不打 Finnhub**。直接走 `twseRwdProvider` → `twseProvider` (full snapshot) → `tpexProvider`（自己內部又會嘗試 `public/data/tpex_off_market.json` same-origin snapshot、TPEX 官方 API，最後是 `VITE_TPEX_PROXY_URL`）。三者全失敗才拋出彙整後的錯誤。
+
+> 過去文件（含舊版 README / 技術導覽）宣稱台股「先打 Finnhub 再 fallback」，這是錯的 — code 從未對 TW market 呼叫 Finnhub。詳見 `docs/code-review-notes.md`。
+
+`alphaVantageProvider.js` 目前是 **dead code** — 沒有任何檔案 import 它，不在上述 chain 內。要重新啟用需自己接進 `getHoldingQuote`。
 
 Same-origin TPEX snapshot 由 `.github/workflows/update-tpex-snapshot.yml` 更新（cron，平日 10:10 UTC）。當 TPEX 新增或移除欄位時，該 workflow 的 curl 目標與 `tpexProvider` 的 parser 必須同步調整。
 
 FX (`fxProvider.js`) 打 open.er-api 取得 USD/TWD；不需要 API key。
+
+`src/services/bankProviders/twBankDirectoryProvider.js` 與報價無關 — 它抓 data.gov.tw 的台灣銀行/分行清單（FISC + 分行 datasets），供現金帳戶表單選銀行用，帶 7 天 localStorage cache 與硬編的 `FALLBACK_BANKS`（離線 / API 失敗時 fallback）。只被 `App.jsx` 使用。
 
 ### UI
 
