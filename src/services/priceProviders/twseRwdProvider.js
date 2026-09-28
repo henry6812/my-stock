@@ -15,13 +15,24 @@ const formatDateParam = (date) => {
   return `${year}${month}01`
 }
 
+const COMPANY_NAME_SUFFIX = '各日成交資訊'
+
 const extractCompanyName = (title, symbol) => {
   if (!title) {
     return symbol
   }
 
-  const match = title.match(new RegExp(`${symbol}\\s+(.+)\\s+各日成交資訊`))
-  return match?.[1]?.trim() || symbol
+  // Preferred: the documented "<symbol> <name> 各日成交資訊" title shape.
+  const anchored = title.match(new RegExp(`${symbol}\\s+(.+)\\s+${COMPANY_NAME_SUFFIX}`))
+  if (anchored?.[1]) {
+    return anchored[1].trim()
+  }
+
+  // Fallback: take whatever follows the symbol and drop a trailing "…資訊"
+  // token, so a reworded TWSE suffix still yields a name instead of the symbol.
+  const afterSymbol = title.match(new RegExp(`${symbol}\\s+(.+)`))
+  const name = afterSymbol?.[1]?.replace(/\s*\S*資訊\s*$/, '').trim()
+  return name || symbol
 }
 
 export const getTwQuoteFromTwse = async (symbol) => {
