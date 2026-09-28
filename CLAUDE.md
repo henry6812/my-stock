@@ -17,15 +17,18 @@ App 位於 `my-stock/`，不是 repo 根目錄。所有 `npm` 指令都要在 `m
 ## Commands
 
 ```bash
-npm run dev       # Vite dev server (PWA enabled in dev via VitePWA devOptions)
-npm run build     # production bundle into dist/
-npm run preview   # serve the built bundle
-npm run lint      # ESLint (flat config, eslint.config.js)
+npm run dev        # Vite dev server (PWA enabled in dev via VitePWA devOptions)
+npm run build      # production bundle into dist/
+npm run preview    # serve the built bundle
+npm run lint       # ESLint (flat config, eslint.config.js)
+npm test           # Vitest 一次性跑完 (vitest run)
+npm run test:watch # Vitest watch mode
 ```
 
-沒有設定 test runner — 不要憑空使用 `npm test`。Lint 是唯一的自動化檢查。
+測試用 **Vitest**（設定在 `vitest.config.js`，jsdom + `@testing-library/react`，setup 檔 `src/test/setup.js`）。測試檔命名 `*.test.{js,jsx}`，與被測檔放同層。目前覆蓋範圍還小（純函式 + 一個元件 smoke test）— 是為了讓 `App.jsx` 等大檔重構有安全網而建立的，續攻重構前應先補對應測試。
 
 單檔 lint：`npx eslint src/path/to/file.jsx`。
+單檔 / 過濾測試：`npx vitest run src/utils/portfolioView.test.js` 或 `npx vitest run -t "formatChangePercent"`。
 
 Firestore rule 部署（只在使用者要求時執行）：`firebase deploy --only firestore:rules`。
 
