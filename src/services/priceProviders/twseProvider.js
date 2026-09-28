@@ -9,6 +9,15 @@ const parseTwPrice = (value) => {
   return Number.isFinite(price) ? price : null
 }
 
+// "漲跌價差" (Change) can legitimately be 0 or negative, so parse it separately.
+const parseTwChange = (value) => {
+  if (value === undefined || value === null || value === '' || value === '--') {
+    return null
+  }
+  const change = Number(String(value).replaceAll(',', '').trim())
+  return Number.isFinite(change) ? change : null
+}
+
 export const getTwClosePrices = async () => {
   const response = await fetch(TWSE_STOCK_DAY_ALL_URL)
   if (!response.ok) {
@@ -27,7 +36,11 @@ export const getTwClosePrices = async () => {
       continue
     }
 
-    result[symbol] = { price, name }
+    const change = parseTwChange(row.Change)
+    const previousClose =
+      change === null ? undefined : price - change
+
+    result[symbol] = { price, name, previousClose }
   }
 
   return result
@@ -49,5 +62,6 @@ export const getTwQuoteFromTwseAll = async (symbol) => {
     price: hit.price,
     name: hit.name || normalizedSymbol,
     currency: 'TWD',
+    previousClose: hit.previousClose,
   }
 }

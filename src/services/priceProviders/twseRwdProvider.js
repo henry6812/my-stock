@@ -55,15 +55,29 @@ export const getTwQuoteFromTwse = async (symbol) => {
       continue
     }
 
+    // Walk from the most recent day: first valid close is the current price,
+    // the next valid close is the previous trading day's close (the baseline
+    // for daily change).
+    let latest = null
+    let previous = null
     for (let i = data.data.length - 1; i >= 0; i -= 1) {
-      const row = data.data[i]
-      const price = parsePrice(row?.[6])
-      if (price !== null) {
-        return {
-          price,
-          name: extractCompanyName(data.title, symbol),
-          currency: 'TWD',
-        }
+      const price = parsePrice(data.data[i]?.[6])
+      if (price === null) {
+        continue
+      }
+      if (latest === null) {
+        latest = price
+        continue
+      }
+      previous = price
+      break
+    }
+    if (latest !== null) {
+      return {
+        price: latest,
+        name: extractCompanyName(data.title, symbol),
+        currency: 'TWD',
+        previousClose: previous ?? undefined,
       }
     }
   }

@@ -100,10 +100,15 @@ export const getHoldingQuote = async ({ symbol, market }) => {
     // Profile name is optional; keep symbol fallback.
   }
 
+  const previousClose = Number(quote?.pc)
+
   return {
     price,
     name: companyName,
     currency: market === 'TW' ? 'TWD' : 'USD',
+    previousClose: Number.isFinite(previousClose) && previousClose > 0
+      ? previousClose
+      : undefined,
   }
 }
 

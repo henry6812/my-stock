@@ -27,6 +27,11 @@ import {
 import { buildCashAccountKey, buildHoldingKey } from "./firebase/firestoreMappers";
 import { parseNumericLike } from "../utils/number";
 import {
+  computeHoldingDailyChange,
+  computePortfolioDailyChange,
+  isPriceDataStale,
+} from "../utils/portfolioChange";
+import {
   MARKET,
   DEFAULT_HOLDING_TAG_OPTIONS,
   DEFAULT_HOLDER_OPTIONS,
@@ -1077,6 +1082,9 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
     market: holding.market,
     holder: normalizeHolderOptionValue(holding.holder) || null,
     price: quote.price,
+    previousClose: Number.isFinite(quote.previousClose)
+      ? quote.previousClose
+      : null,
     currency: quote.currency,
     fxRateToTwd,
     valueTwd,
@@ -1173,6 +1181,9 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
         market: holding.market,
         holder: normalizeHolderOptionValue(holding.holder) || null,
         price: quote.price,
+        previousClose: Number.isFinite(quote.previousClose)
+          ? quote.previousClose
+          : null,
         currency: quote.currency,
         fxRateToTwd: usdTwdRate,
         valueTwd,
@@ -1573,9 +1584,11 @@ export const getPortfolioView = async () => {
 
   const rows = [];
   let stockTotalTwd = 0;
+  const dailyChangeInputs = [];
+  let latestPriceCapturedAt = "";
 
   for (const holding of holdings) {
-    const { latestSnapshot, previousSnapshot } =
+    const { latestSnapshot } =
       await getLatestTwoSnapshotsByHoldingId(holding.id);
     const latestPrice = parseNumericLike(latestSnapshot?.price, {
       fallback: Number.NaN,
@@ -1600,35 +1613,51 @@ export const getPortfolioView = async () => {
           fallback: Number.NaN,
           context: "getPortfolioView.latestSnapshot.valueTwd",
         });
-    const prevPrice = parseNumericLike(previousSnapshot?.price, {
-      fallback: Number.NaN,
-      context: "getPortfolioView.previousSnapshot.price",
+    const shares = parseNumericLike(holding.shares, {
+      fallback: 0,
+      context: "getPortfolioView.holding.shares",
     });
-    const prevValueTwd = parseNumericLike(previousSnapshot?.valueTwd, {
-      fallback: Number.NaN,
-      context: "getPortfolioView.previousSnapshot.valueTwd",
-    });
-    const hasPreviousSnapshot = Boolean(previousSnapshot);
+    // Daily change is measured from the market's previous close (unified
+    // baseline for both the row and the portfolio total). null when the
+    // latest snapshot has no previousClose (pre-Plan-A / TPEX) — the UI shows
+    // "—" instead of a misleading number.
+    const previousCloseRaw = latestSnapshot?.previousClose;
+    const dailyChange = hasLatestPrice
+      ? computeHoldingDailyChange({
+          market: holding.market,
+          price: latestPrice,
+          previousClose: previousCloseRaw,
+          shares,
+          fxRateToTwd,
+        })
+      : null;
+    const hasPreviousClose = dailyChange !== null;
+    const prevPrice = hasPreviousClose
+      ? parseNumericLike(previousCloseRaw, {
+          fallback: Number.NaN,
+          context: "getPortfolioView.previousClose",
+        })
+      : undefined;
+    const prevValueTwd = dailyChange?.prevValueTwd;
+    const hasPreviousSnapshot = hasPreviousClose;
     const priceChange =
-      hasLatestPrice && Number.isFinite(prevPrice)
+      hasPreviousClose && Number.isFinite(prevPrice)
         ? latestPrice - prevPrice
         : undefined;
-    const valueChangeTwd =
-      Number.isFinite(latestValueTwd) && Number.isFinite(prevValueTwd)
-        ? latestValueTwd - prevValueTwd
-        : undefined;
-    const priceChangePct =
-      Number.isFinite(priceChange) &&
-      Number.isFinite(prevPrice) &&
-      prevPrice !== 0
-        ? (priceChange / prevPrice) * 100
-        : null;
-    const valueChangePct =
-      Number.isFinite(valueChangeTwd) &&
-      Number.isFinite(prevValueTwd) &&
-      prevValueTwd !== 0
-        ? (valueChangeTwd / prevValueTwd) * 100
-        : null;
+    const valueChangeTwd = dailyChange?.changeTwd;
+    const priceChangePct = dailyChange?.changePct ?? null;
+    const valueChangePct = dailyChange?.changePct ?? null;
+
+    dailyChangeInputs.push({
+      market: holding.market,
+      price: hasLatestPrice ? latestPrice : undefined,
+      previousClose: previousCloseRaw,
+      shares,
+      fxRateToTwd,
+    });
+    if (latestSnapshot?.capturedAt && latestSnapshot.capturedAt > latestPriceCapturedAt) {
+      latestPriceCapturedAt = latestSnapshot.capturedAt;
+    }
 
     const row = {
       id: holding.id,
@@ -1643,10 +1672,7 @@ export const getPortfolioView = async () => {
         tagLabelMap.get(holding.assetTag || defaultTag) ||
         holding.assetTag ||
         defaultTag,
-      shares: parseNumericLike(holding.shares, {
-        fallback: 0,
-        context: "getPortfolioView.row.shares",
-      }),
+      shares,
       latestPrice: hasLatestPrice ? latestPrice : undefined,
       prevPrice,
       priceChange,
@@ -1742,11 +1768,16 @@ export const getPortfolioView = async () => {
   const cashView = await getCashAccountsView();
   const totalTwd = stockTotalTwd + cashView.totalCashTwd;
   const baselineTotalTwd = baselineStockTotalTwd + baselineCashTotalTwd;
-  const totalChangeTwd = totalTwd - baselineTotalTwd;
-  const totalChangePct =
-    Number.isFinite(baselineTotalTwd) && baselineTotalTwd !== 0
-      ? (totalChangeTwd / baselineTotalTwd) * 100
-      : null;
+
+  // Top-line 漲跌 = today's market move only: Σ(price − previousClose) × shares
+  // across holdings, cash excluded. Baseline fields above are kept for the
+  // net-worth progress bar, which is a separate visual.
+  const marketDailyChange = computePortfolioDailyChange(dailyChangeInputs);
+  const totalChangeTwd = marketDailyChange.changeTwd;
+  const totalChangePct = marketDailyChange.changePct;
+  const priceDataStale = isPriceDataStale({
+    capturedAt: latestPriceCapturedAt || null,
+  });
 
   return {
     rows,
@@ -1760,6 +1791,10 @@ export const getPortfolioView = async () => {
     baselineTotalTwd,
     totalChangeTwd,
     totalChangePct,
+    dailyChangeCoveredCount: marketDailyChange.coveredCount,
+    dailyChangeMissingCount: marketDailyChange.missingCount,
+    latestPriceCapturedAt: latestPriceCapturedAt || null,
+    priceDataStale,
     lastUpdatedAt: syncMeta?.lastUpdatedAt,
     syncStatus: syncMeta?.status,
     syncError: syncMeta?.errorMessage,

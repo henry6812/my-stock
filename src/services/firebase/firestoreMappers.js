@@ -59,6 +59,7 @@ export const snapshotToRemote = (snapshot) => ({
   market: snapshot.market,
   holder: snapshot.holder ?? null,
   price: snapshot.price,
+  previousClose: snapshot.previousClose ?? null,
   currency: snapshot.currency,
   fxRateToTwd: snapshot.fxRateToTwd,
   valueTwd: snapshot.valueTwd,
@@ -209,6 +210,18 @@ export const remoteToSnapshot = (data) => ({
     fallback: 0,
     context: 'remoteToSnapshot.price',
   }),
+  // null means "unavailable" (e.g. TPEX has no previous close); keep it null
+  // rather than coercing to 0 so daily change can fall back to "—".
+  previousClose:
+    data.previousClose === null || data.previousClose === undefined
+      ? null
+      : (() => {
+          const parsed = parseNumericLike(data.previousClose, {
+            fallback: Number.NaN,
+            context: 'remoteToSnapshot.previousClose',
+          })
+          return Number.isFinite(parsed) ? parsed : null
+        })(),
   currency: data.currency,
   fxRateToTwd: parseNumericLike(data.fxRateToTwd, {
     fallback: 0,
