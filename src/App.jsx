@@ -300,7 +300,6 @@ function App() {
   const [cloudLastSyncedAt, setCloudLastSyncedAt] = useState();
   const [cloudReadOnly, setCloudReadOnly] = useState(true);
   const [cloudReadOnlyReason, setCloudReadOnlyReason] = useState("");
-  const isCloudReadOnly = Boolean(authUser) && cloudReadOnly;
   const isWriteDisabled = !authUser || !authReady || cloudReadOnly;
   // 'loading' while auth resolves / the first cloud sync runs, so a returning
   // user never sees the stale local cache before their real data loads.
@@ -4489,12 +4488,12 @@ function App() {
               style={{ marginBottom: 16 }}
             />
           )}
-          {authUser && isCloudReadOnly && (
+          {authUser && cloudSyncStatus === "offline" && (
             <Alert
               type="warning"
               showIcon
               title="目前為唯讀模式"
-              description={cloudReadOnlyReason || "請等待雲端同步完成後再修改資料。"}
+              description={cloudReadOnlyReason || "目前離線，暫時只能檢視資料。"}
               style={{ marginBottom: 16 }}
             />
           )}
