@@ -31,6 +31,7 @@ import {
   Select,
   Segmented,
   Space,
+  Spin,
   Statistic,
   Table,
   Tabs,
@@ -165,6 +166,7 @@ import {
   getProgressDisplayTargets,
   buildProgressStops,
 } from "./utils/portfolioView";
+import { getBootPhase } from "./utils/bootPhase";
 import "./App.css";
 
 const { Header, Content } = Layout;
@@ -300,6 +302,9 @@ function App() {
   const [cloudReadOnlyReason, setCloudReadOnlyReason] = useState("");
   const isCloudReadOnly = Boolean(authUser) && cloudReadOnly;
   const isWriteDisabled = !authUser || !authReady || cloudReadOnly;
+  // 'loading' while auth resolves / the first cloud sync runs, so a returning
+  // user never sees the stale local cache before their real data loads.
+  const bootPhase = getBootPhase({ authReady, authUser });
   const [pullDistance, setPullDistance] = useState(0);
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const [activeMainTab, setActiveMainTab] = useState("asset");
@@ -4482,7 +4487,23 @@ function App() {
               style={{ marginBottom: 16 }}
             />
           )}
-          {!authUser ? (
+          {bootPhase === "loading" ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 16,
+                minHeight: "40vh",
+              }}
+            >
+              <Spin size="large" />
+              <Text type="secondary">
+                {authUser ? "正在同步雲端資料…" : "讀取登入狀態中…"}
+              </Text>
+            </div>
+          ) : !authUser ? (
             <Card style={{ maxWidth: 420, margin: "24px auto 0" }} title="登入">
               <Space direction="vertical" size={12} style={{ width: "100%" }}>
                 <Text type="secondary">請先登入以查看資產與支出內容。</Text>
