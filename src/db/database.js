@@ -395,7 +395,6 @@ class StockDatabase {
       primaryKey: 'key',
       storageKey: APP_CONFIG_STORAGE_KEY,
     })
-    this.outbox = new InMemoryTable({ primaryKey: 'id', autoIncrement: true })
     this.cash_balance_snapshots = new PersistedInMemoryTable({
       primaryKey: 'id',
       autoIncrement: true,

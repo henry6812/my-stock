@@ -14,7 +14,7 @@ export default defineConfig({
       manifest: {
         name: 'My Stock Portfolio',
         short_name: 'MyStock',
-        description: 'Personal stock value manager with local IndexedDB storage',
+        description: 'Personal stock value manager with local (localStorage) storage and optional Firebase sync',
         theme_color: '#165dff',
         background_color: '#f7f9fc',
         display: 'standalone',
@@ -40,18 +40,6 @@ export default defineConfig({
             handler: 'NetworkFirst',
             options: {
               cacheName: 'twse-api-cache',
-              networkTimeoutSeconds: 8,
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24,
-              },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/www\.alphavantage\.co\/.*$/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'alphavantage-api-cache',
               networkTimeoutSeconds: 8,
               expiration: {
                 maxEntries: 20,

@@ -73,9 +73,7 @@ const runtimeState = {
   connected: typeof navigator !== 'undefined' ? navigator.onLine : true,
   firestoreAvailable: Boolean(firestoreDb),
   listenersReady: false,
-  outboxPending: 0,
   lastCloudApplyAt: null,
-  lastOutboxFlushAt: null,
   lastError: '',
 }
 
@@ -1042,7 +1040,6 @@ export const startRealtimeSync = async (uid) => {
   runtimeState.authenticated = Boolean(uid)
   runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
   runtimeState.firestoreAvailable = hasFirestore()
-  runtimeState.outboxPending = 0
   runtimeState.lastError = ''
 
   if (!uid) {
@@ -1146,7 +1143,6 @@ export const stopCloudSync = () => {
   runtimeState.connected = typeof navigator !== 'undefined' ? navigator.onLine : true
   runtimeState.firestoreAvailable = hasFirestore()
   runtimeState.lastError = ''
-  runtimeState.outboxPending = 0
   migratedDocKeyTracker.clear()
   setLastSyncedUid(null)
   void clearLocalCloudBackedData()
