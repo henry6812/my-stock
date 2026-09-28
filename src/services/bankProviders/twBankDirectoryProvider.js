@@ -164,7 +164,7 @@ export const getBankDirectory = async () => {
     const rows = await fetchFromApi()
     writeCache(rows)
     return rows
-  } catch (error) {
+  } catch {
     if (cachedRows.length > 0) {
       return cachedRows
     }

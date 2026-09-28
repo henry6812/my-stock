@@ -23,7 +23,7 @@ const requestFinnhub = async (path, params) => {
   let response
   try {
     response = await fetch(url)
-  } catch (error) {
+  } catch {
     throw new Error('Failed to fetch quote API. Please check network and API key settings.')
   }
 
