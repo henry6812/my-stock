@@ -283,6 +283,8 @@ function App() {
   const [baselineTotalTwd, setBaselineTotalTwd] = useState(0);
   const [totalChangeTwd, setTotalChangeTwd] = useState(undefined);
   const [totalChangePct, setTotalChangePct] = useState(null);
+  const [priceDataStale, setPriceDataStale] = useState(false);
+  const [latestPriceCapturedAt, setLatestPriceCapturedAt] = useState(null);
   const [trend, setTrend] = useState([]);
   const [range, setRange] = useState("24h");
   const [lastUpdatedAt, setLastUpdatedAt] = useState();
@@ -441,6 +443,8 @@ function App() {
   const pullingRef = useRef(false);
   const activeHoldingTabRef = useRef(HOLDER_TAB_ALL);
   const shouldAnimateNumbersRef = useRef(false);
+  // Ensures the "auto-refresh on open if stale" runs at most once per session.
+  const autoRefreshAttemptedRef = useRef(false);
   const didRunInitialAnimationRef = useRef(false);
   const loadRequestSeqRef = useRef(0);
   const totalAnimationRef = useRef(null);
@@ -841,6 +845,8 @@ function App() {
     setBaselineTotalTwd(normalizedBaselineTotalTwd);
     setTotalChangeTwd(portfolio.totalChangeTwd);
     setTotalChangePct(portfolio.totalChangePct ?? null);
+    setPriceDataStale(Boolean(portfolio.priceDataStale));
+    setLatestPriceCapturedAt(portfolio.latestPriceCapturedAt ?? null);
     setLastUpdatedAt(portfolio.lastUpdatedAt);
     setSyncError(portfolio.syncStatus === "error" ? portfolio.syncError : "");
     setTrend(trendData);
@@ -2698,6 +2704,39 @@ function App() {
     };
   }, [loadAllData, loadExpenseData, loadHolderOptionSettings, refreshCloudRuntime]);
 
+  // 配套 2: once the app is ready, if today's prices haven't been fetched yet,
+  // auto-refresh once so the user doesn't have to press "更新價格". Skips when
+  // offline; on failure it degrades gracefully (stale data + freshness label).
+  useEffect(() => {
+    if (!authReady || !authUser || !priceDataStale) {
+      return;
+    }
+    if (autoRefreshAttemptedRef.current || cloudSyncStatus === "offline") {
+      return;
+    }
+    autoRefreshAttemptedRef.current = true;
+    (async () => {
+      try {
+        setLoadingRefresh(true);
+        await refreshPrices({ market: "ALL" });
+        shouldAnimateNumbersRef.current = true;
+        await loadAllData();
+        await performCloudSync();
+      } catch {
+        // Keep stale data visible; the freshness label + manual refresh remain.
+      } finally {
+        setLoadingRefresh(false);
+      }
+    })();
+  }, [
+    authReady,
+    authUser,
+    priceDataStale,
+    cloudSyncStatus,
+    loadAllData,
+    performCloudSync,
+  ]);
+
   useEffect(() => {
     const onResize = () => {
       setIsMobileViewport(window.innerWidth <= 768);
@@ -4544,17 +4583,29 @@ function App() {
                     />
                     <Text
                       className={`asset-total-delta ${
-                        typeof totalChangeTwd === "number"
+                        typeof totalChangeTwd === "number" && !priceDataStale
                           ? getDeltaClassName(totalChangeTwd)
                           : "cell-delta cell-delta--flat"
                       }`}
                     >
-                      {typeof totalChangeTwd !== "number"
-                        ? "--"
+                      {priceDataStale || typeof totalChangeTwd !== "number"
+                        ? "當日 --"
                         : totalChangeTwd === 0
-                          ? "0.00 (0.00%)"
-                          : `${totalChangeTwd > 0 ? "▲" : "▼"} ${formatSignedTwd(totalChangeTwd)} (${formatChangePercent(totalChangePct)})`}
+                          ? "當日 0.00 (0.00%)"
+                          : `當日 ${totalChangeTwd > 0 ? "▲" : "▼"} ${formatSignedTwd(totalChangeTwd)} (${formatChangePercent(totalChangePct)})`}
                     </Text>
+                    {(priceDataStale || latestPriceCapturedAt) && (
+                      <Text
+                        type="secondary"
+                        style={{ fontSize: 12, display: "block" }}
+                      >
+                        {priceDataStale
+                          ? latestPriceCapturedAt
+                            ? `尚未更新今日價格，顯示 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")} 的資料`
+                            : "尚未更新今日價格"
+                          : `報價更新於 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")}`}
+                      </Text>
+                    )}
                     <div className="networth-progress-wrap">
                       <div className="networth-progress-scale">
                         {visibleProgressStops.map((stop) => (
