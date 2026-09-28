@@ -26,66 +26,25 @@ import {
 } from "./firebase/cloudSyncService";
 import { buildCashAccountKey, buildHoldingKey } from "./firebase/firestoreMappers";
 import { parseNumericLike } from "../utils/number";
+import {
+  MARKET,
+  DEFAULT_HOLDING_TAG_OPTIONS,
+  DEFAULT_HOLDER_OPTIONS,
+  SYNC_PENDING,
+  SYNC_SYNCED,
+  CLOUD_COLLECTION,
+  TREND_RANGE_DAYS,
+  EXPENSE_ENTRY_TYPE,
+  RECURRENCE_TYPE,
+  BUDGET_TYPE,
+  BUDGET_MODE,
+  EXPENSE_KIND_OPTIONS,
+  HOLDER_OPTIONS_KEY,
+  INCOME_SETTINGS_KEY,
+} from "./portfolioConstants";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
-
-const MARKET = {
-  TW: "TW",
-  US: "US",
-};
-
-const DEFAULT_HOLDING_TAG_OPTIONS = [
-  { value: "STOCK", label: "個股", isDefault: true },
-  { value: "ETF", label: "ETF" },
-  { value: "BOND", label: "債券" },
-];
-const DEFAULT_HOLDER_OPTIONS = ["Po", "Wei"];
-
-const SYNC_PENDING = "pending";
-const SYNC_SYNCED = "synced";
-const CLOUD_COLLECTION = {
-  HOLDINGS: "holdings",
-  PRICE_SNAPSHOTS: "price_snapshots",
-  FX_RATES: "fx_rates",
-  SYNC_META: "sync_meta",
-  CASH_ACCOUNTS: "cash_accounts",
-  CASH_BALANCE_SNAPSHOTS: "cash_balance_snapshots",
-  EXPENSE_ENTRIES: "expense_entries",
-  EXPENSE_CATEGORIES: "expense_categories",
-  BUDGETS: "budgets",
-  APP_CONFIG: "app_config",
-};
-
-const TREND_RANGE_DAYS = {
-  "24h": 2,
-  "7d": 7,
-  "30d": 30,
-};
-
-const EXPENSE_ENTRY_TYPE = {
-  ONE_TIME: "ONE_TIME",
-  RECURRING: "RECURRING",
-};
-
-const RECURRENCE_TYPE = {
-  MONTHLY: "MONTHLY",
-  YEARLY: "YEARLY",
-};
-
-const BUDGET_TYPE = {
-  MONTHLY: "MONTHLY",
-  QUARTERLY: "QUARTERLY",
-  YEARLY: "YEARLY",
-};
-const BUDGET_MODE = {
-  RESIDENT: "RESIDENT",
-  SPECIAL: "SPECIAL",
-};
-
-const EXPENSE_KIND_OPTIONS = ["家庭", "個人"];
-const HOLDER_OPTIONS_KEY = "holder_options";
-const INCOME_SETTINGS_KEY = "income_settings";
 
 const isDeleted = (item) => Boolean(item?.deletedAt);
 
