@@ -362,6 +362,10 @@ function App() {
   const [activeExpenseMonth, setActiveExpenseMonth] = useState(
     dayjs().format("YYYY-MM"),
   );
+  // Mirror of the selected month so no-arg reloads (cloud sync / bootstrap)
+  // always read the latest selection instead of a stale closure value.
+  const activeExpenseMonthRef = useRef(activeExpenseMonth);
+  activeExpenseMonthRef.current = activeExpenseMonth;
   const [expenseTotalMode, setExpenseTotalMode] = useState("month");
   const [expenseMonthlyTotalTwd, setExpenseMonthlyTotalTwd] = useState(0);
   const [expenseCumulativeTotalTwd, setExpenseCumulativeTotalTwd] = useState(0);
@@ -1016,13 +1020,18 @@ function App() {
 
   const loadExpenseData = useCallback(
     async (monthInput) => {
-      const payload = monthInput
-        ? { month: monthInput }
-        : { month: activeExpenseMonth };
-      const view = await getExpenseDashboardView(payload);
+      const requestedMonth = monthInput ?? activeExpenseMonthRef.current;
+      const view = await getExpenseDashboardView({ month: requestedMonth });
       setExpenseRows(view.expenseRows ?? []);
       setExpenseMonthOptions(view.monthOptions ?? []);
-      setActiveExpenseMonth(view.activeMonth || dayjs().format("YYYY-MM"));
+      // Only move the selected month when the server couldn't serve the one we
+      // asked for (e.g. it isn't a valid option). Overwriting a still-valid
+      // selection let constant realtime-sync reloads snap a past-month view
+      // back to the current month.
+      const resolvedMonth = view.activeMonth || dayjs().format("YYYY-MM");
+      if (resolvedMonth !== requestedMonth) {
+        setActiveExpenseMonth(resolvedMonth);
+      }
       setExpenseMonthlyTotalTwd(Number(view.monthlyExpenseTotalTwd) || 0);
       setExpenseCumulativeTotalTwd(Number(view.cumulativeExpenseTotalTwd) || 0);
       setExpenseFirstDate(view.firstExpenseDate || null);
@@ -1067,7 +1076,9 @@ function App() {
       );
       setSelectableBudgetOptions(view.selectableBudgets ?? []);
     },
-    [activeExpenseMonth],
+    // Stable identity: the latest month is read from activeExpenseMonthRef,
+    // so this callback never needs to be recreated on month change.
+    [],
   );
 
   const loadHolderOptionSettings = useCallback(async () => {
