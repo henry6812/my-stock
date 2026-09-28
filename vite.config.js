@@ -6,6 +6,22 @@ const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1]
 
 export default defineConfig({
   base: process.env.NODE_ENV === 'production' && repoName ? `/${repoName}/` : '/',
+  build: {
+    rollupOptions: {
+      output: {
+        // Split large, rarely-changing vendors into their own chunks so the
+        // browser can cache them across app releases and download in parallel.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('firebase') || id.includes('@firebase')) return 'vendor-firebase'
+          if (id.includes('recharts') || id.includes('/d3-') || id.includes('victory-vendor')) return 'vendor-charts'
+          if (id.includes('/antd/') || id.includes('@ant-design') || id.includes('/rc-')) return 'vendor-antd'
+          if (id.includes('/react') || id.includes('/scheduler/')) return 'vendor-react'
+          return 'vendor'
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({

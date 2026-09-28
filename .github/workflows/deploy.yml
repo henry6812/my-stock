@@ -39,6 +39,7 @@ jobs:
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_RECAPTCHA_SITE_KEY: ${{ secrets.VITE_FIREBASE_RECAPTCHA_SITE_KEY }}
+          VITE_TPEX_PROXY_URL: ${{ secrets.VITE_TPEX_PROXY_URL }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
