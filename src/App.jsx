@@ -2597,6 +2597,12 @@ function App() {
         return;
       }
 
+      // Re-enter the loading phase for every sign-in (not just the initial
+      // remembered session), so logging out and back in also shows the
+      // loading view until the first sync completes. authReady is set true
+      // again in the finally below.
+      setAuthReady(false);
+
       try {
         setCloudSyncStatus("syncing");
         setCloudSyncError("");
