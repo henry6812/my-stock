@@ -70,7 +70,7 @@
   display: flex;
   gap: 8px;
   justify-content: center;
-  padding: 12px 14px;
+  padding: 8px 10px;
   min-height: 52px;
   border-radius: 24px;
   background: rgba(235, 235, 235, 0.92);
@@ -112,8 +112,21 @@
   font-size: 20px;
 }
 
+.mobile-tab-label {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding-inline: 4px;
+  line-height: 1;
+}
+
+.mobile-tab-text {
+  font-size: 11px;
+}
+
 .mobile-main-tabbar .ant-segmented-item-selected {
-  min-height: 30px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
 }
@@ -1352,5 +1365,86 @@
   .ant-input-number-input,
   .ant-picker-input > input {
     font-size: 16px !important;
+  }
+}
+
+/* Drag handle: stop the browser from treating a touch drag as a scroll. */
+.drag-handle.ant-btn {
+  touch-action: none;
+}
+
+/* Mobile holdings list (4 folded columns, see tableColumns in App.jsx). */
+.holding-mobile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.holding-mobile-tags .ant-tag {
+  margin-inline-end: 0;
+}
+
+.holding-mobile-price {
+  margin-top: 4px;
+  opacity: 0.85;
+}
+
+.holding-mobile-price .cell-main-value {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.holding-mobile-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.holding-mobile-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.holding-mobile-editor .ant-input-number,
+.holding-mobile-editor .ant-select {
+  width: 100% !important;
+}
+
+.holding-mobile-actions .ant-space {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Touch targets: small icon buttons and title "+" buttons grow to ~40px on
+   touch devices only, so the desktop density is unchanged. */
+@media (hover: none) and (pointer: coarse) {
+  .ant-table .ant-btn-sm.ant-btn-icon-only,
+  .drag-handle.ant-btn,
+  .title-add-btn.ant-btn {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+  }
+
+  .ant-table .ant-btn-sm:not(.ant-btn-icon-only) {
+    height: 36px;
+    padding-inline: 12px;
+  }
+}
+
+/* Folded mobile tables: tighter side padding so values don't wrap. */
+@media (max-width: 768px) {
+  .mobile-list-body .ant-table-thead > tr > th,
+  .mobile-list-body .ant-table-tbody > tr > td {
+    padding-inline: 6px;
+  }
+
+  .mobile-list-body .ant-table-tbody > tr > td:first-child,
+  .mobile-list-body .ant-table-thead > tr > th:first-child {
+    padding-inline-start: 4px;
   }
 }

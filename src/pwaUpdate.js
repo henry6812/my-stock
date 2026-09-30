@@ -24,4 +24,20 @@ export const onPwaNeedRefresh = (listener) => {
   return () => listeners.delete(listener);
 };
 
-export const applyPwaUpdate = () => updateSW(true);
+// vite-plugin-pwa only reloads on its own "controlling" event, which doesn't
+// fire when the new worker was found by a later update check (e.g. a long-open
+// tab). Reload ourselves once the new worker takes control — or right away if
+// it already has.
+export const applyPwaUpdate = async () => {
+  const registration = await navigator.serviceWorker?.getRegistration();
+  if (!registration?.waiting) {
+    window.location.reload();
+    return;
+  }
+  navigator.serviceWorker.addEventListener(
+    "controllerchange",
+    () => window.location.reload(),
+    { once: true },
+  );
+  await updateSW(true);
+};

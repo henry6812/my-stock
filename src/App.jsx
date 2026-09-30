@@ -62,6 +62,7 @@ import {
 } from "@ant-design/icons";
 import {
   DndContext,
+  KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
@@ -70,6 +71,7 @@ import {
 import {
   SortableContext,
   arrayMove,
+  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -174,6 +176,32 @@ import "./App.css";
 const { Header, Content } = Layout;
 const { Text } = Typography;
 
+// Per-device convenience: prefill a new expense with the last payer / kind /
+// category used. Not synced — storage can be missing or throw, so fail soft.
+const LAST_EXPENSE_DEFAULTS_KEY = "my-stock:last-expense-defaults";
+
+const readLastExpenseDefaults = () => {
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(LAST_EXPENSE_DEFAULTS_KEY) || "{}",
+    );
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeLastExpenseDefaults = (defaults) => {
+  try {
+    window.localStorage.setItem(
+      LAST_EXPENSE_DEFAULTS_KEY,
+      JSON.stringify(defaults),
+    );
+  } catch {
+    // Storage unavailable (private mode etc.) — nothing to remember.
+  }
+};
+
 const RowContext = createContext({
   listeners: undefined,
   setActivatorNodeRef: undefined,
@@ -191,6 +219,7 @@ function DragHandle({ disabled }) {
       {...listeners}
       disabled={disabled}
       aria-label="拖曳排序"
+      className="drag-handle"
       style={{ cursor: disabled ? "not-allowed" : "grab" }}
     />
   );
@@ -358,6 +387,7 @@ function App() {
   const [editingCashHolder, setEditingCashHolder] = useState(null);
   const [loadingCashActionById, setLoadingCashActionById] = useState({});
   const [expenseRows, setExpenseRows] = useState([]);
+  const [showExpenseMoreFields, setShowExpenseMoreFields] = useState(false);
   const [activeExpenseCategoryTab, setActiveExpenseCategoryTab] =
     useState("all");
   const [expenseMonthOptions, setExpenseMonthOptions] = useState([]);
@@ -811,11 +841,17 @@ function App() {
     [stopExpenseProgressAnimation],
   );
 
+  // PointerSensor covers mouse + touch (the handle sets touch-action: none so
+  // a touch drag doesn't scroll the page); KeyboardSensor lets the focused
+  // handle be moved with Space + arrow keys.
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 6,
       },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
 
@@ -1134,14 +1170,26 @@ function App() {
         categoryId: values.categoryId || null,
         budgetId: values.budgetId || null,
       });
-      await loadExpenseData();
-      await performCloudSync();
+      if (!editingExpenseEntry) {
+        writeLastExpenseDefaults({
+          payer: values.payer || null,
+          expenseKind: values.expenseKind || null,
+          categoryId: values.categoryId || null,
+        });
+      }
+      // The write above already reached the cloud; close the form now and let
+      // the list refresh + resync happen in the background.
       setIsExpenseModalOpen(false);
       setIsExpenseSheetOpen(false);
       setEditingExpenseEntry(null);
       setExpenseFormMode("normal");
       expenseForm.resetFields();
       message.success("支出已儲存");
+      loadExpenseData()
+        .then(() => performCloudSync())
+        .catch((error) => {
+          console.warn("[expense] post-save refresh failed", error);
+        });
     } catch (error) {
       if (error?.errorFields) return;
       message.error(toUserMessage(error, "儲存支出失敗"));
@@ -2066,9 +2114,79 @@ function App() {
       },
     ];
 
-    return isMobileViewport
-      ? columns.filter((column) => column.key !== "drag")
-      : columns;
+    if (!isMobileViewport) {
+      return columns;
+    }
+
+    // Mobile: fold the 8 desktop columns into 4 so nothing needs horizontal
+    // scrolling — name/meta/tags on the left, value + price on the right.
+    const byKey = Object.fromEntries(
+      columns.map((column) => [column.key, column]),
+    );
+    return [
+      { ...byKey.drag, width: 40 },
+      {
+        title: "標的",
+        key: "target",
+        render: (_, record) => {
+          if (editingHoldingId === record.id) {
+            return (
+              <div className="holding-mobile-editor">
+                <label>
+                  <span>股數</span>
+                  {byKey.shares.render(record.shares, record)}
+                </label>
+                <label>
+                  <span>分類</span>
+                  {byKey.assetTag.render(record.assetTag, record)}
+                </label>
+                <label>
+                  <span>持有人</span>
+                  {byKey.holder.render(record.holder, record)}
+                </label>
+              </div>
+            );
+          }
+          return (
+            <div>
+              <div className="holding-main-text">
+                {record.companyName || record.symbol}
+              </div>
+              <Text type="secondary" className="holding-subline">
+                {record.symbol} · {record.market === "TW" ? "台股" : "美股"} ·{" "}
+                {Number(record.shares).toLocaleString("zh-TW", {
+                  maximumFractionDigits: 4,
+                })}{" "}
+                股
+              </Text>
+              <div className="holding-mobile-tags">
+                {byKey.assetTag.render(record.assetTag, record)}
+                {byKey.holder.render(record.holder, record)}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        title: "現值",
+        key: "latestValueTwd",
+        align: "right",
+        render: (_, record) => (
+          <div className="holding-mobile-value">
+            {byKey.latestValueTwd.render(record.latestValueTwd, record)}
+            <div className="holding-mobile-price">
+              {byKey.latestPrice.render(record.latestPrice, record)}
+            </div>
+          </div>
+        ),
+      },
+      {
+        ...byKey.actions,
+        title: "",
+        width: 56,
+        className: "holding-mobile-actions",
+      },
+    ];
   }, [
       dragDisabled,
       isWriteDisabled,
@@ -2090,8 +2208,8 @@ function App() {
     renderValueDelta,
   ]);
 
-  const cashTableColumns = useMemo(
-    () => [
+  const cashTableColumns = useMemo(() => {
+    const columns = [
       {
         title: "帳戶",
         key: "account",
@@ -2126,7 +2244,7 @@ function App() {
               precision={0}
               value={editingCashBalance ?? value}
               onChange={(next) => setEditingCashBalance(next)}
-              style={{ width: 160 }}
+              style={{ width: 160, maxWidth: "100%" }}
             />
           );
         },
@@ -2233,8 +2351,43 @@ function App() {
           );
         },
       },
-    ],
-    [
+    ];
+
+    if (!isMobileViewport) {
+      return columns;
+    }
+
+    // Mobile: account + holder on the left, balance on the right, no
+    // horizontal scroll. 更新時間 is dropped (it isn't a price timestamp).
+    const byKey = Object.fromEntries(
+      columns.map((column) => [column.key, column]),
+    );
+    return [
+      {
+        title: "帳戶",
+        key: "account",
+        render: (_, record) => (
+          <div>
+            {byKey.account.render(null, record)}
+            <div className="holding-mobile-tags">
+              {byKey.holder.render(record.holder, record)}
+            </div>
+          </div>
+        ),
+      },
+      {
+        ...byKey.balanceTwd,
+        title: "餘額",
+        width: undefined,
+      },
+      {
+        ...byKey.actions,
+        title: "",
+        width: 56,
+        className: "holding-mobile-actions",
+      },
+    ];
+  }, [
       editingCashAccountId,
       editingCashBalance,
       editingCashHolder,
@@ -2243,26 +2396,42 @@ function App() {
       handleRemoveCashAccount,
       handleSaveCashBalance,
       holderSelectOptions,
+      isMobileViewport,
       isWriteDisabled,
       loadingCashActionById,
-    ],
-  );
+  ]);
 
-  const expenseTableColumns = useMemo(
-    () => [
+  const expenseTableColumns = useMemo(() => {
+    const isUnset = (value) => !value || value === "未指定";
+    const getExpenseMeta = (record) =>
+      [record.payerName, record.expenseKindName].filter(
+        (value) => !isUnset(value),
+      );
+    const renderOptionalTag = (value, fallbackColor) =>
+      isUnset(value) ? (
+        <Text type="secondary">—</Text>
+      ) : (
+        <Tag color={getStableTagColor(value, fallbackColor)}>{value}</Tag>
+      );
+
+    const columns = [
       {
         title: "名稱",
         dataIndex: "name",
         key: "name",
-        render: (_, record) => (
-          <div>
-            <div className="holding-main-text">{record.name}</div>
-            <Text type="secondary" className="holding-subline">
-              由{record.payerName || "未指定"}支出的
-              {record.expenseKindName || "未指定"}開銷
-            </Text>
-          </div>
-        ),
+        render: (_, record) => {
+          const meta = getExpenseMeta(record);
+          return (
+            <div>
+              <div className="holding-main-text">{record.name}</div>
+              {meta.length > 0 && (
+                <Text type="secondary" className="holding-subline">
+                  {meta.join(" · ")}
+                </Text>
+              )}
+            </div>
+          );
+        },
       },
       {
         title: "金額",
@@ -2292,29 +2461,13 @@ function App() {
         title: "分類",
         dataIndex: "categoryName",
         key: "categoryName",
-        render: (value) => (
-          <Tag
-            color={
-              value === "未指定" ? "default" : getStableTagColor(value, "blue")
-            }
-          >
-            {value || "未指定"}
-          </Tag>
-        ),
+        render: (value) => renderOptionalTag(value, "blue"),
       },
       {
         title: "預算",
         dataIndex: "budgetName",
         key: "budgetName",
-        render: (value) => (
-          <Tag
-            color={
-              value === "未指定" ? "default" : getStableTagColor(value, "gold")
-            }
-          >
-            {value || "未指定"}
-          </Tag>
-        ),
+        render: (value) => renderOptionalTag(value, "gold"),
       },
       {
         title: "操作",
@@ -2330,6 +2483,7 @@ function App() {
                 icon={<EditOutlined />}
                 disabled={isWriteDisabled}
                 onClick={() => openExpenseForm(record)}
+                aria-label="編輯支出"
               />
               <Popconfirm
                 title="刪除這筆支出？"
@@ -2343,15 +2497,82 @@ function App() {
                   size="small"
                   disabled={isWriteDisabled}
                   icon={<DeleteOutlined />}
+                  aria-label="刪除支出"
                 />
               </Popconfirm>
             </Space>
           );
         },
       },
-    ],
-    [handleRemoveExpense, isWriteDisabled, openExpenseForm],
-  );
+    ];
+
+    if (!isMobileViewport) {
+      return columns;
+    }
+
+    // Mobile: name + date/payer/tags on the left, amount + type on the right.
+    const byKey = Object.fromEntries(
+      columns.map((column) => [column.key, column]),
+    );
+    return [
+      {
+        title: "支出",
+        key: "name",
+        render: (_, record) => {
+          const meta = [record.occurredAt, ...getExpenseMeta(record)];
+          const tags = [
+            [record.categoryName, "blue"],
+            [record.budgetName, "gold"],
+          ].filter(([value]) => !isUnset(value));
+          return (
+            <div>
+              <div className="holding-main-text">{record.name}</div>
+              <Text type="secondary" className="holding-subline">
+                {meta.filter(Boolean).join(" · ")}
+              </Text>
+              {tags.length > 0 && (
+                <div className="holding-mobile-tags">
+                  {tags.map(([value, color]) => (
+                    <Tag key={value} color={getStableTagColor(value, color)}>
+                      {value}
+                    </Tag>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        title: "金額",
+        key: "amountTwd",
+        align: "right",
+        render: (_, record) => (
+          <div className="cell-with-delta">
+            <div className="cell-main-value">{formatTwd(record.amountTwd)}</div>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {byKey.type.render(null, record)}
+            </Text>
+          </div>
+        ),
+      },
+      {
+        ...byKey.actions,
+        title: "",
+        width: 56,
+        className: "holding-mobile-actions",
+        // Generated rows can't be edited; a short label fits the narrow cell.
+        render: (value, record) =>
+          record.isRecurringOccurrence ? (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              自動
+            </Text>
+          ) : (
+            byKey.actions.render(value, record)
+          ),
+      },
+    ];
+  }, [handleRemoveExpense, isMobileViewport, isWriteDisabled, openExpenseForm]);
 
   const expenseCategoryColumns = useMemo(
     () => [
@@ -2873,19 +3094,43 @@ function App() {
     loadExpenseData(activeExpenseMonth).catch(() => {});
   }, [activeExpenseMonth, loadExpenseData]);
 
+  // Read (not depended on) by the populate effect below, so a background list
+  // refresh doesn't reset a form the user is filling in.
+  const expenseFormOptionsRef = useRef({ categoryRows: [], payerOptions: [] });
+  expenseFormOptionsRef.current = {
+    categoryRows: expenseCategoryRows,
+    payerOptions: expensePayerOptions,
+  };
+
   useEffect(() => {
     if (!isExpenseModalOpen && !isExpenseSheetOpen) {
       return;
     }
     const isRecurringCreateMode =
       expenseFormMode === "recurring-create" && !editingExpenseEntry;
+    // New entries start from the last-used payer / kind / category, as long
+    // as those options still exist.
+    const lastUsed = editingExpenseEntry ? {} : readLastExpenseDefaults();
+    const { categoryRows, payerOptions } = expenseFormOptionsRef.current;
+    if (!categoryRows.some((item) => item.id === lastUsed.categoryId)) {
+      delete lastUsed.categoryId;
+    }
+    if (!payerOptions.some((item) => item.value === lastUsed.payer)) {
+      delete lastUsed.payer;
+    }
+    const payer =
+      editingExpenseEntry?.payer === "共同"
+        ? "共同帳戶"
+        : (editingExpenseEntry?.payer ?? lastUsed.payer ?? undefined);
+    const expenseKind =
+      editingExpenseEntry?.expenseKind ?? lastUsed.expenseKind ?? undefined;
+    setShowExpenseMoreFields(
+      Boolean(editingExpenseEntry?.budgetId || payer || expenseKind),
+    );
     expenseForm.setFieldsValue({
       name: editingExpenseEntry?.name ?? "",
-      payer:
-        editingExpenseEntry?.payer === "共同"
-          ? "共同帳戶"
-          : (editingExpenseEntry?.payer ?? undefined),
-      expenseKind: editingExpenseEntry?.expenseKind ?? undefined,
+      payer,
+      expenseKind,
       amountTwd: editingExpenseEntry?.amountTwd ?? undefined,
       occurredAt: dayjs(
         editingExpenseEntry?.originalOccurredAt ||
@@ -2899,7 +3144,8 @@ function App() {
       monthlyDay: editingExpenseEntry?.monthlyDay ?? undefined,
       yearlyMonth: editingExpenseEntry?.yearlyMonth ?? undefined,
       yearlyDay: editingExpenseEntry?.yearlyDay ?? undefined,
-      categoryId: editingExpenseEntry?.categoryId ?? undefined,
+      categoryId:
+        editingExpenseEntry?.categoryId ?? lastUsed.categoryId ?? undefined,
       budgetId: editingExpenseEntry?.budgetId ?? undefined,
     });
   }, [
@@ -2939,6 +3185,32 @@ function App() {
         : dayjs(),
     });
   }, [budgetForm, editingBudget, isBudgetModalOpen, isBudgetSheetOpen]);
+
+  const openAddHoldingForm = () => {
+    if (isMobileViewport) {
+      setIsAddHoldingSheetOpen(true);
+    } else {
+      setIsAddHoldingModalOpen(true);
+    }
+  };
+
+  const holdingsEmptyState = (
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description={
+        activeHoldingTab === HOLDER_TAB_ALL ? "還沒有持股" : "這位持有人還沒有持股"
+      }
+    >
+      <Button
+        type="primary"
+        icon={<PlusOutlined />}
+        onClick={openAddHoldingForm}
+        disabled={isWriteDisabled}
+      >
+        新增第一檔持股
+      </Button>
+    </Empty>
+  );
 
   const handleAddHolding = async (values) => {
     let upsertResult;
@@ -3322,6 +3594,21 @@ function App() {
       data-lpignore={isMobileViewport ? "true" : undefined}
     >
       <Form.Item
+        label="支出金額 (TWD)"
+        name="amountTwd"
+        rules={[{ required: true, message: "請輸入支出金額" }]}
+      >
+        <InputNumber
+          min={1}
+          step={100}
+          precision={0}
+          inputMode="numeric"
+          autoFocus={!editingExpenseEntry}
+          prefix="NT$"
+          style={{ width: "100%" }}
+        />
+      </Form.Item>
+      <Form.Item
         label="支出名稱"
         name="name"
         rules={[{ required: true, message: "請輸入支出名稱" }]}
@@ -3334,35 +3621,6 @@ function App() {
           data-lpignore={isMobileViewport ? "true" : undefined}
         />
       </Form.Item>
-      <Form.Item label="支出人" name="payer">
-        <Select
-          allowClear
-          getPopupContainer={getSheetPopupContainer}
-          options={expensePayerOptions}
-        />
-      </Form.Item>
-      <Form.Item label="種類" name="expenseKind">
-        <Select
-          allowClear
-          getPopupContainer={getSheetPopupContainer}
-          options={[
-            { label: "家庭", value: "家庭" },
-            { label: "個人", value: "個人" },
-          ]}
-        />
-      </Form.Item>
-      <Form.Item
-        label="支出金額 (TWD)"
-        name="amountTwd"
-        rules={[{ required: true, message: "請輸入支出金額" }]}
-      >
-        <InputNumber
-          min={1}
-          step={100}
-          precision={0}
-          style={{ width: "100%" }}
-        />
-      </Form.Item>
       <Form.Item
         label="支出日期"
         name="occurredAt"
@@ -3373,8 +3631,18 @@ function App() {
           getPopupContainer={getSheetPopupContainer}
         />
       </Form.Item>
+      <Form.Item label="分類" name="categoryId">
+        <Select
+          allowClear
+          getPopupContainer={getSheetPopupContainer}
+          options={expenseCategoryRows.map((item) => ({
+            label: item.name,
+            value: item.id,
+          }))}
+        />
+      </Form.Item>
       <Form.Item
-        label="類型"
+        label="單筆 / 定期"
         name="entryType"
         rules={[{ required: true, message: "請選擇支出類型" }]}
       >
@@ -3444,17 +3712,38 @@ function App() {
           );
         }}
       </Form.Item>
-      <Form.Item label="分類" name="categoryId">
+      {!showExpenseMoreFields && (
+        <Button
+          type="link"
+          icon={<DownOutlined />}
+          onClick={() => setShowExpenseMoreFields(true)}
+          style={{ paddingInline: 0, marginBottom: 8 }}
+        >
+          更多選項（支出人、家庭 / 個人、預算）
+        </Button>
+      )}
+      <Form.Item label="支出人" name="payer" hidden={!showExpenseMoreFields}>
         <Select
           allowClear
           getPopupContainer={getSheetPopupContainer}
-          options={expenseCategoryRows.map((item) => ({
-            label: item.name,
-            value: item.id,
-          }))}
+          options={expensePayerOptions}
         />
       </Form.Item>
-      <Form.Item label="預算" name="budgetId">
+      <Form.Item
+        label="家庭 / 個人"
+        name="expenseKind"
+        hidden={!showExpenseMoreFields}
+      >
+        <Select
+          allowClear
+          getPopupContainer={getSheetPopupContainer}
+          options={[
+            { label: "家庭", value: "家庭" },
+            { label: "個人", value: "個人" },
+          ]}
+        />
+      </Form.Item>
+      <Form.Item label="預算" name="budgetId" hidden={!showExpenseMoreFields}>
         <Select
           allowClear
           getPopupContainer={getSheetPopupContainer}
@@ -4884,7 +5173,7 @@ function App() {
                             columns={tableColumns}
                             pagination={false}
                             loading={loadingData || loadingReorder}
-                            scroll={{ x: 860 }}
+                            locale={{ emptyText: holdingsEmptyState }}
                             components={{
                               body: {
                                 row: DraggableBodyRow,
@@ -4965,6 +5254,7 @@ function App() {
                           pagination={false}
                           loading={loadingData || loadingReorder}
                           scroll={{ x: 980 }}
+                          locale={{ emptyText: holdingsEmptyState }}
                           components={{
                             body: {
                               row: DraggableBodyRow,
@@ -5008,8 +5298,6 @@ function App() {
                         dataSource={filteredCashRows}
                         columns={cashTableColumns}
                         pagination={false}
-                        tableLayout="fixed"
-                        scroll={{ x: 860 }}
                         locale={{
                           emptyText: "尚未新增銀行現金帳戶",
                         }}
@@ -5523,7 +5811,6 @@ function App() {
                             columns={expenseTableColumns}
                             pagination={false}
                             locale={{ emptyText: "尚無支出紀錄" }}
-                            scroll={{ x: 860 }}
                           />
                         </div>
                       </div>
@@ -5907,11 +6194,7 @@ function App() {
               disabled={isWriteDisabled}
               onClick={() => {
                 if (activeMainTab === "asset") {
-                  if (isMobileViewport) {
-                    setIsAddHoldingSheetOpen(true);
-                  } else {
-                    setIsAddHoldingModalOpen(true);
-                  }
+                  openAddHoldingForm();
                   return;
                 }
                 openExpenseForm();
@@ -5934,19 +6217,22 @@ function App() {
                 value={activeMainTab}
                 onChange={setActiveMainTab}
                 options={[
+                  { icon: <HomeOutlined />, text: "資產", value: "asset" },
                   {
-                    label: <HomeOutlined aria-label="資產總覽" />,
-                    value: "asset",
-                  },
-                  {
-                    label: <FundProjectionScreenOutlined aria-label="支出分析" />,
+                    icon: <FundProjectionScreenOutlined />,
+                    text: "支出",
                     value: "expense",
                   },
-                  {
-                    label: <SettingOutlined aria-label="設定" />,
-                    value: "settings",
-                  },
-                ]}
+                  { icon: <SettingOutlined />, text: "設定", value: "settings" },
+                ].map(({ icon, text, value }) => ({
+                  value,
+                  label: (
+                    <span className="mobile-tab-label">
+                      {icon}
+                      <span className="mobile-tab-text">{text}</span>
+                    </span>
+                  ),
+                }))}
               />
             </div>
           )}
