@@ -5,7 +5,7 @@ import {
   formatChangePercent,
   floorToTenThousand,
   formatNetWorthScaleLabel,
-  getStableTagColor,
+  getHolderTagStyle,
   getStableChartColor,
   createHolderDraftRow,
   createHolderDraftRows,
@@ -88,19 +88,19 @@ describe('formatNetWorthScaleLabel', () => {
   })
 })
 
-describe('stable color helpers', () => {
-  it('are deterministic for the same seed', () => {
-    expect(getStableTagColor('台積電')).toBe(getStableTagColor('台積電'))
+describe('color helpers', () => {
+  it('gives holders distinct tones by list position', () => {
+    const options = ['Po', 'Wei']
+    expect(getHolderTagStyle('Po', options)).not.toEqual(getHolderTagStyle('Wei', options))
+    expect(getHolderTagStyle('Po', options)).toEqual(getHolderTagStyle('Po', options))
+  })
+  it('falls back to a stable tone for unknown holders and none for empty', () => {
+    expect(getHolderTagStyle('Amy', ['Po'])).toEqual(getHolderTagStyle('Amy', ['Po']))
+    expect(getHolderTagStyle('', ['Po'])).toBeUndefined()
+  })
+  it('picks chart colours deterministically from the palette', () => {
     expect(getStableChartColor('2330')).toBe(getStableChartColor('2330'))
-  })
-  it('fall back for empty seeds', () => {
-    expect(getStableTagColor('')).toBe('blue')
-    expect(getStableChartColor('   ')).toBe('#1677ff')
-  })
-  it('return a value from the pool', () => {
-    const tag = getStableTagColor('anything')
-    expect(typeof tag).toBe('string')
-    expect(tag.length).toBeGreaterThan(0)
+    expect(getStableChartColor('   ')).toBe('#2B7F74')
   })
 })
 

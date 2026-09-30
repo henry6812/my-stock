@@ -2,12 +2,14 @@
 // remaining / over-budget amount (the card previously computed the % text
 // and the bar width from two different fields).
 
+import { COLORS } from "../theme/tokens";
+
 export const BUDGET_WARN_RATIO = 0.8;
 
 export const BUDGET_LEVEL_COLORS = {
-  ok: "#99d2cb",
-  warn: "#faad14",
-  over: "#f5222d",
+  ok: COLORS.tealBright,
+  warn: "#E8A93B",
+  over: COLORS.down,
 };
 
 export const getBudgetStatus = ({ spentTwd, availableTwd }) => {

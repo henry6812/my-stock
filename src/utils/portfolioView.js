@@ -3,6 +3,7 @@
 // component state), so moving them here is behavior-preserving.
 
 import { parseNumericLike } from "./number";
+import { CHART_PALETTE, HOLDER_TONES } from "../theme/tokens";
 
 export const PULL_REFRESH_MAX = 96;
 export const PULL_REFRESH_TRIGGER = 68;
@@ -18,55 +19,34 @@ export const DEFAULT_EXPENSE_ANALYTICS = {
   categoryBreakdown: [],
 };
 
-const ANTD_TAG_COLOR_POOL = [
-  "magenta",
-  "red",
-  "volcano",
-  "orange",
-  "gold",
-  "lime",
-  "green",
-  "cyan",
-  "blue",
-  "geekblue",
-  "purple",
-];
-
-const CHART_COLOR_POOL = [
-  "#1677ff",
-  "#52c41a",
-  "#faad14",
-  "#eb2f96",
-  "#13c2c2",
-  "#722ed1",
-  "#fa8c16",
-  "#2f54eb",
-];
-
-export const getStableTagColor = (seed, fallback = "blue") => {
-  const text = String(seed ?? "").trim();
-  if (!text) {
-    return fallback;
-  }
+const hashSeed = (text) => {
   let hash = 0;
   for (let index = 0; index < text.length; index += 1) {
     hash = (hash * 31 + text.charCodeAt(index)) | 0;
   }
-  const colorIndex = Math.abs(hash) % ANTD_TAG_COLOR_POOL.length;
-  return ANTD_TAG_COLOR_POOL[colorIndex];
+  return Math.abs(hash);
 };
 
-export const getStableChartColor = (seed, fallback = "#1677ff") => {
+// Holder tags are the only coloured tags. Tone follows the holder's position
+// in the settings list so Po and Wei can never share a colour; unknown
+// holders fall back to a stable hash.
+export const getHolderTagStyle = (holder, holderOptions = []) => {
+  const text = String(holder ?? "").trim();
+  if (!text) {
+    return undefined;
+  }
+  const position = holderOptions.indexOf(text);
+  const index =
+    position >= 0 ? position : hashSeed(text);
+  return HOLDER_TONES[index % HOLDER_TONES.length];
+};
+
+export const getStableChartColor = (seed, fallback = CHART_PALETTE[0]) => {
   const text = String(seed ?? "").trim();
   if (!text) {
     return fallback;
   }
-  let hash = 0;
-  for (let index = 0; index < text.length; index += 1) {
-    hash = (hash * 31 + text.charCodeAt(index)) | 0;
-  }
-  const colorIndex = Math.abs(hash) % CHART_COLOR_POOL.length;
-  return CHART_COLOR_POOL[colorIndex];
+  return CHART_PALETTE[hashSeed(text) % CHART_PALETTE.length];
 };
 
 let holderDraftIdSequence = 0;

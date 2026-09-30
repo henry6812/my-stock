@@ -1,11 +1,6 @@
 .app-layout {
   min-height: 100vh;
-  background: radial-gradient(
-    circle at 0% 0%,
-    #eef4ff 0,
-    #f7f9fc 45%,
-    #ffffff 100%
-  );
+  background: var(--c-paper);
 }
 
 .app-header {
@@ -13,7 +8,6 @@
   min-height: 84px;
   background: none;
   backdrop-filter: blur(8px);
-  /* border-bottom: 1px solid #ecf0f6; */
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -72,10 +66,11 @@
   justify-content: center;
   padding: 8px 10px;
   min-height: 52px;
-  border-radius: 24px;
-  background: rgba(235, 235, 235, 0.92);
-  border: 1px solid #e5e7eb;
-  backdrop-filter: blur(3px);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--c-line);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(8px);
 }
 
 .mobile-main-tabbar .ant-segmented {
@@ -92,7 +87,7 @@
 .mobile-main-tabbar .ant-segmented-item {
   padding-inline: 8px;
   min-height: 44px;
-  border-radius: 16px;
+  border-radius: var(--radius-pill);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -122,7 +117,7 @@
 }
 
 .mobile-tab-text {
-  font-size: 11px;
+  font-size: var(--fs-caption);
 }
 
 .mobile-main-tabbar .ant-segmented-item-selected {
@@ -141,12 +136,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-float);
 }
 
 .expense-fab.ant-btn:hover,
 .expense-fab.ant-btn:focus-visible {
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 10px 28px rgba(27, 43, 41, 0.2);
 }
 
 .expense-fab--desktop.ant-btn {
@@ -194,14 +189,14 @@
 
   .ant-btn-default:hover,
   .ant-btn-dashed:hover {
-    color: rgba(0, 0, 0, 0.88);
-    border-color: #d9d9d9;
-    background: #ffffff;
+    color: var(--c-ink);
+    border-color: var(--c-line-strong);
+    background: var(--c-surface);
   }
 
   .ant-btn-primary:hover,
   .ant-btn-primary:focus-visible {
-    color: #ffffff;
+    color: var(--c-surface);
     border-color: var(--ant-color-primary);
     background: var(--ant-color-primary);
   }
@@ -226,13 +221,19 @@
   padding: 12px 0;
 }
 
-.asset-summary-value .ant-statistic-title {
-  font-size: 16px;
+.asset-summary-value .ant-statistic-title,
+.expense-summary-value .ant-statistic-title {
+  font-size: var(--fs-body);
+  color: var(--c-muted);
 }
 
-.asset-summary-value .ant-statistic-content {
-  font-size: 38px;
-  font-weight: 700;
+/* The hero figure is the one loud element on each tab. */
+.asset-summary-value .ant-statistic-content,
+.expense-summary-value .ant-statistic-content {
+  font-size: var(--fs-hero);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--c-ink);
 }
 
 .asset-total-delta {
@@ -258,7 +259,7 @@
   top: 36px;
   transform: translateX(-50%);
   font-size: 11px;
-  color: #6b7280;
+  color: var(--c-muted);
   white-space: nowrap;
 }
 
@@ -266,25 +267,14 @@
   position: relative;
   height: 12px;
   border-radius: 999px;
-  /* border: 1px solid #9ca3af; */
-  background: #ececec;
+  background: var(--c-track);
   overflow: visible;
 }
 
 .networth-progress-fill {
   height: 100%;
-  border-radius: 999px 4px 4px 999px;
-  background-image: linear-gradient(
-    135deg,
-    #82b6e7 0%,
-    #9f95eb 25%,
-    #8072eb 50%,
-    #9f95eb 75%,
-    #82b6e7 100%
-  );
-  background-size: 160px 100%;
-  background-repeat: repeat-x;
-  animation: networth-fill-flow 10s linear infinite;
+  border-radius: var(--radius-pill) 4px 4px var(--radius-pill);
+  background: var(--c-teal-bright);
 }
 
 .networth-track-stop-line {
@@ -293,7 +283,7 @@
   transform: translateX(-50%);
   width: 2px;
   height: 100%;
-  background: #f6f8fc;
+  background: var(--c-paper);
   z-index: 1;
 }
 
@@ -306,32 +296,21 @@
 }
 
 .networth-delta-segment--up {
-  background-color: rgb(15, 186, 78);
-  border: 1px solid rgb(15, 186, 78);
+  background-color: var(--c-up);
   background-image: repeating-linear-gradient(
     -45deg,
-    #f6f8fc 0 1px,
-    rgba(15, 176, 74, 0) 1px 3px
+    rgba(255, 255, 255, 0.55) 0 1px,
+    transparent 1px 4px
   );
 }
 
 .networth-delta-segment--down {
-  background-color: rgba(193, 23, 23, 0.24);
-  border: 1px solid rgba(193, 23, 23, 0.24);
+  background-color: rgba(207, 19, 34, 0.22);
   background-image: repeating-linear-gradient(
     -45deg,
-    rgba(193, 23, 23, 0.48) 0 1px,
-    rgba(193, 23, 23, 0.12) 1px 3px
+    rgba(207, 19, 34, 0.5) 0 1px,
+    transparent 1px 4px
   );
-}
-
-@keyframes networth-fill-flow {
-  from {
-    background-position: 0 0;
-  }
-  to {
-    background-position: -160px 0;
-  }
 }
 
 .networth-marker {
@@ -357,7 +336,7 @@
   display: block;
   width: 2px;
   height: 100%;
-  background: #f6f8fc;
+  background: var(--c-paper);
   position: relative;
   z-index: 3;
 }
@@ -371,12 +350,12 @@
   height: 0;
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
-  border-top: 5px solid #404040;
+  border-top: 5px solid var(--c-ink);
   z-index: 4;
 }
 
 .networth-marker--baseline .networth-marker-line {
-  background: #f6f8fc;
+  background: var(--c-paper);
 }
 
 .networth-marker-label {
@@ -385,11 +364,11 @@
   top: -30px;
   transform: translateX(-50%);
   font-size: 11px;
-  color: #374151;
+  color: var(--c-muted);
   white-space: nowrap;
   background: rgba(255, 255, 255, 0.92);
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
 }
 
 .networth-marker--offset .networth-marker-label {
@@ -401,16 +380,15 @@
   left: 50%;
   bottom: calc(100% + 10px);
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: var(--fs-caption);
+  font-weight: 500;
   line-height: 1.2;
-  color: #275e56;
+  color: var(--c-teal-ink);
   white-space: nowrap;
   pointer-events: none;
-  background: #b4f1e9;
-  border: 1px solid #797979;
-  border-radius: 4px;
-  padding: 2px 4px;
-  /* box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08); */
+  background: var(--c-teal-soft);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
 }
 
 .networth-progress-meta {
@@ -565,9 +543,6 @@
     animation: none;
   }
 
-  .networth-progress-fill {
-    animation: none;
-  }
 }
 
 .holdings-card-actions {
@@ -583,18 +558,18 @@
 
 .price-update-menu .ant-dropdown-menu-item-divider {
   margin: 6px 0;
-  background: #d9d9d9;
+  background: var(--c-line);
 }
 
 .price-update-menu-meta {
-  font-size: 12px;
-  color: #8c8c8c;
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
   font-weight: 400;
 }
 
 .update-sheet .ant-drawer-content {
-  border-top-left-radius: 14px;
-  border-top-right-radius: 14px;
+  border-top-left-radius: var(--radius-sheet);
+  border-top-right-radius: var(--radius-sheet);
   height: 100%;
   max-height: none;
 }
@@ -608,16 +583,16 @@
 .update-sheet-footer {
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid #d9d9d9;
-  color: #8c8c8c;
-  font-size: 12px;
+  border-top: 1px solid var(--c-line);
+  color: var(--c-muted);
+  font-size: var(--fs-caption);
   text-align: center;
   padding-bottom: calc(10px + env(safe-area-inset-bottom));
 }
 
 .form-bottom-sheet .ant-drawer-content {
-  border-top-left-radius: 14px;
-  border-top-right-radius: 14px;
+  border-top-left-radius: var(--radius-sheet);
+  border-top-right-radius: var(--radius-sheet);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -631,7 +606,7 @@
 }
 
 .form-bottom-sheet .ant-drawer-header {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--c-line);
 }
 
 .form-bottom-sheet .ant-drawer-body {
@@ -666,8 +641,8 @@
 .form-bottom-sheet.sheet-layout .sheet-footer {
   flex: 0 0 auto;
   padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
-  border-top: 1px solid #f0f0f0;
-  background: #fff;
+  border-top: 1px solid var(--c-line);
+  background: var(--c-surface);
 }
 
 .form-bottom-sheet .ant-btn-primary {
@@ -740,12 +715,14 @@
   height: 28px;
   padding: 0;
   border: none;
-  background: #f7f7f7;
+  color: var(--c-teal);
+  background: transparent;
 }
 
 .title-add-btn.ant-btn:hover,
 .title-add-btn.ant-btn:focus-visible {
-  background: rgba(0, 0, 0, 0.06);
+  color: var(--c-teal);
+  background: var(--c-teal-soft);
 }
 
 .holdings-card .ant-card-head {
@@ -776,8 +753,15 @@
   padding: 0 2px 8px;
 }
 
-.mobile-list-title {
+/* One section-title style across tabs (card heads use the same size via
+   the antd Card token). */
+.mobile-list-title,
+.active-budgets-title,
+.expense-analytics-title,
+.active-recurring-title {
+  font-size: var(--fs-subhead);
   font-weight: 600;
+  color: var(--c-ink);
 }
 
 .mobile-list-body {
@@ -817,15 +801,15 @@
 
 /* Darker than antd's green-6/red-6 so 12px text meets WCAG AA (>= 4.5:1). */
 .cell-delta--up {
-  color: #237804;
+  color: var(--c-up);
 }
 
 .cell-delta--down {
-  color: #cf1322;
+  color: var(--c-down);
 }
 
 .cell-delta--flat {
-  color: #6b6b6b;
+  color: var(--c-muted);
 }
 
 .expense-summary-panel {
@@ -875,11 +859,11 @@
   min-width: 24px;
   height: 24px;
   padding: 0;
-  color: #595959;
+  color: var(--c-muted);
 }
 
 .expense-month-nav-btn.ant-btn[disabled] {
-  color: #bfbfbf;
+  color: var(--c-subtle);
   cursor: not-allowed;
 }
 
@@ -905,10 +889,6 @@
   padding: 0;
 }
 
-.expense-summary-value .ant-statistic-content {
-  font-size: 38px;
-  font-weight: 700;
-}
 
 .expense-summary-subtext {
   display: block;
@@ -958,8 +938,8 @@
 .expense-income-segmented-track-fill {
   position: relative;
   height: 100%;
-  border-radius: 999px;
-  background: #f0f0f0;
+  border-radius: var(--radius-pill);
+  background: var(--c-track);
   overflow: hidden;
 }
 
@@ -972,11 +952,11 @@
 
 .expense-income-segment--recurring {
   left: 0;
-  background: #c2c8ce;
+  background: var(--c-teal);
 }
 
 .expense-income-segment--onetime {
-  background: #6b9fe8;
+  background: #86c4b9;
 }
 
 .expense-income-segment-divider {
@@ -985,7 +965,7 @@
   transform: translateX(-50%);
   width: 1px;
   height: 100%;
-  background: #ffffff;
+  background: var(--c-surface);
   z-index: 2;
 }
 
@@ -1009,7 +989,7 @@
   height: 0;
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
-  border-top: 5px solid #404040;
+  border-top: 5px solid var(--c-ink);
 }
 
 .expense-rate-marker-label {
@@ -1017,12 +997,12 @@
   left: 50%;
   bottom: calc(100% + 2px);
   transform: translateX(-50%);
-  padding: 2px 4px;
-  border-radius: 4px;
-  border: 1px solid #44a194;
-  background: #b4f1e9;
-  color: #275e56;
-  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--c-teal-soft);
+  color: var(--c-teal-ink);
+  font-weight: 500;
+  font-size: var(--fs-caption);
   line-height: 1.2;
   white-space: nowrap;
 }
@@ -1094,8 +1074,9 @@
   padding-bottom: 4px;
 }
 
+/* Four chart cards fill the row on desktop; below that they scroll. */
 .expense-analytics-card {
-  flex: 0 0 260px;
+  flex: 1 0 240px;
 }
 
 .expense-analytics-card-head {
@@ -1237,18 +1218,34 @@
 }
 
 .active-budget-remaining-prefix {
-  font-size: 12px;
-  color: #8c8c8c;
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
 }
 
 .active-budget-remaining-value {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--fs-title);
+  font-weight: 600;
 }
 
-.active-budget-remaining--over .active-budget-remaining-prefix,
 .active-budget-remaining--over .active-budget-remaining-value {
-  color: #f5222d;
+  color: var(--c-down);
+}
+
+.active-budget-status {
+  display: block;
+  margin-top: 8px;
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--c-ink);
+}
+
+/* Amber fill is decorative; the text uses a darker amber for contrast. */
+.active-budget-status--warn {
+  color: #ad6800;
+}
+
+.active-budget-status--over {
+  color: var(--c-down);
 }
 
 .active-budget-meta {
@@ -1405,8 +1402,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 12px;
-  color: #6b7280;
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
 }
 
 .holding-mobile-editor .ant-input-number,
@@ -1447,4 +1444,22 @@
   .mobile-list-body .ant-table-thead > tr > th:first-child {
     padding-inline-start: 4px;
   }
+}
+
+/* Row actions stay quiet until pointed at; destructive ones only turn red
+   on hover/focus (the Popconfirm still guards the delete). */
+.row-action.ant-btn {
+  color: var(--c-muted);
+}
+
+.row-action.ant-btn:not(:disabled):hover,
+.row-action.ant-btn:not(:disabled):focus-visible {
+  color: var(--c-teal);
+  background: var(--c-teal-soft);
+}
+
+.row-action--danger.ant-btn:not(:disabled):hover,
+.row-action--danger.ant-btn:not(:disabled):focus-visible {
+  color: var(--c-down);
+  background: rgba(207, 19, 34, 0.08);
 }

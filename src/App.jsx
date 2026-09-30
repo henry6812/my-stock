@@ -156,7 +156,7 @@ import {
   PULL_REFRESH_TRIGGER,
   NUMBER_ANIMATION_DURATION_MS,
   DEFAULT_EXPENSE_ANALYTICS,
-  getStableTagColor,
+  getHolderTagStyle as getHolderTagStyleFor,
   getStableChartColor,
   createHolderDraftRow,
   createHolderDraftRows,
@@ -180,6 +180,7 @@ import {
 } from "./utils/portfolioView";
 import { getBootPhase } from "./utils/bootPhase";
 import { toUserMessage } from "./utils/userMessage";
+import { CHART_NEUTRAL, CHART_PALETTE, COLORS } from "./theme/tokens";
 import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "./utils/budgetStatus";
 import { applyPwaUpdate, onPwaNeedRefresh } from "./pwaUpdate";
 import "./App.css";
@@ -282,7 +283,7 @@ function SortableRow({ disabled, ...props }) {
     transform: CSS.Transform.toString(transform),
     transition,
     ...(isDragging
-      ? { position: "relative", zIndex: 999, background: "#fff" }
+      ? { position: "relative", zIndex: 999, background: COLORS.surface }
       : {}),
   };
 
@@ -412,6 +413,10 @@ function App() {
     { value: "BOND", label: "債券" },
   ]);
   const [holderOptions, setHolderOptions] = useState(["Po", "Wei"]);
+  const getHolderTagStyle = useCallback(
+    (holder) => getHolderTagStyleFor(holder, holderOptions),
+    [holderOptions],
+  );
   const [holderDraftRows, setHolderDraftRows] = useState(() =>
     createHolderDraftRows(["Po", "Wei"]),
   );
@@ -1865,8 +1870,8 @@ function App() {
     }
 
     return [
-      { name: "台股", key: "TW", value: result.TW, color: "#165dff" },
-      { name: "美股", key: "US", value: result.US, color: "#f7b500" },
+      { name: "台股", key: "TW", value: result.TW, color: CHART_PALETTE[0] },
+      { name: "美股", key: "US", value: result.US, color: CHART_PALETTE[1] },
     ].filter((item) => item.value > 0);
   }, [rows]);
 
@@ -1900,10 +1905,10 @@ function App() {
     }
 
     return [
-      { name: "個股", key: "STOCK", value: result.STOCK, color: "#165dff" },
-      { name: "ETF", key: "ETF", value: result.ETF, color: "#36b37e" },
-      { name: "債券", key: "BOND", value: result.BOND, color: "#f7b500" },
-      { name: "現金", key: "CASH", value: result.CASH, color: "#8c8c8c" },
+      { name: "個股", key: "STOCK", value: result.STOCK, color: CHART_PALETTE[0] },
+      { name: "ETF", key: "ETF", value: result.ETF, color: CHART_PALETTE[1] },
+      { name: "債券", key: "BOND", value: result.BOND, color: CHART_PALETTE[2] },
+      { name: "現金", key: "CASH", value: result.CASH, color: CHART_NEUTRAL },
     ].filter((item) => item.value > 0);
   }, [cashRows, rows]);
 
@@ -2000,7 +2005,7 @@ function App() {
               {record.companyName || record.symbol}
             </div>
             <Text type="secondary" className="holding-subline">
-              {record.symbol}/{record.market === "TW" ? "台股" : "美股"}
+              {record.symbol} · {record.market === "TW" ? "台股" : "美股"}
             </Text>
           </div>
         ),
@@ -2093,7 +2098,7 @@ function App() {
             value ||
             "個股";
           return (
-            <Tag color={getStableTagColor(label, "geekblue")}>{label}</Tag>
+            <Tag bordered={false}>{label}</Tag>
           );
         },
       },
@@ -2119,10 +2124,9 @@ function App() {
           const holderName = record.holderName || "未設定";
           return (
             <Tag
-              color={
-                holderName === "未設定"
-                  ? "default"
-                  : getStableTagColor(holderName, "blue")
+              bordered={false}
+              style={
+                holderName === "未設定" ? undefined : getHolderTagStyle(holderName)
               }
             >
               {holderName}
@@ -2167,6 +2171,8 @@ function App() {
           return (
             <Space>
               <Button
+                type="text"
+                className="row-action"
                 size="small"
                 disabled={isWriteDisabled || editingHoldingId !== null || loadingReorder}
                 loading={rowLoading}
@@ -2184,7 +2190,8 @@ function App() {
                 disabled={isWriteDisabled || editingHoldingId !== null || loadingReorder}
               >
                 <Button
-                  danger
+                  type="text"
+                  className="row-action row-action--danger"
                   size="small"
                   disabled={
                     isWriteDisabled ||
@@ -2276,6 +2283,7 @@ function App() {
       },
     ];
   }, [
+      getHolderTagStyle,
       dragDisabled,
       isWriteDisabled,
       editingHoldingId,
@@ -2359,10 +2367,9 @@ function App() {
           const holderName = record.holderName || "未設定";
           return (
             <Tag
-              color={
-                holderName === "未設定"
-                  ? "default"
-                  : getStableTagColor(holderName, "blue")
+              bordered={false}
+              style={
+                holderName === "未設定" ? undefined : getHolderTagStyle(holderName)
               }
             >
               {holderName}
@@ -2411,6 +2418,8 @@ function App() {
           return (
             <Space>
               <Button
+                type="text"
+                className="row-action"
                 size="small"
                 loading={rowLoading}
                 disabled={isWriteDisabled || rowLoading}
@@ -2428,7 +2437,8 @@ function App() {
                 disabled={isWriteDisabled}
               >
                 <Button
-                  danger
+                  type="text"
+                  className="row-action row-action--danger"
                   size="small"
                   disabled={isWriteDisabled || rowLoading}
                   icon={<DeleteOutlined />}
@@ -2476,6 +2486,7 @@ function App() {
       },
     ];
   }, [
+      getHolderTagStyle,
       editingCashAccountId,
       editingCashBalance,
       editingCashHolder,
@@ -2495,11 +2506,11 @@ function App() {
       [record.payerName, record.expenseKindName].filter(
         (value) => !isUnset(value),
       );
-    const renderOptionalTag = (value, fallbackColor) =>
+    const renderOptionalTag = (value) =>
       isUnset(value) ? (
         <Text type="secondary">—</Text>
       ) : (
-        <Tag color={getStableTagColor(value, fallbackColor)}>{value}</Tag>
+        <Tag bordered={false}>{value}</Tag>
       );
 
     const columns = [
@@ -2550,13 +2561,13 @@ function App() {
         title: "分類",
         dataIndex: "categoryName",
         key: "categoryName",
-        render: (value) => renderOptionalTag(value, "blue"),
+        render: (value) => renderOptionalTag(value),
       },
       {
         title: "預算",
         dataIndex: "budgetName",
         key: "budgetName",
-        render: (value) => renderOptionalTag(value, "gold"),
+        render: (value) => renderOptionalTag(value),
       },
       {
         title: "操作",
@@ -2568,6 +2579,8 @@ function App() {
           return (
             <Space>
               <Button
+                type="text"
+                className="row-action"
                 size="small"
                 icon={<EditOutlined />}
                 disabled={isWriteDisabled}
@@ -2582,7 +2595,8 @@ function App() {
                 disabled={isWriteDisabled}
               >
                 <Button
-                  danger
+                  type="text"
+                  className="row-action row-action--danger"
                   size="small"
                   disabled={isWriteDisabled}
                   icon={<DeleteOutlined />}
@@ -2609,10 +2623,9 @@ function App() {
         key: "name",
         render: (_, record) => {
           const meta = [formatDate(record.occurredAt), ...getExpenseMeta(record)];
-          const tags = [
-            [record.categoryName, "blue"],
-            [record.budgetName, "gold"],
-          ].filter(([value]) => !isUnset(value));
+          const tags = [record.categoryName, record.budgetName].filter(
+            (value) => !isUnset(value),
+          );
           return (
             <div>
               <div className="holding-main-text">{record.name}</div>
@@ -2621,8 +2634,8 @@ function App() {
               </Text>
               {tags.length > 0 && (
                 <div className="holding-mobile-tags">
-                  {tags.map(([value, color]) => (
-                    <Tag key={value} color={getStableTagColor(value, color)}>
+                  {tags.map((value) => (
+                    <Tag key={value} bordered={false}>
                       {value}
                     </Tag>
                   ))}
@@ -2670,7 +2683,7 @@ function App() {
         dataIndex: "name",
         key: "name",
         render: (value) => (
-          <Tag color={getStableTagColor(value, "blue")}>{value}</Tag>
+          <Tag bordered={false}>{value}</Tag>
         ),
       },
       {
@@ -2685,6 +2698,8 @@ function App() {
         render: (_, record) => (
           <Space>
             <Button
+              type="text"
+              className="row-action"
               size="small"
               icon={<EditOutlined />}
               disabled={isWriteDisabled}
@@ -2698,7 +2713,8 @@ function App() {
               disabled={isWriteDisabled}
             >
               <Button
-                danger
+                type="text"
+                className="row-action row-action--danger"
                 size="small"
                 disabled={isWriteDisabled}
                 icon={<DeleteOutlined />}
@@ -2779,6 +2795,8 @@ function App() {
     (record) => (
       <Space>
         <Button
+          type="text"
+          className="row-action"
           size="small"
           icon={<EditOutlined />}
           disabled={isWriteDisabled}
@@ -2792,7 +2810,8 @@ function App() {
           disabled={isWriteDisabled}
         >
           <Button
-            danger
+            type="text"
+            className="row-action row-action--danger"
             size="small"
             disabled={isWriteDisabled}
             icon={<DeleteOutlined />}
@@ -2821,9 +2840,7 @@ function App() {
         dataIndex: "budgetType",
         key: "budgetType",
         render: (value) => {
-          const cycle = formatBudgetCycleLabel(value);
-          const color = getStableTagColor(cycle, "blue");
-          return <Tag color={color}>{cycle}</Tag>;
+          return <Tag bordered={false}>{formatBudgetCycleLabel(value)}</Tag>;
         },
       },
       {
@@ -2874,7 +2891,7 @@ function App() {
               <Progress
                 percent={Math.round(Number(record.progressPct || 0))}
                 size="small"
-                strokeColor={spentTwd > availableTwd ? "#f5222d" : undefined}
+                strokeColor={spentTwd > availableTwd ? COLORS.down : undefined}
               />
               <Text type="secondary">
                 {formatTwd(spentTwd)} / {formatTwd(availableTwd)}
@@ -4481,10 +4498,10 @@ function App() {
           value: Number(item.value) || 0,
           color:
             item.key === "家庭"
-              ? "#1677ff"
+              ? CHART_PALETTE[0]
               : item.key === "個人"
-                ? "#52c41a"
-                : "#8c8c8c",
+                ? CHART_PALETTE[1]
+                : CHART_NEUTRAL,
         })),
     [effectiveExpenseAnalytics],
   );
@@ -4505,7 +4522,7 @@ function App() {
         .map((item) => ({
           name: item.label,
           value: Number(item.value) || 0,
-          color: getStableChartColor(item.label, "#1677ff"),
+          color: getStableChartColor(item.label),
         })),
     [effectiveExpenseAnalytics],
   );
@@ -4518,16 +4535,7 @@ function App() {
         .map((item, index) => ({
           name: item.name,
           value: Number(item.value) || 0,
-          color: [
-            "#1677ff",
-            "#52c41a",
-            "#faad14",
-            "#eb2f96",
-            "#13c2c2",
-            "#722ed1",
-            "#fa8c16",
-            "#2f54eb",
-          ][index % 8],
+          color: CHART_PALETTE[index % CHART_PALETTE.length],
         })),
     [effectiveExpenseAnalytics],
   );
@@ -4633,7 +4641,7 @@ function App() {
                 type="monotone"
                 dataKey="totalTwd"
                 name="總支出"
-                stroke="#1677ff"
+                stroke={CHART_PALETTE[0]}
                 strokeWidth={2}
                 dot={false}
               />
@@ -4641,7 +4649,7 @@ function App() {
                 type="monotone"
                 dataKey="recurringTwd"
                 name="定期支出"
-                stroke="#13c2c2"
+                stroke={CHART_PALETTE[1]}
                 strokeWidth={2}
                 dot={false}
               />
@@ -4693,7 +4701,7 @@ function App() {
               <RechartsTooltip
                 formatter={(value) => formatTwd(Number(value))}
               />
-              <Bar dataKey="value" fill="#1677ff" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="value" fill={CHART_PALETTE[0]} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         );
@@ -4775,7 +4783,7 @@ function App() {
                 type="monotone"
                 dataKey="totalTwd"
                 name="總支出"
-                stroke="#1677ff"
+                stroke={CHART_PALETTE[0]}
                 strokeWidth={3}
                 dot={{ r: 3 }}
               />
@@ -4783,7 +4791,7 @@ function App() {
                 type="monotone"
                 dataKey="recurringTwd"
                 name="定期支出"
-                stroke="#13c2c2"
+                stroke={CHART_PALETTE[1]}
                 strokeWidth={3}
                 dot={{ r: 3 }}
               />
@@ -4838,7 +4846,7 @@ function App() {
               <RechartsTooltip
                 formatter={(value) => formatTwd(Number(value))}
               />
-              <Bar dataKey="value" fill="#1677ff" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="value" fill={CHART_PALETTE[0]} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         );
@@ -5789,10 +5797,7 @@ function App() {
                                   {budget.budgetMode === "SPECIAL" ? (
                                     <Tag
                                       className="active-budget-mode-tag"
-                                      color={getStableTagColor(
-                                        formatBudgetModeLabel(budget.budgetMode),
-                                        "orange",
-                                      )}
+                                      bordered={false}
                                     >
                                       {formatBudgetModeLabel(budget.budgetMode)}
                                     </Tag>
@@ -5813,7 +5818,6 @@ function App() {
                                   percent={status.barPct}
                                   size="small"
                                   showInfo={false}
-                                  trailColor="#edf2f2"
                                   strokeColor={BUDGET_LEVEL_COLORS[status.level]}
                                 />
                                 <Text
@@ -6085,7 +6089,8 @@ function App() {
                               width: 90,
                               render: (_, record) => (
                                 <Button
-                                  danger
+                                  type="text"
+                                  className="row-action row-action--danger"
                                   size="small"
                                   icon={<DeleteOutlined />}
                                   loading={loadingIncomeSettings}
@@ -6141,8 +6146,9 @@ function App() {
                               }
                             />
                             <Button
-                              danger
+                              className="row-action row-action--danger"
                               icon={<DeleteOutlined />}
+                              aria-label="移除持有人"
                               disabled={
                                 isWriteDisabled ||
                                 loadingHolderSettings ||

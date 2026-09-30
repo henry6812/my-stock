@@ -5,21 +5,11 @@ import "./pwaUpdate";
 import "antd/dist/reset.css";
 import "./index.css";
 import App from "./App";
+import { antdTheme } from "./theme/tokens";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: "#44A194",
-          colorPrimaryHover: "#55b0a4",
-          colorPrimaryActive: "#307c72",
-          borderRadius: 10,
-          fontFamily:
-            "PingFang TC, Noto Sans TC, -apple-system, Segoe UI, sans-serif",
-        },
-      }}
-    >
+    <ConfigProvider theme={antdTheme}>
       <AntdApp>
         <App />
       </AntdApp>
