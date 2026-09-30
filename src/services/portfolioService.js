@@ -26,6 +26,7 @@ import {
 } from "./firebase/cloudSyncService";
 import { buildCashAccountKey, buildHoldingKey } from "./firebase/firestoreMappers";
 import { parseNumericLike } from "../utils/number";
+import { mapWithConcurrency } from "../utils/concurrency";
 import {
   computeHoldingDailyChange,
   computePortfolioDailyChange,
@@ -52,6 +53,9 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const isDeleted = (item) => Boolean(item?.deletedAt);
+
+// Finnhub free tier: 60 calls/min, 30/sec — a few in flight is safe.
+const US_QUOTE_CONCURRENCY = 4;
 
 const getNowIso = () => new Date().toISOString();
 const getNowDate = () => dayjs().format("YYYY-MM-DD");
@@ -1163,13 +1167,33 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
     const nowIso = getNowIso();
     const snapshots = [];
 
-    for (let i = 0; i < targetHoldings.length; i += 1) {
-      if (i > 0) {
-        await sleepForRateLimit(1_200);
+    // TW and US quotes hit different hosts, so fetch both lanes at once.
+    // TWSE rate-limits per IP → keep TW sequential with a pause between
+    // requests. Finnhub (US) allows short bursts → small parallel batches.
+    const twHoldings = targetHoldings.filter(
+      (item) => item.market !== MARKET.US,
+    );
+    const fetchTwQuotes = async () => {
+      const quotes = [];
+      for (let i = 0; i < twHoldings.length; i += 1) {
+        if (i > 0) {
+          await sleepForRateLimit(1_200);
+        }
+        quotes.push(await getHoldingQuote(twHoldings[i]));
       }
+      return quotes;
+    };
+    const [twQuotes, usQuotes] = await Promise.all([
+      fetchTwQuotes(),
+      mapWithConcurrency(usHoldings, US_QUOTE_CONCURRENCY, getHoldingQuote),
+    ]);
+    const quoteByHoldingId = new Map([
+      ...twHoldings.map((holding, i) => [holding.id, twQuotes[i]]),
+      ...usHoldings.map((holding, i) => [holding.id, usQuotes[i]]),
+    ]);
 
-      const holding = targetHoldings[i];
-      const quote = await getHoldingQuote(holding);
+    for (const holding of targetHoldings) {
+      const quote = quoteByHoldingId.get(holding.id);
       const valueTwd =
         holding.market === MARKET.US
           ? quote.price * holding.shares * usdTwdRate

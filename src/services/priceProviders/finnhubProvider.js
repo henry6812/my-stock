@@ -15,16 +15,27 @@ const getApiKey = () => {
   return apiKey
 }
 
+// Quotes are fetched in parallel, so a burst can trip Finnhub's rate limit;
+// back off and retry a couple of times before giving up.
+const RATE_LIMIT_MAX_RETRIES = 2
+const RATE_LIMIT_BACKOFF_MS = 1_500
+
 const requestFinnhub = async (path, params) => {
   const apiKey = getApiKey()
   const query = new URLSearchParams({ ...params, token: apiKey })
   const url = `${FINNHUB_BASE_URL}${path}?${query.toString()}`
 
   let response
-  try {
-    response = await fetch(url)
-  } catch {
-    throw new Error('Failed to fetch quote API. Please check network and API key settings.')
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      response = await fetch(url)
+    } catch {
+      throw new Error('Failed to fetch quote API. Please check network and API key settings.')
+    }
+    if (response.status !== 429 || attempt >= RATE_LIMIT_MAX_RETRIES) {
+      break
+    }
+    await sleep(RATE_LIMIT_BACKOFF_MS * (attempt + 1))
   }
 
   if (!response.ok) {
@@ -52,7 +63,7 @@ const toFinnhubSymbol = (symbol, market) => {
   return symbol
 }
 
-export const getHoldingQuote = async ({ symbol, market }) => {
+export const getHoldingQuote = async ({ symbol, market, companyName: knownName }) => {
   if (market === 'TW') {
     let twseError = null
     let twseAllError = null
@@ -90,14 +101,19 @@ export const getHoldingQuote = async ({ symbol, market }) => {
     throw new Error(`No quote found for symbol: ${finnhubSymbol}`)
   }
 
-  let companyName = symbol
-  try {
-    const profile = await requestFinnhub('/stock/profile2', { symbol: finnhubSymbol })
-    if (profile?.name) {
-      companyName = profile.name
+  // A company name never changes, so only look it up (a second Finnhub call)
+  // when the holding doesn't have a real one yet.
+  const hasKnownName = Boolean(knownName) && knownName !== symbol
+  let companyName = hasKnownName ? knownName : symbol
+  if (!hasKnownName) {
+    try {
+      const profile = await requestFinnhub('/stock/profile2', { symbol: finnhubSymbol })
+      if (profile?.name) {
+        companyName = profile.name
+      }
+    } catch {
+      // Profile name is optional; keep symbol fallback.
     }
-  } catch {
-    // Profile name is optional; keep symbol fallback.
   }
 
   const previousClose = Number(quote?.pc)
