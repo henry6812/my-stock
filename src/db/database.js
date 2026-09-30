@@ -126,6 +126,10 @@ class InMemoryQuery {
 
   async toArray() {
     let rows = this.table.rows.filter((row) => this.filters.every((filter) => filter(row)))
+    // Like Dexie, results come back in index order (not insertion order), so
+    // `.reverse().first()` really is the row with the highest index value.
+    // Array#sort is stable, so ties keep insertion (≈ primary key) order.
+    rows.sort((a, b) => compareKey(valueAtIndex(a, this.indexName), valueAtIndex(b, this.indexName)))
     if (this.reversed) {
       rows = [...rows].reverse()
     }
