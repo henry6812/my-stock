@@ -167,6 +167,8 @@ import {
   buildProgressStops,
 } from "./utils/portfolioView";
 import { getBootPhase } from "./utils/bootPhase";
+import { toUserMessage } from "./utils/userMessage";
+import { applyPwaUpdate, onPwaNeedRefresh } from "./pwaUpdate";
 import "./App.css";
 
 const { Header, Content } = Layout;
@@ -238,8 +240,7 @@ class AppErrorBoundary extends Component {
   static getDerivedStateFromError(error) {
     return {
       hasError: true,
-      errorMessage:
-        error instanceof Error ? error.message : "Unknown runtime error",
+      errorMessage: toUserMessage(error, "畫面發生未預期的錯誤"),
     };
   }
 
@@ -275,7 +276,7 @@ class AppErrorBoundary extends Component {
 }
 
 function App() {
-  const { message } = AntdApp.useApp();
+  const { message, notification } = AntdApp.useApp();
   const [rows, setRows] = useState([]);
   const [cashRows, setCashRows] = useState([]);
   const [totalTwd, setTotalTwd] = useState(0);
@@ -445,6 +446,9 @@ function App() {
   const shouldAnimateNumbersRef = useRef(false);
   // Ensures the "auto-refresh on open if stale" runs at most once per session.
   const autoRefreshAttemptedRef = useRef(false);
+  // Set when the one-shot auto refresh fails (fully or partly) so the summary
+  // can say so instead of silently showing yesterday's prices.
+  const [autoRefreshIssue, setAutoRefreshIssue] = useState(null);
   const didRunInitialAnimationRef = useRef(false);
   const loadRequestSeqRef = useRef(0);
   const totalAnimationRef = useRef(null);
@@ -954,8 +958,9 @@ function App() {
     setCloudReadOnly(Boolean(runtime.readOnly));
     if (runtime.lastError) {
       setCloudSyncStatus("error");
-      setCloudSyncError(runtime.lastError);
-      setCloudReadOnlyReason(runtime.lastError);
+      const friendlyError = toUserMessage(runtime.lastError, "雲端同步發生錯誤");
+      setCloudSyncError(friendlyError);
+      setCloudReadOnlyReason(friendlyError);
       return runtime;
     }
     if (!authUser) {
@@ -1008,7 +1013,7 @@ function App() {
         return result;
       } catch (error) {
         setCloudSyncStatus("error");
-        setCloudSyncError(error instanceof Error ? error.message : "同步失敗");
+        setCloudSyncError(toUserMessage(error, "同步失敗"));
         if (throwOnError) {
           throw error;
         }
@@ -1139,7 +1144,7 @@ function App() {
       message.success("支出已儲存");
     } catch (error) {
       if (error?.errorFields) return;
-      message.error(error instanceof Error ? error.message : "儲存支出失敗");
+      message.error(toUserMessage(error, "儲存支出失敗"));
     } finally {
       setLoadingExpenseAction(false);
     }
@@ -1169,7 +1174,7 @@ function App() {
       message.success("分類已儲存");
     } catch (error) {
       if (error?.errorFields) return;
-      message.error(error instanceof Error ? error.message : "儲存分類失敗");
+      message.error(toUserMessage(error, "儲存分類失敗"));
     } finally {
       setLoadingCategoryAction(false);
     }
@@ -1219,7 +1224,7 @@ function App() {
       message.success("預算已儲存");
     } catch (error) {
       if (error?.errorFields) return;
-      message.error(error instanceof Error ? error.message : "儲存預算失敗");
+      message.error(toUserMessage(error, "儲存預算失敗"));
     } finally {
       setLoadingBudgetAction(false);
     }
@@ -1263,7 +1268,7 @@ function App() {
     async (record) => {
       const parsedShares = Number(editingShares);
       if (!Number.isFinite(parsedShares) || parsedShares <= 0) {
-        message.error("Shares must be a positive number");
+        message.error("股數必須大於 0");
         return;
       }
 
@@ -1290,7 +1295,7 @@ function App() {
         setEditingHoldingHolder(null);
         message.success("持股已更新");
       } catch (error) {
-        message.error(error instanceof Error ? error.message : "更新股數失敗");
+        message.error(toUserMessage(error, "更新股數失敗"));
       } finally {
         setRowLoading(record.id, false);
       }
@@ -1321,7 +1326,7 @@ function App() {
         }
         message.success("持股已移除");
       } catch (error) {
-        message.error(error instanceof Error ? error.message : "移除持股失敗");
+        message.error(toUserMessage(error, "移除持股失敗"));
       } finally {
         setRowLoading(record.id, false);
       }
@@ -1333,7 +1338,7 @@ function App() {
     async (record) => {
       const parsedBalance = Number(editingCashBalance);
       if (!Number.isFinite(parsedBalance) || parsedBalance < 0) {
-        message.error("Balance must be a non-negative number");
+        message.error("餘額不可為負數");
         return;
       }
 
@@ -1356,7 +1361,7 @@ function App() {
         setEditingCashHolder(null);
         message.success("銀行帳戶已更新");
       } catch (error) {
-        message.error(error instanceof Error ? error.message : "更新餘額失敗");
+        message.error(toUserMessage(error, "更新餘額失敗"));
       } finally {
         setCashRowLoading(record.id, false);
       }
@@ -1386,7 +1391,7 @@ function App() {
         message.success("銀行帳戶已移除");
       } catch (error) {
         message.error(
-          error instanceof Error ? error.message : "移除銀行帳戶失敗",
+          toUserMessage(error, "移除銀行帳戶失敗"),
         );
       } finally {
         setCashRowLoading(record.id, false);
@@ -1455,7 +1460,7 @@ function App() {
         await performCloudSync();
         message.success("支出已刪除");
       } catch (error) {
-        message.error(error instanceof Error ? error.message : "刪除支出失敗");
+        message.error(toUserMessage(error, "刪除支出失敗"));
       } finally {
         setLoadingExpenseAction(false);
       }
@@ -1502,7 +1507,7 @@ function App() {
       setStopKeepToday(true);
     } catch (error) {
       message.error(
-        error instanceof Error ? error.message : "取消定期支出失敗",
+        toUserMessage(error, "取消定期支出失敗"),
       );
     } finally {
       setStoppingRecurringById((prev) => {
@@ -1529,7 +1534,7 @@ function App() {
         await performCloudSync();
         message.success("分類已刪除");
       } catch (error) {
-        message.error(error instanceof Error ? error.message : "刪除分類失敗");
+        message.error(toUserMessage(error, "刪除分類失敗"));
       } finally {
         setLoadingCategoryAction(false);
       }
@@ -1546,7 +1551,7 @@ function App() {
         await performCloudSync();
         message.success("預算已刪除");
       } catch (error) {
-        message.error(error instanceof Error ? error.message : "刪除預算失敗");
+        message.error(toUserMessage(error, "刪除預算失敗"));
       } finally {
         setLoadingBudgetAction(false);
       }
@@ -1632,7 +1637,7 @@ function App() {
         await performCloudSync();
       } catch (error) {
         message.error(
-          error instanceof Error ? error.message : "持股排序更新失敗",
+          toUserMessage(error, "持股排序更新失敗"),
         );
         await loadAllData();
       } finally {
@@ -2642,7 +2647,7 @@ function App() {
         }
         setCloudSyncStatus("error");
         setCloudSyncError(
-          error instanceof Error ? error.message : "同步初始化失敗",
+          toUserMessage(error, "同步初始化失敗"),
         );
       } finally {
         if (alive) {
@@ -2674,7 +2679,7 @@ function App() {
           loadHolderOptionSettings(),
         ]);
       } catch (error) {
-        message.error(error instanceof Error ? error.message : "載入資料失敗");
+        message.error(toUserMessage(error, "載入資料失敗"));
       } finally {
         setLoadingData(false);
       }
@@ -2704,6 +2709,25 @@ function App() {
     };
   }, [loadAllData, loadExpenseData, loadHolderOptionSettings, refreshCloudRuntime]);
 
+  useEffect(
+    () =>
+      onPwaNeedRefresh(() => {
+        notification.info({
+          key: "pwa-update",
+          title: "有新版本可以使用",
+          description: "更新會重新載入頁面，請先儲存正在編輯的內容。",
+          duration: 0,
+          placement: "bottom",
+          actions: (
+            <Button type="primary" size="small" onClick={applyPwaUpdate}>
+              立即更新
+            </Button>
+          ),
+        });
+      }),
+    [notification],
+  );
+
   // 配套 2: once the app is ready, if today's prices haven't been fetched yet,
   // auto-refresh once so the user doesn't have to press "更新價格". Skips when
   // offline; on failure it degrades gracefully (stale data + freshness label).
@@ -2718,12 +2742,18 @@ function App() {
     (async () => {
       try {
         setLoadingRefresh(true);
-        await refreshPrices({ market: "ALL" });
+        const result = await refreshPrices({ market: "ALL" });
         shouldAnimateNumbersRef.current = true;
         await loadAllData();
         await performCloudSync();
-      } catch {
-        // Keep stale data visible; the freshness label + manual refresh remain.
+        const failedSymbols = (result.failed ?? []).map((item) => item.symbol);
+        if (failedSymbols.length > 0) {
+          setAutoRefreshIssue(`${failedSymbols.join("、")} 自動抓價失敗`);
+        }
+      } catch (error) {
+        // Keep stale data visible, but tell the user and offer a retry.
+        console.warn("[autoRefresh] failed", error);
+        setAutoRefreshIssue("自動更新報價失敗");
       } finally {
         setLoadingRefresh(false);
       }
@@ -2828,11 +2858,8 @@ function App() {
         const directory = await getBankDirectory();
         setBankOptions(directory);
       } catch (error) {
-        message.warning(
-          error instanceof Error
-            ? `銀行名單載入失敗，仍可手動輸入：${error.message}`
-            : "銀行名單載入失敗，仍可手動輸入",
-        );
+        console.warn("[bankDirectory] load failed", error);
+        message.warning("銀行名單載入失敗，仍可手動輸入銀行名稱");
       } finally {
         setLoadingBankOptions(false);
       }
@@ -2920,7 +2947,7 @@ function App() {
       setLoadingAddHolding(true);
       upsertResult = await upsertHolding(values);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "新增持股失敗");
+      message.error(toUserMessage(error, "新增持股失敗"));
       return false;
     }
 
@@ -2937,7 +2964,7 @@ function App() {
       setIsAddHoldingModalOpen(false);
       setIsAddHoldingSheetOpen(false);
       message.warning(
-        `持股已儲存，但抓價失敗，可稍後按「更新價格」補抓：${error instanceof Error ? error.message : "未知錯誤"}`,
+        `持股已儲存，但抓價失敗，可稍後按「更新價格」補抓：${toUserMessage(error, "未知錯誤")}`,
       );
       return true;
     } finally {
@@ -2951,6 +2978,7 @@ function App() {
     try {
       setLoadingRefresh(true);
       const result = await refreshPrices({ market: targetMarket });
+      setAutoRefreshIssue(null);
       shouldAnimateNumbersRef.current = true;
       await loadAllData();
       await performCloudSync();
@@ -2966,6 +2994,14 @@ function App() {
       }
 
       const updatedLabel = `${result.updatedCount}/${result.targetCount} 檔`;
+      const failedSymbols = (result.failed ?? []).map((item) => item.symbol);
+      if (failedSymbols.length > 0) {
+        message.warning(
+          `已更新 ${updatedLabel}，以下抓價失敗：${failedSymbols.join("、")}。可稍後再試。`,
+          6,
+        );
+        return;
+      }
       if (targetMarket === "TW") {
         message.success(
           `台股更新完成，已更新 ${updatedLabel}（${dayjs(result.lastUpdatedAt).format("HH:mm:ss")}）`,
@@ -2980,7 +3016,7 @@ function App() {
         );
       }
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "更新價格失敗");
+      message.error(toUserMessage(error, "更新價格失敗"));
     } finally {
       setLoadingRefresh(false);
     }
@@ -3008,7 +3044,7 @@ function App() {
       return true;
     } catch (error) {
       message.error(
-        error instanceof Error ? error.message : "新增銀行帳戶失敗",
+        toUserMessage(error, "新增銀行帳戶失敗"),
       );
       return false;
     } finally {
@@ -3134,7 +3170,7 @@ function App() {
       setLoadingAuthAction(true);
       await loginWithGoogle();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "Google 登入失敗");
+      message.error(toUserMessage(error, "Google 登入失敗"));
     } finally {
       setLoadingAuthAction(false);
     }
@@ -3167,7 +3203,7 @@ function App() {
       if (error?.errorFields) {
         return;
       }
-      message.error(error instanceof Error ? error.message : "Email 登入失敗");
+      message.error(toUserMessage(error, "Email 登入失敗"));
     } finally {
       setLoadingEmailLogin(false);
     }
@@ -3177,9 +3213,9 @@ function App() {
     try {
       setLoadingAuthAction(true);
       await logoutGoogle();
-      message.success("已登出 Google");
+      message.success("已登出");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "登出失敗");
+      message.error(toUserMessage(error, "登出失敗"));
     } finally {
       setLoadingAuthAction(false);
     }
@@ -3202,7 +3238,7 @@ function App() {
       setCloudLastSyncedAt(new Date().toISOString());
       message.success("已重新連線並更新資料");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "重新整理失敗");
+      message.error(toUserMessage(error, "重新整理失敗"));
     } finally {
       pullingRef.current = false;
       pullStartYRef.current = 0;
@@ -3807,7 +3843,7 @@ function App() {
       message.success("月份收入覆寫已新增");
     } catch (error) {
       message.error(
-        error instanceof Error ? error.message : "新增月份收入覆寫失敗",
+        toUserMessage(error, "新增月份收入覆寫失敗"),
       );
     } finally {
       setLoadingIncomeSettings(false);
@@ -3831,7 +3867,7 @@ function App() {
         message.success("月份收入覆寫已刪除");
       } catch (error) {
         message.error(
-          error instanceof Error ? error.message : "刪除月份收入覆寫失敗",
+          toUserMessage(error, "刪除月份收入覆寫失敗"),
         );
       } finally {
         setLoadingIncomeSettings(false);
@@ -3853,7 +3889,7 @@ function App() {
       message.success("收入設定已儲存");
     } catch (error) {
       message.error(
-        error instanceof Error ? error.message : "儲存收入設定失敗",
+        toUserMessage(error, "儲存收入設定失敗"),
       );
     } finally {
       setLoadingIncomeSettings(false);
@@ -3967,7 +4003,7 @@ function App() {
       message.success("持有人設定已儲存");
     } catch (error) {
       message.error(
-        error instanceof Error ? error.message : "儲存持有人設定失敗",
+        toUserMessage(error, "儲存持有人設定失敗"),
       );
     } finally {
       setLoadingHolderSettings(false);
@@ -4472,8 +4508,8 @@ function App() {
             )}
           </div>
           <img
-            src={`${import.meta.env.BASE_URL}vite.svg`}
-            alt="My Stock logo"
+            src={`${import.meta.env.BASE_URL}icon.svg`}
+            alt="我的資產"
             className="header-logo"
           />
           <div className="header-auth">
@@ -4604,6 +4640,24 @@ function App() {
                             ? `尚未更新今日價格，顯示 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")} 的資料`
                             : "尚未更新今日價格"
                           : `報價更新於 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")}`}
+                      </Text>
+                    )}
+                    {autoRefreshIssue && (
+                      <Text
+                        type="warning"
+                        style={{ fontSize: 12, display: "block" }}
+                      >
+                        {autoRefreshIssue}
+                        <Button
+                          type="link"
+                          size="small"
+                          onClick={() => handleRefreshPrices("ALL")}
+                          loading={loadingRefresh}
+                          disabled={isWriteDisabled}
+                          style={{ fontSize: 12, paddingInline: 6, height: "auto" }}
+                        >
+                          重試
+                        </Button>
                       </Text>
                     )}
                     <div className="networth-progress-wrap">
@@ -6056,6 +6110,7 @@ function App() {
               disabled={isWriteDisabled}
               holderOptions={holderSelectOptions}
               holdingTagOptions={holdingTagOptions}
+              existingHoldings={rows}
             />
           </MobileFormSheetLayout>
 
@@ -6121,6 +6176,7 @@ function App() {
               disabled={isWriteDisabled}
               holderOptions={holderSelectOptions}
               holdingTagOptions={holdingTagOptions}
+              existingHoldings={rows}
             />
           </Modal>
 

@@ -14,23 +14,24 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['vite.svg'],
+      // 'prompt' so a new deploy never reloads the page under an open form;
+      // main.jsx asks the user before activating the waiting worker.
+      registerType: 'prompt',
+      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'My Stock Portfolio',
-        short_name: 'MyStock',
-        description: 'Personal stock value manager with local (localStorage) storage and optional Firebase sync',
-        theme_color: '#165dff',
+        name: '我的資產',
+        short_name: '我的資產',
+        description: '個人資產管理：台股、美股、銀行現金、支出與預算，可跨裝置同步',
+        lang: 'zh-Hant-TW',
+        theme_color: '#44A194',
         background_color: '#f7f9fc',
         display: 'standalone',
         start_url: '.',
         icons: [
-          {
-            src: 'vite.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any',
-          },
+          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
       workbox: {
@@ -38,7 +39,6 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         cleanupOutdatedCaches: true,
         clientsClaim: true,
-        skipWaiting: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/openapi\.twse\.com\.tw\/.*$/i,

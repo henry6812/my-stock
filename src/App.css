@@ -245,7 +245,7 @@
   top: 36px;
   transform: translateX(-50%);
   font-size: 11px;
-  color: #8c909a;
+  color: #6b7280;
   white-space: nowrap;
 }
 
@@ -403,7 +403,7 @@
 .networth-progress-meta {
   display: block;
   margin-top: 6px;
-  font-size: 11px;
+  font-size: 12px;
   text-align: right;
 }
 
@@ -528,11 +528,11 @@
   }
 
   .networth-progress-scale-label {
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .networth-marker-label {
-    font-size: 10px;
+    font-size: 11px;
     padding: 1px 5px;
   }
 
@@ -802,16 +802,17 @@
   line-height: 1.2;
 }
 
+/* Darker than antd's green-6/red-6 so 12px text meets WCAG AA (>= 4.5:1). */
 .cell-delta--up {
-  color: #52c41a;
+  color: #237804;
 }
 
 .cell-delta--down {
-  color: #f5222d;
+  color: #cf1322;
 }
 
 .cell-delta--flat {
-  color: #8c8c8c;
+  color: #6b6b6b;
 }
 
 .expense-summary-panel {
@@ -917,12 +918,12 @@
 }
 
 .expense-income-progress-meta-left {
-  font-size: 11px;
+  font-size: 12px;
   text-align: left;
 }
 
 .expense-income-progress-meta-right {
-  font-size: 11px;
+  font-size: 12px;
   text-align: right;
   flex-shrink: 0;
 }
@@ -1008,7 +1009,7 @@
   border: 1px solid #44a194;
   background: #b4f1e9;
   color: #275e56;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.2;
   white-space: nowrap;
 }
@@ -1293,7 +1294,7 @@
   }
 
   .cell-delta {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .expense-summary-title {
@@ -1338,5 +1339,18 @@
 
   .expense-chart-modal-content {
     height: 340px;
+  }
+}
+
+/* Pinch-zoom is allowed (a11y), so keep editable text >= 16px on touch
+   devices — iOS Safari auto-zooms into any focused input smaller than that. */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  .ant-select-selection-search-input,
+  .ant-input,
+  .ant-input-number-input,
+  .ant-picker-input > input {
+    font-size: 16px !important;
   }
 }

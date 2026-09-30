@@ -1,19 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App as AntdApp, ConfigProvider } from "antd";
-import { registerSW } from "virtual:pwa-register";
+import "./pwaUpdate";
 import "antd/dist/reset.css";
 import "./index.css";
 import App from "./App";
-
-const updateSW = registerSW({
-  onNeedRefresh() {
-    updateSW(true);
-  },
-  onOfflineReady() {
-    console.log("App is ready for offline usage.");
-  },
-});
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

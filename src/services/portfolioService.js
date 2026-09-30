@@ -29,6 +29,11 @@ import { buildCashAccountKey, buildHoldingKey } from "./firebase/firestoreMapper
 import { parseNumericLike } from "../utils/number";
 import { mapWithConcurrency } from "../utils/concurrency";
 import {
+  HOLDING_SHARES_MODE,
+  normalizeHoldingSymbol,
+  resolveNextShares,
+} from "../utils/holdingShares";
+import {
   computeHoldingDailyChange,
   computePortfolioDailyChange,
   isPriceDataStale,
@@ -331,13 +336,7 @@ const sortHoldingsByOrder = (a, b) => {
   return a.updatedAt > b.updatedAt ? -1 : 1;
 };
 
-const normalizeSymbol = (symbol, market) => {
-  const normalized = symbol.trim().toUpperCase();
-  if (market === MARKET.TW) {
-    return normalized.replace(".TW", "");
-  }
-  return normalized;
-};
+const normalizeSymbol = normalizeHoldingSymbol;
 
 const normalizeAssetTag = (assetTag) =>
   String(assetTag ?? "")
@@ -760,12 +759,19 @@ export const removeIncomeOverride = async ({ month }) => {
   });
 };
 
+const settleQuote = (promise) =>
+  promise.then(
+    (quote) => ({ quote }),
+    (error) => ({ error }),
+  );
+
 export const upsertHolding = async ({
   symbol,
   market,
   shares,
   assetTag,
   holder,
+  sharesMode = HOLDING_SHARES_MODE.ADD,
 }) => {
   ensureCloudWritable();
   const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW;
@@ -803,7 +809,11 @@ export const upsertHolding = async ({
       : existing.assetTag || getDefaultHoldingTag(options);
     const nextHolding = {
       ...existing,
-      shares: parsedShares,
+      shares: resolveNextShares({
+        existingShares: existing.shares,
+        inputShares: parsedShares,
+        mode: sharesMode,
+      }),
       assetTag: nextAssetTag,
       holder: normalizedHolder,
       updatedAt: nowIso,
@@ -1190,7 +1200,7 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
       for (const holding of twHoldings) {
         const hit = daily?.quotes[holding.symbol];
         if (hit) {
-          quotes.push(hit);
+          quotes.push({ quote: hit });
           continue;
         }
         // Not TWSE-listed at all → it's a TPEX symbol; the same-origin TPEX
@@ -1199,14 +1209,14 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
         if (!tpexFirst) {
           await sleepForRateLimit(1_200);
         }
-        quotes.push(await getHoldingQuote(holding, { tpexFirst }));
+        quotes.push(await settleQuote(getHoldingQuote(holding, { tpexFirst })));
       }
       return quotes;
     };
     const [twQuotes, usQuotes] = await Promise.all([
       fetchTwQuotes(),
       mapWithConcurrency(usHoldings, US_QUOTE_CONCURRENCY, (holding) =>
-        getHoldingQuote(holding),
+        settleQuote(getHoldingQuote(holding)),
       ),
     ]);
     const quoteByHoldingId = new Map([
@@ -1214,8 +1224,20 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
       ...usHoldings.map((holding, i) => [holding.id, usQuotes[i]]),
     ]);
 
+    // One bad symbol shouldn't discard every other quote: save what we got
+    // and report the misses. Only when nothing succeeds is it a hard error.
+    const failed = [];
     for (const holding of targetHoldings) {
-      const quote = quoteByHoldingId.get(holding.id);
+      const { quote, error } = quoteByHoldingId.get(holding.id);
+      if (!quote) {
+        console.warn(`[refreshPrices] ${holding.market}:${holding.symbol} failed`, error);
+        failed.push({
+          symbol: holding.symbol,
+          market: holding.market,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       const valueTwd =
         holding.market === MARKET.US
           ? quote.price * holding.shares * usdTwdRate
@@ -1249,6 +1271,12 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
       }
     }
 
+    if (snapshots.length === 0) {
+      throw new Error(
+        `全部 ${failed.length} 檔報價都抓取失敗：${failed[0]?.reason ?? "未知錯誤"}`,
+      );
+    }
+
     if (snapshots.length > 0) {
       for (const snapshot of snapshots) {
         await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot);
@@ -1268,6 +1296,7 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
     return {
       updatedCount: snapshots.length,
       targetCount: targetHoldings.length,
+      failed,
       market,
       lastUpdatedAt: nowIso,
     };
