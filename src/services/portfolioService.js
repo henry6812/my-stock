@@ -9,6 +9,7 @@ import {
   SYNC_KEY_PRICES,
 } from "../db/database";
 import { getUsdTwdRate } from "./priceProviders/fxProvider";
+import { getTwseDailyQuotes } from "./priceProviders/twseDailyProvider";
 import {
   getHoldingQuote,
   sleepForRateLimit,
@@ -1168,24 +1169,45 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
     const snapshots = [];
 
     // TW and US quotes hit different hosts, so fetch both lanes at once.
-    // TWSE rate-limits per IP → keep TW sequential with a pause between
-    // requests. Finnhub (US) allows short bursts → small parallel batches.
+    // TW: one MI_INDEX request covers every TWSE-listed symbol; only misses
+    // (TPEX symbols, no trade today, or MI_INDEX down) go per-symbol, paced
+    // because TWSE rate-limits per IP. US: Finnhub allows short bursts →
+    // small parallel batches.
     const twHoldings = targetHoldings.filter(
       (item) => item.market !== MARKET.US,
     );
     const fetchTwQuotes = async () => {
+      let daily = null;
+      if (twHoldings.length > 0) {
+        try {
+          daily = await getTwseDailyQuotes();
+        } catch (error) {
+          console.warn("[refreshPrices] MI_INDEX batch failed, falling back per symbol", error);
+        }
+      }
+
       const quotes = [];
-      for (let i = 0; i < twHoldings.length; i += 1) {
-        if (i > 0) {
+      for (const holding of twHoldings) {
+        const hit = daily?.quotes[holding.symbol];
+        if (hit) {
+          quotes.push(hit);
+          continue;
+        }
+        // Not TWSE-listed at all → it's a TPEX symbol; the same-origin TPEX
+        // snapshot needs no pacing. Anything else hits TWSE again.
+        const tpexFirst = Boolean(daily) && !daily.listedSymbols.has(holding.symbol);
+        if (!tpexFirst) {
           await sleepForRateLimit(1_200);
         }
-        quotes.push(await getHoldingQuote(twHoldings[i]));
+        quotes.push(await getHoldingQuote(holding, { tpexFirst }));
       }
       return quotes;
     };
     const [twQuotes, usQuotes] = await Promise.all([
       fetchTwQuotes(),
-      mapWithConcurrency(usHoldings, US_QUOTE_CONCURRENCY, getHoldingQuote),
+      mapWithConcurrency(usHoldings, US_QUOTE_CONCURRENCY, (holding) =>
+        getHoldingQuote(holding),
+      ),
     ]);
     const quoteByHoldingId = new Map([
       ...twHoldings.map((holding, i) => [holding.id, twQuotes[i]]),

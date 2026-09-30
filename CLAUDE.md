@@ -74,6 +74,8 @@ Query API 模仿 Dexie (`db.holdings.where('...').equals(...).toArray()`、compo
 1. **US stocks**：只用 Finnhub (`/quote`)。
 2. **TW stocks**：**不打 Finnhub**。直接走 `twseRwdProvider` → `twseProvider` (full snapshot) → `tpexProvider`（自己內部又會嘗試 `public/data/tpex_off_market.json` same-origin snapshot、TPEX 官方 API，最後是 `VITE_TPEX_PROXY_URL`）。三者全失敗才拋出彙整後的錯誤。
 
+批次刷新（`portfolioService.refreshPrices`）時台股先打一次 `twseDailyProvider`（TWSE `rwd/.../MI_INDEX?type=ALLBUT0999`，當天收盤後即更新；**不要**換成 openapi 的 `STOCK_DAY_ALL`，它隔天清晨才更新），命中的直接用；沒命中的才逐檔走上面的 chain（不在 TWSE 名單的代碼帶 `tpexFirst` 先查 TPEX），逐檔打 TWSE 前仍需 `sleepForRateLimit(1_200)`。美股與台股兩條線並行，美股用 `mapWithConcurrency` 限制 4 個同時請求。
+
 > 過去文件（含舊版 README / 技術導覽）宣稱台股「先打 Finnhub 再 fallback」，這是錯的 — code 從未對 TW market 呼叫 Finnhub。詳見 `docs/code-review-notes.md`。
 
 `alphaVantageProvider.js` 目前是 **dead code** — 沒有任何檔案 import 它，不在上述 chain 內。要重新啟用需自己接進 `getHoldingQuote`。

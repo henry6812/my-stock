@@ -82,4 +82,15 @@ describe('getHoldingQuote (TW)', () => {
     expect(quote.price).toBe(112.05)
     expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('finnhub'))).toBe(true)
   })
+
+  it('tries TPEX first when asked (symbol known not to be TWSE-listed)', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse([
+      { SecuritiesCompanyCode: '00679B', CompanyName: '元大美債20年', Close: '24.77' },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+    const quote = await getHoldingQuote({ symbol: '00679B', market: 'TW' }, { tpexFirst: true })
+    expect(quote.price).toBe(24.77)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(String(fetchMock.mock.calls[0][0])).toContain('tpex_off_market')
+  })
 })

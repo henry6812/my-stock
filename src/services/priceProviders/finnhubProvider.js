@@ -63,8 +63,21 @@ const toFinnhubSymbol = (symbol, market) => {
   return symbol
 }
 
-export const getHoldingQuote = async ({ symbol, market, companyName: knownName }) => {
+export const getHoldingQuote = async (
+  { symbol, market, companyName: knownName },
+  { tpexFirst = false } = {},
+) => {
   if (market === 'TW') {
+    // Caller already knows the symbol isn't TWSE-listed (e.g. from the
+    // MI_INDEX batch) → skip the TWSE requests that would only fail.
+    if (tpexFirst) {
+      try {
+        return await getTwQuoteFromTpex(symbol)
+      } catch {
+        // Fall through to the full chain below.
+      }
+    }
+
     let twseError = null
     let twseAllError = null
 
