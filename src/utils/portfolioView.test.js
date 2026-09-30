@@ -201,3 +201,22 @@ describe('progress bar math', () => {
     expect(buildProgressStops(20_000_000)).toEqual([0, 10_000_000, 20_000_000])
   })
 })
+
+describe('createExpensesCsvContent', () => {
+  it('resolves names, labels recurring rows and sorts newest first', async () => {
+    const { createExpensesCsvContent } = await import('./portfolioView')
+    const csv = createExpensesCsvContent(
+      [
+        { occurredAt: '2026-09-01', name: '房租', amountTwd: 20000, entryType: 'RECURRING', recurrenceType: 'MONTHLY', categoryId: 1 },
+        { occurredAt: '2026-09-20', name: '午餐 "便當"', amountTwd: 120, entryType: 'ONE_TIME', budgetId: 9 },
+      ],
+      { categoryNameById: new Map([[1, '居住']]), budgetNameById: new Map([[9, '餐費']]) },
+    )
+    const lines = csv.split('\r\n')
+    expect(lines).toHaveLength(3)
+    expect(lines[1]).toContain('"午餐 ""便當"""')
+    expect(lines[1]).toContain('"餐費"')
+    expect(lines[2]).toContain('"定期（月）"')
+    expect(lines[2]).toContain('"居住"')
+  })
+})

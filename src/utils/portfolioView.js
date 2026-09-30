@@ -98,7 +98,7 @@ export const formatSignedPrice = (value, currency = "TWD") => {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "--";
   }
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("zh-TW", {
     style: "currency",
     currency,
     maximumFractionDigits: 4,
@@ -183,18 +183,53 @@ const escapeCsvValue = (value) => {
   return `"${escapedValue}"`;
 };
 
-export const createHoldingsCsvContent = (rows) => {
-  const header = ["股票名稱", "代號", "持股股數"];
-  const records = rows.map((row) => [
-    row.companyName || row.symbol,
-    row.symbol,
-    row.shares,
-  ]);
-
-  return [header, ...records]
+export const toCsvContent = (header, records) =>
+  [header, ...records]
     .map((record) => record.map((value) => escapeCsvValue(value)).join(","))
     .join("\r\n");
-};
+
+export const createHoldingsCsvContent = (rows) =>
+  toCsvContent(
+    ["股票名稱", "代號", "持股股數"],
+    rows.map((row) => [row.companyName || row.symbol, row.symbol, row.shares]),
+  );
+
+export const createCashCsvContent = (rows) =>
+  toCsvContent(
+    ["銀行", "銀行代碼", "帳戶別名", "持有人", "餘額 (TWD)"],
+    rows.map((row) => [
+      row.bankName,
+      row.bankCode ?? "",
+      row.accountAlias,
+      row.holder ?? "",
+      row.balanceTwd,
+    ]),
+  );
+
+// entries: raw expense_entries rows; names resolved via the lookup maps.
+export const createExpensesCsvContent = (
+  entries,
+  { categoryNameById = new Map(), budgetNameById = new Map() } = {},
+) =>
+  toCsvContent(
+    ["日期", "名稱", "金額 (TWD)", "單筆 / 定期", "分類", "預算", "支出人", "家庭 / 個人"],
+    [...entries]
+      .sort((a, b) => String(b.occurredAt).localeCompare(String(a.occurredAt)))
+      .map((entry) => [
+        entry.occurredAt,
+        entry.name,
+        entry.amountTwd,
+        entry.entryType === "RECURRING"
+          ? entry.recurrenceType === "YEARLY"
+            ? "定期（年）"
+            : "定期（月）"
+          : "單筆",
+        categoryNameById.get(entry.categoryId) ?? "",
+        budgetNameById.get(entry.budgetId) ?? "",
+        entry.payer ?? "",
+        entry.expenseKind ?? "",
+      ]),
+  );
 
 export const filterRowsByHolderTab = (targetRows, tab) => {
   const holderValue = getHolderValueFromTabKey(tab);

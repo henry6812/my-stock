@@ -118,6 +118,7 @@ import {
   updateHoldingHolder,
   updateHoldingShares,
   upsertCashAccount,
+  exportBackupData,
   upsertHolding,
   getExpenseDashboardView,
   saveHolderOptions,
@@ -141,7 +142,14 @@ import {
 } from "./services/firebase/authService";
 import { CLOUD_SYNC_UPDATED_EVENT } from "./services/firebase/cloudSyncService";
 import { getBankDirectory } from "./services/bankProviders/twBankDirectoryProvider";
-import { formatDateTime, formatPrice, formatTwd } from "./utils/formatters";
+import {
+  formatAxisTwd,
+  formatDate,
+  formatDateTime,
+  formatPrice,
+  formatRelativeTime,
+  formatTwd,
+} from "./utils/formatters";
 import { parseNumericLike } from "./utils/number";
 import {
   PULL_REFRESH_MAX,
@@ -163,6 +171,8 @@ import {
   formatRecurringScheduleText,
   formatBudgetModeLabel,
   formatBudgetCycleLabel,
+  createCashCsvContent,
+  createExpensesCsvContent,
   createHoldingsCsvContent,
   filterRowsByHolderTab,
   getProgressDisplayTargets,
@@ -170,11 +180,42 @@ import {
 } from "./utils/portfolioView";
 import { getBootPhase } from "./utils/bootPhase";
 import { toUserMessage } from "./utils/userMessage";
+import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "./utils/budgetStatus";
 import { applyPwaUpdate, onPwaNeedRefresh } from "./pwaUpdate";
 import "./App.css";
 
 const { Header, Content } = Layout;
 const { Text } = Typography;
+
+const downloadTextFile = (content, filename, type) => {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const blob = new Blob([content], { type });
+  const downloadUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.setTimeout(() => {
+    URL.revokeObjectURL(downloadUrl);
+  }, 0);
+};
+
+// animejs ignores the CSS prefers-reduced-motion rule, so honour it here:
+// a 0ms tween jumps straight to the final number.
+const getNumberAnimationDuration = () => {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? 0
+      : NUMBER_ANIMATION_DURATION_MS;
+  } catch {
+    return NUMBER_ANIMATION_DURATION_MS;
+  }
+};
 
 // Per-device convenience: prefill a new expense with the last payer / kind /
 // category used. Not synced — storage can be missing or throw, so fail soft.
@@ -346,7 +387,6 @@ function App() {
   const [activeCashHolderTab, setActiveCashHolderTab] = useState(HOLDER_TAB_ALL);
   const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false);
   const [isAddCashModalOpen, setIsAddCashModalOpen] = useState(false);
-  const [isEmailLoginModalOpen, setIsEmailLoginModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
@@ -355,7 +395,6 @@ function App() {
   const [isBudgetSheetOpen, setIsBudgetSheetOpen] = useState(false);
   const [isAddHoldingSheetOpen, setIsAddHoldingSheetOpen] = useState(false);
   const [isAddCashSheetOpen, setIsAddCashSheetOpen] = useState(false);
-  const [isEmailLoginSheetOpen, setIsEmailLoginSheetOpen] = useState(false);
   const [isUpdateSheetOpen, setIsUpdateSheetOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(
     typeof window !== "undefined" ? window.innerWidth <= 768 : false,
@@ -388,6 +427,8 @@ function App() {
   const [loadingCashActionById, setLoadingCashActionById] = useState({});
   const [expenseRows, setExpenseRows] = useState([]);
   const [showExpenseMoreFields, setShowExpenseMoreFields] = useState(false);
+  const [inlineCategoryName, setInlineCategoryName] = useState("");
+  const [loadingInlineCategory, setLoadingInlineCategory] = useState(false);
   const [activeExpenseCategoryTab, setActiveExpenseCategoryTab] =
     useState("all");
   const [expenseMonthOptions, setExpenseMonthOptions] = useState([]);
@@ -509,7 +550,6 @@ function App() {
   const [categoryForm] = Form.useForm();
   const [budgetForm] = Form.useForm();
   const [emailLoginForm] = Form.useForm();
-  const isAuthDialogSubmitting = loadingEmailLogin || loadingAuthAction;
 
   const isNumberAnimationLocked = useCallback(
     () => Date.now() < animationLockedUntilRef.current,
@@ -591,7 +631,7 @@ function App() {
     const instance = anime({
       targets: target,
       value: parsedTarget,
-      duration: NUMBER_ANIMATION_DURATION_MS,
+      duration: getNumberAnimationDuration(),
       easing: "easeOutExpo",
       update: () => {
         setDisplayTotalTwd(target.value);
@@ -658,7 +698,7 @@ function App() {
 
     const instance = anime({
       targets,
-      duration: NUMBER_ANIMATION_DURATION_MS,
+      duration: getNumberAnimationDuration(),
       easing: "easeOutExpo",
       latestPrice: (target) =>
         typeof target.targetLatestPrice === "number"
@@ -721,7 +761,7 @@ function App() {
       baseline: targetRatios.baselineRatio,
       deltaLeft: targetRatios.deltaLeftRatio,
       deltaWidth: targetRatios.deltaWidthRatio,
-      duration: NUMBER_ANIMATION_DURATION_MS,
+      duration: getNumberAnimationDuration(),
       easing: "easeOutExpo",
       update: () => {
         setProgressDisplayRatio(target.current);
@@ -762,7 +802,7 @@ function App() {
     const instance = anime({
       targets: target,
       wan: safeTargetWan,
-      duration: NUMBER_ANIMATION_DURATION_MS,
+      duration: getNumberAnimationDuration(),
       easing: "easeOutExpo",
       update: () => {
         setMarkerDisplayWan(Math.floor(target.wan));
@@ -811,7 +851,7 @@ function App() {
         oneTime: targetValues.oneTimePercent,
         marker: targetValues.markerPercent,
         rate: targetValues.ratePercent,
-        duration: NUMBER_ANIMATION_DURATION_MS,
+        duration: getNumberAnimationDuration(),
         easing: "easeOutExpo",
         update: () => {
           setExpenseRecurringDisplayPercent(animated.recurring);
@@ -1234,6 +1274,25 @@ function App() {
     performCloudSync,
   ]);
 
+  // Create a category from inside the expense form's category dropdown and
+  // select it, so a missing category doesn't force a trip to 設定.
+  const handleInlineAddCategory = useCallback(async () => {
+    const name = inlineCategoryName.trim();
+    if (!name) return;
+    try {
+      setLoadingInlineCategory(true);
+      const { id } = await upsertExpenseCategory({ name });
+      await loadExpenseData();
+      expenseForm.setFieldsValue({ categoryId: id });
+      setInlineCategoryName("");
+      message.success(`已新增分類「${name}」`);
+    } catch (error) {
+      message.error(toUserMessage(error, "新增分類失敗"));
+    } finally {
+      setLoadingInlineCategory(false);
+    }
+  }, [expenseForm, inlineCategoryName, loadExpenseData, message]);
+
   const handleSubmitBudget = useCallback(async () => {
     try {
       const values = await budgetForm.validateFields();
@@ -1612,29 +1671,58 @@ function App() {
   }, [activeHoldingTab, rows]);
 
   const handleExportHoldingsCsv = useCallback(() => {
-    if (typeof document === "undefined" || rows.length === 0) {
+    if (rows.length === 0) {
       return;
     }
-
-    const csvContent = createHoldingsCsvContent(rows);
-    const blob = new Blob([`\uFEFF${csvContent}`], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const downloadUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = downloadUrl;
-    link.download = `my-stock-holdings-${dayjs().format("YYYYMMDD-HHmmss")}.csv`;
-    link.style.display = "none";
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    window.setTimeout(() => {
-      URL.revokeObjectURL(downloadUrl);
-    }, 0);
+    downloadTextFile(
+      `\uFEFF${createHoldingsCsvContent(rows)}`,
+      `my-stock-holdings-${dayjs().format("YYYYMMDD-HHmmss")}.csv`,
+      "text/csv;charset=utf-8;",
+    );
   }, [rows]);
+
+  const handleExportCashCsv = useCallback(() => {
+    downloadTextFile(
+      `\uFEFF${createCashCsvContent(cashRows)}`,
+      `my-stock-cash-${dayjs().format("YYYYMMDD-HHmmss")}.csv`,
+      "text/csv;charset=utf-8;",
+    );
+  }, [cashRows]);
+
+  const handleExportExpensesCsv = useCallback(async () => {
+    try {
+      const backup = await exportBackupData();
+      const categoryNameById = new Map(
+        backup.expenseCategories.map((item) => [item.id, item.name]),
+      );
+      const budgetNameById = new Map(
+        backup.budgets.map((item) => [item.id, item.name]),
+      );
+      downloadTextFile(
+        `\uFEFF${createExpensesCsvContent(backup.expenseEntries, {
+          categoryNameById,
+          budgetNameById,
+        })}`,
+        `my-stock-expenses-${dayjs().format("YYYYMMDD-HHmmss")}.csv`,
+        "text/csv;charset=utf-8;",
+      );
+    } catch (error) {
+      message.error(toUserMessage(error, "匯出支出失敗"));
+    }
+  }, [message]);
+
+  const handleExportBackupJson = useCallback(async () => {
+    try {
+      const backup = await exportBackupData();
+      downloadTextFile(
+        JSON.stringify(backup, null, 2),
+        `my-stock-backup-${dayjs().format("YYYYMMDD-HHmmss")}.json`,
+        "application/json",
+      );
+    } catch (error) {
+      message.error(toUserMessage(error, "匯出備份失敗"));
+    }
+  }, [message]);
 
   useEffect(() => {
     activeHoldingTabRef.current = activeHoldingTab;
@@ -1971,9 +2059,9 @@ function App() {
 
           return (
             <InputNumber
-              min={0.0001}
+              min={record.market === "US" ? 0.0001 : 1}
               step={1}
-              precision={4}
+              precision={record.market === "US" ? 4 : 0}
               value={editingShares ?? value}
               onChange={(next) => setEditingShares(next)}
               style={{ width: 130 }}
@@ -2444,6 +2532,7 @@ function App() {
         title: "日期",
         dataIndex: "occurredAt",
         key: "occurredAt",
+        render: (value) => formatDate(value),
       },
       {
         title: "類型",
@@ -2519,7 +2608,7 @@ function App() {
         title: "支出",
         key: "name",
         render: (_, record) => {
-          const meta = [record.occurredAt, ...getExpenseMeta(record)];
+          const meta = [formatDate(record.occurredAt), ...getExpenseMeta(record)];
           const tags = [
             [record.categoryName, "blue"],
             [record.budgetName, "gold"],
@@ -3148,6 +3237,14 @@ function App() {
         editingExpenseEntry?.categoryId ?? lastUsed.categoryId ?? undefined,
       budgetId: editingExpenseEntry?.budgetId ?? undefined,
     });
+    if (!editingExpenseEntry) {
+      // Modal/Drawer move focus to their container on open, which beats the
+      // input's autoFocus; focus the amount once the open animation settles.
+      const focusTimer = window.setTimeout(() => {
+        expenseForm.getFieldInstance("amountTwd")?.focus?.();
+      }, 350);
+      return () => window.clearTimeout(focusTimer);
+    }
   }, [
     editingExpenseEntry,
     expenseFormMode,
@@ -3185,6 +3282,41 @@ function App() {
         : dayjs(),
     });
   }, [budgetForm, editingBudget, isBudgetModalOpen, isBudgetSheetOpen]);
+
+  const expenseEmptyState = (
+    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="這段期間沒有支出紀錄">
+      <Button
+        type="primary"
+        icon={<PlusOutlined />}
+        onClick={() => openExpenseForm()}
+        disabled={isWriteDisabled}
+      >
+        記一筆支出
+      </Button>
+    </Empty>
+  );
+
+  const goToIncomeSettings = () => {
+    setActiveMainTab("settings");
+    // Wait for the settings tab to render before scrolling to the card.
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("income-settings")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  // The rate behind every US row's TWD value (from the newest US snapshot).
+  const usdTwdRate = useMemo(() => {
+    const latestUsRow = rows
+      .filter((row) => row.market === "US" && Number.isFinite(row.fxRateToTwd))
+      .sort((a, b) =>
+        String(b.latestCapturedAt ?? "").localeCompare(
+          String(a.latestCapturedAt ?? ""),
+        ),
+      )[0];
+    return latestUsRow?.fxRateToTwd ?? null;
+  }, [rows]);
 
   const openAddHoldingForm = () => {
     if (isMobileViewport) {
@@ -3344,7 +3476,7 @@ function App() {
     if (!authUser) {
       return "";
     }
-    return `雲端狀態更新時間：${formatDateTime(cloudLastSyncedAt)}（重新整理可重建同步）`;
+    return `上次與雲端同步：${formatDateTime(cloudLastSyncedAt)}`;
   }, [authUser, cloudLastSyncedAt]);
 
   const priceUpdatedRelativeText = useMemo(() => {
@@ -3352,22 +3484,7 @@ function App() {
       return "尚未更新";
     }
 
-    const updatedMs = dayjs(lastUpdatedAt).valueOf();
-    if (!Number.isFinite(updatedMs)) {
-      return "尚未更新";
-    }
-
-    const diffMinutes = Math.max(0, Math.floor((nowTick - updatedMs) / 60000));
-    if (diffMinutes < 60) {
-      return `${diffMinutes}m 前`;
-    }
-    if (diffMinutes < 1440) {
-      return `${Math.floor(diffMinutes / 60)}h 前`;
-    }
-
-    const days = Math.floor(diffMinutes / 1440);
-    const hours = Math.floor((diffMinutes % 1440) / 60);
-    return `${days}d ${hours}h 前`;
+    return formatRelativeTime(lastUpdatedAt, nowTick);
   }, [lastUpdatedAt, nowTick]);
 
   const updateMenuItems = useMemo(
@@ -3451,8 +3568,6 @@ function App() {
   const handleGoogleLoginFromAuthDialog = useCallback(async () => {
     try {
       await handleGoogleLogin();
-      setIsEmailLoginModalOpen(false);
-      setIsEmailLoginSheetOpen(false);
       emailLoginForm.resetFields();
     } catch {
       // error toast handled in handleGoogleLogin
@@ -3467,8 +3582,6 @@ function App() {
         email: values.email,
         password: values.password,
       });
-      setIsEmailLoginModalOpen(false);
-      setIsEmailLoginSheetOpen(false);
       emailLoginForm.resetFields();
       message.success("Email 登入成功");
     } catch (error) {
@@ -3508,7 +3621,7 @@ function App() {
       await Promise.all([loadAllData(), loadExpenseData()]);
       refreshCloudRuntime();
       setCloudLastSyncedAt(new Date().toISOString());
-      message.success("已重新連線並更新資料");
+      message.success("資料已重新整理");
     } catch (error) {
       message.error(toUserMessage(error, "重新整理失敗"));
     } finally {
@@ -3603,8 +3716,7 @@ function App() {
           step={100}
           precision={0}
           inputMode="numeric"
-          autoFocus={!editingExpenseEntry}
-          prefix="NT$"
+          prefix="$"
           style={{ width: "100%" }}
         />
       </Form.Item>
@@ -3627,6 +3739,7 @@ function App() {
         rules={[{ required: true, message: "請選擇支出日期" }]}
       >
         <DatePicker
+          format="YYYY/MM/DD"
           style={{ width: "100%" }}
           getPopupContainer={getSheetPopupContainer}
         />
@@ -3639,6 +3752,35 @@ function App() {
             label: item.name,
             value: item.id,
           }))}
+          popupRender={(menu) => (
+            <>
+              {menu}
+              <Divider style={{ margin: "8px 0" }} />
+              <Space.Compact style={{ width: "100%", padding: "0 8px 4px" }}>
+                <Input
+                  placeholder="新增分類"
+                  value={inlineCategoryName}
+                  onChange={(event) => setInlineCategoryName(event.target.value)}
+                  onKeyDown={(event) => {
+                    // Keep Select from treating Enter/Space as option picks.
+                    event.stopPropagation();
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleInlineAddCategory();
+                    }
+                  }}
+                />
+                <Button
+                  icon={<PlusOutlined />}
+                  loading={loadingInlineCategory}
+                  disabled={!inlineCategoryName.trim()}
+                  onClick={handleInlineAddCategory}
+                >
+                  新增
+                </Button>
+              </Space.Compact>
+            </>
+          )}
         />
       </Form.Item>
       <Form.Item
@@ -3835,6 +3977,7 @@ function App() {
                   rules={[{ required: true, message: "請選擇開始日" }]}
                 >
                   <DatePicker
+                    format="YYYY/MM/DD"
                     style={{ width: "100%" }}
                     getPopupContainer={getSheetPopupContainer}
                   />
@@ -3860,6 +4003,7 @@ function App() {
                   ]}
                 >
                   <DatePicker
+                    format="YYYY/MM/DD"
                     style={{ width: "100%" }}
                     getPopupContainer={getSheetPopupContainer}
                   />
@@ -4324,7 +4468,7 @@ function App() {
     const size = expenseTrendRange === "1y" ? 12 : 6;
     return source.slice(-size).map((item) => ({
       ...item,
-      monthLabel: dayjs(`${item.month}-01`).format("YY/MM"),
+      monthLabel: dayjs(`${item.month}-01`).format("YYYY/MM"),
     }));
   }, [effectiveExpenseAnalytics, expenseTrendRange]);
 
@@ -4622,9 +4766,7 @@ function App() {
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="monthLabel" />
               <YAxis
-                tickFormatter={(value) =>
-                  `${Math.round(Number(value) / 10000)}萬`
-                }
+                tickFormatter={formatAxisTwd}
               />
               <RechartsTooltip
                 formatter={(value) => formatTwd(Number(value))}
@@ -4690,9 +4832,7 @@ function App() {
               <CartesianGrid strokeDasharray="3 3" horizontal={false} />
               <XAxis
                 type="number"
-                tickFormatter={(value) =>
-                  `${Math.round(Number(value) / 1000)}k`
-                }
+                tickFormatter={formatAxisTwd}
               />
               <YAxis type="category" dataKey="name" width={88} />
               <RechartsTooltip
@@ -4843,10 +4983,10 @@ function App() {
           >
             <Text type="secondary">
               {isPullRefreshing
-                ? "重新連線中..."
+                ? "重新整理中..."
                 : pullDistance >= PULL_REFRESH_TRIGGER
-                  ? "放開以重新連線"
-                  : "下拉可重新連線"}
+                  ? "放開以重新整理"
+                  : "下拉重新整理"}
             </Text>
           </div>
           {syncError && (
@@ -4854,15 +4994,17 @@ function App() {
               type="error"
               showIcon
               title="上次同步發生錯誤"
-              description={syncError}
+              description={toUserMessage(syncError, "同步失敗，請稍後再試")}
               style={{ marginBottom: 16 }}
             />
           )}
-          {authUser && cloudSyncStatus === "offline" && (
+          {/* Every edit control is disabled while read-only; say why once,
+              up front, instead of leaving ~40 greyed-out buttons unexplained. */}
+          {authUser && (cloudSyncStatus === "offline" || cloudReadOnly) && (
             <Alert
               type="warning"
               showIcon
-              title="目前為唯讀模式"
+              title="目前為唯讀模式，暫時無法新增或修改"
               description={cloudReadOnlyReason || "目前離線，暫時只能檢視資料。"}
               style={{ marginBottom: 16 }}
             />
@@ -4929,6 +5071,9 @@ function App() {
                             ? `尚未更新今日價格，顯示 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")} 的資料`
                             : "尚未更新今日價格"
                           : `報價更新於 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")}`}
+                        {usdTwdRate
+                          ? `・USD/TWD ${usdTwdRate.toFixed(2)}`
+                          : ""}
                       </Text>
                     )}
                     {autoRefreshIssue && (
@@ -5501,6 +5646,20 @@ function App() {
                               className="expense-income-progress-meta-left"
                             >
                               {expenseIncomeProgressMetaLeftText}
+                              {!activeIncomeProgress?.hasIncome && (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  onClick={goToIncomeSettings}
+                                  style={{
+                                    fontSize: 12,
+                                    height: "auto",
+                                    paddingInline: 4,
+                                  }}
+                                >
+                                  前往設定收入
+                                </Button>
+                              )}
                             </Text>
                             <Text
                               type="secondary"
@@ -5516,7 +5675,7 @@ function App() {
                             className="expense-summary-subtext"
                           >
                             {expenseFirstDate
-                              ? `自 ${dayjs(expenseFirstDate).format("YYYY/MM/DD")} 起`
+                              ? `自 ${formatDate(expenseFirstDate)} 起`
                               : "尚無支出資料"}
                           </Text>
                         )}
@@ -5543,19 +5702,6 @@ function App() {
                                 size={4}
                                 className="active-recurring-card-actions"
                               >
-                                {chart.key === "trend" ? (
-                                  <Segmented
-                                    size="small"
-                                    value={expenseTrendRange}
-                                    options={[
-                                      { label: "近六個月", value: "6m" },
-                                      { label: "近一年", value: "1y" },
-                                    ]}
-                                    onChange={(value) =>
-                                      setExpenseTrendRange(value)
-                                    }
-                                  />
-                                ) : null}
                                 <Tooltip title="展開圖表">
                                   <Button
                                     type="text"
@@ -5590,115 +5736,121 @@ function App() {
                   </Col>
                   <Col xs={24}>
                     <section className="active-budgets-section">
-                      <Text strong className="active-budgets-title">
-                        目前生效預算
-                      </Text>
+                      <Space size={8} className="active-budgets-title-wrap">
+                        <Text strong className="active-budgets-title">
+                          目前生效預算
+                        </Text>
+                        <Button
+                          type="text"
+                          size="small"
+                          className="title-add-btn"
+                          icon={<PlusOutlined />}
+                          aria-label="新增預算"
+                          disabled={isWriteDisabled}
+                          onClick={() => openBudgetForm()}
+                        />
+                      </Space>
                       {activeBudgetCards.length === 0 ? (
-                        <Text type="secondary">目前沒有生效中的預算</Text>
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description="目前沒有生效中的預算"
+                        >
+                          <Button
+                            icon={<PlusOutlined />}
+                            disabled={isWriteDisabled}
+                            onClick={() => openBudgetForm()}
+                          >
+                            新增預算
+                          </Button>
+                        </Empty>
                       ) : (
                         <div className="active-budgets-row">
-                          {activeBudgetCards.map((budget) => (
-                            <Card
-                              key={budget.id}
-                              size="small"
-                              className="active-budget-card"
-                            >
-                              <div className="active-budget-head">
-                                <Text
-                                  type="secondary"
-                                  className="active-budget-name"
-                                  title={budget.name}
-                                >
-                                  {budget.name}
-                                </Text>
-                                {budget.budgetMode === "SPECIAL" ? (
-                                  <Tag
-                                    className="active-budget-mode-tag"
-                                    color={getStableTagColor(
-                                      formatBudgetModeLabel(budget.budgetMode),
-                                      "orange",
-                                    )}
-                                  >
-                                    {formatBudgetModeLabel(budget.budgetMode)}
-                                  </Tag>
-                                ) : null}
-                              </div>
-                              <div
-                                className={`active-budget-remaining ${
-                                  Number(budget.spentTwd || 0) >
-                                  Number(budget.availableTwd || 0)
-                                    ? "active-budget-remaining--over"
-                                    : ""
-                                }`}
-                              >
-                                <span className="active-budget-remaining-prefix">
-                                  已使用
-                                </span>
-                                <span className="active-budget-remaining-value">
-                                  {`${(() => {
-                                    const spent = Number(budget.spentTwd || 0);
-                                    const available = Number(
-                                      budget.availableTwd || 0,
-                                    );
-                                    if (
-                                      !Number.isFinite(spent) ||
-                                      !Number.isFinite(available) ||
-                                      available <= 0
-                                    ) {
-                                      return 0;
-                                    }
-                                    return (spent / available) * 100;
-                                  })().toFixed(1)}%`}
-                                </span>
-                              </div>
-                              <Progress
-                                className="active-budget-progress"
-                                percent={Math.round(
-                                  Math.min(
-                                    100,
-                                    Math.max(
-                                      0,
-                                      Number(budget.progressPct || 0),
-                                    ),
-                                  ),
-                                )}
+                          {activeBudgetCards.map((budget) => {
+                            const status = getBudgetStatus(budget);
+                            return (
+                              <Card
+                                key={budget.id}
                                 size="small"
-                                showInfo={false}
-                                trailColor="#edf2f2"
-                                strokeColor={
-                                  Number(budget.spentTwd || 0) >
-                                  Number(budget.availableTwd || 0)
-                                    ? "#f5222d"
-                                    : "#99d2cb"
-                                }
-                              />
-                              <Text
-                                type="secondary"
-                                className="active-budget-meta"
+                                className="active-budget-card"
+                                hoverable={!isWriteDisabled}
+                                onClick={() => {
+                                  if (!isWriteDisabled) openBudgetForm(budget);
+                                }}
+                                aria-label={`編輯預算：${budget.name}`}
                               >
-                                {formatTwd(Number(budget.spentTwd) || 0)} /{" "}
-                                {formatTwd(Number(budget.availableTwd) || 0)}
-                                {budget.budgetMode === "SPECIAL" &&
-                                budget.specialStartDate &&
-                                budget.specialEndDate
-                                  ? `（${dayjs(budget.specialStartDate).format("YYYY/MM/DD")}~${dayjs(
-                                      budget.specialEndDate,
-                                    ).format("YYYY/MM/DD")}）`
-                                  : ""}
-                              </Text>
-                              {budget.budgetMode === "RESIDENT" &&
-                              budget.isConfigured &&
-                              budget.hasCarryInApplied ? (
+                                <div className="active-budget-head">
+                                  <Text
+                                    type="secondary"
+                                    className="active-budget-name"
+                                    title={budget.name}
+                                  >
+                                    {budget.name}
+                                  </Text>
+                                  {budget.budgetMode === "SPECIAL" ? (
+                                    <Tag
+                                      className="active-budget-mode-tag"
+                                      color={getStableTagColor(
+                                        formatBudgetModeLabel(budget.budgetMode),
+                                        "orange",
+                                      )}
+                                    >
+                                      {formatBudgetModeLabel(budget.budgetMode)}
+                                    </Tag>
+                                  ) : null}
+                                </div>
+                                <div
+                                  className={`active-budget-remaining active-budget-remaining--${status.level}`}
+                                >
+                                  <span className="active-budget-remaining-prefix">
+                                    已使用
+                                  </span>
+                                  <span className="active-budget-remaining-value">
+                                    {`${status.usedPct.toFixed(1)}%`}
+                                  </span>
+                                </div>
+                                <Progress
+                                  className="active-budget-progress"
+                                  percent={status.barPct}
+                                  size="small"
+                                  showInfo={false}
+                                  trailColor="#edf2f2"
+                                  strokeColor={BUDGET_LEVEL_COLORS[status.level]}
+                                />
+                                <Text
+                                  className={`active-budget-status active-budget-status--${status.level}`}
+                                >
+                                  {status.level === "over"
+                                    ? `超支 ${formatTwd(status.overTwd)}`
+                                    : `剩餘 ${formatTwd(status.remainingTwd)}`}
+                                </Text>
                                 <Text
                                   type="secondary"
-                                  className="active-budget-carry"
+                                  className="active-budget-meta"
                                 >
-                                  帶入{" "}
-                                  {formatTwd(Number(budget.carryInTwd) || 0)}
+                                  {formatTwd(Number(budget.spentTwd) || 0)} /{" "}
+                                  {formatTwd(Number(budget.availableTwd) || 0)}
+                                  {budget.budgetMode === "SPECIAL" &&
+                                  budget.specialStartDate &&
+                                  budget.specialEndDate
+                                    ? `（${formatDate(budget.specialStartDate)}~${formatDate(
+                                        budget.specialEndDate,
+                                      )}）`
+                                    : ""}
                                 </Text>
-                              ) : null}
-                            </Card>
-                          ))}
+                                {budget.budgetMode === "RESIDENT" &&
+                                budget.isConfigured &&
+                                budget.hasCarryInApplied ? (
+                                  <Text
+                                    type="secondary"
+                                    className="active-budget-carry"
+                                  >
+                                    帶入{" "}
+                                    {formatTwd(Number(budget.carryInTwd) || 0)}
+                                  </Text>
+                                ) : null}
+                              </Card>
+                            );
+                          })}
                         </div>
                       )}
                     </section>
@@ -5709,7 +5861,20 @@ function App() {
                         當前定期支出
                       </Text>
                       {recurringExpenseRows.length === 0 ? (
-                        <Text type="secondary">目前沒有定期支出</Text>
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description="目前沒有定期支出（例如房租、訂閱）"
+                        >
+                          <Button
+                            icon={<PlusOutlined />}
+                            disabled={isWriteDisabled}
+                            onClick={() =>
+                              openExpenseForm(null, { mode: "recurring-create" })
+                            }
+                          >
+                            新增定期支出
+                          </Button>
+                        </Empty>
                       ) : (
                         <div className="active-recurring-row">
                           {recurringExpenseRows.map((item) => (
@@ -5780,7 +5945,7 @@ function App() {
                               >
                                 {formatRecurringScheduleText(item)}
                                 {item.recurrenceUntil
-                                  ? `（至 ${dayjs(item.recurrenceUntil).format("YYYY/MM/DD")}）`
+                                  ? `（至 ${formatDate(item.recurrenceUntil)}）`
                                   : ""}
                               </Text>
                             </Card>
@@ -5810,7 +5975,7 @@ function App() {
                             dataSource={filteredExpenseRowsByCategory}
                             columns={expenseTableColumns}
                             pagination={false}
-                            locale={{ emptyText: "尚無支出紀錄" }}
+                            locale={{ emptyText: expenseEmptyState }}
                           />
                         </div>
                       </div>
@@ -5828,7 +5993,7 @@ function App() {
                           dataSource={filteredExpenseRowsByCategory}
                           columns={expenseTableColumns}
                           pagination={false}
-                          locale={{ emptyText: "尚無支出紀錄" }}
+                          locale={{ emptyText: expenseEmptyState }}
                           scroll={{ x: 860 }}
                         />
                       </Card>
@@ -5839,7 +6004,7 @@ function App() {
               {activeMainTab === "settings" && (
                 <>
                   <Col xs={24}>
-                    <Card title="收入設定">
+                    <Card title="收入設定" id="income-settings">
                       <Space
                         direction="vertical"
                         size={12}
@@ -6171,6 +6336,44 @@ function App() {
                       </Card>
                     )}
                   </Col>
+                  <Col xs={24}>
+                    <Card title="資料匯出">
+                      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                        <Text type="secondary">
+                          匯出你輸入的資料（不含每日股價紀錄）。CSV 可用
+                          Excel / Numbers 開啟；JSON 為完整備份。
+                        </Text>
+                        <Space wrap>
+                          <Button
+                            icon={<DownloadOutlined />}
+                            onClick={handleExportHoldingsCsv}
+                            disabled={rows.length === 0}
+                          >
+                            持股 CSV
+                          </Button>
+                          <Button
+                            icon={<DownloadOutlined />}
+                            onClick={handleExportCashCsv}
+                            disabled={cashRows.length === 0}
+                          >
+                            現金帳戶 CSV
+                          </Button>
+                          <Button
+                            icon={<DownloadOutlined />}
+                            onClick={handleExportExpensesCsv}
+                          >
+                            支出 CSV（全部）
+                          </Button>
+                          <Button
+                            icon={<DownloadOutlined />}
+                            onClick={handleExportBackupJson}
+                          >
+                            完整備份 JSON
+                          </Button>
+                        </Space>
+                      </Space>
+                    </Card>
+                  </Col>
                 </>
               )}
             </Row>
@@ -6202,7 +6405,7 @@ function App() {
             />
           ) : null}
 
-          {authUser && (
+          {authUser && activeMainTab === "settings" && (
             <div style={{ marginTop: 12, textAlign: "center" }}>
               <Text type="secondary" className="cloud-last-sync-time">
                 {cloudLastSyncedText}
@@ -6236,26 +6439,6 @@ function App() {
               />
             </div>
           )}
-
-          <Drawer
-            placement="bottom"
-            title="登入"
-            open={isMobileViewport && isEmailLoginSheetOpen}
-            onClose={() => {
-              if (!isAuthDialogSubmitting) {
-                setIsEmailLoginSheetOpen(false);
-              }
-            }}
-            size="90vh"
-            closable={!isAuthDialogSubmitting}
-            maskClosable={!isAuthDialogSubmitting}
-            keyboard={!isAuthDialogSubmitting}
-            destroyOnHidden
-            className="form-bottom-sheet"
-            styles={{ body: { padding: 16 } }}
-          >
-            {authLoginContentNode}
-          </Drawer>
 
           <Modal
             title={activeExpenseChartTitle}
@@ -6320,28 +6503,11 @@ function App() {
             </Space>
           </Modal>
 
-          <Modal
-            title="登入"
-            open={!isMobileViewport && isEmailLoginModalOpen}
-            onCancel={() => {
-              if (!isAuthDialogSubmitting) {
-                setIsEmailLoginModalOpen(false);
-              }
-            }}
-            footer={null}
-            destroyOnHidden
-            mask={{ closable: !isAuthDialogSubmitting }}
-            keyboard={!isAuthDialogSubmitting}
-            closable={!isAuthDialogSubmitting}
-          >
-            {authLoginContentNode}
-          </Modal>
-
           <Drawer
             placement="bottom"
             open={isMobileViewport && isUpdateSheetOpen}
             onClose={() => setIsUpdateSheetOpen(false)}
-            size="90vh"
+            size="auto"
             closable={false}
             maskClosable
             destroyOnHidden={false}

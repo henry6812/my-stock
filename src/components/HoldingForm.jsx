@@ -130,9 +130,11 @@ function HoldingForm({
       >
         <InputNumber
           disabled={disabled}
-          min={0.0001}
+          // TW shares are whole numbers; US brokers allow fractional shares.
+          min={watchedMarket === "US" ? 0.0001 : 1}
           step={1}
-          precision={4}
+          precision={watchedMarket === "US" ? 4 : 0}
+          inputMode={watchedMarket === "US" ? "decimal" : "numeric"}
           style={isVerticalLayout ? { width: "100%" } : { width: 140 }}
         />
       </Form.Item>

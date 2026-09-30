@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { formatTwd } from '../utils/formatters'
+import { formatAxisTwd, formatTwd } from '../utils/formatters'
 
 const rangeOptions = [
   { label: '24 小時', value: '24h' },
@@ -18,9 +18,12 @@ const rangeOptions = [
 ]
 
 function TrendChart({ range, onRangeChange, data, height = 320 }) {
+  // A 24h view needs times on the axis; longer ranges read better as dates.
+  const axisFormat = range === '24h' ? 'HH:mm' : 'MM/DD'
   const chartData = data.map((point) => ({
     ...point,
-    label: dayjs(point.ts).format('MM/DD'),
+    label: dayjs(point.ts).format(axisFormat),
+    fullLabel: dayjs(point.ts).format('YYYY/MM/DD HH:mm'),
   }))
 
   return (
@@ -45,12 +48,15 @@ function TrendChart({ range, onRangeChange, data, height = 320 }) {
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="label" minTickGap={28} />
-              <YAxis tickFormatter={(value) => formatTwd(value, true)} />
-              <Tooltip formatter={(value) => formatTwd(value)} />
+              <YAxis tickFormatter={formatAxisTwd} width={56} />
+              <Tooltip
+                formatter={(value) => formatTwd(value)}
+                labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel ?? ''}
+              />
               <Line
                 dataKey="totalTwd"
                 type="monotone"
-                stroke="#165dff"
+                stroke="#44A194"
                 strokeWidth={2}
                 dot={false}
               />

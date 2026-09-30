@@ -705,6 +705,33 @@ export const saveHolderOptions = async ({ options = [], renameMap = {} } = {}) =
   };
 };
 
+// Snapshot of everything the user entered (not price history), for backup.
+// Read-only: it only reads the local mirror of the cloud data.
+export const exportBackupData = async () => {
+  const readActive = async (table) =>
+    (await table.toArray()).filter((item) => !isDeleted(item));
+  const [holdings, cashAccounts, expenseEntries, expenseCategories, budgets, appConfig] =
+    await Promise.all([
+      readActive(db.holdings),
+      readActive(db.cash_accounts),
+      readActive(db.expense_entries),
+      readActive(db.expense_categories),
+      readActive(db.budgets),
+      db.app_config.toArray(),
+    ]);
+  return {
+    app: "my-stock",
+    version: 1,
+    exportedAt: getNowIso(),
+    holdings,
+    cashAccounts,
+    expenseEntries,
+    expenseCategories,
+    budgets,
+    appConfig,
+  };
+};
+
 export const getIncomeSettings = async () => {
   const config = await db.app_config.get(INCOME_SETTINGS_KEY);
   const defaultMonthlyIncomeTwd =
@@ -1759,6 +1786,9 @@ export const getPortfolioView = async () => {
       hasPreviousSnapshot,
       latestCurrency: latestSnapshot?.currency,
       latestCapturedAt: latestSnapshot?.capturedAt,
+      // Rate the US value was converted with, so the UI can show it.
+      fxRateToTwd:
+        holding.market === MARKET.US && hasLatestPrice ? fxRateToTwd : undefined,
     };
 
     if (Number.isFinite(row.latestValueTwd)) {
