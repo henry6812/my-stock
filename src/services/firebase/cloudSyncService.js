@@ -451,6 +451,7 @@ const applyRemoteSnapshot = async (remote) => {
         fallback: 0,
         context: 'applyRemoteSnapshot.price',
       }),
+      previousClose: remote.previousClose ?? null,
       currency: remote.currency,
       fxRateToTwd: parseNumericLike(remote.fxRateToTwd, {
         fallback: 0,
@@ -474,6 +475,7 @@ const applyRemoteSnapshot = async (remote) => {
       fallback: 0,
       context: 'applyRemoteSnapshot.price',
     }),
+    previousClose: remote.previousClose ?? null,
     currency: remote.currency,
     fxRateToTwd: parseNumericLike(remote.fxRateToTwd, {
       fallback: 0,
