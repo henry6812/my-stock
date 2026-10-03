@@ -1463,3 +1463,41 @@
   color: var(--c-down);
   background: rgba(207, 19, 34, 0.08);
 }
+
+/* Expense form: one-tap date / category shortcuts above the full pickers. */
+.expense-quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.expense-quick-chips .ant-tag {
+  margin: 0;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 12px;
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-body);
+  background: var(--c-surface);
+}
+
+.expense-quick-chips .ant-tag-checkable-checked {
+  border-color: var(--c-teal);
+  background: var(--c-teal);
+  color: #fff;
+}
+
+.expense-name-option {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.expense-name-option-meta {
+  color: var(--c-muted);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}

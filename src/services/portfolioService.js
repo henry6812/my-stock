@@ -27,6 +27,10 @@ import {
 } from "./firebase/cloudSyncService";
 import { buildCashAccountKey, buildHoldingKey } from "./firebase/firestoreMappers";
 import { parseNumericLike } from "../utils/number";
+import {
+  buildExpenseNameSuggestions,
+  rankCategoriesByUsage,
+} from "../utils/expenseSuggestions";
 import { mapWithConcurrency } from "../utils/concurrency";
 import {
   HOLDING_SHARES_MODE,
@@ -2785,6 +2789,24 @@ export const upsertExpenseCategory = async ({ id, name }) => {
   return { id: requireLocalId(inserted, "分類"), created: true };
 };
 
+// Whether the category shows as a one-tap chip in the add-expense form.
+export const setExpenseCategoryQuickPick = async ({ id, isQuickPick }) => {
+  ensureCloudWritable();
+  const parsedId = Number(id);
+  const existing = Number.isInteger(parsedId) && parsedId > 0
+    ? await db.expense_categories.get(parsedId)
+    : null;
+  if (!existing || isDeleted(existing)) {
+    throw new Error("Category not found");
+  }
+  await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, {
+    ...existing,
+    isQuickPick: Boolean(isQuickPick),
+    updatedAt: getNowIso(),
+    syncState: SYNC_PENDING,
+  });
+};
+
 export const removeExpenseCategory = async ({ id }) => {
   ensureCloudWritable();
   const parsedId = Number(id);
@@ -3517,9 +3539,17 @@ export const getExpenseDashboardView = async (input = {}) => {
       .map((item) => ({
         id: item.id,
         name: item.name,
+        isQuickPick: Boolean(item.isQuickPick),
+        createdAt: item.createdAt,
         updatedAt: item.updatedAt,
       }))
-      .sort((a, b) => (a.updatedAt || "").localeCompare(b.updatedAt || ""))
+      // By creation, so toggling a category's quick-pick switch (which bumps
+      // updatedAt) doesn't make its settings row jump.
+      .sort((a, b) =>
+        (a.createdAt || a.updatedAt || "").localeCompare(
+          b.createdAt || b.updatedAt || "",
+        ),
+      )
       .reverse(),
     budgetRows: budgetRows
       .sort((a, b) => (a.updatedAt || "").localeCompare(b.updatedAt || ""))
@@ -3529,6 +3559,8 @@ export const getExpenseDashboardView = async (input = {}) => {
       name: item.name,
     })),
     recurringExpenseRows,
+    expenseNameSuggestions: buildExpenseNameSuggestions(entries),
+    categoryUsageOrder: rankCategoriesByUsage(entries, categories),
     expenseAnalytics: expenseAnalyticsAllHistory,
     expenseAnalyticsAllHistory,
     expenseAnalyticsByMonth,

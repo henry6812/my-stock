@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   Alert,
+  AutoComplete,
   App as AntdApp,
   Button,
   Card,
@@ -33,6 +34,7 @@ import {
   Space,
   Spin,
   Statistic,
+  Switch,
   Table,
   Tabs,
   Tooltip,
@@ -130,6 +132,7 @@ import {
   removeExpenseEntry,
   upsertExpenseCategory,
   removeExpenseCategory,
+  setExpenseCategoryQuickPick,
   upsertBudget,
   removeBudget,
   repairNumericFields,
@@ -182,6 +185,10 @@ import { getBootPhase } from "./utils/bootPhase";
 import { toUserMessage } from "./utils/userMessage";
 import { CHART_NEUTRAL, CHART_PALETTE, COLORS } from "./theme/tokens";
 import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "./utils/budgetStatus";
+import {
+  filterNameSuggestions,
+  pickQuickCategories,
+} from "./utils/expenseSuggestions";
 import { applyPwaUpdate, onPwaNeedRefresh } from "./pwaUpdate";
 import "./App.css";
 
@@ -404,6 +411,7 @@ function App() {
   const [loadingEmailLogin, setLoadingEmailLogin] = useState(false);
   const [loadingExpenseAction, setLoadingExpenseAction] = useState(false);
   const [loadingCategoryAction, setLoadingCategoryAction] = useState(false);
+  const [quickPickLoadingId, setQuickPickLoadingId] = useState(null);
   const [loadingBudgetAction, setLoadingBudgetAction] = useState(false);
   const [loadingBankOptions, setLoadingBankOptions] = useState(false);
   const [bankOptions, setBankOptions] = useState([]);
@@ -449,6 +457,8 @@ function App() {
   const [expenseCumulativeTotalTwd, setExpenseCumulativeTotalTwd] = useState(0);
   const [expenseFirstDate, setExpenseFirstDate] = useState(null);
   const [expenseCategoryRows, setExpenseCategoryRows] = useState([]);
+  const [expenseNameSuggestions, setExpenseNameSuggestions] = useState([]);
+  const [categoryUsageOrder, setCategoryUsageOrder] = useState([]);
   const [budgetRows, setBudgetRows] = useState([]);
   const [activeBudgetTab, setActiveBudgetTab] = useState("resident");
   const [defaultMonthlyIncomeTwd, setDefaultMonthlyIncomeTwd] = useState(null);
@@ -1127,6 +1137,8 @@ function App() {
       setExpenseCumulativeTotalTwd(Number(view.cumulativeExpenseTotalTwd) || 0);
       setExpenseFirstDate(view.firstExpenseDate || null);
       setExpenseCategoryRows(view.categoryRows ?? []);
+      setExpenseNameSuggestions(view.expenseNameSuggestions ?? []);
+      setCategoryUsageOrder(view.categoryUsageOrder ?? []);
       setBudgetRows(view.budgetRows ?? []);
       setDefaultMonthlyIncomeTwd(
         view.incomeSettings?.defaultMonthlyIncomeTwd ?? null,
@@ -1297,6 +1309,77 @@ function App() {
       setLoadingInlineCategory(false);
     }
   }, [expenseForm, inlineCategoryName, loadExpenseData, message]);
+
+  const expenseNameQuery = Form.useWatch("name", expenseForm);
+  const expenseNameOptions = useMemo(() => {
+    const categoryNames = new Map(
+      expenseCategoryRows.map((item) => [item.id, item.name]),
+    );
+    return filterNameSuggestions(expenseNameSuggestions, expenseNameQuery)
+      .filter((item) => item.name !== String(expenseNameQuery || "").trim())
+      .map((item) => {
+        const meta = [
+          categoryNames.get(item.categoryId),
+          item.amountTwd ? formatTwd(item.amountTwd) : null,
+        ].filter(Boolean);
+        return {
+          value: item.name,
+          label: (
+            <div className="expense-name-option">
+              <span>{item.name}</span>
+              {meta.length > 0 && (
+                <span className="expense-name-option-meta">
+                  {meta.join(" · ")}
+                </span>
+              )}
+            </div>
+          ),
+        };
+      });
+  }, [expenseCategoryRows, expenseNameQuery, expenseNameSuggestions]);
+
+  // Picking a past name on a new entry prefills that entry's settings (only
+  // the ones whose options still exist); the amount only fills an empty field.
+  const handleSelectExpenseName = useCallback(
+    (name) => {
+      if (editingExpenseEntry) return;
+      const template = expenseNameSuggestions.find((item) => item.name === name);
+      if (!template) return;
+      const updates = {};
+      if (expenseCategoryRows.some((item) => item.id === template.categoryId)) {
+        updates.categoryId = template.categoryId;
+      }
+      if (expensePayerOptions.some((item) => item.value === template.payer)) {
+        updates.payer = template.payer;
+      }
+      if (template.expenseKind) {
+        updates.expenseKind = template.expenseKind;
+      }
+      if (selectableBudgetOptions.some((item) => item.id === template.budgetId)) {
+        updates.budgetId = template.budgetId;
+      }
+      if (!expenseForm.getFieldValue("amountTwd") && template.amountTwd) {
+        updates.amountTwd = template.amountTwd;
+      }
+      expenseForm.setFieldsValue(updates);
+      if (updates.payer || updates.expenseKind || updates.budgetId) {
+        setShowExpenseMoreFields(true);
+      }
+    },
+    [
+      editingExpenseEntry,
+      expenseCategoryRows,
+      expenseForm,
+      expenseNameSuggestions,
+      expensePayerOptions,
+      selectableBudgetOptions,
+    ],
+  );
+
+  const quickExpenseCategories = useMemo(
+    () => pickQuickCategories(expenseCategoryRows, categoryUsageOrder),
+    [categoryUsageOrder, expenseCategoryRows],
+  );
 
   const handleSubmitBudget = useCallback(async () => {
     try {
@@ -1636,6 +1719,22 @@ function App() {
     shouldShowStopOptions,
     stopKeepToday,
   ]);
+
+  const handleToggleCategoryQuickPick = useCallback(
+    async (record, isQuickPick) => {
+      try {
+        setQuickPickLoadingId(record.id);
+        await setExpenseCategoryQuickPick({ id: record.id, isQuickPick });
+        await loadExpenseData();
+        performCloudSync().catch(() => {});
+      } catch (error) {
+        message.error(toUserMessage(error, "更新分類失敗"));
+      } finally {
+        setQuickPickLoadingId(null);
+      }
+    },
+    [loadExpenseData, message, performCloudSync],
+  );
 
   const handleRemoveCategory = useCallback(
     async (record) => {
@@ -2687,6 +2786,25 @@ function App() {
         ),
       },
       {
+        title: (
+          <Tooltip title="開啟後，新增支出時會以快速按鈕顯示此分類；全部未開啟時自動顯示最常用的 6 個">
+            <span>快速選取</span>
+          </Tooltip>
+        ),
+        dataIndex: "isQuickPick",
+        key: "isQuickPick",
+        render: (value, record) => (
+          <Switch
+            size="small"
+            checked={Boolean(value)}
+            loading={quickPickLoadingId === record.id}
+            disabled={isWriteDisabled}
+            aria-label={`${record.name} 快速選取`}
+            onChange={(checked) => handleToggleCategoryQuickPick(record, checked)}
+          />
+        ),
+      },
+      {
         title: "更新時間",
         dataIndex: "updatedAt",
         key: "updatedAt",
@@ -2724,7 +2842,13 @@ function App() {
         ),
       },
     ],
-    [handleRemoveCategory, isWriteDisabled, openCategoryForm],
+    [
+      handleRemoveCategory,
+      handleToggleCategoryQuickPick,
+      isWriteDisabled,
+      openCategoryForm,
+      quickPickLoadingId,
+    ],
   );
 
   const expenseCategoryTabItems = useMemo(() => {
@@ -3742,63 +3866,129 @@ function App() {
         name="name"
         rules={[{ required: true, message: "請輸入支出名稱" }]}
       >
-        <Input
-          autoComplete={isMobileViewport ? "new-password" : undefined}
-          autoCorrect={isMobileViewport ? "off" : undefined}
-          autoCapitalize={isMobileViewport ? "none" : undefined}
-          spellCheck={isMobileViewport ? false : undefined}
-          data-lpignore={isMobileViewport ? "true" : undefined}
-        />
-      </Form.Item>
-      <Form.Item
-        label="支出日期"
-        name="occurredAt"
-        rules={[{ required: true, message: "請選擇支出日期" }]}
-      >
-        <DatePicker
-          format="YYYY/MM/DD"
-          style={{ width: "100%" }}
+        <AutoComplete
+          options={expenseNameOptions}
+          onSelect={handleSelectExpenseName}
+          // The Input child already shows the name; without this antd 6
+          // renders the selected option's rich label beside it.
+          labelRender={() => ""}
           getPopupContainer={getSheetPopupContainer}
-        />
+        >
+          <Input
+            autoComplete={isMobileViewport ? "new-password" : undefined}
+            autoCorrect={isMobileViewport ? "off" : undefined}
+            autoCapitalize={isMobileViewport ? "none" : undefined}
+            spellCheck={isMobileViewport ? false : undefined}
+            data-lpignore={isMobileViewport ? "true" : undefined}
+          />
+        </AutoComplete>
       </Form.Item>
-      <Form.Item label="分類" name="categoryId">
-        <Select
-          allowClear
-          getPopupContainer={getSheetPopupContainer}
-          options={expenseCategoryRows.map((item) => ({
-            label: item.name,
-            value: item.id,
-          }))}
-          popupRender={(menu) => (
-            <>
-              {menu}
-              <Divider style={{ margin: "8px 0" }} />
-              <Space.Compact style={{ width: "100%", padding: "0 8px 4px" }}>
-                <Input
-                  placeholder="新增分類"
-                  value={inlineCategoryName}
-                  onChange={(event) => setInlineCategoryName(event.target.value)}
-                  onKeyDown={(event) => {
-                    // Keep Select from treating Enter/Space as option picks.
-                    event.stopPropagation();
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      handleInlineAddCategory();
-                    }
-                  }}
-                />
-                <Button
-                  icon={<PlusOutlined />}
-                  loading={loadingInlineCategory}
-                  disabled={!inlineCategoryName.trim()}
-                  onClick={handleInlineAddCategory}
-                >
-                  新增
-                </Button>
-              </Space.Compact>
-            </>
-          )}
-        />
+      <Form.Item label="支出日期" required>
+        <Form.Item
+          noStyle
+          shouldUpdate={(prev, next) => prev.occurredAt !== next.occurredAt}
+        >
+          {({ getFieldValue, setFieldValue }) => {
+            const current = getFieldValue("occurredAt");
+            return (
+              <div className="expense-quick-chips">
+                {["今天", "昨天", "前天"].map((label, daysAgo) => {
+                  const day = dayjs().subtract(daysAgo, "day");
+                  return (
+                    <Tag.CheckableTag
+                      key={label}
+                      checked={Boolean(current?.isSame?.(day, "day"))}
+                      onChange={() => {
+                        if (!isWriteDisabled) setFieldValue("occurredAt", day);
+                      }}
+                    >
+                      {label}
+                    </Tag.CheckableTag>
+                  );
+                })}
+              </div>
+            );
+          }}
+        </Form.Item>
+        <Form.Item
+          noStyle
+          name="occurredAt"
+          rules={[{ required: true, message: "請選擇支出日期" }]}
+        >
+          <DatePicker
+            format="YYYY/MM/DD"
+            style={{ width: "100%" }}
+            getPopupContainer={getSheetPopupContainer}
+          />
+        </Form.Item>
+      </Form.Item>
+      <Form.Item label="分類">
+        {quickExpenseCategories.length > 0 && (
+          <Form.Item
+            noStyle
+            shouldUpdate={(prev, next) => prev.categoryId !== next.categoryId}
+          >
+            {({ getFieldValue, setFieldValue }) => {
+              const current = getFieldValue("categoryId");
+              return (
+                <div className="expense-quick-chips">
+                  {quickExpenseCategories.map((item) => (
+                    <Tag.CheckableTag
+                      key={item.id}
+                      checked={current === item.id}
+                      onChange={(checked) => {
+                        if (isWriteDisabled) return;
+                        setFieldValue("categoryId", checked ? item.id : undefined);
+                      }}
+                    >
+                      {item.name}
+                    </Tag.CheckableTag>
+                  ))}
+                </div>
+              );
+            }}
+          </Form.Item>
+        )}
+        <Form.Item noStyle name="categoryId">
+          <Select
+            placeholder={quickExpenseCategories.length ? "其他分類" : undefined}
+            allowClear
+            getPopupContainer={getSheetPopupContainer}
+            options={expenseCategoryRows.map((item) => ({
+              label: item.name,
+              value: item.id,
+            }))}
+            popupRender={(menu) => (
+              <>
+                {menu}
+                <Divider style={{ margin: "8px 0" }} />
+                <Space.Compact style={{ width: "100%", padding: "0 8px 4px" }}>
+                  <Input
+                    placeholder="新增分類"
+                    value={inlineCategoryName}
+                    onChange={(event) => setInlineCategoryName(event.target.value)}
+                    onKeyDown={(event) => {
+                      // Keep Select from treating Enter/Space as option picks.
+                      event.stopPropagation();
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleInlineAddCategory();
+                      }
+                    }}
+                  />
+                  <Button
+                    icon={<PlusOutlined />}
+                    loading={loadingInlineCategory}
+                    disabled={!inlineCategoryName.trim()}
+                    onClick={handleInlineAddCategory}
+                  >
+                    新增
+                  </Button>
+                </Space.Compact>
+              </>
+            )}
+          />
+        </Form.Item>
       </Form.Item>
       <Form.Item
         label="單筆 / 定期"
