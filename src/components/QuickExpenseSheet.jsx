@@ -7,6 +7,7 @@ import {
   pressKey,
 } from "../utils/amountExpression";
 import { filterNameSuggestions } from "../utils/expenseSuggestions";
+import useBodyScrollLock from "../hooks/useBodyScrollLock";
 
 // Mobile-only "add one expense" sheet: custom keypad, category grid and the
 // user's 常用支出 chips so a typical entry never opens the system keyboard.
@@ -44,6 +45,7 @@ function QuickExpenseSheet({
     expenseKind: defaults.expenseKind ?? null,
     budgetId: null,
   };
+  useBodyScrollLock(open);
   const [today] = useState(() => dayjs().startOf("day"));
   const [expr, setExpr] = useState("");
   const [categoryId, setCategoryId] = useState(null);

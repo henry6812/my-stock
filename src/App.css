@@ -2291,3 +2291,12 @@
 .budget-detail-meta {
   font-size: var(--fs-caption);
 }
+
+/* Scrolling inside a sheet stops at its edge instead of carrying on into the
+   page behind it. */
+.form-bottom-sheet .ant-drawer-body,
+.form-bottom-sheet .sheet-content,
+.quick-expense-main,
+.quick-expense-picker {
+  overscroll-behavior: contain;
+}

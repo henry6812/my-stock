@@ -208,6 +208,7 @@ import {
 import { applyTemplateToFormValues } from "./utils/expenseTemplates";
 import { describeRecurrenceStart } from "./utils/recurrence";
 import { groupHoldingsByHolder } from "./utils/holdingGroups";
+import useBodyScrollLock from "./hooks/useBodyScrollLock";
 import { applyPwaUpdate, onPwaNeedRefresh } from "./pwaUpdate";
 import "./App.css";
 
@@ -484,6 +485,9 @@ function App() {
   const [isMobileViewport, setIsMobileViewport] = useState(
     typeof window !== "undefined" ? window.innerWidth <= 768 : false,
   );
+  // The 更新價格 market sheet is a bare Drawer; the other mobile sheets lock
+  // the page themselves (MobileFormSheetLayout, QuickExpenseSheet, …).
+  useBodyScrollLock(isMobileViewport && isUpdateSheetOpen);
   const [loadingAddCashAccount, setLoadingAddCashAccount] = useState(false);
   const [loadingEmailLogin, setLoadingEmailLogin] = useState(false);
   const [loadingExpenseAction, setLoadingExpenseAction] = useState(false);

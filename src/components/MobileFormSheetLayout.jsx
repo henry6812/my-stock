@@ -1,4 +1,5 @@
 import { Button, Drawer } from "antd";
+import useBodyScrollLock from "../hooks/useBodyScrollLock";
 
 function MobileFormSheetLayout({
   title,
@@ -12,6 +13,8 @@ function MobileFormSheetLayout({
   children,
   className = "",
 }) {
+  // The page behind the sheet must not scroll (iOS ignores antd's lock).
+  useBodyScrollLock(open);
   return (
     <Drawer
       placement="bottom"

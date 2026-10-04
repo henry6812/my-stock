@@ -3,6 +3,7 @@ import ExpenseDayList, { UpcomingExpenseList } from "./ExpenseDayList";
 import { formatDate, formatTwd } from "../utils/formatters";
 import { getBudgetStatus } from "../utils/budgetStatus";
 import { getCycleProgress, getDailyAllowance } from "../utils/budgetView";
+import useBodyScrollLock from "../hooks/useBodyScrollLock";
 
 const { Text } = Typography;
 
@@ -10,6 +11,7 @@ const { Text } = Typography;
 // day (all open), with charges still to come under 本期預計.
 
 function BudgetDetailSheet({ open, budget, today, onClose, getActions, disabled = false }) {
+  useBodyScrollLock(Boolean(open && budget));
   if (!budget) return null;
   const status = getBudgetStatus(budget);
   const progress = getCycleProgress(budget, today);
