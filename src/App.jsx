@@ -99,6 +99,7 @@ import HoldingForm from "./components/HoldingForm";
 import CashAccountForm from "./components/CashAccountForm";
 import MobileFormSheetLayout from "./components/MobileFormSheetLayout";
 import TrendChart from "./components/TrendChart";
+import QuickExpenseSheet from "./components/QuickExpenseSheet";
 import {
   getPortfolioView,
   getTrend,
@@ -188,6 +189,7 @@ import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "./utils/budgetStatus";
 import {
   filterNameSuggestions,
   pickQuickCategories,
+  sanitizeSuggestions,
 } from "./utils/expenseSuggestions";
 import { applyPwaUpdate, onPwaNeedRefresh } from "./pwaUpdate";
 import "./App.css";
@@ -399,6 +401,10 @@ function App() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [isExpenseSheetOpen, setIsExpenseSheetOpen] = useState(false);
+  const [isQuickExpenseOpen, setIsQuickExpenseOpen] = useState(false);
+  // Bumped on every open so QuickExpenseSheet remounts with fresh state.
+  const [quickExpenseKey, setQuickExpenseKey] = useState(0);
+  const [quickExpenseDefaults, setQuickExpenseDefaults] = useState({});
   const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
   const [isBudgetSheetOpen, setIsBudgetSheetOpen] = useState(false);
   const [isAddHoldingSheetOpen, setIsAddHoldingSheetOpen] = useState(false);
@@ -545,6 +551,9 @@ function App() {
   const expenseProgressAnimationRef = useRef(null);
   const animationLockedUntilRef = useRef(0);
   const expenseShouldAnimateRef = useRef(false);
+  // Quick-sheet values handed to the full expense form ("完整表單"); applied
+  // by the form's open effect after its own defaults.
+  const pendingExpenseDraftRef = useRef(null);
   const didRunExpenseInitialAnimationRef = useRef(false);
   const latestTotalTwdRef = useRef(0);
   const latestMarkerWanRef = useRef(0);
@@ -1204,14 +1213,36 @@ function App() {
     [holderSelectOptions],
   );
 
+  // Shared by the full form and the mobile quick sheet: write, remember the
+  // payer / kind / category for the next new entry, then refresh + resync in
+  // the background (the write itself already reached the cloud).
+  const saveExpenseEntry = useCallback(
+    async (payload) => {
+      expenseShouldAnimateRef.current = true;
+      await upsertExpenseEntry(payload);
+      if (!payload.id) {
+        writeLastExpenseDefaults({
+          payer: payload.payer || null,
+          expenseKind: payload.expenseKind || null,
+          categoryId: payload.categoryId || null,
+        });
+      }
+      loadExpenseData()
+        .then(() => performCloudSync())
+        .catch((error) => {
+          console.warn("[expense] post-save refresh failed", error);
+        });
+    },
+    [loadExpenseData, performCloudSync],
+  );
+
   const handleSubmitExpense = useCallback(async () => {
     try {
       const values = await expenseForm.validateFields();
       setLoadingExpenseAction(true);
-      expenseShouldAnimateRef.current = true;
       const isRecurringCreateMode =
         expenseFormMode === "recurring-create" && !editingExpenseEntry;
-      await upsertExpenseEntry({
+      await saveExpenseEntry({
         id: editingExpenseEntry?.id,
         name: values.name,
         payer: values.payer || null,
@@ -1227,26 +1258,12 @@ function App() {
         categoryId: values.categoryId || null,
         budgetId: values.budgetId || null,
       });
-      if (!editingExpenseEntry) {
-        writeLastExpenseDefaults({
-          payer: values.payer || null,
-          expenseKind: values.expenseKind || null,
-          categoryId: values.categoryId || null,
-        });
-      }
-      // The write above already reached the cloud; close the form now and let
-      // the list refresh + resync happen in the background.
       setIsExpenseModalOpen(false);
       setIsExpenseSheetOpen(false);
       setEditingExpenseEntry(null);
       setExpenseFormMode("normal");
       expenseForm.resetFields();
       message.success("支出已儲存");
-      loadExpenseData()
-        .then(() => performCloudSync())
-        .catch((error) => {
-          console.warn("[expense] post-save refresh failed", error);
-        });
     } catch (error) {
       if (error?.errorFields) return;
       message.error(toUserMessage(error, "儲存支出失敗"));
@@ -1257,9 +1274,8 @@ function App() {
     editingExpenseEntry,
     expenseForm,
     expenseFormMode,
-    loadExpenseData,
     message,
-    performCloudSync,
+    saveExpenseEntry,
   ]);
 
   const handleSubmitCategory = useCallback(async () => {
@@ -1379,6 +1395,39 @@ function App() {
   const quickExpenseCategories = useMemo(
     () => pickQuickCategories(expenseCategoryRows, categoryUsageOrder),
     [categoryUsageOrder, expenseCategoryRows],
+  );
+
+  const quickExpenseSuggestions = useMemo(
+    () =>
+      sanitizeSuggestions(expenseNameSuggestions, {
+        categoryIds: new Set(expenseCategoryRows.map((item) => item.id)),
+        payers: new Set(expensePayerOptions.map((item) => item.value)),
+        budgetIds: new Set(selectableBudgetOptions.map((item) => item.id)),
+      }),
+    [
+      expenseCategoryRows,
+      expenseNameSuggestions,
+      expensePayerOptions,
+      selectableBudgetOptions,
+    ],
+  );
+
+  const handleSubmitQuickExpense = useCallback(
+    async (payload) => {
+      try {
+        setLoadingExpenseAction(true);
+        await saveExpenseEntry(payload);
+        setIsQuickExpenseOpen(false);
+        message.success(
+          `已記錄 ${payload.name} ${formatTwd(payload.amountTwd)}`,
+        );
+      } catch (error) {
+        message.error(toUserMessage(error, "儲存支出失敗"));
+      } finally {
+        setLoadingExpenseAction(false);
+      }
+    },
+    [message, saveExpenseEntry],
   );
 
   const handleSubmitBudget = useCallback(async () => {
@@ -1612,6 +1661,27 @@ function App() {
       }
     },
     [isMobileViewport],
+  );
+
+  const openQuickExpense = useCallback(() => {
+    const lastUsed = readLastExpenseDefaults();
+    setQuickExpenseDefaults({
+      payer: expensePayerOptions.some((item) => item.value === lastUsed.payer)
+        ? lastUsed.payer
+        : null,
+      expenseKind: lastUsed.expenseKind ?? null,
+    });
+    setQuickExpenseKey((key) => key + 1);
+    setIsQuickExpenseOpen(true);
+  }, [expensePayerOptions]);
+
+  const handleQuickExpenseFullForm = useCallback(
+    (draft) => {
+      pendingExpenseDraftRef.current = draft;
+      setIsQuickExpenseOpen(false);
+      openExpenseForm();
+    },
+    [openExpenseForm],
   );
 
   const openRecurringEditForm = useCallback(
@@ -3348,16 +3418,15 @@ function App() {
     if (!payerOptions.some((item) => item.value === lastUsed.payer)) {
       delete lastUsed.payer;
     }
+    const draft = editingExpenseEntry ? null : pendingExpenseDraftRef.current;
+    pendingExpenseDraftRef.current = null;
     const payer =
       editingExpenseEntry?.payer === "共同"
         ? "共同帳戶"
         : (editingExpenseEntry?.payer ?? lastUsed.payer ?? undefined);
     const expenseKind =
       editingExpenseEntry?.expenseKind ?? lastUsed.expenseKind ?? undefined;
-    setShowExpenseMoreFields(
-      Boolean(editingExpenseEntry?.budgetId || payer || expenseKind),
-    );
-    expenseForm.setFieldsValue({
+    const values = {
       name: editingExpenseEntry?.name ?? "",
       payer,
       expenseKind,
@@ -3377,7 +3446,19 @@ function App() {
       categoryId:
         editingExpenseEntry?.categoryId ?? lastUsed.categoryId ?? undefined,
       budgetId: editingExpenseEntry?.budgetId ?? undefined,
-    });
+    };
+    if (draft) {
+      // Coming from the quick sheet: its values win over the remembered
+      // defaults; fields it left empty keep them.
+      Object.entries(draft).forEach(([field, value]) => {
+        if (value === undefined || value === "") return;
+        values[field] = field === "occurredAt" ? dayjs(value) : value;
+      });
+    }
+    setShowExpenseMoreFields(
+      Boolean(values.budgetId || values.payer || values.expenseKind),
+    );
+    expenseForm.setFieldsValue(values);
     if (!editingExpenseEntry) {
       // Modal/Drawer move focus to their container on open, which beats the
       // input's autoFocus; focus the amount once the open animation settles.
@@ -6596,6 +6677,10 @@ function App() {
                   openAddHoldingForm();
                   return;
                 }
+                if (isMobileViewport) {
+                  openQuickExpense();
+                  return;
+                }
                 openExpenseForm();
               }}
             />
@@ -6870,6 +6955,20 @@ function App() {
               holderOptions={holderSelectOptions}
             />
           </Modal>
+
+          <QuickExpenseSheet
+            key={quickExpenseKey}
+            open={isMobileViewport && isQuickExpenseOpen}
+            onClose={() => setIsQuickExpenseOpen(false)}
+            suggestions={quickExpenseSuggestions}
+            quickCategories={quickExpenseCategories}
+            allCategories={expenseCategoryRows}
+            defaults={quickExpenseDefaults}
+            onSubmit={handleSubmitQuickExpense}
+            onOpenFullForm={handleQuickExpenseFullForm}
+            loading={loadingExpenseAction}
+            disabled={isWriteDisabled}
+          />
 
           <MobileFormSheetLayout
             title={

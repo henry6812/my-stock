@@ -320,11 +320,13 @@ function QuickExpenseSheet({
               <output aria-label="金額" className="quick-expense-amount-value">
                 ${(amount ?? 0).toLocaleString("zh-TW")}
               </output>
-              {hasOperator(expr) && (
-                <span aria-label="算式" className="quick-expense-expr">
-                  {expr}
-                </span>
-              )}
+              {/* Always rendered so the layout doesn't jump on the first + / −. */}
+              <span
+                aria-label={hasOperator(expr) ? "算式" : undefined}
+                className="quick-expense-expr"
+              >
+                {hasOperator(expr) ? expr : " "}
+              </span>
             </div>
             <input
               ref={nameInputRef}
