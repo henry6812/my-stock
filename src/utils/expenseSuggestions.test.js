@@ -4,6 +4,7 @@ import {
   filterNameSuggestions,
   pickQuickCategories,
   rankCategoriesByUsage,
+  sanitizeSuggestions,
 } from './expenseSuggestions'
 
 const entry = (overrides) => ({
@@ -113,5 +114,53 @@ describe('pickQuickCategories', () => {
     expect(
       pickQuickCategories(plain, ['c', 'a'], { fallbackLimit: 3 }).map((c) => c.id),
     ).toEqual(['c', 'a', 'b'])
+  })
+})
+
+describe('sanitizeSuggestions', () => {
+  const lookups = {
+    categoryIds: new Set(['c-food']),
+    payers: new Set(['小明']),
+    budgetIds: new Set(['b-1']),
+  }
+
+  it('keeps references that still exist', () => {
+    const item = {
+      name: '早餐',
+      categoryId: 'c-food',
+      payer: '小明',
+      expenseKind: '個人',
+      budgetId: 'b-1',
+      amountTwd: 80,
+    }
+    expect(sanitizeSuggestions([item], lookups)).toEqual([item])
+  })
+
+  it('nulls references that no longer exist', () => {
+    const [result] = sanitizeSuggestions(
+      [
+        {
+          name: '早餐',
+          categoryId: 'c-gone',
+          payer: '離職的人',
+          expenseKind: '個人',
+          budgetId: 'b-gone',
+          amountTwd: 80,
+        },
+      ],
+      lookups,
+    )
+    expect(result).toEqual({
+      name: '早餐',
+      categoryId: null,
+      payer: null,
+      expenseKind: '個人',
+      budgetId: null,
+      amountTwd: 80,
+    })
+  })
+
+  it('handles a missing list', () => {
+    expect(sanitizeSuggestions(undefined, lookups)).toEqual([])
   })
 })

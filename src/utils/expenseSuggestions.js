@@ -106,3 +106,16 @@ export const pickQuickCategories = (
   const pinned = ordered.filter((item) => item.isQuickPick);
   return pinned.length > 0 ? pinned : ordered.slice(0, fallbackLimit);
 };
+
+// Drops references to categories / payers / budgets that no longer exist, so
+// picking a suggestion never fills in a stale id.
+export const sanitizeSuggestions = (
+  suggestions,
+  { categoryIds, payers, budgetIds },
+) =>
+  (suggestions || []).map((item) => ({
+    ...item,
+    categoryId: categoryIds.has(item.categoryId) ? item.categoryId : null,
+    payer: payers.has(item.payer) ? item.payer : null,
+    budgetId: budgetIds.has(item.budgetId) ? item.budgetId : null,
+  }));
