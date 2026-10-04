@@ -104,6 +104,7 @@ import TrendChart from "./components/TrendChart";
 import QuickExpenseSheet from "./components/QuickExpenseSheet";
 import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
 import RecurringOverview from "./components/RecurringOverview";
+import SwipeActions from "./components/SwipeActions";
 import {
   getPortfolioView,
   getTrend,
@@ -320,6 +321,36 @@ function SortableRow({ disabled, ...props }) {
   );
 }
 
+// Mobile list row: content on the left / right, actions revealed by swiping
+// left (see SwipeActions).
+function MobileSwipeRow({ actions, disabled = false, main, side = null }) {
+  return (
+    <SwipeActions actions={actions} disabled={disabled}>
+      <div className="mobile-swipe-row">
+        <div className="mobile-swipe-row-main">{main}</div>
+        {side !== null && <div className="mobile-swipe-row-side">{side}</div>}
+      </div>
+    </SwipeActions>
+  );
+}
+
+const swipeEditAction = (name, onClick, text = "編輯") => ({
+  key: "edit",
+  label: `${text} ${name}`,
+  text,
+  icon: <EditOutlined />,
+  onClick,
+});
+
+const swipeDeleteAction = (name, onClick, text = "刪除") => ({
+  key: "delete",
+  label: `${text} ${name}`,
+  text,
+  icon: <DeleteOutlined />,
+  danger: true,
+  onClick,
+});
+
 class AppErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -365,7 +396,21 @@ class AppErrorBoundary extends Component {
 }
 
 function App() {
-  const { message, notification } = AntdApp.useApp();
+  const { message, notification, modal } = AntdApp.useApp();
+  // Swipe 刪除 / 移除 on mobile asks first, as the desktop Popconfirm does.
+  const confirmDestructive = useCallback(
+    ({ title, content, okText = "刪除", onOk }) => {
+      modal.confirm({
+        title,
+        content,
+        okText,
+        cancelText: "取消",
+        okButtonProps: { danger: true },
+        onOk,
+      });
+    },
+    [modal],
+  );
   const [rows, setRows] = useState([]);
   const [cashRows, setCashRows] = useState([]);
   const [totalTwd, setTotalTwd] = useState(0);
@@ -2598,16 +2643,15 @@ function App() {
       record.assetTagLabel ||
       record.assetTag ||
       "個股";
-    // Fixed widths (the table uses tableLayout="fixed" on mobile) so a long
-    // name truncates instead of pushing 現值 off-screen. No drag handle on
-    // mobile: reordering stays a desktop feature.
+    // One column: the row slides to reveal 編輯 / 移除 (no drag handle and no
+    // action buttons on mobile). The editor replaces the row while editing.
     return [
       {
-        title: "標的",
-        key: "target",
+        key: "row",
         render: (_, record) => {
           if (editingHoldingId === record.id) {
             return (
+              <div className="mobile-swipe-row mobile-swipe-row--editing">
               <div className="holding-mobile-editor">
                 <label>
                   <span>股數</span>
@@ -2627,9 +2671,30 @@ function App() {
                   {byKey.actions.render(null, record)}
                 </div>
               </div>
+              </div>
             );
           }
+          const name = record.companyName || record.symbol;
+          const rowBusy =
+            Boolean(loadingActionById[record.id]) || loadingReorder;
           return (
+            <MobileSwipeRow
+              disabled={isWriteDisabled || editingHoldingId !== null || rowBusy}
+              actions={[
+                swipeEditAction(name, () => handleEditClick(record)),
+                swipeDeleteAction(
+                  name,
+                  () =>
+                    confirmDestructive({
+                      title: "移除此持股？",
+                      content: "會一併刪除該持股的所有快照資料。",
+                      okText: "移除",
+                      onOk: () => handleRemoveHolding(record),
+                    }),
+                  "移除",
+                ),
+              ]}
+              main={
             <div className="holding-mobile-target">
               <div className="holding-mobile-name">
                 <span className="holding-main-text">
@@ -2665,15 +2730,8 @@ function App() {
                 )}
               </div>
             </div>
-          );
-        },
-      },
-      {
-        title: "現值",
-        key: "latestValueTwd",
-        align: "right",
-        width: 128,
-        render: (_, record) => (
+              }
+              side={
           <div className="holding-mobile-value">
             <div className="holding-mobile-value-main">
               {formatTwd(animatedOr(record, "latestValueTwd"))}
@@ -2688,20 +2746,14 @@ function App() {
               )}
             </div>
           </div>
-        ),
-      },
-      {
-        ...byKey.actions,
-        title: "",
-        width: 52,
-        className: "holding-mobile-actions",
-        render: (value, record) =>
-          editingHoldingId === record.id
-            ? null
-            : byKey.actions.render(value, record),
+              }
+            />
+          );
+        },
       },
     ];
   }, [
+      confirmDestructive,
       getDeltaClassName,
       getHolderTagStyle,
       dragDisabled,
@@ -2875,37 +2927,64 @@ function App() {
       return columns;
     }
 
-    // Mobile: account + holder on the left, balance on the right, no
-    // horizontal scroll. 更新時間 is dropped (it isn't a price timestamp).
+    // Mobile: one column; the row slides to reveal 編輯 / 移除. While editing,
+    // the inline editor (holder, balance, 儲存 / 取消) replaces the row.
     const byKey = Object.fromEntries(
       columns.map((column) => [column.key, column]),
     );
     return [
       {
-        title: "帳戶",
-        key: "account",
-        render: (_, record) => (
-          <div>
-            {byKey.account.render(null, record)}
-            <div className="holding-mobile-tags">
-              {byKey.holder.render(record.holder, record)}
+        key: "row",
+        render: (_, record) => {
+          const main = (
+            <div>
+              {byKey.account.render(null, record)}
+              <div className="holding-mobile-tags">
+                {byKey.holder.render(record.holder, record)}
+              </div>
             </div>
-          </div>
-        ),
-      },
-      {
-        ...byKey.balanceTwd,
-        title: "餘額",
-        width: undefined,
-      },
-      {
-        ...byKey.actions,
-        title: "",
-        width: 56,
-        className: "holding-mobile-actions",
+          );
+          const balance = byKey.balanceTwd.render(record.balanceTwd, record);
+          if (editingCashAccountId === record.id) {
+            return (
+              <div className="mobile-swipe-row mobile-swipe-row--editing">
+                {main}
+                {balance}
+                <div className="holding-mobile-editor-actions">
+                  {byKey.actions.render(null, record)}
+                </div>
+              </div>
+            );
+          }
+          const name = record.accountAlias || record.bankName || "帳戶";
+          return (
+            <MobileSwipeRow
+              disabled={
+                isWriteDisabled || Boolean(loadingCashActionById[record.id])
+              }
+              actions={[
+                swipeEditAction(name, () => handleCashEditClick(record)),
+                swipeDeleteAction(
+                  name,
+                  () =>
+                    confirmDestructive({
+                      title: "移除此銀行帳戶？",
+                      content: "刪除後不會再列入總現值。",
+                      okText: "移除",
+                      onOk: () => handleRemoveCashAccount(record),
+                    }),
+                  "移除",
+                ),
+              ]}
+              main={main}
+              side={balance}
+            />
+          );
+        },
       },
     ];
   }, [
+      confirmDestructive,
       getHolderTagStyle,
       editingCashAccountId,
       editingCashBalance,
@@ -3066,63 +3145,77 @@ function App() {
       return columns;
     }
 
-    // Mobile: name + date/payer/tags on the left, amount + type on the right.
+    // Mobile: one column; the row slides to reveal 編輯 / 刪除, or 編輯規則 for
+    // rows generated by a recurring rule.
     const byKey = Object.fromEntries(
       columns.map((column) => [column.key, column]),
     );
     return [
       {
-        title: "支出",
-        key: "name",
+        key: "row",
         render: (_, record) => {
           const meta = [formatRowDate(record), ...getExpenseMeta(record)];
           const tags = [record.categoryName, record.budgetName].filter(
             (value) => !isUnset(value),
           );
+          const actions = record.isRecurringOccurrence
+            ? [
+                swipeEditAction(
+                  record.name,
+                  () => openRecurringEditForm(record),
+                  "編輯規則",
+                ),
+              ]
+            : [
+                swipeEditAction(record.name, () => openExpenseForm(record)),
+                swipeDeleteAction(record.name, () =>
+                  confirmDestructive({
+                    title: "刪除這筆支出？",
+                    onOk: () => handleRemoveExpense(record),
+                  }),
+                ),
+              ];
           return (
-            <div>
-              <div className="holding-main-text">
-                {record.name}
-                {renderRecurringTags(record)}
-              </div>
-              <Text type="secondary" className="holding-subline">
-                {meta.filter(Boolean).join(" · ")}
-              </Text>
-              {tags.length > 0 && (
-                <div className="holding-mobile-tags">
-                  {tags.map((value) => (
-                    <Tag key={value} bordered={false}>
-                      {value}
-                    </Tag>
-                  ))}
+            <MobileSwipeRow
+              disabled={isWriteDisabled}
+              actions={actions}
+              main={
+                <div>
+                  <div className="holding-main-text">
+                    {record.name}
+                    {renderRecurringTags(record)}
+                  </div>
+                  <Text type="secondary" className="holding-subline">
+                    {meta.filter(Boolean).join(" · ")}
+                  </Text>
+                  {tags.length > 0 && (
+                    <div className="holding-mobile-tags">
+                      {tags.map((value) => (
+                        <Tag key={value} bordered={false}>
+                          {value}
+                        </Tag>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              }
+              side={
+                <div className="cell-with-delta">
+                  <div className="cell-main-value">
+                    {formatTwd(record.amountTwd)}
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {byKey.type.render(null, record)}
+                  </Text>
+                </div>
+              }
+            />
           );
         },
       },
-      {
-        title: "金額",
-        key: "amountTwd",
-        align: "right",
-        render: (_, record) => (
-          <div className="cell-with-delta">
-            <div className="cell-main-value">{formatTwd(record.amountTwd)}</div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {byKey.type.render(null, record)}
-            </Text>
-          </div>
-        ),
-      },
-      {
-        ...byKey.actions,
-        title: "",
-        width: 56,
-        className: "holding-mobile-actions",
-        render: (value, record) => byKey.actions.render(value, record),
-      },
     ];
   }, [
+    confirmDestructive,
     handleRemoveExpense,
     isMobileViewport,
     isWriteDisabled,
@@ -3210,6 +3303,45 @@ function App() {
     const categoryNames = new Map(
       expenseCategoryRows.map((item) => [item.id, item.name]),
     );
+    const renderTemplateName = (record) => {
+      const meta = [
+        categoryNames.get(record.categoryId),
+        record.amountTwd ? formatTwd(record.amountTwd) : "金額不固定",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return (
+        <div className="expense-template-cell">
+          <span>{record.name}</span>
+          <Text type="secondary" className="expense-template-meta">
+            {meta}
+          </Text>
+        </div>
+      );
+    };
+    if (isMobileViewport) {
+      // Mobile: no drag handle; the row slides to reveal 編輯 / 刪除.
+      return [
+        {
+          key: "row",
+          render: (_, record) => (
+            <MobileSwipeRow
+              disabled={isWriteDisabled}
+              actions={[
+                swipeEditAction(record.name, () => openTemplateForm(record)),
+                swipeDeleteAction(record.name, () =>
+                  confirmDestructive({
+                    title: "刪除此常用支出？",
+                    onOk: () => handleRemoveTemplate(record),
+                  }),
+                ),
+              ]}
+              main={renderTemplateName(record)}
+            />
+          ),
+        },
+      ];
+    }
     return [
       {
         key: "sort",
@@ -3220,22 +3352,7 @@ function App() {
         title: "名稱",
         dataIndex: "name",
         key: "name",
-        render: (value, record) => {
-          const meta = [
-            categoryNames.get(record.categoryId),
-            record.amountTwd ? formatTwd(record.amountTwd) : "金額不固定",
-          ]
-            .filter(Boolean)
-            .join(" · ");
-          return (
-            <div className="expense-template-cell">
-              <span>{value}</span>
-              <Text type="secondary" className="expense-template-meta">
-                {meta}
-              </Text>
-            </div>
-          );
-        },
+        render: (_, record) => renderTemplateName(record),
       },
       {
         title: "操作",
@@ -3273,8 +3390,10 @@ function App() {
       },
     ];
   }, [
+    confirmDestructive,
     expenseCategoryRows,
     handleRemoveTemplate,
+    isMobileViewport,
     isWriteDisabled,
     openTemplateForm,
     templateDragDisabled,
@@ -3480,26 +3599,39 @@ function App() {
     );
     return [
       {
-        key: "name",
+        key: "row",
         render: (_, record) => (
-          <span className="holding-main-text">{record.name}</span>
+          <MobileSwipeRow
+            disabled={isWriteDisabled}
+            actions={[
+              swipeEditAction(record.name, () => openCategoryForm(record)),
+              swipeDeleteAction(record.name, () =>
+                confirmDestructive({
+                  title: "刪除此分類？",
+                  onOk: () => handleRemoveCategory(record),
+                }),
+              ),
+            ]}
+            main={<span className="holding-main-text">{record.name}</span>}
+            side={
+              <span className="mobile-inline-field">
+                <Text type="secondary" className="mobile-inline-label">
+                  快速選取
+                </Text>
+                {byKey.isQuickPick.render(record.isQuickPick, record)}
+              </span>
+            }
+          />
         ),
       },
-      {
-        key: "isQuickPick",
-        align: "right",
-        render: (_, record) => (
-          <span className="mobile-inline-field">
-            <Text type="secondary" className="mobile-inline-label">
-              快速選取
-            </Text>
-            {byKey.isQuickPick.render(record.isQuickPick, record)}
-          </span>
-        ),
-      },
-      { ...byKey.actions, title: undefined, align: "right", width: 84 },
     ];
-  }, [expenseCategoryColumns]);
+  }, [
+    confirmDestructive,
+    expenseCategoryColumns,
+    handleRemoveCategory,
+    isWriteDisabled,
+    openCategoryForm,
+  ]);
 
   const residentBudgetMobileColumns = useMemo(
     () => [
@@ -3508,6 +3640,18 @@ function App() {
         render: (_, record) => {
           const percent = Number(record.residentPercent);
           return (
+            <MobileSwipeRow
+              disabled={isWriteDisabled}
+              actions={[
+                swipeEditAction(record.name, () => openBudgetForm(record)),
+                swipeDeleteAction(record.name, () =>
+                  confirmDestructive({
+                    title: "刪除此預算？",
+                    onOk: () => handleRemoveBudget(record),
+                  }),
+                ),
+              ]}
+              main={
             <div>
               <div className="holding-main-text">{record.name}</div>
               <Text type="secondary" className="holding-subline">
@@ -3517,17 +3661,18 @@ function App() {
                   : "分配比例待設定"}
               </Text>
             </div>
+              }
+            />
           );
         },
       },
-      {
-        key: "actions",
-        align: "right",
-        width: 84,
-        render: (_, record) => renderBudgetActionButtons(record),
-      },
     ],
-    [renderBudgetActionButtons],
+    [
+      confirmDestructive,
+      handleRemoveBudget,
+      isWriteDisabled,
+      openBudgetForm,
+    ],
   );
 
   const specialBudgetMobileColumns = useMemo(
@@ -3542,6 +3687,18 @@ function App() {
               ? `${formatDate(record.specialStartDate)} ~ ${formatDate(record.specialEndDate)}`
               : "日期未設定";
           return (
+            <MobileSwipeRow
+              disabled={isWriteDisabled}
+              actions={[
+                swipeEditAction(record.name, () => openBudgetForm(record)),
+                swipeDeleteAction(record.name, () =>
+                  confirmDestructive({
+                    title: "刪除此預算？",
+                    onOk: () => handleRemoveBudget(record),
+                  }),
+                ),
+              ]}
+              main={
             <div>
               <div className="holding-main-text">{record.name}</div>
               <Text type="secondary" className="holding-subline">
@@ -3556,17 +3713,18 @@ function App() {
                 已花 {formatTwd(spentTwd)} / {formatTwd(availableTwd)}
               </Text>
             </div>
+              }
+            />
           );
         },
       },
-      {
-        key: "actions",
-        align: "right",
-        width: 84,
-        render: (_, record) => renderBudgetActionButtons(record),
-      },
     ],
-    [renderBudgetActionButtons],
+    [
+      confirmDestructive,
+      handleRemoveBudget,
+      isWriteDisabled,
+      openBudgetForm,
+    ],
   );
 
   const DraggableBodyRow = useCallback(
@@ -4753,14 +4911,18 @@ function App() {
       >
         <Table
           rowKey="id"
-          className="expense-template-table"
+          className={`expense-template-table${
+            isMobileViewport ? " mobile-swipe-table" : ""
+          }`}
           dataSource={expenseTemplateRows}
           columns={expenseTemplateColumns}
           pagination={false}
           showHeader={false}
           loading={loadingTemplateReorder}
           locale={{ emptyText: "尚無常用支出，按 + 新增" }}
-          components={{ body: { row: TemplateDraggableRow } }}
+          components={
+            isMobileViewport ? undefined : { body: { row: TemplateDraggableRow } }
+          }
         />
       </SortableContext>
     </DndContext>
@@ -6195,6 +6357,7 @@ function App() {
                         >
                           <Table
                             showHeader={false}
+                            className="mobile-swipe-table"
                             tableLayout="fixed"
                             rowKey="id"
                             dataSource={filteredRows}
@@ -6323,6 +6486,7 @@ function App() {
                       />
                       <Table
                         showHeader={false}
+                        className="mobile-swipe-table"
                         rowKey="id"
                         dataSource={filteredCashRows}
                         columns={cashTableColumns}
@@ -6761,6 +6925,7 @@ function App() {
                       }
                       stoppingById={stoppingRecurringById}
                       disabled={isWriteDisabled}
+                      swipeable={isMobileViewport}
                     />
                   </Col>
                   <Col xs={24}>
@@ -6780,6 +6945,7 @@ function App() {
                           />
                           <Table
                             showHeader={false}
+                            className="mobile-swipe-table"
                             rowKey={(record) =>
                               `${record.id}-${record.occurredAt}`
                             }
@@ -7007,6 +7173,7 @@ function App() {
                         <div className="mobile-list-body">
                           <Table
                             showHeader={false}
+                            className="mobile-swipe-table"
                             rowKey="id"
                             dataSource={expenseCategoryRows}
                             columns={expenseCategoryMobileColumns}
@@ -7115,6 +7282,7 @@ function App() {
                                 children: (
                                   <Table
                                     showHeader={false}
+                                    className="mobile-swipe-table"
                                     rowKey="id"
                                     dataSource={residentBudgetRows}
                                     columns={residentBudgetMobileColumns}
@@ -7129,6 +7297,7 @@ function App() {
                                 children: (
                                   <Table
                                     showHeader={false}
+                                    className="mobile-swipe-table"
                                     rowKey="id"
                                     dataSource={specialBudgetRows}
                                     columns={specialBudgetMobileColumns}

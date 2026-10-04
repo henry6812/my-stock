@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import RecurringOverview from './RecurringOverview'
 
@@ -56,6 +56,13 @@ const renderOverview = (props = {}) => {
 
 const listItems = () => screen.getAllByRole('listitem')
 
+const swipeOpen = (el) => {
+  fireEvent.pointerDown(el, { clientX: 300, clientY: 20, pointerId: 1 })
+  fireEvent.pointerMove(el, { clientX: 250, clientY: 20, pointerId: 1 })
+  fireEvent.pointerMove(el, { clientX: 140, clientY: 20, pointerId: 1 })
+  fireEvent.pointerUp(el, { clientX: 140, clientY: 20, pointerId: 1 })
+}
+
 describe('<RecurringOverview />', () => {
   it('shows the count and monthly equivalent total', () => {
     renderOverview()
@@ -111,5 +118,26 @@ describe('<RecurringOverview />', () => {
     expect(screen.getByText('目前沒有定期支出（例如房租、訂閱）')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /新增定期支出/ }))
     expect(onCreate).toHaveBeenCalled()
+  })
+
+  it('on mobile (swipeable) moves edit / stop into the swipe actions', async () => {
+    const { user, onEdit, onStop } = renderOverview({ swipeable: true })
+    const [first] = listItems()
+    expect(first.querySelector('.swipe-actions')).not.toBeNull()
+    expect(first.querySelector('.recurring-overview-actions')).toBeNull()
+    const surface = first.querySelector('.swipe-actions-content')
+    swipeOpen(surface)
+    await user.click(within(first).getByRole('button', { name: '編輯 房租' }))
+    expect(onEdit).toHaveBeenCalledWith(rows[0])
+    swipeOpen(surface)
+    await user.click(within(first).getByRole('button', { name: '停止 房租' }))
+    expect(onStop).toHaveBeenCalledWith(rows[0])
+  })
+
+  it('keeps the inline buttons on desktop', () => {
+    renderOverview()
+    const [first] = listItems()
+    expect(first.querySelector('.swipe-actions')).toBeNull()
+    expect(first.querySelector('.recurring-overview-actions')).not.toBeNull()
   })
 })

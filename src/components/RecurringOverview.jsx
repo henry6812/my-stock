@@ -4,6 +4,7 @@ import { EditOutlined, PlusOutlined, StopOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { formatDate, formatTwd } from "../utils/formatters";
 import { formatRecurringScheduleText } from "../utils/portfolioView";
+import SwipeActions from "./SwipeActions";
 
 const { Text } = Typography;
 
@@ -21,6 +22,17 @@ const describeNextCharge = (nextDate, today) => {
   return `下次 ${label}（${days} 天後）`;
 };
 
+// The row's content, wrapped in SwipeActions on mobile.
+function RowShell({ swipeable, disabled, actions, children }) {
+  const row = <div className="recurring-overview-row">{children}</div>;
+  if (!swipeable) return row;
+  return (
+    <SwipeActions actions={actions} disabled={disabled}>
+      {row}
+    </SwipeActions>
+  );
+}
+
 function RecurringOverview({
   rows = [],
   summary = { count: 0, monthlyEquivalentTwd: 0 },
@@ -31,6 +43,8 @@ function RecurringOverview({
   onCreate,
   stoppingById = {},
   disabled = false,
+  // Mobile: edit / stop move behind a left swipe instead of inline buttons.
+  swipeable = false,
 }) {
   const [expanded, setExpanded] = useState(false);
   const visibleRows = expanded ? rows : rows.slice(0, COLLAPSED_COUNT);
@@ -87,6 +101,27 @@ function RecurringOverview({
               const nextCharge = describeNextCharge(item.nextOccurrenceDate, today);
               return (
                 <li key={item.id} className="recurring-overview-item">
+                  <RowShell
+                    swipeable={swipeable}
+                    disabled={disabled || Boolean(stoppingById[item.id])}
+                    actions={[
+                      {
+                        key: "edit",
+                        label: `編輯 ${item.name}`,
+                        text: "編輯",
+                        icon: <EditOutlined />,
+                        onClick: () => onEdit?.(item),
+                      },
+                      {
+                        key: "stop",
+                        label: `停止 ${item.name}`,
+                        text: "停止",
+                        icon: <StopOutlined />,
+                        tone: "warn",
+                        onClick: () => onStop?.(item),
+                      },
+                    ]}
+                  >
                   <div className="recurring-overview-main">
                     <div className="recurring-overview-name">
                       <span>{item.name}</span>
@@ -126,6 +161,7 @@ function RecurringOverview({
                         約 {formatTwd(item.monthlyEquivalentTwd)}/月
                       </Text>
                     )}
+                    {!swipeable && (
                     <div className="recurring-overview-actions">
                       <Button
                         type="text"
@@ -147,7 +183,9 @@ function RecurringOverview({
                         />
                       </Tooltip>
                     </div>
+                    )}
                   </div>
+                  </RowShell>
                 </li>
               );
             })}

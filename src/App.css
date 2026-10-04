@@ -1763,7 +1763,7 @@
   overflow: hidden;
 }
 
-.recurring-overview-item {
+.recurring-overview-row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -1983,4 +1983,92 @@
 
 .holding-mobile-editor-actions {
   margin-top: 4px;
+}
+
+/* Swipe-to-reveal row actions (SwipeActions) on mobile lists. */
+.swipe-actions {
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-actions-buttons {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+}
+
+.swipe-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 0;
+  padding: 0;
+  color: #fff;
+  background: var(--c-teal);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+
+.swipe-action .anticon {
+  font-size: 16px;
+}
+
+.swipe-action--danger {
+  background: var(--c-down);
+}
+
+.swipe-action--warn {
+  background: var(--c-warn);
+}
+
+.swipe-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.swipe-actions-content {
+  position: relative;
+  z-index: 1;
+  background: var(--c-surface);
+  transition: transform 0.2s ease;
+  touch-action: pan-y;
+  /* A swipe shouldn't select the row's text. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mobile-swipe-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.mobile-swipe-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mobile-swipe-row-side {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.mobile-swipe-row--editing {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Swipe rows carry their own padding; the cell must not add any. */
+.mobile-list-body .mobile-swipe-table .ant-table-tbody > tr > td,
+.mobile-list-body .mobile-swipe-table .ant-table-tbody > tr > td:first-child,
+.mobile-list-body .mobile-swipe-table .ant-table-tbody > tr > td:last-child {
+  padding: 0;
 }
