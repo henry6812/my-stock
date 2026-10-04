@@ -196,6 +196,7 @@ import {
   sanitizeSuggestions,
 } from "./utils/expenseSuggestions";
 import { applyTemplateToFormValues } from "./utils/expenseTemplates";
+import { describeRecurrenceStart } from "./utils/recurrence";
 import { applyPwaUpdate, onPwaNeedRefresh } from "./pwaUpdate";
 import "./App.css";
 
@@ -4224,44 +4225,82 @@ function App() {
           />
         </AutoComplete>
       </Form.Item>
-      <Form.Item label="支出日期" required>
-        <Form.Item
-          noStyle
-          shouldUpdate={(prev, next) => prev.occurredAt !== next.occurredAt}
-        >
-          {({ getFieldValue, setFieldValue }) => {
-            const current = getFieldValue("occurredAt");
-            return (
-              <div className="expense-quick-chips">
-                {["今天", "昨天", "前天"].map((label, daysAgo) => {
-                  const day = dayjs().subtract(daysAgo, "day");
+      <Form.Item
+        noStyle
+        shouldUpdate={(prev, next) =>
+          [
+            "entryType",
+            "recurrenceType",
+            "monthlyDay",
+            "yearlyMonth",
+            "yearlyDay",
+            "occurredAt",
+          ].some((field) => prev[field] !== next[field])
+        }
+      >
+        {({ getFieldsValue }) => {
+          const scheduleValues = getFieldsValue([
+            "entryType",
+            "recurrenceType",
+            "monthlyDay",
+            "yearlyMonth",
+            "yearlyDay",
+            "occurredAt",
+          ]);
+          const isRecurring = scheduleValues.entryType === "RECURRING";
+          // For recurring entries this date is when the schedule starts, not
+          // an expense of its own (see describeRecurrenceStart).
+          return (
+            <Form.Item
+              label={isRecurring ? "開始日期" : "支出日期"}
+              extra={describeRecurrenceStart(scheduleValues)}
+              required
+            >
+              <Form.Item
+                noStyle
+                shouldUpdate={(prev, next) => prev.occurredAt !== next.occurredAt}
+              >
+                {({ getFieldValue, setFieldValue }) => {
+                  const current = getFieldValue("occurredAt");
                   return (
-                    <Tag.CheckableTag
-                      key={label}
-                      checked={Boolean(current?.isSame?.(day, "day"))}
-                      onChange={() => {
-                        if (!isWriteDisabled) setFieldValue("occurredAt", day);
-                      }}
-                    >
-                      {label}
-                    </Tag.CheckableTag>
+                    <div className="expense-quick-chips">
+                      {["今天", "昨天", "前天"].map((label, daysAgo) => {
+                        const day = dayjs().subtract(daysAgo, "day");
+                        return (
+                          <Tag.CheckableTag
+                            key={label}
+                            checked={Boolean(current?.isSame?.(day, "day"))}
+                            onChange={() => {
+                              if (!isWriteDisabled) setFieldValue("occurredAt", day);
+                            }}
+                          >
+                            {label}
+                          </Tag.CheckableTag>
+                        );
+                      })}
+                    </div>
                   );
-                })}
-              </div>
-            );
-          }}
-        </Form.Item>
-        <Form.Item
-          noStyle
-          name="occurredAt"
-          rules={[{ required: true, message: "請選擇支出日期" }]}
-        >
-          <DatePicker
-            format="YYYY/MM/DD"
-            style={{ width: "100%" }}
-            getPopupContainer={getSheetPopupContainer}
-          />
-        </Form.Item>
+                }}
+              </Form.Item>
+              <Form.Item
+                noStyle
+                name="occurredAt"
+                rules={[
+                  {
+                    required: true,
+                    message: isRecurring ? "請選擇開始日期" : "請選擇支出日期",
+                  },
+                ]}
+              >
+                <DatePicker
+                  format="YYYY/MM/DD"
+                  style={{ width: "100%" }}
+                  getPopupContainer={getSheetPopupContainer}
+                />
+              </Form.Item>
+            </Form.Item>
+          );
+        }}
       </Form.Item>
       <Form.Item label="分類">
         {quickExpenseCategories.length > 0 && (
