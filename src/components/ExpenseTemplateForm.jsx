@@ -10,6 +10,7 @@ const KIND_OPTIONS = [
 ];
 
 const HISTORY_SELECT_ID = "expense-template-history";
+const STALE_HINT = "原本的設定已失效，儲存後會清除";
 
 const hasOption = (options, value) =>
   value !== null &&
@@ -24,12 +25,17 @@ function ExpenseTemplateForm({
   payerOptions = [],
   budgetOptions = [],
   historySuggestions = [],
+  // Fields whose saved link no longer resolves (deleted category, removed
+  // payer, ended budget); they show empty and are cleared on save.
+  staleFields = [],
   popupContainer,
   disabled = false,
 }) {
   const [form] = Form.useForm();
   const submittingRef = useRef(false);
   const isNew = !initialValues;
+  const staleHint = (field) =>
+    staleFields.includes(field) ? STALE_HINT : undefined;
 
   // A starting point from a past expense. The amount is left out on purpose:
   // the last amount paid isn't necessarily a fixed one.
@@ -126,14 +132,14 @@ function ExpenseTemplateForm({
           style={{ width: "100%" }}
         />
       </Form.Item>
-      <Form.Item label="分類" name="categoryId">
+      <Form.Item label="分類" name="categoryId" extra={staleHint("categoryId")}>
         <Select
           allowClear
           getPopupContainer={popupContainer}
           options={categoryOptions}
         />
       </Form.Item>
-      <Form.Item label="支出人" name="payer">
+      <Form.Item label="支出人" name="payer" extra={staleHint("payer")}>
         <Select
           allowClear
           getPopupContainer={popupContainer}
@@ -147,7 +153,7 @@ function ExpenseTemplateForm({
           options={KIND_OPTIONS}
         />
       </Form.Item>
-      <Form.Item label="預算" name="budgetId">
+      <Form.Item label="預算" name="budgetId" extra={staleHint("budgetId")}>
         <Select
           allowClear
           getPopupContainer={popupContainer}

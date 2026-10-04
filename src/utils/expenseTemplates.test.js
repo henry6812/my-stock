@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  applyTemplateToFormValues,
   buildTemplateRows,
   getNextTemplateSortOrder,
   normalizeTemplateInput,
@@ -78,6 +79,21 @@ describe('planTemplateReorder', () => {
     expect(planTemplateReorder(tied, [1, 2])).toEqual([{ id: 2, sortOrder: 2 }])
   })
 
+  it('appends live templates missing from the dragged list (e.g. added on another device)', () => {
+    const withNew = [...templates, { id: 4, sortOrder: 3 }]
+    expect(planTemplateReorder(withNew, [3, 1, 2])).toEqual([
+      { id: 3, sortOrder: 1 },
+      { id: 1, sortOrder: 2 },
+      { id: 2, sortOrder: 3 },
+      { id: 4, sortOrder: 4 },
+    ])
+  })
+
+  it('ignores deleted templates missing from the list', () => {
+    const withDeleted = [...templates, { id: 4, sortOrder: 3, deletedAt: '2026-10-04' }]
+    expect(planTemplateReorder(withDeleted, [1, 2, 3])).toEqual([])
+  })
+
   it('ignores ids that are not templates', () => {
     expect(planTemplateReorder(templates, [99, 2, 1, 3])).toEqual([
       { id: 2, sortOrder: 1 },
@@ -137,15 +153,89 @@ describe('buildTemplateRows', () => {
       payer: '小明',
       expenseKind: '個人',
       sortOrder: 1,
+      missingLinks: [],
     })
   })
 
-  it('leaves links to missing categories or budgets empty', () => {
+  it('leaves links to missing categories or budgets empty and flags them', () => {
     const [row] = buildTemplateRows(
       [{ ...base, id: 1, sortOrder: 1, categoryRemoteKey: 'category_gone', budgetRemoteKey: 'budget_gone' }],
       { categories, budgets },
     )
     expect(row.categoryId).toBeNull()
     expect(row.budgetId).toBeNull()
+    expect(row.missingLinks).toEqual(['categoryId', 'budgetId'])
+  })
+
+  it('has no missing links when nothing was linked', () => {
+    const [row] = buildTemplateRows([{ ...base, id: 1, sortOrder: 1 }], { categories, budgets })
+    expect(row.missingLinks).toEqual([])
   })
 })
+
+describe('applyTemplateToFormValues', () => {
+  const empty = {
+    name: '',
+    categoryId: undefined,
+    payer: '共同帳戶',
+    expenseKind: undefined,
+    budgetId: undefined,
+    amountTwd: undefined,
+  }
+  const full = {
+    name: '早餐',
+    categoryId: 10,
+    payer: '小明',
+    expenseKind: '個人',
+    budgetId: 20,
+    amountTwd: 85,
+  }
+  const nameOnly = {
+    name: '雜支',
+    categoryId: null,
+    payer: null,
+    expenseKind: null,
+    budgetId: null,
+    amountTwd: null,
+  }
+
+  it('sets only the fields the template has', () => {
+    const { updates } = applyTemplateToFormValues({ ...empty, amountTwd: 50 }, nameOnly)
+    expect(updates).toEqual({ name: '雜支' })
+  })
+
+  it('restores fields the previous template filled when the next one leaves them empty', () => {
+    const first = applyTemplateToFormValues(empty, full)
+    const afterFirst = { ...empty, ...first.updates }
+    const { updates } = applyTemplateToFormValues(afterFirst, nameOnly, first.state)
+    expect(updates).toEqual({
+      name: '雜支',
+      categoryId: undefined,
+      payer: '共同帳戶',
+      expenseKind: undefined,
+      budgetId: undefined,
+      amountTwd: undefined,
+    })
+  })
+
+  it('keeps a value the user changed after the previous template', () => {
+    const first = applyTemplateToFormValues(empty, full)
+    const edited = { ...empty, ...first.updates, categoryId: 11, amountTwd: 90 }
+    const { updates } = applyTemplateToFormValues(edited, nameOnly, first.state)
+    expect(updates).not.toHaveProperty('categoryId')
+    expect(updates).not.toHaveProperty('amountTwd')
+  })
+
+  it('remembers the original value across several templates', () => {
+    const first = applyTemplateToFormValues(empty, full)
+    const second = applyTemplateToFormValues(
+      { ...empty, ...first.updates },
+      { ...full, name: '午餐', payer: '小華' },
+      first.state,
+    )
+    const afterSecond = { ...empty, ...first.updates, ...second.updates }
+    const { updates } = applyTemplateToFormValues(afterSecond, nameOnly, second.state)
+    expect(updates.payer).toBe('共同帳戶')
+  })
+})
+

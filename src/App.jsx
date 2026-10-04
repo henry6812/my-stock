@@ -195,6 +195,7 @@ import {
   pickQuickCategories,
   sanitizeSuggestions,
 } from "./utils/expenseSuggestions";
+import { applyTemplateToFormValues } from "./utils/expenseTemplates";
 import { applyPwaUpdate, onPwaNeedRefresh } from "./pwaUpdate";
 import "./App.css";
 
@@ -566,6 +567,12 @@ function App() {
   // Quick-sheet values handed to the full expense form ("完整表單"); applied
   // by the form's open effect after its own defaults.
   const pendingExpenseDraftRef = useRef(null);
+  // What the last 常用支出 chip put into the full form (see
+  // applyTemplateToFormValues); reset whenever the form opens.
+  const appliedTemplateStateRef = useRef(null);
+  // While a template reorder is writing, realtime echoes of each row would
+  // reload a half-applied order; the drag handler reloads once at the end.
+  const templateReorderInFlightRef = useRef(false);
   const didRunExpenseInitialAnimationRef = useRef(false);
   const latestTotalTwdRef = useRef(0);
   const latestMarkerWanRef = useRef(0);
@@ -1431,17 +1438,24 @@ function App() {
     [expenseOptionLookups, expenseTemplateRows],
   );
 
-  // Fills the full form from a 常用支出 chip; only fields the template sets
-  // are touched, so an amount already typed survives a template without one.
+  // Fills the full form from a 常用支出 chip: fields the template sets are
+  // filled, an amount already typed survives a template without one, and
+  // fields the previous chip filled are reverted rather than mixed in.
   const handleApplyExpenseTemplate = useCallback(
     (template) => {
       if (isWriteDisabled) return;
-      const updates = { name: template.name };
-      if (template.categoryId) updates.categoryId = template.categoryId;
-      if (template.payer) updates.payer = template.payer;
-      if (template.expenseKind) updates.expenseKind = template.expenseKind;
-      if (template.budgetId) updates.budgetId = template.budgetId;
-      if (template.amountTwd) updates.amountTwd = template.amountTwd;
+      const { updates, state } = applyTemplateToFormValues(
+        expenseForm.getFieldsValue([
+          "categoryId",
+          "payer",
+          "expenseKind",
+          "budgetId",
+          "amountTwd",
+        ]),
+        template,
+        appliedTemplateStateRef.current,
+      );
+      appliedTemplateStateRef.current = state;
       expenseForm.setFieldsValue(updates);
       if (updates.payer || updates.expenseKind || updates.budgetId) {
         setShowExpenseMoreFields(true);
@@ -1863,14 +1877,31 @@ function App() {
     [loadExpenseData, message, performCloudSync],
   );
 
+  const refreshExpenseDataInBackground = useCallback(() => {
+    loadExpenseData()
+      .then(() => performCloudSync())
+      .catch((error) => {
+        console.warn("[expense] background refresh failed", error);
+      });
+  }, [loadExpenseData, performCloudSync]);
+
   const openTemplateForm = useCallback(
     (record = null) => {
       // Edit with the sanitized copy so a stale link shows as empty, not as a
-      // raw id the selects can't label.
+      // raw id the selects can't label; the form flags those fields.
+      const usable = record
+        ? usableExpenseTemplates.find((item) => item.id === record.id)
+        : null;
       setEditingTemplate(
-        record
-          ? (usableExpenseTemplates.find((item) => item.id === record.id) ??
-              record)
+        usable
+          ? {
+              ...usable,
+              staleFields: [
+                ...(record.missingLinks ?? []),
+                record.payer && !usable.payer ? "payer" : null,
+                record.budgetId && !usable.budgetId ? "budgetId" : null,
+              ].filter(Boolean),
+            }
           : null,
       );
       setTemplateFormKey((key) => key + 1);
@@ -1889,18 +1920,18 @@ function App() {
       try {
         setLoadingTemplateAction(true);
         await upsertExpenseTemplate({ id: editingTemplate?.id, ...values });
-        await loadExpenseData();
-        await performCloudSync();
+        // Saved: close now so a failing refresh can't invite a second save.
         setIsTemplateFormOpen(false);
         setEditingTemplate(null);
         message.success(editingTemplate ? "常用支出已更新" : "已新增常用支出");
+        refreshExpenseDataInBackground();
       } catch (error) {
         message.error(toUserMessage(error, "儲存常用支出失敗"));
       } finally {
         setLoadingTemplateAction(false);
       }
     },
-    [editingTemplate, loadExpenseData, message, performCloudSync],
+    [editingTemplate, message, refreshExpenseDataInBackground],
   );
 
   const handleRemoveTemplate = useCallback(
@@ -1908,16 +1939,15 @@ function App() {
       try {
         setLoadingTemplateAction(true);
         await removeExpenseTemplate({ id: record.id });
-        await loadExpenseData();
-        await performCloudSync();
         message.success("常用支出已刪除");
+        refreshExpenseDataInBackground();
       } catch (error) {
         message.error(toUserMessage(error, "刪除常用支出失敗"));
       } finally {
         setLoadingTemplateAction(false);
       }
     },
-    [loadExpenseData, message, performCloudSync],
+    [message, refreshExpenseDataInBackground],
   );
 
   const templateDragDisabled = isWriteDisabled || loadingTemplateReorder;
@@ -1932,23 +1962,23 @@ function App() {
       const reordered = arrayMove(previous, oldIndex, newIndex);
       // Optimistic: show the new order right away, roll back on failure.
       setExpenseTemplateRows(reordered);
+      templateReorderInFlightRef.current = true;
       try {
         setLoadingTemplateReorder(true);
         await reorderExpenseTemplates(reordered.map((row) => row.id));
-        await loadExpenseData();
-        await performCloudSync();
       } catch (error) {
         setExpenseTemplateRows(previous);
         message.error(toUserMessage(error, "常用支出排序更新失敗"));
       } finally {
+        templateReorderInFlightRef.current = false;
         setLoadingTemplateReorder(false);
       }
+      refreshExpenseDataInBackground();
     },
     [
       expenseTemplateRows,
-      loadExpenseData,
       message,
-      performCloudSync,
+      refreshExpenseDataInBackground,
       templateDragDisabled,
     ],
   );
@@ -3423,7 +3453,7 @@ function App() {
       try {
         await Promise.all([
           loadAllData(),
-          loadExpenseData(),
+          templateReorderInFlightRef.current ? null : loadExpenseData(),
           loadHolderOptionSettings(),
         ]);
         refreshCloudRuntime();
@@ -3633,6 +3663,7 @@ function App() {
     }
     const draft = editingExpenseEntry ? null : pendingExpenseDraftRef.current;
     pendingExpenseDraftRef.current = null;
+    appliedTemplateStateRef.current = null;
     const payer =
       editingExpenseEntry?.payer === "共同"
         ? "共同帳戶"
@@ -4456,6 +4487,7 @@ function App() {
         value: item.id,
       }))}
       historySuggestions={quickExpenseSuggestions}
+      staleFields={editingTemplate?.staleFields ?? []}
       popupContainer={getSheetPopupContainer}
       disabled={isWriteDisabled}
     />

@@ -100,6 +100,14 @@ describe('<ExpenseTemplateForm />', () => {
     )
   })
 
+  it('warns about links that no longer exist', () => {
+    renderForm({
+      initialValues: { name: '停車', categoryId: null, budgetId: null },
+      staleFields: ['categoryId', 'budgetId'],
+    })
+    expect(screen.getAllByText('原本的設定已失效，儲存後會清除')).toHaveLength(2)
+  })
+
   it('offers 從歷史帶入 only for new templates', () => {
     renderForm({ initialValues: { name: '停車' } })
     expect(screen.queryByLabelText('從歷史帶入')).not.toBeInTheDocument()

@@ -55,6 +55,9 @@ function QuickExpenseSheet({
   // away from it means "a different expense"; adding one to a category-less
   // pick doesn't.
   const [pickedCategoryId, setPickedCategoryId] = useState(null);
+  // The keypad text a fixed-amount template put there, so the next pick can
+  // tell it apart from an amount the user typed.
+  const [pickedAmountExpr, setPickedAmountExpr] = useState(null);
   const [pickedTemplateId, setPickedTemplateId] = useState(null);
   const [extras, setExtras] = useState(defaultExtras);
   const [occurredAt, setOccurredAt] = useState(today);
@@ -94,7 +97,9 @@ function QuickExpenseSheet({
   const isCustomDate = !dayChips.some(({ day }) => occurredAt.isSame(day, "day"));
 
   // Shared by template chips and name-autocomplete picks. Only templates
-  // carry a fixed amount; a history suggestion's last amount isn't one.
+  // carry a fixed amount; a history suggestion's last amount isn't one. A
+  // pick without an amount keeps what the user typed, but drops an amount
+  // the previous template filled in.
   const applyPick = (item, { amountTwd = null, templateId = null } = {}) => {
     setName(item.name);
     setIsNameAutoFilled(true);
@@ -108,7 +113,14 @@ function QuickExpenseSheet({
       expenseKind: item.expenseKind ?? defaultExtras.expenseKind,
       budgetId: item.budgetId ?? null,
     });
-    setExpr(amountTwd > 0 ? String(amountTwd) : "");
+    if (amountTwd > 0) {
+      const nextExpr = String(amountTwd);
+      setExpr(nextExpr);
+      setPickedAmountExpr(nextExpr);
+      return;
+    }
+    if (pickedAmountExpr !== null && expr === pickedAmountExpr) setExpr("");
+    setPickedAmountExpr(null);
   };
 
   const applyTemplate = (template) =>

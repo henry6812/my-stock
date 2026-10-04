@@ -129,7 +129,7 @@ describe('<QuickExpenseSheet />', () => {
     })
   })
 
-  it('picking a suggestion fills name, category and extras but clears the amount', async () => {
+  it('picking a template without an amount fills name, category and extras and keeps the typed amount', async () => {
     const { user, onSubmit } = renderSheet()
     await press(user, ['5'])
     await user.click(screen.getByRole('button', { name: '常用 早餐' }))
@@ -137,9 +137,9 @@ describe('<QuickExpenseSheet />', () => {
     expect(screen.getByLabelText('名稱')).toHaveValue('早餐')
     expect(screen.getByRole('button', { name: '餐飲' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: '常用 早餐' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByLabelText('金額')).toHaveTextContent('$0')
+    expect(screen.getByLabelText('金額')).toHaveTextContent('$5')
 
-    await press(user, ['9', '0'])
+    await press(user, ['clear', '9', '0'])
     await user.click(saveButton())
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -231,6 +231,21 @@ describe('<QuickExpenseSheet />', () => {
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ name: '雜支', amountTwd: 30, categoryId: 'c-food' }),
     )
+  })
+
+  it('switching from a fixed-amount template to one without clears that amount', async () => {
+    const { user } = renderSheet()
+    await user.click(screen.getByRole('button', { name: '常用 停車' }))
+    await user.click(screen.getByRole('button', { name: '常用 早餐' }))
+    expect(screen.getByLabelText('金額')).toHaveTextContent('$0')
+  })
+
+  it('keeps an amount edited after a fixed-amount template', async () => {
+    const { user } = renderSheet()
+    await user.click(screen.getByRole('button', { name: '常用 停車' }))
+    await press(user, ['backspace', '5'])
+    await user.click(screen.getByRole('button', { name: '常用 早餐' }))
+    expect(screen.getByLabelText('金額')).toHaveTextContent('$65')
   })
 
   it('hides the 常用 row when there are no templates', () => {
