@@ -107,6 +107,8 @@ import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
 import RecurringOverview from "./components/RecurringOverview";
 import SwipeActions from "./components/SwipeActions";
 import CollapsibleGroups from "./components/CollapsibleGroups";
+import BudgetOverview from "./components/BudgetOverview";
+import BudgetDetailSheet from "./components/BudgetDetailSheet";
 import ExpenseDayList, {
   UpcomingExpenseList,
 } from "./components/ExpenseDayList";
@@ -462,6 +464,8 @@ function App() {
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [isExpenseSheetOpen, setIsExpenseSheetOpen] = useState(false);
   const [isQuickExpenseOpen, setIsQuickExpenseOpen] = useState(false);
+  // Mobile: the budget whose current-cycle detail sheet is open.
+  const [budgetDetailId, setBudgetDetailId] = useState(null);
   // Bumped on every open so QuickExpenseSheet remounts with fresh state.
   const [quickExpenseKey, setQuickExpenseKey] = useState(0);
   const [quickExpenseDefaults, setQuickExpenseDefaults] = useState({});
@@ -5298,6 +5302,24 @@ function App() {
     [budgetRows],
   );
 
+  const budgetDetail = useMemo(
+    () => activeBudgetCards.find((budget) => budget.id === budgetDetailId) ?? null,
+    [activeBudgetCards, budgetDetailId],
+  );
+
+  const getBudgetSwipeActions = useCallback(
+    (budget) => [
+      swipeEditAction(budget.name, () => openBudgetForm(budget)),
+      swipeDeleteAction(budget.name, () =>
+        confirmDestructive({
+          title: "刪除此預算？",
+          onOk: () => handleRemoveBudget(budget),
+        }),
+      ),
+    ],
+    [confirmDestructive, handleRemoveBudget, openBudgetForm],
+  );
+
   const handleAddIncomeOverride = useCallback(async () => {
     const monthValue = dayjs(newIncomeOverrideMonth).format("YYYY-MM");
     const incomeValue = Number(newIncomeOverrideValue);
@@ -6790,6 +6812,14 @@ function App() {
                             新增預算
                           </Button>
                         </Empty>
+                      ) : isMobileViewport ? (
+                        <BudgetOverview
+                          budgets={activeBudgetCards}
+                          today={dayjs().format("YYYY-MM-DD")}
+                          onOpen={(budget) => setBudgetDetailId(budget.id)}
+                          getActions={getBudgetSwipeActions}
+                          disabled={isWriteDisabled}
+                        />
                       ) : (
                         <div className="active-budgets-row">
                           {activeBudgetCards.map((budget) => {
@@ -7673,6 +7703,17 @@ function App() {
               holderOptions={holderSelectOptions}
             />
           </Modal>
+
+          {isMobileViewport && (
+            <BudgetDetailSheet
+              open={Boolean(budgetDetail)}
+              budget={budgetDetail}
+              today={dayjs().format("YYYY-MM-DD")}
+              onClose={() => setBudgetDetailId(null)}
+              getActions={getExpenseSwipeActions}
+              disabled={isWriteDisabled}
+            />
+          )}
 
           <QuickExpenseSheet
             key={quickExpenseKey}

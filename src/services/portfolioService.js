@@ -43,6 +43,7 @@ import {
   getNextRecurringOccurrence,
   sumUpcomingRecurringTwd,
 } from "../utils/recurrence";
+import { listBudgetCycleExpenses } from "../utils/budgetView";
 import {
   HOLDING_SHARES_MODE,
   normalizeHoldingSymbol,
@@ -3412,7 +3413,7 @@ export const getExpenseDashboardView = async (input = {}) => {
 
   const categoryMap = new Map(categories.map((item) => [item.id, item.name]));
   const budgetMap = new Map(budgets.map((item) => [item.id, item.name]));
-  const decoratedExpenseRows = expenseRows.map((row) => ({
+  const decorateExpenseRow = (row) => ({
     ...row,
     payerName:
       normalizeExpensePayer(row.payer, holderOptions) ||
@@ -3425,7 +3426,8 @@ export const getExpenseDashboardView = async (input = {}) => {
     budgetName: row.budgetId
       ? budgetMap.get(row.budgetId) || "未指定"
       : "未指定",
-  }));
+  });
+  const decoratedExpenseRows = expenseRows.map(decorateExpenseRow);
   const chargedExpenseRows = expenseRows.filter((row) => !row.isUpcoming);
   const monthlyExpenseTotalTwd = chargedExpenseRows.reduce(
     (sum, row) => sum + (Number(row.amountTwd) || 0),
@@ -3532,6 +3534,17 @@ export const getExpenseDashboardView = async (input = {}) => {
           })
         : 0,
       remainingTwd: stats.remainingTwd,
+      // The current cycle's expenses (for the mobile budget detail); they
+      // add up to spentTwd.
+      cycleExpenses:
+        stats.isConfigured && stats.isActive
+          ? listBudgetCycleExpenses(entries, {
+              budgetId: budget.id,
+              cycleStart: stats.cycleStart,
+              cycleEnd: stats.cycleEnd,
+              today: todayIso,
+            }).map(decorateExpenseRow)
+          : [],
       progressPct: stats.progressPct,
       isConfigured: stats.isConfigured,
       isActive: stats.isActive,

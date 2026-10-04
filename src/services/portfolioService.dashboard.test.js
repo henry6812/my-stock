@@ -121,6 +121,20 @@ describe('getExpenseDashboardView — upcoming recurring charges', () => {
     expect(budget.upcomingTwd).toBe(18000)
   })
 
+  it('lists the budget cycle\'s expenses, adding up to what it has spent', async () => {
+    const { budgetId } = await seed()
+    const view = await getExpenseDashboardView({ month: '2026-10' })
+    const budget = view.budgetRows.find((row) => row.id === budgetId)
+    expect(budget.cycleExpenses.map((row) => [row.name, row.occurredAt, row.isUpcoming])).toEqual([
+      ['房租', '2026-10-20', true],
+      ['午餐', '2026-10-03', false],
+      ['電話費', '2026-10-02', false],
+    ])
+    const total = budget.cycleExpenses.reduce((sum, row) => sum + row.amountTwd, 0)
+    expect(total).toBe(budget.spentTwd)
+    expect(budget.cycleExpenses[0]).toMatchObject({ categoryName: '未指定', payerName: '未指定' })
+  })
+
   it('orders recurring rows by next charge date and summarises them', async () => {
     await seed()
     const view = await getExpenseDashboardView({ month: '2026-10' })

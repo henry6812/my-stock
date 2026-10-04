@@ -63,7 +63,12 @@ const renderRows = (rows, getActions, disabled) =>
     />
   ));
 
-export function UpcomingExpenseList({ rows = [], getActions, disabled = false }) {
+export function UpcomingExpenseList({
+  rows = [],
+  getActions,
+  disabled = false,
+  label = "本月預計",
+}) {
   const [expanded, setExpanded] = useState(false);
   const { upcoming } = groupExpenseRowsByDay(rows);
   if (upcoming.rows.length === 0) return null;
@@ -76,7 +81,7 @@ export function UpcomingExpenseList({ rows = [], getActions, disabled = false })
         onClick={() => setExpanded((value) => !value)}
       >
         <span>
-          本月預計 {upcoming.rows.length} 筆 · {formatTwd(upcoming.totalTwd)}
+          {label} {upcoming.rows.length} 筆 · {formatTwd(upcoming.totalTwd)}
         </span>
         {expanded ? <DownOutlined /> : <RightOutlined />}
       </button>
@@ -95,12 +100,14 @@ function ExpenseDayList({
   getActions,
   disabled = false,
   empty = null,
+  // Open every day by default instead of only today.
+  expandAll = false,
 }) {
   // Days the user opened / closed; others follow the default (today open).
   const [toggledDays, setToggledDays] = useState({});
   const { days } = groupExpenseRowsByDay(rows);
   if (days.length === 0) return empty;
-  const isExpanded = (date) => toggledDays[date] ?? date === today;
+  const isExpanded = (date) => toggledDays[date] ?? (expandAll || date === today);
 
   return (
     <div className="expense-day-list">

@@ -150,4 +150,20 @@ describe('<UpcomingExpenseList />', () => {
     )
     expect(container).toBeEmptyDOMElement()
   })
+
+  it('takes a label', () => {
+    render(<UpcomingExpenseList rows={rows} getActions={() => []} label="本期預計" />)
+    expect(screen.getByRole('button', { name: /本期預計 2 筆/ })).toBeInTheDocument()
+  })
+})
+
+describe('<ExpenseDayList expandAll />', () => {
+  it('expands every day', () => {
+    render(
+      <ExpenseDayList rows={rows} today="2026-10-04" getActions={() => []} expandAll />,
+    )
+    expect(
+      screen.getAllByTestId('expense-day-heading').every((el) => el.getAttribute('aria-expanded') === 'true'),
+    ).toBe(true)
+  })
 })

@@ -2168,3 +2168,126 @@
   align-items: center;
   gap: 8px;
 }
+
+/* Mobile 目前生效預算 (BudgetOverview) */
+.budget-overview {
+  width: 100%;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+
+.budget-overview .swipe-actions + .swipe-actions {
+  border-top: 1px solid var(--c-line);
+}
+
+.budget-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.budget-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.budget-row-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--c-ink);
+}
+
+.budget-row-name > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.budget-row-tag.ant-tag {
+  margin: 0;
+  font-size: var(--fs-caption);
+}
+
+.budget-row-remaining {
+  flex: 0 0 auto;
+  font-size: var(--fs-subhead);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+
+.budget-row-remaining--warn {
+  color: #b7791f;
+}
+
+.budget-row-remaining--over {
+  color: var(--c-down);
+}
+
+.budget-bar {
+  position: relative;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--c-track);
+  overflow: hidden;
+}
+
+.budget-bar-charged,
+.budget-bar-upcoming {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.budget-bar-charged {
+  left: 0;
+}
+
+/* Still to come this cycle: same colour, lighter. */
+.budget-bar-upcoming {
+  opacity: 0.35;
+}
+
+/* How far into the cycle we are; spending past it is ahead of pace. */
+.budget-bar-pace {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--c-ink);
+  opacity: 0.6;
+}
+
+.budget-row-meta {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Budget detail sheet */
+.budget-detail-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.budget-detail-meta {
+  font-size: var(--fs-caption);
+}
