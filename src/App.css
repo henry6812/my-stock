@@ -2072,3 +2072,75 @@
 .mobile-list-body .mobile-swipe-table .ant-table-tbody > tr > td:last-child {
   padding: 0;
 }
+
+/* Mobile expense list (ExpenseDayList): one frame, day headings inside. */
+.expense-day-list {
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+
+.expense-day-group + .expense-day-group {
+  border-top: 1px solid var(--c-line);
+}
+
+.expense-day-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 6px 12px;
+  border: 0;
+  background: var(--c-neutral-fill);
+  color: var(--c-muted);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+.expense-day-total {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.expense-day-row {
+  align-items: center;
+}
+
+.expense-day-group .swipe-actions + .swipe-actions {
+  border-top: 1px solid var(--c-line);
+}
+
+.expense-day-row-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.expense-day-row-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expense-day-row-recurring {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--c-teal);
+}
+
+.expense-day-row-amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.expense-upcoming-toggle {
+  cursor: pointer;
+}
+
+.expense-upcoming-group .expense-day-row {
+  opacity: 0.6;
+}
