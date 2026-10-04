@@ -163,4 +163,12 @@ describe('sanitizeSuggestions', () => {
   it('handles a missing list', () => {
     expect(sanitizeSuggestions(undefined, lookups)).toEqual([])
   })
+
+  it('maps the legacy 共同 payer to 共同帳戶', () => {
+    const [result] = sanitizeSuggestions(
+      [{ name: '房租', categoryId: null, payer: '共同', budgetId: null }],
+      { ...lookups, payers: new Set(['共同帳戶']) },
+    )
+    expect(result.payer).toBe('共同帳戶')
+  })
 })

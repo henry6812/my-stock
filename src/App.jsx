@@ -3292,7 +3292,11 @@ function App() {
 
   useEffect(() => {
     const onResize = () => {
-      setIsMobileViewport(window.innerWidth <= 768);
+      const isMobile = window.innerWidth <= 768;
+      setIsMobileViewport(isMobile);
+      // The quick sheet is mobile-only; don't let it reappear with stale
+      // input when the window narrows again.
+      if (!isMobile) setIsQuickExpenseOpen(false);
     };
     onResize();
     window.addEventListener("resize", onResize);

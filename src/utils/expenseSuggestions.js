@@ -108,14 +108,18 @@ export const pickQuickCategories = (
 };
 
 // Drops references to categories / payers / budgets that no longer exist, so
-// picking a suggestion never fills in a stale id.
+// picking a suggestion never fills in a stale id. Old entries used "共同" for
+// what is now the "共同帳戶" payer option.
 export const sanitizeSuggestions = (
   suggestions,
   { categoryIds, payers, budgetIds },
 ) =>
-  (suggestions || []).map((item) => ({
-    ...item,
-    categoryId: categoryIds.has(item.categoryId) ? item.categoryId : null,
-    payer: payers.has(item.payer) ? item.payer : null,
-    budgetId: budgetIds.has(item.budgetId) ? item.budgetId : null,
-  }));
+  (suggestions || []).map((item) => {
+    const payer = item.payer === "共同" ? "共同帳戶" : item.payer;
+    return {
+      ...item,
+      categoryId: categoryIds.has(item.categoryId) ? item.categoryId : null,
+      payer: payers.has(payer) ? payer : null,
+      budgetId: budgetIds.has(item.budgetId) ? item.budgetId : null,
+    };
+  });

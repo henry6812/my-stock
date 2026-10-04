@@ -140,6 +140,29 @@ describe('<QuickExpenseSheet />', () => {
     expect(screen.getByLabelText('名稱')).toHaveValue('午餐')
   })
 
+  it('a suggestion without a payer or kind keeps the defaults', async () => {
+    const { user, onSubmit } = renderSheet()
+    await user.click(screen.getByRole('button', { name: '常用 加油' }))
+    await press(user, ['5', '0'])
+    await user.click(saveButton())
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: '加油',
+        payer: '共同帳戶',
+        expenseKind: '家庭',
+        budgetId: null,
+      }),
+    )
+  })
+
+  it('marks a non-positive result as invalid', async () => {
+    const { user } = renderSheet()
+    await press(user, ['5'])
+    expect(screen.getByLabelText('金額')).not.toHaveAttribute('aria-invalid', 'true')
+    await press(user, ['-', '1', '0'])
+    expect(screen.getByLabelText('金額')).toHaveAttribute('aria-invalid', 'true')
+  })
+
   it('blocks save without an amount', async () => {
     const { user, onSubmit } = renderSheet()
     await user.click(screen.getByRole('button', { name: '餐飲' }))
@@ -261,8 +284,8 @@ describe('<QuickExpenseSheet />', () => {
       amountTwd: 1200,
       occurredAt: dayjs().format('YYYY-MM-DD'),
       categoryId: 'c-traffic',
-      payer: undefined,
-      expenseKind: undefined,
+      payer: '共同帳戶',
+      expenseKind: '家庭',
       budgetId: undefined,
     })
   })

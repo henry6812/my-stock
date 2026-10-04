@@ -1712,3 +1712,7 @@
   color: var(--c-subtle);
   cursor: default;
 }
+
+.quick-expense-amount-value.is-invalid {
+  color: var(--c-subtle);
+}

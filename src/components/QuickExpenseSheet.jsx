@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer } from "antd";
 import dayjs from "dayjs";
 import {
@@ -55,8 +55,14 @@ function QuickExpenseSheet({
   const [isPickingCategory, setIsPickingCategory] = useState(false);
   const [flashTarget, setFlashTarget] = useState(null);
   const submittingRef = useRef(false);
-  const flashTimerRef = useRef(null);
   const nameInputRef = useRef(null);
+
+  // The timer lives in an effect so it's cleared on unmount.
+  useEffect(() => {
+    if (!flashTarget) return undefined;
+    const timer = window.setTimeout(() => setFlashTarget(null), FLASH_MS);
+    return () => window.clearTimeout(timer);
+  }, [flashTarget]);
 
   const categoryNames = useMemo(
     () => new Map(allCategories.map((item) => [item.id, item.name])),
@@ -65,6 +71,7 @@ function QuickExpenseSheet({
   const categoryName = categoryId ? (categoryNames.get(categoryId) ?? "") : "";
   const amount = evaluateExpression(expr);
   const trimmedName = name.trim();
+  const isNegativeOrZero = amount !== null && amount <= 0;
   const isBusy = loading || disabled;
   const canSave = amount > 0 && Boolean(categoryId || trimmedName) && !isBusy;
   const nameMatches =
@@ -83,9 +90,11 @@ function QuickExpenseSheet({
     setName(item.name);
     setSuggestionName(item.name);
     if (item.categoryId) setCategoryId(item.categoryId);
+    // Like the full form: a suggestion without a (still valid) payer / kind
+    // keeps the remembered default instead of clearing it.
     setExtras({
-      payer: item.payer ?? null,
-      expenseKind: item.expenseKind ?? null,
+      payer: item.payer ?? defaultExtras.payer,
+      expenseKind: item.expenseKind ?? defaultExtras.expenseKind,
       budgetId: item.budgetId ?? null,
     });
     setExpr("");
@@ -101,20 +110,15 @@ function QuickExpenseSheet({
     setIsPickingCategory(false);
   };
 
-  const flash = (target) => {
-    window.clearTimeout(flashTimerRef.current);
-    setFlashTarget(target);
-    flashTimerRef.current = window.setTimeout(() => setFlashTarget(null), FLASH_MS);
-  };
 
   const handleSave = async () => {
     if (isBusy || submittingRef.current) return;
     if (!(amount > 0)) {
-      flash("amount");
+      setFlashTarget("amount");
       return;
     }
     if (!categoryId && !trimmedName) {
-      flash("category");
+      setFlashTarget("category");
       return;
     }
     submittingRef.current = true;
@@ -320,7 +324,13 @@ function QuickExpenseSheet({
               <span className="quick-expense-category-label">
                 {categoryName || "未選分類"}
               </span>
-              <output aria-label="金額" className="quick-expense-amount-value">
+              <output
+                aria-label="金額"
+                aria-invalid={isNegativeOrZero || undefined}
+                className={`quick-expense-amount-value${
+                  isNegativeOrZero ? " is-invalid" : ""
+                }`}
+              >
                 ${(amount ?? 0).toLocaleString("zh-TW")}
               </output>
               {/* Always rendered so the layout doesn't jump on the first + / −. */}
