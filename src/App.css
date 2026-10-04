@@ -1915,3 +1915,72 @@
   font-size: var(--fs-caption);
   white-space: nowrap;
 }
+
+/* Mobile holdings row: three short lines a side, nothing wraps. */
+.holding-mobile-target {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.holding-mobile-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.holding-mobile-name .holding-main-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.holding-mobile-kind.ant-tag {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: var(--fs-caption);
+  line-height: 18px;
+  padding-inline: 6px;
+}
+
+.holding-mobile-line {
+  font-size: var(--fs-caption);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.holding-mobile-line .ant-typography {
+  font-size: inherit;
+}
+
+.holding-mobile-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.holding-mobile-value-main {
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.holding-mobile-value .cell-delta,
+.holding-mobile-line .cell-delta {
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.holding-mobile-target,
+.holding-mobile-target .holding-mobile-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.holding-mobile-editor-actions {
+  margin-top: 4px;
+}

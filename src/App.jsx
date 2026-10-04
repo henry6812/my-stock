@@ -2563,13 +2563,45 @@ function App() {
       return columns;
     }
 
-    // Mobile: fold the 8 desktop columns into 4 so nothing needs horizontal
-    // scrolling — name/meta/tags on the left, value + price on the right.
+    // Mobile: three short lines a side so nothing wraps. Left: name + 分類,
+    // 代號 · 股數, 股價 + its % change. Right: 現值 + its change (amount and
+    // %). Holder and market are left out to keep the row light.
     const byKey = Object.fromEntries(
       columns.map((column) => [column.key, column]),
     );
+    const animatedOr = (record, key) => {
+      const animated = rowAnimationValues[record.id]?.[key];
+      return typeof animated === "number" && Number.isFinite(animated)
+        ? animated
+        : record[key];
+    };
+    const renderCompactDelta = (record, delta, text) => {
+      if (
+        !record.hasPreviousSnapshot ||
+        typeof delta !== "number" ||
+        Number.isNaN(delta)
+      ) {
+        return <span className="cell-delta cell-delta--flat">--</span>;
+      }
+      if (delta === 0) {
+        return <span className="cell-delta cell-delta--flat">0.00%</span>;
+      }
+      return (
+        <span className={getDeltaClassName(delta)}>
+          {delta > 0 ? "▲ " : "▼ "}
+          {text}
+        </span>
+      );
+    };
+    const tagLabel = (record) =>
+      holdingTagOptions.find((item) => item.value === record.assetTag)?.label ||
+      record.assetTagLabel ||
+      record.assetTag ||
+      "個股";
+    // Fixed widths (the table uses tableLayout="fixed" on mobile) so a long
+    // name truncates instead of pushing 現值 off-screen.
     return [
-      { ...byKey.drag, width: 40 },
+      { ...byKey.drag, width: 32 },
       {
         title: "標的",
         key: "target",
@@ -2589,24 +2621,48 @@ function App() {
                   <span>持有人</span>
                   {byKey.holder.render(record.holder, record)}
                 </label>
+                {/* 儲存 / 取消 live here while editing: the fixed-width
+                    actions column is too narrow for text buttons. */}
+                <div className="holding-mobile-editor-actions">
+                  {byKey.actions.render(null, record)}
+                </div>
               </div>
             );
           }
           return (
-            <div>
-              <div className="holding-main-text">
-                {record.companyName || record.symbol}
+            <div className="holding-mobile-target">
+              <div className="holding-mobile-name">
+                <span className="holding-main-text">
+                  {record.companyName || record.symbol}
+                </span>
+                <Tag variant="filled" className="holding-mobile-kind">
+                  {tagLabel(record)}
+                </Tag>
               </div>
-              <Text type="secondary" className="holding-subline">
-                {record.symbol} · {record.market === "TW" ? "台股" : "美股"} ·{" "}
+              <Text type="secondary" className="holding-mobile-line">
+                {record.symbol} ·{" "}
                 {Number(record.shares).toLocaleString("zh-TW", {
                   maximumFractionDigits: 4,
                 })}{" "}
                 股
               </Text>
-              <div className="holding-mobile-tags">
-                {byKey.assetTag.render(record.assetTag, record)}
-                {byKey.holder.render(record.holder, record)}
+              <div className="holding-mobile-line">
+                {/* Per-share price; no 股價 label, which made US / 4-digit
+                    prices truncate on a 390px screen. */}
+                <Text type="secondary">
+                  {formatPrice(
+                    animatedOr(record, "latestPrice"),
+                    record.latestCurrency || "TWD",
+                  )}
+                </Text>{" "}
+                {renderCompactDelta(
+                  record,
+                  record.priceChange,
+                  // The arrow already gives the direction; no sign needed.
+                  typeof record.priceChangePct === "number"
+                    ? `${Math.abs(record.priceChangePct).toFixed(2)}%`
+                    : "--",
+                )}
               </div>
             </div>
           );
@@ -2616,11 +2672,20 @@ function App() {
         title: "現值",
         key: "latestValueTwd",
         align: "right",
+        width: 128,
         render: (_, record) => (
           <div className="holding-mobile-value">
-            {byKey.latestValueTwd.render(record.latestValueTwd, record)}
-            <div className="holding-mobile-price">
-              {byKey.latestPrice.render(record.latestPrice, record)}
+            <div className="holding-mobile-value-main">
+              {formatTwd(animatedOr(record, "latestValueTwd"))}
+            </div>
+            <div className="holding-mobile-line">
+              {renderCompactDelta(
+                record,
+                record.valueChangeTwd,
+                `${formatSignedTwd(record.valueChangeTwd)} ${formatChangePercent(
+                  record.valueChangePct,
+                )}`,
+              )}
             </div>
           </div>
         ),
@@ -2628,11 +2693,16 @@ function App() {
       {
         ...byKey.actions,
         title: "",
-        width: 56,
+        width: 52,
         className: "holding-mobile-actions",
+        render: (value, record) =>
+          editingHoldingId === record.id
+            ? null
+            : byKey.actions.render(value, record),
       },
     ];
   }, [
+      getDeltaClassName,
       getHolderTagStyle,
       dragDisabled,
       isWriteDisabled,
@@ -6125,6 +6195,7 @@ function App() {
                         >
                           <Table
                             showHeader={false}
+                            tableLayout="fixed"
                             rowKey="id"
                             dataSource={filteredRows}
                             columns={tableColumns}
