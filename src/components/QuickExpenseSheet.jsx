@@ -8,11 +8,10 @@ import {
 } from "../utils/amountExpression";
 import { filterNameSuggestions } from "../utils/expenseSuggestions";
 
-// Mobile-only "add one expense" sheet: custom keypad, category grid and
-// frequent-expense chips so a typical entry never opens the system keyboard.
+// Mobile-only "add one expense" sheet: custom keypad, category grid and the
+// user's 常用支出 chips so a typical entry never opens the system keyboard.
 // Owns its own state; the parent remounts it (via `key`) on every open.
 
-const SUGGESTION_LIMIT = 8;
 const NAME_MATCH_LIMIT = 6;
 const FLASH_MS = 600;
 const DAY_CHIPS = ["今天", "昨天", "前天"];
@@ -30,7 +29,8 @@ const keepFocus = (event) => event.preventDefault();
 function QuickExpenseSheet({
   open,
   onClose,
-  suggestions = [],
+  templates = [],
+  nameSuggestions = [],
   quickCategories = [],
   allCategories = [],
   defaults = {},
@@ -48,7 +48,10 @@ function QuickExpenseSheet({
   const [expr, setExpr] = useState("");
   const [categoryId, setCategoryId] = useState(null);
   const [name, setName] = useState("");
-  const [suggestionName, setSuggestionName] = useState(null);
+  // Set while the name was filled from a template / autocomplete pick (not
+  // typed), so switching category can clear it.
+  const [isNameAutoFilled, setIsNameAutoFilled] = useState(false);
+  const [pickedTemplateId, setPickedTemplateId] = useState(null);
   const [extras, setExtras] = useState(defaultExtras);
   const [occurredAt, setOccurredAt] = useState(today);
   const [isNameFocused, setIsNameFocused] = useState(false);
@@ -76,7 +79,7 @@ function QuickExpenseSheet({
   const canSave = amount > 0 && Boolean(categoryId || trimmedName) && !isBusy;
   const nameMatches =
     isNameFocused && trimmedName
-      ? filterNameSuggestions(suggestions, trimmedName, {
+      ? filterNameSuggestions(nameSuggestions, trimmedName, {
           limit: NAME_MATCH_LIMIT,
         }).filter((item) => item.name !== trimmedName)
       : [];
@@ -86,24 +89,34 @@ function QuickExpenseSheet({
   }));
   const isCustomDate = !dayChips.some(({ day }) => occurredAt.isSame(day, "day"));
 
-  const applySuggestion = (item) => {
+  // Shared by template chips and name-autocomplete picks. Only templates
+  // carry a fixed amount; a history suggestion's last amount isn't one.
+  const applyPick = (item, { amountTwd = null, templateId = null } = {}) => {
     setName(item.name);
-    setSuggestionName(item.name);
+    setIsNameAutoFilled(true);
+    setPickedTemplateId(templateId);
     if (item.categoryId) setCategoryId(item.categoryId);
-    // Like the full form: a suggestion without a (still valid) payer / kind
-    // keeps the remembered default instead of clearing it.
+    // Like the full form: a pick without a (still valid) payer / kind keeps
+    // the remembered default instead of clearing it.
     setExtras({
       payer: item.payer ?? defaultExtras.payer,
       expenseKind: item.expenseKind ?? defaultExtras.expenseKind,
       budgetId: item.budgetId ?? null,
     });
-    setExpr("");
+    setExpr(amountTwd > 0 ? String(amountTwd) : "");
   };
 
+  const applyTemplate = (template) =>
+    applyPick(template, {
+      amountTwd: template.amountTwd,
+      templateId: template.id,
+    });
+
   const selectCategory = (id) => {
-    if (suggestionName !== null && id !== categoryId) {
+    if (isNameAutoFilled && id !== categoryId) {
       setName("");
-      setSuggestionName(null);
+      setIsNameAutoFilled(false);
+      setPickedTemplateId(null);
       setExtras(defaultExtras);
     }
     setCategoryId(id);
@@ -182,20 +195,23 @@ function QuickExpenseSheet({
 
   const renderSelectors = () => (
     <>
-      {suggestions.length > 0 && (
+      {templates.length > 0 && (
         <div className="quick-expense-row" role="group" aria-label="常用">
           <span className="quick-expense-row-label">常用</span>
           <div className="quick-expense-scroll">
-            {suggestions.slice(0, SUGGESTION_LIMIT).map((item) => {
-              const meta = categoryNames.get(item.categoryId);
+            {templates.map((item) => {
+              const meta =
+                item.amountTwd > 0
+                  ? `$${item.amountTwd.toLocaleString("zh-TW")}`
+                  : categoryNames.get(item.categoryId);
               return (
                 <button
-                  key={item.name}
+                  key={item.id}
                   type="button"
-                  className={chipClass(suggestionName === item.name)}
+                  className={chipClass(pickedTemplateId === item.id)}
                   aria-label={`常用 ${item.name}`}
-                  aria-pressed={suggestionName === item.name}
-                  onClick={() => applySuggestion(item)}
+                  aria-pressed={pickedTemplateId === item.id}
+                  onClick={() => applyTemplate(item)}
                 >
                   {item.name}
                   {meta && <span className="quick-expense-chip-meta">·{meta}</span>}
@@ -351,7 +367,8 @@ function QuickExpenseSheet({
               enterKeyHint="done"
               onChange={(event) => {
                 setName(event.target.value);
-                setSuggestionName(null);
+                setIsNameAutoFilled(false);
+                setPickedTemplateId(null);
               }}
               onFocus={() => setIsNameFocused(true)}
               onBlur={() => setIsNameFocused(false)}
@@ -373,7 +390,7 @@ function QuickExpenseSheet({
                       onPointerDown={keepFocus}
                       onMouseDown={keepFocus}
                       onClick={() => {
-                        applySuggestion(item);
+                        applyPick(item);
                         nameInputRef.current?.blur();
                       }}
                     >

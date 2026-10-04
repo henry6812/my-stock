@@ -10,7 +10,8 @@ const categories = [
   { id: 'c-home', name: '家用' },
 ]
 
-const suggestions = [
+// History-based suggestions: only used for the name autocomplete.
+const nameSuggestions = [
   {
     name: '早餐',
     categoryId: 'c-food',
@@ -31,6 +32,47 @@ const suggestions = [
     count: 3,
     lastUsedAt: '2026-09-28|',
   },
+  {
+    name: '午餐',
+    categoryId: 'c-food',
+    payer: null,
+    expenseKind: null,
+    budgetId: null,
+    amountTwd: 120,
+    count: 2,
+    lastUsedAt: '2026-09-20|',
+  },
+]
+
+// User-managed 常用支出, already ordered.
+const templates = [
+  {
+    id: 1,
+    name: '早餐',
+    categoryId: 'c-food',
+    payer: '小明',
+    expenseKind: '個人',
+    budgetId: 'b-1',
+    amountTwd: null,
+  },
+  {
+    id: 2,
+    name: '加油',
+    categoryId: 'c-traffic',
+    payer: null,
+    expenseKind: null,
+    budgetId: null,
+    amountTwd: null,
+  },
+  {
+    id: 3,
+    name: '停車',
+    categoryId: 'c-traffic',
+    payer: null,
+    expenseKind: null,
+    budgetId: null,
+    amountTwd: 60,
+  },
 ]
 
 const KEY_LABELS = { '+': '加', '-': '減', backspace: '刪除', clear: '清除' }
@@ -44,7 +86,8 @@ const renderSheet = (props = {}) => {
   render(
     <QuickExpenseSheet
       open
-      suggestions={suggestions}
+      templates={templates}
+      nameSuggestions={nameSuggestions}
       quickCategories={categories.slice(0, 2)}
       allCategories={categories}
       defaults={{ payer: '共同帳戶', expenseKind: '家庭' }}
@@ -161,6 +204,31 @@ describe('<QuickExpenseSheet />', () => {
     expect(screen.getByLabelText('金額')).not.toHaveAttribute('aria-invalid', 'true')
     await press(user, ['-', '1', '0'])
     expect(screen.getByLabelText('金額')).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('a template with a fixed amount fills the keypad', async () => {
+    const { user, onSubmit } = renderSheet()
+    await press(user, ['9'])
+    await user.click(screen.getByRole('button', { name: '常用 停車' }))
+    expect(screen.getByLabelText('金額')).toHaveTextContent('$60')
+    await user.click(saveButton())
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: '停車', amountTwd: 60, categoryId: 'c-traffic' }),
+    )
+  })
+
+  it('hides the 常用 row when there are no templates', () => {
+    renderSheet({ templates: [] })
+    expect(screen.queryByRole('group', { name: '常用' })).not.toBeInTheDocument()
+  })
+
+  it('name autocomplete draws on history, not templates', async () => {
+    const { user } = renderSheet({ templates: [] })
+    await user.type(screen.getByLabelText('名稱'), '午')
+    await user.click(screen.getByRole('button', { name: '午餐' }))
+    expect(screen.getByLabelText('名稱')).toHaveValue('午餐')
+    expect(screen.getByRole('button', { name: '餐飲' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('金額')).toHaveTextContent('$0')
   })
 
   it('blocks save without an amount', async () => {
