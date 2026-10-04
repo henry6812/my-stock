@@ -12,9 +12,10 @@ import {
 const { Text } = Typography;
 
 // Mobile expense list: one framed list, grouped by day (newest first) with a
-// subtotal per day. This month's upcoming recurring charges are shown apart,
-// above the list, by UpcomingExpenseList (collapsed under 本月預計). Each row
-// is two lines and swipes for its actions.
+// subtotal per day. Each day folds from its heading; only today starts open.
+// This month's upcoming recurring charges are shown apart by
+// UpcomingExpenseList (collapsed under 本月預計). Each row is two lines and
+// swipes for its actions.
 
 const isSet = (value) => Boolean(value) && value !== "未指定";
 
@@ -95,20 +96,37 @@ function ExpenseDayList({
   disabled = false,
   empty = null,
 }) {
+  // Days the user opened / closed; others follow the default (today open).
+  const [toggledDays, setToggledDays] = useState({});
   const { days } = groupExpenseRowsByDay(rows);
   if (days.length === 0) return empty;
+  const isExpanded = (date) => toggledDays[date] ?? date === today;
 
   return (
     <div className="expense-day-list">
-      {days.map((day) => (
-        <section key={day.date} className="expense-day-group">
-          <div className="expense-day-heading" data-testid="expense-day-heading">
-            <span>{formatDayHeading(day.date, today)}</span>
-            <span className="expense-day-total">{formatTwd(day.totalTwd)}</span>
-          </div>
-          {renderRows(day.rows, getActions, disabled)}
-        </section>
-      ))}
+      {days.map((day) => {
+        const expanded = isExpanded(day.date);
+        return (
+          <section key={day.date} className="expense-day-group">
+            <button
+              type="button"
+              className="expense-day-heading expense-day-toggle"
+              data-testid="expense-day-heading"
+              aria-expanded={expanded}
+              onClick={() =>
+                setToggledDays((current) => ({ ...current, [day.date]: !expanded }))
+              }
+            >
+              <span>{formatDayHeading(day.date, today)}</span>
+              <span className="expense-day-heading-end">
+                <span className="expense-day-total">{formatTwd(day.totalTwd)}</span>
+                {expanded ? <DownOutlined /> : <RightOutlined />}
+              </span>
+            </button>
+            {expanded && renderRows(day.rows, getActions, disabled)}
+          </section>
+        );
+      })}
     </div>
   );
 }

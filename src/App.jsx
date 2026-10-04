@@ -6879,6 +6879,14 @@ function App() {
                           <span className="mobile-list-title">支出列表</span>
                         </div>
                         <div className="mobile-list-body">
+                          {/* This month's upcoming recurring charges, right
+                              under the title so the list can't push them
+                              down; independent of the category tabs. */}
+                          <UpcomingExpenseList
+                            rows={expenseRows}
+                            getActions={getExpenseSwipeActions}
+                            disabled={isWriteDisabled}
+                          />
                           <Tabs
                             className="expense-category-tabs"
                             activeKey={activeExpenseCategoryTab}
@@ -6895,13 +6903,6 @@ function App() {
                           />
                         </div>
                       </div>
-                      {/* This month's upcoming recurring charges, apart and
-                          collapsed, under the list. */}
-                      <UpcomingExpenseList
-                        rows={expenseRows}
-                        getActions={getExpenseSwipeActions}
-                        disabled={isWriteDisabled}
-                      />
                       </>
                     ) : (
                       <Card title="支出列表">

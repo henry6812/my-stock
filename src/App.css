@@ -1863,10 +1863,10 @@
   opacity: 0.55;
 }
 
-/* 本月預計 stands alone under the 支出列表 section, with a taller, easy to
-   tap toggle. */
+/* 本月預計 sits right under the 支出列表 title, with a taller, easy to tap
+   toggle. */
 .expense-day-list.expense-upcoming-group {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .expense-upcoming-group .expense-upcoming-toggle {
@@ -2155,4 +2155,16 @@
 
 .expense-upcoming-group .expense-day-row {
   opacity: 0.6;
+}
+
+/* Day headings fold their day; tall enough to tap. */
+.expense-day-toggle {
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.expense-day-heading-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
