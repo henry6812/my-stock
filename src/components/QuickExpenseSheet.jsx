@@ -32,6 +32,8 @@ function QuickExpenseSheet({
   onClose,
   templates = [],
   nameSuggestions = [],
+  // Budgets that can currently be picked ({ id, name }).
+  budgets = [],
   quickCategories = [],
   allCategories = [],
   defaults = {},
@@ -62,6 +64,9 @@ function QuickExpenseSheet({
   const [pickedAmountExpr, setPickedAmountExpr] = useState(null);
   const [pickedTemplateId, setPickedTemplateId] = useState(null);
   const [extras, setExtras] = useState(defaultExtras);
+  // Set once the user picks a budget themselves, so clearing a template's
+  // fields doesn't drop it.
+  const [budgetTouched, setBudgetTouched] = useState(false);
   const [occurredAt, setOccurredAt] = useState(today);
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isPickingCategory, setIsPickingCategory] = useState(false);
@@ -110,11 +115,13 @@ function QuickExpenseSheet({
     if (item.categoryId) setCategoryId(item.categoryId);
     // Like the full form: a pick without a (still valid) payer / kind keeps
     // the remembered default instead of clearing it.
-    setExtras({
+    setExtras((current) => ({
       payer: item.payer ?? defaultExtras.payer,
       expenseKind: item.expenseKind ?? defaultExtras.expenseKind,
-      budgetId: item.budgetId ?? null,
-    });
+      // A template's budget wins; otherwise a hand-picked one stays.
+      budgetId: item.budgetId ?? (budgetTouched ? current.budgetId : null),
+    }));
+    if (item.budgetId) setBudgetTouched(false);
     if (amountTwd > 0) {
       const nextExpr = String(amountTwd);
       setExpr(nextExpr);
@@ -131,12 +138,24 @@ function QuickExpenseSheet({
       templateId: template.id,
     });
 
+  // A second tap on the picked budget clears it.
+  const selectBudget = (id) => {
+    setExtras((current) => ({
+      ...current,
+      budgetId: current.budgetId === id ? null : id,
+    }));
+    setBudgetTouched(true);
+  };
+
   const selectCategory = (id) => {
     if (isNameAutoFilled && pickedCategoryId !== null && id !== pickedCategoryId) {
       setName("");
       setIsNameAutoFilled(false);
       setPickedTemplateId(null);
-      setExtras(defaultExtras);
+      setExtras((current) => ({
+        ...defaultExtras,
+        budgetId: budgetTouched ? current.budgetId : null,
+      }));
     }
     setCategoryId(id);
     setIsPickingCategory(false);
@@ -212,12 +231,19 @@ function QuickExpenseSheet({
     </div>
   );
 
+  const section = (title, content) => (
+    <div className="quick-expense-section">
+      <div className="quick-expense-section-label">{title}</div>
+      {content}
+    </div>
+  );
+
   const renderSelectors = () => (
     <>
-      {templates.length > 0 && (
-        <div className="quick-expense-row" role="group" aria-label="常用">
-          <span className="quick-expense-row-label">常用</span>
-          <div className="quick-expense-scroll">
+      {templates.length > 0 &&
+        section(
+          "常用支出",
+          <div className="quick-expense-scroll" role="group" aria-label="常用">
             {templates.map((item) => {
               const meta =
                 item.amountTwd > 0
@@ -237,61 +263,83 @@ function QuickExpenseSheet({
                 </button>
               );
             })}
-          </div>
-        </div>
-      )}
-      <div
-        className={`quick-expense-categories${
-          flashTarget === "category" ? " is-flashing" : ""
-        }`}
-        role="group"
-        aria-label="分類"
-      >
-        {quickCategories.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={chipClass(item.id === categoryId)}
-            aria-pressed={item.id === categoryId}
-            onClick={() => selectCategory(item.id)}
-          >
-            {item.name}
-          </button>
-        ))}
-        <button
-          type="button"
-          className="quick-expense-chip"
-          onClick={() => setIsPickingCategory(true)}
+          </div>,
+        )}
+      {section(
+        "分類",
+        <div
+          className={`quick-expense-categories${
+            flashTarget === "category" ? " is-flashing" : ""
+          }`}
+          role="group"
+          aria-label="分類"
         >
-          更多
-        </button>
-      </div>
-      <div className="quick-expense-dates" role="group" aria-label="日期">
-        {dayChips.map(({ label, day }) => (
+          {quickCategories.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={chipClass(item.id === categoryId)}
+              aria-pressed={item.id === categoryId}
+              onClick={() => selectCategory(item.id)}
+            >
+              {item.name}
+            </button>
+          ))}
           <button
-            key={label}
             type="button"
-            className={chipClass(occurredAt.isSame(day, "day"))}
-            aria-pressed={occurredAt.isSame(day, "day")}
-            onClick={() => setOccurredAt(day)}
+            className="quick-expense-chip"
+            onClick={() => setIsPickingCategory(true)}
           >
-            {label}
+            更多
           </button>
-        ))}
-        <label className={`${chipClass(isCustomDate)} quick-expense-date-chip`}>
-          📅 {isCustomDate ? occurredAt.format("M/D") : "其他"}
-          <input
-            type="date"
-            aria-label="其他日期"
-            className="quick-expense-date-input"
-            max={today.format("YYYY-MM-DD")}
-            value={occurredAt.format("YYYY-MM-DD")}
-            onChange={(event) => {
-              if (event.target.value) setOccurredAt(dayjs(event.target.value));
-            }}
-          />
-        </label>
-      </div>
+        </div>,
+      )}
+      {section(
+        "日期",
+        <div className="quick-expense-dates" role="group" aria-label="日期">
+          {dayChips.map(({ label, day }) => (
+            <button
+              key={label}
+              type="button"
+              className={chipClass(occurredAt.isSame(day, "day"))}
+              aria-pressed={occurredAt.isSame(day, "day")}
+              onClick={() => setOccurredAt(day)}
+            >
+              {label}
+            </button>
+          ))}
+          <label className={`${chipClass(isCustomDate)} quick-expense-date-chip`}>
+            📅 {isCustomDate ? occurredAt.format("M/D") : "其他"}
+            <input
+              type="date"
+              aria-label="其他日期"
+              className="quick-expense-date-input"
+              max={today.format("YYYY-MM-DD")}
+              value={occurredAt.format("YYYY-MM-DD")}
+              onChange={(event) => {
+                if (event.target.value) setOccurredAt(dayjs(event.target.value));
+              }}
+            />
+          </label>
+        </div>,
+      )}
+      {budgets.length > 0 &&
+        section(
+          "預算",
+          <div className="quick-expense-scroll" role="group" aria-label="預算">
+            {budgets.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={chipClass(extras.budgetId === item.id)}
+                aria-pressed={extras.budgetId === item.id}
+                onClick={() => selectBudget(item.id)}
+              >
+                {item.name}
+              </button>
+            ))}
+          </div>,
+        )}
     </>
   );
 

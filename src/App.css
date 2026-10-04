@@ -1573,19 +1573,6 @@
   border-color: var(--c-teal);
 }
 
-.quick-expense-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.quick-expense-row-label {
-  flex: 0 0 auto;
-  color: var(--c-muted);
-  font-size: var(--fs-caption);
-}
-
 .quick-expense-scroll {
   display: flex;
   gap: 6px;
@@ -2299,4 +2286,17 @@
 .quick-expense-main,
 .quick-expense-picker {
   overscroll-behavior: contain;
+}
+
+/* Quick expense: a small title above each group of options. */
+.quick-expense-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quick-expense-section-label {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--c-muted);
 }

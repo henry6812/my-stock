@@ -75,6 +75,11 @@ const templates = [
   },
 ]
 
+const budgets = [
+  { id: 'b-1', name: '日常生活' },
+  { id: 'b-2', name: '旅遊' },
+]
+
 const KEY_LABELS = { '+': '加', '-': '減', backspace: '刪除', clear: '清除' }
 
 const renderSheet = (props = {}) => {
@@ -88,6 +93,7 @@ const renderSheet = (props = {}) => {
       open
       templates={templates}
       nameSuggestions={nameSuggestions}
+      budgets={budgets}
       quickCategories={categories.slice(0, 2)}
       allCategories={categories}
       defaults={{ payer: '共同帳戶', expenseKind: '家庭' }}
@@ -394,5 +400,53 @@ describe('<QuickExpenseSheet />', () => {
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     await user.click(saveButton())
     expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('titles each group of options', () => {
+    renderSheet()
+    for (const title of ['常用支出', '分類', '日期', '預算']) {
+      expect(screen.getByText(title, { selector: '.quick-expense-section-label' })).toBeInTheDocument()
+    }
+  })
+
+  it('picks a budget for the expense', async () => {
+    const { user, onSubmit } = renderSheet()
+    const trip = screen.getByRole('button', { name: '旅遊' })
+    await user.click(trip)
+    expect(trip).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: '餐飲' }))
+    await press(user, ['5'])
+    await user.click(saveButton())
+    expect(onSubmit).toHaveBeenLastCalledWith(expect.objectContaining({ budgetId: 'b-2' }))
+  })
+
+  it('a second tap on the picked budget clears it', async () => {
+    const { user } = renderSheet()
+    const trip = screen.getByRole('button', { name: '旅遊' })
+    await user.click(trip)
+    await user.click(trip)
+    expect(trip).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('a template pre-selects its budget', async () => {
+    const { user } = renderSheet()
+    await user.click(screen.getByRole('button', { name: '常用 早餐' }))
+    expect(screen.getByRole('button', { name: '日常生活' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps a hand-picked budget when the category change clears a template', async () => {
+    const { user, onSubmit } = renderSheet()
+    await user.click(screen.getByRole('button', { name: '常用 加油' }))
+    await user.click(screen.getByRole('button', { name: '旅遊' }))
+    await user.click(screen.getByRole('button', { name: '餐飲' }))
+    expect(screen.getByRole('button', { name: '旅遊' })).toHaveAttribute('aria-pressed', 'true')
+    await press(user, ['1'])
+    await user.click(saveButton())
+    expect(onSubmit).toHaveBeenLastCalledWith(expect.objectContaining({ budgetId: 'b-2', categoryId: 'c-food' }))
+  })
+
+  it('hides the budget group when there are no budgets', () => {
+    renderSheet({ budgets: [] })
+    expect(screen.queryByText('預算', { selector: '.quick-expense-section-label' })).not.toBeInTheDocument()
   })
 })

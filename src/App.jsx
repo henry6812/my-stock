@@ -7725,6 +7725,7 @@ function App() {
             onClose={() => setIsQuickExpenseOpen(false)}
             templates={usableExpenseTemplates}
             nameSuggestions={quickExpenseSuggestions}
+            budgets={selectableBudgetOptions}
             quickCategories={quickExpenseCategories}
             allCategories={expenseCategoryRows}
             defaults={quickExpenseDefaults}
