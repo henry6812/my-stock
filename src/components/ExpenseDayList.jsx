@@ -12,8 +12,9 @@ import {
 const { Text } = Typography;
 
 // Mobile expense list: one framed list, grouped by day (newest first) with a
-// subtotal per day; this month's upcoming recurring charges sit collapsed at
-// the bottom under 本月預計. Each row is two lines and swipes for its actions.
+// subtotal per day. This month's upcoming recurring charges are shown apart,
+// above the list, by UpcomingExpenseList (collapsed under 本月預計). Each row
+// is two lines and swipes for its actions.
 
 const isSet = (value) => Boolean(value) && value !== "未指定";
 
@@ -51,6 +52,42 @@ function ExpenseRow({ row, actions, disabled }) {
   );
 }
 
+const renderRows = (rows, getActions, disabled) =>
+  rows.map((row) => (
+    <ExpenseRow
+      key={`${row.id}-${row.occurredAt}`}
+      row={row}
+      actions={getActions(row)}
+      disabled={disabled}
+    />
+  ));
+
+export function UpcomingExpenseList({ rows = [], getActions, disabled = false }) {
+  const [expanded, setExpanded] = useState(false);
+  const { upcoming } = groupExpenseRowsByDay(rows);
+  if (upcoming.rows.length === 0) return null;
+  return (
+    <div className="expense-day-list expense-upcoming-group">
+      <button
+        type="button"
+        className="expense-day-heading expense-upcoming-toggle"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <span>
+          本月預計 {upcoming.rows.length} 筆 · {formatTwd(upcoming.totalTwd)}
+        </span>
+        {expanded ? <DownOutlined /> : <RightOutlined />}
+      </button>
+      {expanded && (
+        <div className="expense-day-group">
+          {renderRows(upcoming.rows, getActions, disabled)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ExpenseDayList({
   rows = [],
   today,
@@ -58,18 +95,8 @@ function ExpenseDayList({
   disabled = false,
   empty = null,
 }) {
-  const [showUpcoming, setShowUpcoming] = useState(false);
-  const { days, upcoming } = groupExpenseRowsByDay(rows);
-  if (days.length === 0 && upcoming.rows.length === 0) return empty;
-
-  const renderRow = (row) => (
-    <ExpenseRow
-      key={`${row.id}-${row.occurredAt}`}
-      row={row}
-      actions={getActions(row)}
-      disabled={disabled}
-    />
-  );
+  const { days } = groupExpenseRowsByDay(rows);
+  if (days.length === 0) return empty;
 
   return (
     <div className="expense-day-list">
@@ -79,25 +106,9 @@ function ExpenseDayList({
             <span>{formatDayHeading(day.date, today)}</span>
             <span className="expense-day-total">{formatTwd(day.totalTwd)}</span>
           </div>
-          {day.rows.map(renderRow)}
+          {renderRows(day.rows, getActions, disabled)}
         </section>
       ))}
-      {upcoming.rows.length > 0 && (
-        <section className="expense-day-group expense-upcoming-group">
-          <button
-            type="button"
-            className="expense-day-heading expense-upcoming-toggle"
-            aria-expanded={showUpcoming}
-            onClick={() => setShowUpcoming((value) => !value)}
-          >
-            <span>
-              本月預計 {upcoming.rows.length} 筆 · {formatTwd(upcoming.totalTwd)}
-            </span>
-            {showUpcoming ? <DownOutlined /> : <RightOutlined />}
-          </button>
-          {showUpcoming && upcoming.rows.map(renderRow)}
-        </section>
-      )}
     </div>
   );
 }

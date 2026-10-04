@@ -105,7 +105,9 @@ import QuickExpenseSheet from "./components/QuickExpenseSheet";
 import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
 import RecurringOverview from "./components/RecurringOverview";
 import SwipeActions from "./components/SwipeActions";
-import ExpenseDayList from "./components/ExpenseDayList";
+import ExpenseDayList, {
+  UpcomingExpenseList,
+} from "./components/ExpenseDayList";
 import {
   getPortfolioView,
   getTrend,
@@ -510,9 +512,6 @@ function App() {
   const [showExpenseMoreFields, setShowExpenseMoreFields] = useState(false);
   const [inlineCategoryName, setInlineCategoryName] = useState("");
   const [loadingInlineCategory, setLoadingInlineCategory] = useState(false);
-  // 全部 / 單筆 / 固定 filter on the expense list, applied before the
-  // category tabs.
-  const [expenseTypeFilter, setExpenseTypeFilter] = useState("all");
   const [activeExpenseCategoryTab, setActiveExpenseCategoryTab] =
     useState("all");
   const [expenseMonthOptions, setExpenseMonthOptions] = useState([]);
@@ -3356,21 +3355,21 @@ function App() {
     templateDragDisabled,
   ]);
 
-  const expenseRowsByType = useMemo(() => {
-    if (expenseTypeFilter === "recurring") {
-      return expenseRows.filter((row) => row.isRecurringOccurrence);
-    }
-    if (expenseTypeFilter === "one-time") {
-      return expenseRows.filter((row) => !row.isRecurringOccurrence);
-    }
-    return expenseRows;
-  }, [expenseRows, expenseTypeFilter]);
+  // Rows behind the category tabs and the list. On mobile, this month's
+  // upcoming recurring charges sit in 本月預計 above the list instead.
+  const expenseListRows = useMemo(
+    () =>
+      isMobileViewport
+        ? expenseRows.filter((row) => !row.isUpcoming)
+        : expenseRows,
+    [expenseRows, isMobileViewport],
+  );
 
   const expenseCategoryTabItems = useMemo(() => {
     const counters = new Map();
     let uncategorizedCount = 0;
 
-    for (const row of expenseRowsByType) {
+    for (const row of expenseListRows) {
       const rawName =
         typeof row?.categoryName === "string" ? row.categoryName.trim() : "";
       if (!rawName || rawName === "未指定") {
@@ -3400,17 +3399,17 @@ function App() {
     }
 
     return [
-      { key: "all", label: `全部 (${expenseRowsByType.length})` },
+      { key: "all", label: `全部 (${expenseListRows.length})` },
       ...categoryItems,
     ];
-  }, [expenseRowsByType]);
+  }, [expenseListRows]);
 
   const filteredExpenseRowsByCategory = useMemo(() => {
     if (activeExpenseCategoryTab === "all") {
-      return expenseRowsByType;
+      return expenseListRows;
     }
     if (activeExpenseCategoryTab === "uncategorized") {
-      return expenseRowsByType.filter((row) => {
+      return expenseListRows.filter((row) => {
         const rawName =
           typeof row?.categoryName === "string" ? row.categoryName.trim() : "";
         return !rawName || rawName === "未指定";
@@ -3418,10 +3417,10 @@ function App() {
     }
     if (activeExpenseCategoryTab.startsWith("cat:")) {
       const targetCategory = activeExpenseCategoryTab.slice(4);
-      return expenseRowsByType.filter((row) => row?.categoryName === targetCategory);
+      return expenseListRows.filter((row) => row?.categoryName === targetCategory);
     }
-    return expenseRowsByType;
-  }, [activeExpenseCategoryTab, expenseRowsByType]);
+    return expenseListRows;
+  }, [activeExpenseCategoryTab, expenseListRows]);
 
   useEffect(() => {
     const validKeys = new Set(expenseCategoryTabItems.map((item) => item.key));
@@ -4840,19 +4839,6 @@ function App() {
     </Form>
   );
 
-  const expenseTypeFilterNode = (
-    <Segmented
-      className="expense-type-filter"
-      size="small"
-      value={expenseTypeFilter}
-      onChange={setExpenseTypeFilter}
-      options={[
-        { label: "全部", value: "all" },
-        { label: "單筆", value: "one-time" },
-        { label: "固定", value: "recurring" },
-      ]}
-    />
-  );
   const expenseRowClassName = (record) =>
     record.isUpcoming ? "expense-row--upcoming" : "";
 
@@ -6887,12 +6873,17 @@ function App() {
                   </Col>
                   <Col xs={24}>
                     {isMobileViewport ? (
+                      <>
+                      <UpcomingExpenseList
+                        rows={expenseRows}
+                        getActions={getExpenseSwipeActions}
+                        disabled={isWriteDisabled}
+                      />
                       <div className="mobile-list-section mobile-list-section--expense">
                         <div className="mobile-list-header">
                           <span className="mobile-list-title">支出列表</span>
                         </div>
                         <div className="mobile-list-body">
-                          {expenseTypeFilterNode}
                           <Tabs
                             className="expense-category-tabs"
                             activeKey={activeExpenseCategoryTab}
@@ -6909,9 +6900,9 @@ function App() {
                           />
                         </div>
                       </div>
+                      </>
                     ) : (
                       <Card title="支出列表">
-                        {expenseTypeFilterNode}
                         <Tabs
                           className="expense-category-tabs"
                           activeKey={activeExpenseCategoryTab}

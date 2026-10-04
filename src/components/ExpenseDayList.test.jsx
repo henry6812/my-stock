@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import ExpenseDayList from './ExpenseDayList'
+import ExpenseDayList, { UpcomingExpenseList } from './ExpenseDayList'
 
 const row = (id, occurredAt, amountTwd, extra = {}) => ({
   id,
@@ -63,23 +63,15 @@ describe('<ExpenseDayList />', () => {
     expect(within(lunch).queryByLabelText('定期支出')).not.toBeInTheDocument()
   })
 
-  it('collapses upcoming charges into 本月預計 and expands them on tap', async () => {
-    const { user } = renderList()
-    const toggle = screen.getByRole('button', { name: /本月預計/ })
-    expect(toggle).toHaveTextContent('本月預計 2 筆 · $19,488')
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  it('leaves upcoming charges out of the day list', () => {
+    renderList()
     expect(screen.queryByText('房租')).not.toBeInTheDocument()
-
-    await user.click(toggle)
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    const names = screen.getAllByText(/房租|World gym/).map((el) => el.textContent)
-    expect(names).toEqual(['房租', 'World gym'])
-    expect(screen.getByText('房租').closest('.mobile-swipe-row')).toHaveTextContent('10/20 · 房屋 · Po')
+    expect(screen.queryByRole('button', { name: /本月預計/ })).not.toBeInTheDocument()
   })
 
-  it('hides 本月預計 when nothing is upcoming', () => {
-    renderList({ rows: rows.filter((item) => !item.isUpcoming) })
-    expect(screen.queryByRole('button', { name: /本月預計/ })).not.toBeInTheDocument()
+  it('shows the empty state when only upcoming charges remain', () => {
+    renderList({ rows: rows.filter((item) => item.isUpcoming) })
+    expect(screen.getByText('沒有支出')).toBeInTheDocument()
   })
 
   it('shows the empty state when there are no rows', () => {
@@ -96,5 +88,39 @@ describe('<ExpenseDayList />', () => {
     fireEvent.pointerMove(surface, { clientX: 150, clientY: 20, pointerId: 1 })
     fireEvent.pointerUp(surface, { clientX: 150, clientY: 20, pointerId: 1 })
     expect(screen.getByRole('button', { name: '編輯 午餐' })).toBeInTheDocument()
+  })
+})
+
+describe('<UpcomingExpenseList />', () => {
+  const renderUpcoming = (props = {}) => {
+    const getActions = vi.fn(() => [])
+    render(<UpcomingExpenseList rows={rows} getActions={getActions} {...props} />)
+    return { user: userEvent.setup() }
+  }
+
+  it('starts collapsed with the count and total', () => {
+    renderUpcoming()
+    const toggle = screen.getByRole('button', { name: /本月預計/ })
+    expect(toggle).toHaveTextContent('本月預計 2 筆 · $19,488')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('房租')).not.toBeInTheDocument()
+  })
+
+  it('expands to the upcoming charges, soonest first, each with its date', async () => {
+    const { user } = renderUpcoming()
+    const toggle = screen.getByRole('button', { name: /本月預計/ })
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const names = screen.getAllByText(/房租|World gym/).map((el) => el.textContent)
+    expect(names).toEqual(['房租', 'World gym'])
+    expect(screen.getByText('房租').closest('.mobile-swipe-row')).toHaveTextContent('10/20 · 房屋 · Po')
+    expect(screen.queryByText('午餐')).not.toBeInTheDocument()
+  })
+
+  it('renders nothing when nothing is upcoming', () => {
+    const { container } = render(
+      <UpcomingExpenseList rows={rows.filter((item) => !item.isUpcoming)} getActions={() => []} />,
+    )
+    expect(container).toBeEmptyDOMElement()
   })
 })

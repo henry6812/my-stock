@@ -1863,8 +1863,9 @@
   opacity: 0.55;
 }
 
-.expense-type-filter {
-  margin-bottom: 8px;
+/* 本月預計 stands alone above the 支出列表 section. */
+.expense-day-list.expense-upcoming-group {
+  margin-bottom: 16px;
 }
 
 .expense-upcoming-note {
