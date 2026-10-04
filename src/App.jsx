@@ -2599,9 +2599,9 @@ function App() {
       record.assetTag ||
       "個股";
     // Fixed widths (the table uses tableLayout="fixed" on mobile) so a long
-    // name truncates instead of pushing 現值 off-screen.
+    // name truncates instead of pushing 現值 off-screen. No drag handle on
+    // mobile: reordering stays a desktop feature.
     return [
-      { ...byKey.drag, width: 32 },
       {
         title: "標的",
         key: "target",
