@@ -140,4 +140,13 @@ describe('<RecurringOverview />', () => {
     expect(first.querySelector('.swipe-actions')).toBeNull()
     expect(first.querySelector('.recurring-overview-actions')).not.toBeNull()
   })
+
+  it('on mobile shows the next charge under the amount, without 下次', () => {
+    renderOverview({ swipeable: true, rows: [rows[0], rows[4]] })
+    const [rent, streaming] = listItems()
+    const side = rent.querySelector('.recurring-overview-side')
+    expect(within(side).getByText('10/20（16 天後）')).toBeInTheDocument()
+    expect(rent.querySelector('.recurring-overview-main')).not.toHaveTextContent('10/20')
+    expect(within(streaming.querySelector('.recurring-overview-side')).getByText('今天扣款')).toBeInTheDocument()
+  })
 })

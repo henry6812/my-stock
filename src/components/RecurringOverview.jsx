@@ -13,13 +13,15 @@ const { Text } = Typography;
 
 const COLLAPSED_COUNT = 4;
 
-const describeNextCharge = (nextDate, today) => {
+// `withPrefix` adds 下次; on mobile the line sits under the amount and the
+// date alone reads clearly.
+const describeNextCharge = (nextDate, today, { withPrefix = true } = {}) => {
   if (!nextDate) return null;
   const days = dayjs(nextDate).diff(dayjs(today), "day");
   if (days <= 0) return "今天扣款";
-  const label = dayjs(nextDate).format("M/D");
-  if (days === 1) return `下次 ${label}（明天）`;
-  return `下次 ${label}（${days} 天後）`;
+  const label = `${withPrefix ? "下次 " : ""}${dayjs(nextDate).format("M/D")}`;
+  if (days === 1) return `${label}（明天）`;
+  return `${label}（${days} 天後）`;
 };
 
 // The row's content, wrapped in SwipeActions on mobile.
@@ -98,7 +100,18 @@ function RecurringOverview({
               ]
                 .filter(Boolean)
                 .join(" · ");
-              const nextCharge = describeNextCharge(item.nextOccurrenceDate, today);
+              const nextCharge = describeNextCharge(item.nextOccurrenceDate, today, {
+                withPrefix: !swipeable,
+              });
+              const nextChargeLine = nextCharge && (
+                <Text
+                  className={`recurring-overview-next${
+                    nextCharge === "今天扣款" ? " is-today" : ""
+                  }`}
+                >
+                  {nextCharge}
+                </Text>
+              );
               return (
                 <li key={item.id} className="recurring-overview-item">
                   <RowShell
@@ -139,15 +152,7 @@ function RecurringOverview({
                     <Text type="secondary" className="recurring-overview-meta">
                       {meta}
                     </Text>
-                    {nextCharge && (
-                      <Text
-                        className={`recurring-overview-next${
-                          nextCharge === "今天扣款" ? " is-today" : ""
-                        }`}
-                      >
-                        {nextCharge}
-                      </Text>
-                    )}
+                    {!swipeable && nextChargeLine}
                   </div>
                   <div className="recurring-overview-side">
                     <div className="recurring-overview-amount">
@@ -156,6 +161,8 @@ function RecurringOverview({
                         /{isYearly ? "年" : "月"}
                       </span>
                     </div>
+                    {/* Mobile: the next charge sits right under the amount. */}
+                    {swipeable && nextChargeLine}
                     {isYearly && (
                       <Text type="secondary" className="recurring-overview-meta">
                         約 {formatTwd(item.monthlyEquivalentTwd)}/月
