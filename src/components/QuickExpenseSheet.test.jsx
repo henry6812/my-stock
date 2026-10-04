@@ -217,6 +217,22 @@ describe('<QuickExpenseSheet />', () => {
     )
   })
 
+  it('picking a category after a category-less template keeps its name and amount', async () => {
+    const { user, onSubmit } = renderSheet({
+      templates: [
+        { id: 9, name: '雜支', categoryId: null, payer: null, expenseKind: null, budgetId: null, amountTwd: 30 },
+      ],
+    })
+    await user.click(screen.getByRole('button', { name: '常用 雜支' }))
+    await user.click(screen.getByRole('button', { name: '餐飲' }))
+    expect(screen.getByLabelText('名稱')).toHaveValue('雜支')
+    expect(screen.getByLabelText('金額')).toHaveTextContent('$30')
+    await user.click(saveButton())
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: '雜支', amountTwd: 30, categoryId: 'c-food' }),
+    )
+  })
+
   it('hides the 常用 row when there are no templates', () => {
     renderSheet({ templates: [] })
     expect(screen.queryByRole('group', { name: '常用' })).not.toBeInTheDocument()

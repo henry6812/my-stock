@@ -51,6 +51,10 @@ function QuickExpenseSheet({
   // Set while the name was filled from a template / autocomplete pick (not
   // typed), so switching category can clear it.
   const [isNameAutoFilled, setIsNameAutoFilled] = useState(false);
+  // The category that pick brought along (null when it had none): switching
+  // away from it means "a different expense"; adding one to a category-less
+  // pick doesn't.
+  const [pickedCategoryId, setPickedCategoryId] = useState(null);
   const [pickedTemplateId, setPickedTemplateId] = useState(null);
   const [extras, setExtras] = useState(defaultExtras);
   const [occurredAt, setOccurredAt] = useState(today);
@@ -95,6 +99,7 @@ function QuickExpenseSheet({
     setName(item.name);
     setIsNameAutoFilled(true);
     setPickedTemplateId(templateId);
+    setPickedCategoryId(item.categoryId ?? null);
     if (item.categoryId) setCategoryId(item.categoryId);
     // Like the full form: a pick without a (still valid) payer / kind keeps
     // the remembered default instead of clearing it.
@@ -113,7 +118,7 @@ function QuickExpenseSheet({
     });
 
   const selectCategory = (id) => {
-    if (isNameAutoFilled && id !== categoryId) {
+    if (isNameAutoFilled && pickedCategoryId !== null && id !== pickedCategoryId) {
       setName("");
       setIsNameAutoFilled(false);
       setPickedTemplateId(null);

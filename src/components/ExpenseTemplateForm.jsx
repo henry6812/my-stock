@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Form, Input, InputNumber, Select } from "antd";
 
 // Add / edit one 常用支出 template. Owns its antd Form; the parent submits it
@@ -27,6 +28,7 @@ function ExpenseTemplateForm({
   disabled = false,
 }) {
   const [form] = Form.useForm();
+  const submittingRef = useRef(false);
   const isNew = !initialValues;
 
   // A starting point from a past expense. The amount is left out on purpose:
@@ -49,15 +51,24 @@ function ExpenseTemplateForm({
     });
   };
 
-  const handleFinish = (values) =>
-    onSubmit({
-      name: values.name,
-      amountTwd: values.amountTwd ?? null,
-      categoryId: values.categoryId ?? null,
-      payer: values.payer ?? null,
-      expenseKind: values.expenseKind ?? null,
-      budgetId: values.budgetId ?? null,
-    });
+  // Enter in a field submits natively, bypassing the parent's loading-locked
+  // OK button; without this a double Enter creates two templates.
+  const handleFinish = async (values) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      await onSubmit({
+        name: values.name,
+        amountTwd: values.amountTwd ?? null,
+        categoryId: values.categoryId ?? null,
+        payer: values.payer ?? null,
+        expenseKind: values.expenseKind ?? null,
+        budgetId: values.budgetId ?? null,
+      });
+    } finally {
+      submittingRef.current = false;
+    }
+  };
 
   return (
     <Form

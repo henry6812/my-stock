@@ -60,6 +60,18 @@ describe('<ExpenseTemplateForm />', () => {
     })
   })
 
+  it('ignores a second submit while the first is still saving', async () => {
+    const onSubmit = vi.fn(() => new Promise(() => {}))
+    const { user } = renderForm({ onSubmit })
+    await user.type(screen.getByLabelText('名稱'), '加油')
+    await user.click(screen.getByRole('button', { name: '送出' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    await user.type(screen.getByLabelText('名稱'), '{Enter}')
+    await user.click(screen.getByRole('button', { name: '送出' }))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
   it('requires a name', async () => {
     const { user, onSubmit } = renderForm()
     await user.click(screen.getByRole('button', { name: '送出' }))
