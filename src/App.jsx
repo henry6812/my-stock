@@ -3402,6 +3402,103 @@ function App() {
     [renderBudgetActionButtons],
   );
 
+  // Mobile lists have no header row, so these fold each value into a
+  // labelled line ("快速選取", "月度 · 分配 30%") instead of bare columns.
+  const expenseCategoryMobileColumns = useMemo(() => {
+    const byKey = Object.fromEntries(
+      expenseCategoryColumns.map((column) => [column.key, column]),
+    );
+    return [
+      {
+        key: "name",
+        render: (_, record) => (
+          <span className="holding-main-text">{record.name}</span>
+        ),
+      },
+      {
+        key: "isQuickPick",
+        align: "right",
+        render: (_, record) => (
+          <span className="mobile-inline-field">
+            <Text type="secondary" className="mobile-inline-label">
+              快速選取
+            </Text>
+            {byKey.isQuickPick.render(record.isQuickPick, record)}
+          </span>
+        ),
+      },
+      { ...byKey.actions, title: undefined, align: "right", width: 84 },
+    ];
+  }, [expenseCategoryColumns]);
+
+  const residentBudgetMobileColumns = useMemo(
+    () => [
+      {
+        key: "name",
+        render: (_, record) => {
+          const percent = Number(record.residentPercent);
+          return (
+            <div>
+              <div className="holding-main-text">{record.name}</div>
+              <Text type="secondary" className="holding-subline">
+                {formatBudgetCycleLabel(record.budgetType)} ·{" "}
+                {Number.isFinite(percent) && percent > 0
+                  ? `分配 ${percent}%`
+                  : "分配比例待設定"}
+              </Text>
+            </div>
+          );
+        },
+      },
+      {
+        key: "actions",
+        align: "right",
+        width: 84,
+        render: (_, record) => renderBudgetActionButtons(record),
+      },
+    ],
+    [renderBudgetActionButtons],
+  );
+
+  const specialBudgetMobileColumns = useMemo(
+    () => [
+      {
+        key: "name",
+        render: (_, record) => {
+          const availableTwd = Number(record.availableTwd || 0);
+          const spentTwd = Number(record.spentTwd || 0);
+          const dates =
+            record.specialStartDate && record.specialEndDate
+              ? `${formatDate(record.specialStartDate)} ~ ${formatDate(record.specialEndDate)}`
+              : "日期未設定";
+          return (
+            <div>
+              <div className="holding-main-text">{record.name}</div>
+              <Text type="secondary" className="holding-subline">
+                {formatTwd(Number(record.specialAmountTwd) || 0)} · {dates}
+              </Text>
+              <Progress
+                percent={Math.round(Number(record.progressPct || 0))}
+                size="small"
+                strokeColor={spentTwd > availableTwd ? COLORS.down : undefined}
+              />
+              <Text type="secondary" className="holding-subline">
+                已花 {formatTwd(spentTwd)} / {formatTwd(availableTwd)}
+              </Text>
+            </div>
+          );
+        },
+      },
+      {
+        key: "actions",
+        align: "right",
+        width: 84,
+        render: (_, record) => renderBudgetActionButtons(record),
+      },
+    ],
+    [renderBudgetActionButtons],
+  );
+
   const DraggableBodyRow = useCallback(
     (props) => <SortableRow {...props} disabled={dragDisabled} />,
     [dragDisabled],
@@ -6027,6 +6124,7 @@ function App() {
                           strategy={verticalListSortingStrategy}
                         >
                           <Table
+                            showHeader={false}
                             rowKey="id"
                             dataSource={filteredRows}
                             columns={tableColumns}
@@ -6153,6 +6251,7 @@ function App() {
                         style={{ marginBottom: 12 }}
                       />
                       <Table
+                        showHeader={false}
                         rowKey="id"
                         dataSource={filteredCashRows}
                         columns={cashTableColumns}
@@ -6609,6 +6708,7 @@ function App() {
                             style={{ marginBottom: 12 }}
                           />
                           <Table
+                            showHeader={false}
                             rowKey={(record) =>
                               `${record.id}-${record.occurredAt}`
                             }
@@ -6835,9 +6935,10 @@ function App() {
                         </div>
                         <div className="mobile-list-body">
                           <Table
+                            showHeader={false}
                             rowKey="id"
                             dataSource={expenseCategoryRows}
-                            columns={expenseCategoryColumns}
+                            columns={expenseCategoryMobileColumns}
                             pagination={false}
                             locale={{ emptyText: "尚無分類" }}
                           />
@@ -6942,12 +7043,12 @@ function App() {
                                 label: "常駐預算",
                                 children: (
                                   <Table
+                                    showHeader={false}
                                     rowKey="id"
                                     dataSource={residentBudgetRows}
-                                    columns={residentBudgetColumns}
+                                    columns={residentBudgetMobileColumns}
                                     pagination={false}
                                     locale={{ emptyText: "尚無常駐預算" }}
-                                    scroll={{ x: 720 }}
                                   />
                                 ),
                               },
@@ -6956,12 +7057,12 @@ function App() {
                                 label: "特別預算",
                                 children: (
                                   <Table
+                                    showHeader={false}
                                     rowKey="id"
                                     dataSource={specialBudgetRows}
-                                    columns={specialBudgetColumns}
+                                    columns={specialBudgetMobileColumns}
                                     pagination={false}
                                     locale={{ emptyText: "尚無特別預算" }}
-                                    scroll={{ x: 820 }}
                                   />
                                 ),
                               },

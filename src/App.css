@@ -1876,3 +1876,42 @@
 .expense-recurring-edit-alert {
   margin-bottom: 16px;
 }
+
+/* Mobile lists: one framed style for every list, matching the 固定支出
+   overview — rounded hairline frame, white surface, no header row. */
+.mobile-list-body .ant-table {
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+
+.mobile-list-body .ant-table-tbody > tr > td {
+  padding-block: 10px;
+  border-bottom-color: var(--c-line);
+}
+
+.mobile-list-body .ant-table-tbody > tr:last-child > td {
+  border-bottom: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-list-body .ant-table-tbody > tr > td:first-child {
+    padding-inline-start: 12px;
+  }
+
+  .mobile-list-body .ant-table-tbody > tr > td:last-child {
+    padding-inline-end: 8px;
+  }
+}
+
+.mobile-inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-inline-label {
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
