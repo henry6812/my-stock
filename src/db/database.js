@@ -11,6 +11,7 @@ const TABLE_STORAGE_KEYS = {
   cashBalanceSnapshots: 'my-stock:cash_balance_snapshots',
   expenseCategories: 'my-stock:expense_categories',
   budgets: 'my-stock:budgets',
+  expenseTemplates: 'my-stock:expense_templates',
 }
 
 export const DB_MIN_KEY = MIN_SENTINEL
@@ -413,6 +414,11 @@ class StockDatabase {
       primaryKey: 'id',
       autoIncrement: true,
       storageKey: TABLE_STORAGE_KEYS.budgets,
+    })
+    this.expense_templates = new PersistedInMemoryTable({
+      primaryKey: 'id',
+      autoIncrement: true,
+      storageKey: TABLE_STORAGE_KEYS.expenseTemplates,
     })
   }
 

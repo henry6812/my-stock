@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../db/database'
-import { applyCollectionRecordLocally } from './cloudSyncService'
+import {
+  applyCollectionRecordLocally,
+  removeCollectionDocLocally,
+} from './cloudSyncService'
 
 const baseSnapshot = {
   symbol: 'NVDA',
@@ -62,3 +65,68 @@ describe('applyCollectionRecordLocally (price_snapshots)', () => {
     expect(row.previousClose).toBeNull()
   })
 })
+
+const baseTemplate = {
+  remoteKey: 'template_abc',
+  name: '停車',
+  amountTwd: 60,
+  categoryRemoteKey: 'category_x',
+  budgetRemoteKey: null,
+  payer: '小明',
+  expenseKind: '個人',
+  sortOrder: 1,
+  createdAt: '2026-10-04T00:00:00.000Z',
+  updatedAt: '2026-10-04T00:00:00.000Z',
+  deletedAt: null,
+}
+
+// Templates keep only remote keys for their category / budget links; local ids
+// are resolved when the dashboard view is built.
+describe('applyCollectionRecordLocally (expense_templates)', () => {
+  beforeEach(async () => {
+    await db.expense_templates.clear()
+  })
+
+  it('adds a template with its remote association keys', async () => {
+    await applyCollectionRecordLocally({ collectionName: 'expense_templates', record: baseTemplate })
+    const [row] = await db.expense_templates.toArray()
+    expect(row).toMatchObject({
+      remoteKey: 'template_abc',
+      name: '停車',
+      amountTwd: 60,
+      categoryRemoteKey: 'category_x',
+      budgetRemoteKey: null,
+      payer: '小明',
+      expenseKind: '個人',
+      sortOrder: 1,
+      syncState: 'synced',
+    })
+  })
+
+  it('updates only when the remote copy is newer', async () => {
+    await applyCollectionRecordLocally({ collectionName: 'expense_templates', record: baseTemplate })
+    await applyCollectionRecordLocally({
+      collectionName: 'expense_templates',
+      record: { ...baseTemplate, name: '舊的', updatedAt: '2026-10-03T00:00:00.000Z' },
+    })
+    await applyCollectionRecordLocally({
+      collectionName: 'expense_templates',
+      record: { ...baseTemplate, name: '停車場', amountTwd: null, updatedAt: '2026-10-04T01:00:00.000Z' },
+    })
+    const rows = await db.expense_templates.toArray()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].name).toBe('停車場')
+    expect(rows[0].amountTwd).toBeNull()
+  })
+
+  it('removes the local row when the remote doc is deleted', async () => {
+    await applyCollectionRecordLocally({ collectionName: 'expense_templates', record: baseTemplate })
+    await removeCollectionDocLocally({
+      collectionName: 'expense_templates',
+      docId: 'template_abc',
+      snapshotData: baseTemplate,
+    })
+    expect(await db.expense_templates.toArray()).toEqual([])
+  })
+})
+

@@ -38,6 +38,10 @@ export const buildBudgetKey = (budget) => (
   budget.remoteKey || `budget_${budget.id}`
 )
 
+export const buildExpenseTemplateKey = (template) => (
+  template.remoteKey || `template_${template.id}`
+)
+
 export const buildAppConfigKey = (config) => String(config?.key || '')
 
 export const holdingToRemote = (holding) => ({
@@ -143,6 +147,27 @@ export const expenseCategoryToRemote = (category) => ({
   updatedAt: category.updatedAt,
   deletedAt: category.deletedAt ?? null,
   clientUpdatedAt: category.updatedAt,
+})
+
+const toPositiveAmountOrNull = (value) => {
+  const amount = Number(value)
+  return Number.isFinite(amount) && amount > 0 ? amount : null
+}
+
+// Category / budget links travel as remote keys; local ids differ per device.
+export const expenseTemplateToRemote = (template) => ({
+  remoteKey: template.remoteKey || null,
+  name: template.name,
+  amountTwd: toPositiveAmountOrNull(template.amountTwd),
+  categoryRemoteKey: template.categoryRemoteKey ?? null,
+  budgetRemoteKey: template.budgetRemoteKey ?? null,
+  payer: template.payer ?? null,
+  expenseKind: template.expenseKind ?? null,
+  sortOrder: Number(template.sortOrder) || 0,
+  createdAt: template.createdAt ?? null,
+  updatedAt: template.updatedAt,
+  deletedAt: template.deletedAt ?? null,
+  clientUpdatedAt: template.updatedAt,
 })
 
 export const budgetToRemote = (budget) => ({
@@ -310,6 +335,20 @@ export const remoteToExpenseCategory = (data) => ({
   remoteKey: data.remoteKey ?? null,
   name: data.name,
   isQuickPick: Boolean(data.isQuickPick),
+  createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
+  updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
+  deletedAt: toIso(data.deletedAt),
+})
+
+export const remoteToExpenseTemplate = (data) => ({
+  remoteKey: data.remoteKey ?? null,
+  name: data.name,
+  amountTwd: toPositiveAmountOrNull(data.amountTwd),
+  categoryRemoteKey: data.categoryRemoteKey ?? null,
+  budgetRemoteKey: data.budgetRemoteKey ?? null,
+  payer: data.payer ?? null,
+  expenseKind: data.expenseKind ?? null,
+  sortOrder: Number(data.sortOrder) || 0,
   createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),

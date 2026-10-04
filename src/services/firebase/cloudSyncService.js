@@ -13,12 +13,14 @@ import {
   buildCashBalanceSnapshotKey,
   buildCashAccountKey,
   buildBudgetKey,
+  buildExpenseTemplateKey,
   buildAppConfigKey,
   buildExpenseCategoryKey,
   buildExpenseEntryKey,
   buildHoldingKey,
   buildSnapshotKey,
   budgetToRemote,
+  expenseTemplateToRemote,
   appConfigToRemote,
   cashBalanceSnapshotToRemote,
   cashAccountToRemote,
@@ -28,6 +30,7 @@ import {
   holdingToRemote,
   isRemoteNewer,
   remoteToBudget,
+  remoteToExpenseTemplate,
   remoteToAppConfig,
   remoteToCashBalanceSnapshot,
   remoteToCashAccount,
@@ -57,6 +60,7 @@ const COLLECTIONS = {
   EXPENSE_ENTRIES: 'expense_entries',
   EXPENSE_CATEGORIES: 'expense_categories',
   BUDGETS: 'budgets',
+  EXPENSE_TEMPLATES: 'expense_templates',
   APP_CONFIG: 'app_config',
 }
 
@@ -234,6 +238,7 @@ const clearLocalCloudBackedData = async () => {
     db.expense_entries,
     db.expense_categories,
     db.budgets,
+    db.expense_templates,
     db.app_config,
     async () => {
       await db.holdings.clear()
@@ -245,6 +250,7 @@ const clearLocalCloudBackedData = async () => {
       await db.expense_entries.clear()
       await db.expense_categories.clear()
       await db.budgets.clear()
+      await db.expense_templates.clear()
       await db.app_config.clear()
     },
   )
@@ -277,6 +283,9 @@ const buildMutationPayload = ({ collectionName, record }) => {
   }
   if (collectionName === COLLECTIONS.BUDGETS) {
     return { docId: buildBudgetKey(record), payload: budgetToRemote(record) }
+  }
+  if (collectionName === COLLECTIONS.EXPENSE_TEMPLATES) {
+    return { docId: buildExpenseTemplateKey(record), payload: expenseTemplateToRemote(record) }
   }
   if (collectionName === COLLECTIONS.APP_CONFIG) {
     return { docId: buildAppConfigKey(record), payload: appConfigToRemote(record) }
@@ -700,6 +709,41 @@ const applyRemoteExpenseCategory = async (remote) => {
   await relinkExpenseEntriesForCategory(remote.remoteKey, local.id)
 }
 
+// Templates keep only the remote keys of their category / budget; the local
+// ids are resolved when the dashboard view is built, so no relinking is
+// needed when those arrive later.
+const applyRemoteExpenseTemplate = async (remote) => {
+  if (!remote.remoteKey || !remote.name) return
+  const local = await db.expense_templates.where('remoteKey').equals(remote.remoteKey).first()
+  const nowIso = getNowIso()
+  const fields = {
+    name: remote.name,
+    amountTwd: remote.amountTwd ?? null,
+    categoryRemoteKey: remote.categoryRemoteKey ?? null,
+    budgetRemoteKey: remote.budgetRemoteKey ?? null,
+    payer: remote.payer ?? null,
+    expenseKind: remote.expenseKind ?? null,
+    sortOrder: Number(remote.sortOrder) || 0,
+    deletedAt: remote.deletedAt ?? null,
+    syncState: SYNC_SYNCED,
+  }
+  if (!local) {
+    await db.expense_templates.add({
+      remoteKey: remote.remoteKey,
+      ...fields,
+      createdAt: remote.createdAt || nowIso,
+      updatedAt: remote.updatedAt || nowIso,
+    })
+    return
+  }
+  if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
+  await db.expense_templates.update(local.id, {
+    ...fields,
+    createdAt: remote.createdAt || local.createdAt,
+    updatedAt: remote.updatedAt || local.updatedAt,
+  })
+}
+
 const applyRemoteBudget = async (remote) => {
   if (!remote.remoteKey || !remote.name) return
   const local = await db.budgets.where('remoteKey').equals(remote.remoteKey).first()
@@ -797,6 +841,8 @@ export const applyCollectionRecordLocally = async ({
     await applyRemoteExpenseCategory(remoteToExpenseCategory(payload))
   } else if (collectionName === COLLECTIONS.BUDGETS) {
     await applyRemoteBudget(remoteToBudget(payload))
+  } else if (collectionName === COLLECTIONS.EXPENSE_TEMPLATES) {
+    await applyRemoteExpenseTemplate(remoteToExpenseTemplate(payload))
   } else if (collectionName === COLLECTIONS.APP_CONFIG) {
     await applyRemoteAppConfig(remoteToAppConfig(payload))
   } else {
@@ -886,6 +932,13 @@ export const removeCollectionDocLocally = async ({ collectionName, docId, snapsh
     if (!budget) return
     await relinkExpenseEntriesForBudget(remote.remoteKey, null)
     await db.budgets.delete(budget.id)
+  } else if (collectionName === COLLECTIONS.EXPENSE_TEMPLATES) {
+    const remoteKey = snapshotData ? remoteToExpenseTemplate(snapshotData).remoteKey : docId
+    if (!remoteKey) return
+    const template = await db.expense_templates.where('remoteKey').equals(remoteKey).first()
+    if (template) {
+      await db.expense_templates.delete(template.id)
+    }
   } else if (collectionName === COLLECTIONS.APP_CONFIG) {
     const key = snapshotData ? remoteToAppConfig(snapshotData).key : docId
     if (key) {
@@ -941,6 +994,10 @@ const applyRealtimeSnapshot = async (collectionName, snapshot) => {
     }
     if (collectionName === COLLECTIONS.BUDGETS) {
       await applyRemoteBudget(remoteToBudget(data))
+      continue
+    }
+    if (collectionName === COLLECTIONS.EXPENSE_TEMPLATES) {
+      await applyRemoteExpenseTemplate(remoteToExpenseTemplate(data))
       continue
     }
     if (collectionName === COLLECTIONS.APP_CONFIG) {
@@ -1064,6 +1121,7 @@ export const startRealtimeSync = async (uid) => {
       COLLECTIONS.EXPENSE_ENTRIES,
       COLLECTIONS.EXPENSE_CATEGORIES,
       COLLECTIONS.BUDGETS,
+      COLLECTIONS.EXPENSE_TEMPLATES,
       COLLECTIONS.APP_CONFIG,
     ]),
     waiters: [],
@@ -1083,6 +1141,7 @@ export const startRealtimeSync = async (uid) => {
     subscribeCollection(COLLECTIONS.EXPENSE_ENTRIES),
     subscribeCollection(COLLECTIONS.EXPENSE_CATEGORIES),
     subscribeCollection(COLLECTIONS.BUDGETS),
+    subscribeCollection(COLLECTIONS.EXPENSE_TEMPLATES),
     subscribeCollection(COLLECTIONS.APP_CONFIG),
   ])
 

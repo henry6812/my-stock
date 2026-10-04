@@ -33,6 +33,12 @@ import {
 } from "../utils/expenseSuggestions";
 import { mapWithConcurrency } from "../utils/concurrency";
 import {
+  buildTemplateRows,
+  getNextTemplateSortOrder,
+  normalizeTemplateInput,
+  planTemplateReorder,
+} from "../utils/expenseTemplates";
+import {
   HOLDING_SHARES_MODE,
   normalizeHoldingSymbol,
   resolveNextShares,
@@ -714,15 +720,23 @@ export const saveHolderOptions = async ({ options = [], renameMap = {} } = {}) =
 export const exportBackupData = async () => {
   const readActive = async (table) =>
     (await table.toArray()).filter((item) => !isDeleted(item));
-  const [holdings, cashAccounts, expenseEntries, expenseCategories, budgets, appConfig] =
-    await Promise.all([
-      readActive(db.holdings),
-      readActive(db.cash_accounts),
-      readActive(db.expense_entries),
-      readActive(db.expense_categories),
-      readActive(db.budgets),
-      db.app_config.toArray(),
-    ]);
+  const [
+    holdings,
+    cashAccounts,
+    expenseEntries,
+    expenseCategories,
+    budgets,
+    expenseTemplates,
+    appConfig,
+  ] = await Promise.all([
+    readActive(db.holdings),
+    readActive(db.cash_accounts),
+    readActive(db.expense_entries),
+    readActive(db.expense_categories),
+    readActive(db.budgets),
+    readActive(db.expense_templates),
+    db.app_config.toArray(),
+  ]);
   return {
     app: "my-stock",
     version: 1,
@@ -732,6 +746,7 @@ export const exportBackupData = async () => {
     expenseEntries,
     expenseCategories,
     budgets,
+    expenseTemplates,
     appConfig,
   };
 };
@@ -2840,6 +2855,91 @@ export const removeExpenseCategory = async ({ id }) => {
   }
 };
 
+// 常用支出 templates. Category / budget links are stored as remote keys (see
+// buildTemplateRows for how they map back to local ids).
+export const upsertExpenseTemplate = async ({
+  id,
+  name,
+  amountTwd,
+  categoryId,
+  budgetId,
+  payer,
+  expenseKind,
+}) => {
+  ensureCloudWritable();
+  const normalized = normalizeTemplateInput({ name, amountTwd, payer, expenseKind });
+  const links = {
+    categoryRemoteKey: await getExpenseCategoryRemoteKeyById(Number(categoryId)),
+    budgetRemoteKey: await getBudgetRemoteKeyById(Number(budgetId)),
+  };
+  const nowIso = getNowIso();
+  const parsedId = Number(id);
+  if (Number.isInteger(parsedId) && parsedId > 0) {
+    const existing = await db.expense_templates.get(parsedId);
+    if (!existing || isDeleted(existing)) {
+      throw new Error("Template not found");
+    }
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_TEMPLATES, {
+      ...existing,
+      ...normalized,
+      ...links,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
+    return { id: parsedId, created: false };
+  }
+
+  const remoteKey = makeRemoteKey("template");
+  await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_TEMPLATES, {
+    remoteKey,
+    ...normalized,
+    ...links,
+    sortOrder: getNextTemplateSortOrder(await db.expense_templates.toArray()),
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  });
+  const inserted = await db.expense_templates.where("remoteKey").equals(remoteKey).first();
+  return { id: requireLocalId(inserted, "常用支出"), created: true };
+};
+
+export const removeExpenseTemplate = async ({ id }) => {
+  ensureCloudWritable();
+  const parsedId = Number(id);
+  const existing = Number.isInteger(parsedId) && parsedId > 0
+    ? await db.expense_templates.get(parsedId)
+    : null;
+  if (!existing || isDeleted(existing)) {
+    throw new Error("Template not found");
+  }
+  const nowIso = getNowIso();
+  await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_TEMPLATES, {
+    ...existing,
+    deletedAt: nowIso,
+    updatedAt: nowIso,
+    syncState: SYNC_PENDING,
+  });
+};
+
+// `orderedIds` is the full list in its new order; only moved templates are written.
+export const reorderExpenseTemplates = async (orderedIds) => {
+  ensureCloudWritable();
+  const templates = (await db.expense_templates.toArray()).filter(
+    (item) => !isDeleted(item),
+  );
+  const byId = new Map(templates.map((item) => [item.id, item]));
+  const nowIso = getNowIso();
+  for (const { id, sortOrder } of planTemplateReorder(templates, orderedIds)) {
+    await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_TEMPLATES, {
+      ...byId.get(id),
+      sortOrder,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
+  }
+};
+
 export const upsertBudget = async ({
   id,
   name,
@@ -3560,6 +3660,10 @@ export const getExpenseDashboardView = async (input = {}) => {
     })),
     recurringExpenseRows,
     expenseNameSuggestions: buildExpenseNameSuggestions(entries),
+    expenseTemplates: buildTemplateRows(await db.expense_templates.toArray(), {
+      categories,
+      budgets,
+    }),
     categoryUsageOrder: rankCategoriesByUsage(entries, categories),
     expenseAnalytics: expenseAnalyticsAllHistory,
     expenseAnalyticsAllHistory,
