@@ -2985,13 +2985,8 @@ function App() {
             );
           }
           const name = record.accountAlias || record.bankName || "帳戶";
-          // Like the expense list: 「備註 · 持有人」 as plain secondary text.
-          const meta = [
-            record.accountAlias,
-            record.holderName && record.holderName !== "未設定"
-              ? record.holderName
-              : null,
-          ].filter(Boolean);
+          // Just the memo: rows are already grouped under their holder.
+          const meta = [record.accountAlias].filter(Boolean);
           const main = (
             <div>
               <div className="holding-main-text">
