@@ -1716,3 +1716,14 @@
 .quick-expense-amount-value.is-invalid {
   color: var(--c-subtle);
 }
+
+/* 常用支出 settings list */
+.expense-template-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.expense-template-meta {
+  font-size: var(--fs-caption);
+}

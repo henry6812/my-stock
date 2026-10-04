@@ -100,6 +100,7 @@ import CashAccountForm from "./components/CashAccountForm";
 import MobileFormSheetLayout from "./components/MobileFormSheetLayout";
 import TrendChart from "./components/TrendChart";
 import QuickExpenseSheet from "./components/QuickExpenseSheet";
+import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
 import {
   getPortfolioView,
   getTrend,
@@ -133,6 +134,9 @@ import {
   removeExpenseEntry,
   upsertExpenseCategory,
   removeExpenseCategory,
+  upsertExpenseTemplate,
+  removeExpenseTemplate,
+  reorderExpenseTemplates,
   setExpenseCategoryQuickPick,
   upsertBudget,
   removeBudget,
@@ -230,6 +234,7 @@ const getNumberAnimationDuration = () => {
 // Per-device convenience: prefill a new expense with the last payer / kind /
 // category used. Not synced — storage can be missing or throw, so fail soft.
 const LAST_EXPENSE_DEFAULTS_KEY = "my-stock:last-expense-defaults";
+const TEMPLATE_FORM_ID = "expense-template-form";
 
 const readLastExpenseDefaults = () => {
   try {
@@ -405,6 +410,13 @@ function App() {
   // Bumped on every open so QuickExpenseSheet remounts with fresh state.
   const [quickExpenseKey, setQuickExpenseKey] = useState(0);
   const [quickExpenseDefaults, setQuickExpenseDefaults] = useState({});
+  const [expenseTemplateRows, setExpenseTemplateRows] = useState([]);
+  const [isTemplateFormOpen, setIsTemplateFormOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  // Bumped on every open so ExpenseTemplateForm remounts with fresh values.
+  const [templateFormKey, setTemplateFormKey] = useState(0);
+  const [loadingTemplateAction, setLoadingTemplateAction] = useState(false);
+  const [loadingTemplateReorder, setLoadingTemplateReorder] = useState(false);
   const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
   const [isBudgetSheetOpen, setIsBudgetSheetOpen] = useState(false);
   const [isAddHoldingSheetOpen, setIsAddHoldingSheetOpen] = useState(false);
@@ -1147,6 +1159,7 @@ function App() {
       setExpenseFirstDate(view.firstExpenseDate || null);
       setExpenseCategoryRows(view.categoryRows ?? []);
       setExpenseNameSuggestions(view.expenseNameSuggestions ?? []);
+      setExpenseTemplateRows(view.expenseTemplates ?? []);
       setCategoryUsageOrder(view.categoryUsageOrder ?? []);
       setBudgetRows(view.budgetRows ?? []);
       setDefaultMonthlyIncomeTwd(
@@ -1397,19 +1410,44 @@ function App() {
     [categoryUsageOrder, expenseCategoryRows],
   );
 
+  // What the expense forms can currently select; links to anything else
+  // (deleted category, removed payer, ended budget) are dropped on use.
+  const expenseOptionLookups = useMemo(
+    () => ({
+      categoryIds: new Set(expenseCategoryRows.map((item) => item.id)),
+      payers: new Set(expensePayerOptions.map((item) => item.value)),
+      budgetIds: new Set(selectableBudgetOptions.map((item) => item.id)),
+    }),
+    [expenseCategoryRows, expensePayerOptions, selectableBudgetOptions],
+  );
+
   const quickExpenseSuggestions = useMemo(
-    () =>
-      sanitizeSuggestions(expenseNameSuggestions, {
-        categoryIds: new Set(expenseCategoryRows.map((item) => item.id)),
-        payers: new Set(expensePayerOptions.map((item) => item.value)),
-        budgetIds: new Set(selectableBudgetOptions.map((item) => item.id)),
-      }),
-    [
-      expenseCategoryRows,
-      expenseNameSuggestions,
-      expensePayerOptions,
-      selectableBudgetOptions,
-    ],
+    () => sanitizeSuggestions(expenseNameSuggestions, expenseOptionLookups),
+    [expenseNameSuggestions, expenseOptionLookups],
+  );
+
+  const usableExpenseTemplates = useMemo(
+    () => sanitizeSuggestions(expenseTemplateRows, expenseOptionLookups),
+    [expenseOptionLookups, expenseTemplateRows],
+  );
+
+  // Fills the full form from a 常用支出 chip; only fields the template sets
+  // are touched, so an amount already typed survives a template without one.
+  const handleApplyExpenseTemplate = useCallback(
+    (template) => {
+      if (isWriteDisabled) return;
+      const updates = { name: template.name };
+      if (template.categoryId) updates.categoryId = template.categoryId;
+      if (template.payer) updates.payer = template.payer;
+      if (template.expenseKind) updates.expenseKind = template.expenseKind;
+      if (template.budgetId) updates.budgetId = template.budgetId;
+      if (template.amountTwd) updates.amountTwd = template.amountTwd;
+      expenseForm.setFieldsValue(updates);
+      if (updates.payer || updates.expenseKind || updates.budgetId) {
+        setShowExpenseMoreFields(true);
+      }
+    },
+    [expenseForm, isWriteDisabled],
   );
 
   const handleSubmitQuickExpense = useCallback(
@@ -1823,6 +1861,96 @@ function App() {
       }
     },
     [loadExpenseData, message, performCloudSync],
+  );
+
+  const openTemplateForm = useCallback(
+    (record = null) => {
+      // Edit with the sanitized copy so a stale link shows as empty, not as a
+      // raw id the selects can't label.
+      setEditingTemplate(
+        record
+          ? (usableExpenseTemplates.find((item) => item.id === record.id) ??
+              record)
+          : null,
+      );
+      setTemplateFormKey((key) => key + 1);
+      setIsTemplateFormOpen(true);
+    },
+    [usableExpenseTemplates],
+  );
+
+  const closeTemplateForm = useCallback(() => {
+    setIsTemplateFormOpen(false);
+    setEditingTemplate(null);
+  }, []);
+
+  const handleSubmitTemplate = useCallback(
+    async (values) => {
+      try {
+        setLoadingTemplateAction(true);
+        await upsertExpenseTemplate({ id: editingTemplate?.id, ...values });
+        await loadExpenseData();
+        await performCloudSync();
+        setIsTemplateFormOpen(false);
+        setEditingTemplate(null);
+        message.success(editingTemplate ? "常用支出已更新" : "已新增常用支出");
+      } catch (error) {
+        message.error(toUserMessage(error, "儲存常用支出失敗"));
+      } finally {
+        setLoadingTemplateAction(false);
+      }
+    },
+    [editingTemplate, loadExpenseData, message, performCloudSync],
+  );
+
+  const handleRemoveTemplate = useCallback(
+    async (record) => {
+      try {
+        setLoadingTemplateAction(true);
+        await removeExpenseTemplate({ id: record.id });
+        await loadExpenseData();
+        await performCloudSync();
+        message.success("常用支出已刪除");
+      } catch (error) {
+        message.error(toUserMessage(error, "刪除常用支出失敗"));
+      } finally {
+        setLoadingTemplateAction(false);
+      }
+    },
+    [loadExpenseData, message, performCloudSync],
+  );
+
+  const templateDragDisabled = isWriteDisabled || loadingTemplateReorder;
+
+  const handleTemplateDragEnd = useCallback(
+    async ({ active, over }) => {
+      if (templateDragDisabled || !over || active.id === over.id) return;
+      const previous = expenseTemplateRows;
+      const oldIndex = previous.findIndex((row) => row.id === active.id);
+      const newIndex = previous.findIndex((row) => row.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return;
+      const reordered = arrayMove(previous, oldIndex, newIndex);
+      // Optimistic: show the new order right away, roll back on failure.
+      setExpenseTemplateRows(reordered);
+      try {
+        setLoadingTemplateReorder(true);
+        await reorderExpenseTemplates(reordered.map((row) => row.id));
+        await loadExpenseData();
+        await performCloudSync();
+      } catch (error) {
+        setExpenseTemplateRows(previous);
+        message.error(toUserMessage(error, "常用支出排序更新失敗"));
+      } finally {
+        setLoadingTemplateReorder(false);
+      }
+    },
+    [
+      expenseTemplateRows,
+      loadExpenseData,
+      message,
+      performCloudSync,
+      templateDragDisabled,
+    ],
   );
 
   const handleRemoveBudget = useCallback(
@@ -2923,6 +3051,80 @@ function App() {
     ],
   );
 
+  const expenseTemplateColumns = useMemo(() => {
+    const categoryNames = new Map(
+      expenseCategoryRows.map((item) => [item.id, item.name]),
+    );
+    return [
+      {
+        key: "sort",
+        width: 44,
+        render: () => <DragHandle disabled={templateDragDisabled} />,
+      },
+      {
+        title: "名稱",
+        dataIndex: "name",
+        key: "name",
+        render: (value, record) => {
+          const meta = [
+            categoryNames.get(record.categoryId),
+            record.amountTwd ? formatTwd(record.amountTwd) : "金額不固定",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          return (
+            <div className="expense-template-cell">
+              <span>{value}</span>
+              <Text type="secondary" className="expense-template-meta">
+                {meta}
+              </Text>
+            </div>
+          );
+        },
+      },
+      {
+        title: "操作",
+        key: "actions",
+        width: 96,
+        render: (_, record) => (
+          <Space>
+            <Button
+              type="text"
+              className="row-action"
+              size="small"
+              icon={<EditOutlined />}
+              aria-label={`編輯 ${record.name}`}
+              disabled={isWriteDisabled}
+              onClick={() => openTemplateForm(record)}
+            />
+            <Popconfirm
+              title="刪除此常用支出？"
+              onConfirm={() => handleRemoveTemplate(record)}
+              okText="刪除"
+              cancelText="取消"
+              disabled={isWriteDisabled}
+            >
+              <Button
+                type="text"
+                className="row-action row-action--danger"
+                size="small"
+                aria-label={`刪除 ${record.name}`}
+                disabled={isWriteDisabled}
+                icon={<DeleteOutlined />}
+              />
+            </Popconfirm>
+          </Space>
+        ),
+      },
+    ];
+  }, [
+    expenseCategoryRows,
+    handleRemoveTemplate,
+    isWriteDisabled,
+    openTemplateForm,
+    templateDragDisabled,
+  ]);
+
   const expenseCategoryTabItems = useMemo(() => {
     const counters = new Map();
     let uncategorizedCount = 0;
@@ -3108,6 +3310,11 @@ function App() {
   const DraggableBodyRow = useCallback(
     (props) => <SortableRow {...props} disabled={dragDisabled} />,
     [dragDisabled],
+  );
+
+  const TemplateDraggableRow = useCallback(
+    (props) => <SortableRow {...props} disabled={templateDragDisabled} />,
+    [templateDragDisabled],
   );
 
   useEffect(() => {
@@ -3934,6 +4141,22 @@ function App() {
       autoComplete={isMobileViewport ? "off" : undefined}
       data-lpignore={isMobileViewport ? "true" : undefined}
     >
+      {!editingExpenseEntry && usableExpenseTemplates.length > 0 && (
+        <Form.Item label="常用支出">
+          <div className="expense-quick-chips" role="group" aria-label="常用支出">
+            {usableExpenseTemplates.map((item) => (
+              <Tag.CheckableTag
+                key={item.id}
+                checked={false}
+                onChange={() => handleApplyExpenseTemplate(item)}
+              >
+                {item.name}
+                {item.amountTwd ? ` · ${formatTwd(item.amountTwd)}` : ""}
+              </Tag.CheckableTag>
+            ))}
+          </div>
+        </Form.Item>
+      )}
       <Form.Item
         label="支出金額 (TWD)"
         name="amountTwd"
@@ -4190,6 +4413,52 @@ function App() {
         />
       </Form.Item>
     </Form>
+  );
+
+  const expenseTemplateTable = (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleTemplateDragEnd}
+    >
+      <SortableContext
+        items={expenseTemplateRows.map((row) => row.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <Table
+          rowKey="id"
+          className="expense-template-table"
+          dataSource={expenseTemplateRows}
+          columns={expenseTemplateColumns}
+          pagination={false}
+          showHeader={false}
+          loading={loadingTemplateReorder}
+          locale={{ emptyText: "尚無常用支出，按 + 新增" }}
+          components={{ body: { row: TemplateDraggableRow } }}
+        />
+      </SortableContext>
+    </DndContext>
+  );
+
+  const expenseTemplateFormNode = (
+    <ExpenseTemplateForm
+      key={templateFormKey}
+      formId={TEMPLATE_FORM_ID}
+      onSubmit={handleSubmitTemplate}
+      initialValues={editingTemplate}
+      categoryOptions={expenseCategoryRows.map((item) => ({
+        label: item.name,
+        value: item.id,
+      }))}
+      payerOptions={expensePayerOptions}
+      budgetOptions={selectableBudgetOptions.map((item) => ({
+        label: item.name,
+        value: item.id,
+      }))}
+      historySuggestions={quickExpenseSuggestions}
+      popupContainer={getSheetPopupContainer}
+      disabled={isWriteDisabled}
+    />
   );
 
   const categoryFormNode = (
@@ -6511,6 +6780,50 @@ function App() {
                   </Col>
                   <Col xs={24} lg={24}>
                     {isMobileViewport ? (
+                      <div className="mobile-list-section mobile-list-section--template">
+                        <div className="mobile-list-header">
+                          <Space size={8}>
+                            <span className="mobile-list-title">常用支出</span>
+                            <Button
+                              type="text"
+                              size="small"
+                              className="title-add-btn"
+                              icon={<PlusOutlined />}
+                              aria-label="新增常用支出"
+                              disabled={isWriteDisabled}
+                              onClick={() => openTemplateForm()}
+                            />
+                          </Space>
+                        </div>
+                        <div className="mobile-list-body">
+                          {expenseTemplateTable}
+                        </div>
+                      </div>
+                    ) : (
+                      <Card
+                        title={
+                          <Space size={8}>
+                            <span>常用支出</span>
+                            <Tooltip title="新增常用支出">
+                              <Button
+                                type="text"
+                                size="small"
+                                className="title-add-btn"
+                                icon={<PlusOutlined />}
+                                aria-label="新增常用支出"
+                                disabled={isWriteDisabled}
+                                onClick={() => openTemplateForm()}
+                              />
+                            </Tooltip>
+                          </Space>
+                        }
+                      >
+                        {expenseTemplateTable}
+                      </Card>
+                    )}
+                  </Col>
+                  <Col xs={24} lg={24}>
+                    {isMobileViewport ? (
                       <div className="mobile-list-section mobile-list-section--budget">
                         <div className="mobile-list-header">
                           <Space size={8}>
@@ -6966,7 +7279,8 @@ function App() {
             key={quickExpenseKey}
             open={isMobileViewport && isQuickExpenseOpen}
             onClose={() => setIsQuickExpenseOpen(false)}
-            suggestions={quickExpenseSuggestions}
+            templates={usableExpenseTemplates}
+            nameSuggestions={quickExpenseSuggestions}
             quickCategories={quickExpenseCategories}
             allCategories={expenseCategoryRows}
             defaults={quickExpenseDefaults}
@@ -6998,6 +7312,36 @@ function App() {
           >
             {expenseFormNode}
           </MobileFormSheetLayout>
+
+          <MobileFormSheetLayout
+            title={editingTemplate ? "編輯常用支出" : "新增常用支出"}
+            open={isMobileViewport && isTemplateFormOpen}
+            onClose={closeTemplateForm}
+            loading={loadingTemplateAction}
+            submitDisabled={isWriteDisabled}
+            submitText="儲存"
+            submitFormId={TEMPLATE_FORM_ID}
+          >
+            {isMobileViewport && expenseTemplateFormNode}
+          </MobileFormSheetLayout>
+
+          <Modal
+            title={editingTemplate ? "編輯常用支出" : "新增常用支出"}
+            open={!isMobileViewport && isTemplateFormOpen}
+            onCancel={() => {
+              if (!loadingTemplateAction) closeTemplateForm();
+            }}
+            confirmLoading={loadingTemplateAction}
+            okButtonProps={{
+              disabled: isWriteDisabled,
+              htmlType: "submit",
+              form: TEMPLATE_FORM_ID,
+            }}
+            okText="儲存"
+            destroyOnHidden
+          >
+            {!isMobileViewport && expenseTemplateFormNode}
+          </Modal>
 
           <MobileFormSheetLayout
             title={editingCategory ? "編輯分類" : "新增分類"}
