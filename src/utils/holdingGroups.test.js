@@ -32,4 +32,13 @@ describe('groupHoldingsByHolder', () => {
       { key: 'Wei', label: 'Wei', count: 1, totalTwd: 0, rows: [holding(1, 'Wei', undefined)] },
     ])
   })
+
+  it('totals another value field when asked (e.g. cash balances)', () => {
+    const groups = groupHoldingsByHolder(
+      [{ id: 1, holder: 'Po', balanceTwd: 300 }, { id: 2, holder: 'Po', balanceTwd: 200 }],
+      ['Po'],
+      { valueKey: 'balanceTwd' },
+    )
+    expect(groups.map((group) => [group.label, group.count, group.totalTwd])).toEqual([['Po', 2, 500]])
+  })
 })

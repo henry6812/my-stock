@@ -1,11 +1,15 @@
-// Mobile holdings list: holdings grouped by holder, in the configured holder
-// order, with each holder's count and total value. Holdings whose holder is
-// unset (or no longer an option) go last under 未設定; empty holders are
-// skipped.
+// Mobile holdings / cash lists: rows grouped by holder, in the configured
+// holder order, with each holder's count and the total of `valueKey`
+// (holdings: latestValueTwd, cash: balanceTwd). Rows whose holder is unset
+// (or no longer an option) go last under 未設定; empty holders are skipped.
 
 const UNSET_LABEL = "未設定";
 
-export const groupHoldingsByHolder = (rows, holderOptions) => {
+export const groupHoldingsByHolder = (
+  rows,
+  holderOptions,
+  { valueKey = "latestValueTwd" } = {},
+) => {
   const known = new Set(holderOptions || []);
   const byHolder = new Map();
   (rows || []).forEach((row) => {
@@ -22,7 +26,7 @@ export const groupHoldingsByHolder = (rows, holderOptions) => {
         label: key,
         count: groupRows.length,
         totalTwd: groupRows.reduce(
-          (sum, row) => sum + (Number(row.latestValueTwd) || 0),
+          (sum, row) => sum + (Number(row[valueKey]) || 0),
           0,
         ),
         rows: groupRows,

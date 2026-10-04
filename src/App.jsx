@@ -2225,6 +2225,21 @@ function App() {
     [holderOptions, rows],
   );
 
+  // Mobile: cash accounts grouped by holder (replacing the holder tabs),
+  // each with its count and total balance.
+  const cashGroups = useMemo(
+    () =>
+      groupHoldingsByHolder(cashRows, holderOptions, {
+        valueKey: "balanceTwd",
+      }).map((group) => ({
+        key: group.key,
+        title: `${group.label} · ${group.count} 個帳戶`,
+        total: formatTwd(group.totalTwd),
+        rows: group.rows,
+      })),
+    [cashRows, holderOptions],
+  );
+
   const filteredCashRows = useMemo(() => {
     return filterRowsByHolderTab(cashRows, activeCashHolderTab);
   }, [activeCashHolderTab, cashRows]);
@@ -6437,22 +6452,22 @@ function App() {
                       </Space>
                     </div>
                     <div className="mobile-list-body">
-                      <Tabs
-                        activeKey={activeCashHolderTab}
-                        onChange={setActiveCashHolderTab}
-                        items={cashHolderTabItems}
-                        style={{ marginBottom: 12 }}
-                      />
-                      <Table
-                        showHeader={false}
-                        className="mobile-swipe-table"
-                        rowKey="id"
-                        dataSource={filteredCashRows}
-                        columns={cashTableColumns}
-                        pagination={false}
-                        locale={{
-                          emptyText: "尚未新增銀行現金帳戶",
-                        }}
+                      {/* Grouped by holder, each foldable with its total
+                          balance; rows reuse the mobile cash row. */}
+                      <CollapsibleGroups
+                        className="cash-groups"
+                        groups={cashGroups}
+                        renderRow={(record) => (
+                          <Fragment key={record.id}>
+                            {cashTableColumns[0].render(null, record)}
+                          </Fragment>
+                        )}
+                        empty={
+                          <Empty
+                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                            description="尚未新增銀行現金帳戶"
+                          />
+                        }
                       />
                     </div>
                   </div>
