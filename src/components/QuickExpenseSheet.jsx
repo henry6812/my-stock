@@ -127,9 +127,11 @@ function QuickExpenseSheet({
         categoryId: categoryId ?? null,
         ...extras,
       });
+      // Stay locked after a success: the sheet is closing, and a stray tap on
+      // its sliding-away save key must not write a second entry. The next
+      // open remounts the sheet with a fresh ref.
     } catch {
-      // The parent reports the error and keeps the sheet open.
-    } finally {
+      // The parent reports the error and keeps the sheet open; allow a retry.
       submittingRef.current = false;
     }
   };
@@ -292,6 +294,7 @@ function QuickExpenseSheet({
         <button
           type="button"
           className="quick-expense-link"
+          disabled={loading}
           onClick={handleOpenFullForm}
         >
           完整表單

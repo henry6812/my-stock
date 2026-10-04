@@ -1423,6 +1423,8 @@ function App() {
         );
       } catch (error) {
         message.error(toUserMessage(error, "儲存支出失敗"));
+        // Rethrow so the sheet unlocks its save key for a retry.
+        throw error;
       } finally {
         setLoadingExpenseAction(false);
       }

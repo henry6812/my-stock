@@ -186,6 +186,21 @@ describe('<QuickExpenseSheet />', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1)
   })
 
+  it('does not submit again after a successful save', async () => {
+    const { user, onSubmit } = renderSheet()
+    await user.click(screen.getByRole('button', { name: '餐飲' }))
+    await press(user, ['8'])
+    await user.click(saveButton())
+    await user.click(saveButton())
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('完整表單 is inert while saving', async () => {
+    const { user, onOpenFullForm } = renderSheet({ loading: true })
+    await user.click(screen.getByRole('button', { name: '完整表單' }))
+    expect(onOpenFullForm).not.toHaveBeenCalled()
+  })
+
   it('stays usable after a failed submit', async () => {
     const onSubmit = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
     const { user } = renderSheet({ onSubmit })
