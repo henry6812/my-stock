@@ -1727,3 +1727,152 @@
 .expense-template-meta {
   font-size: var(--fs-caption);
 }
+
+/* 固定支出總覽 (RecurringOverview) */
+.recurring-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.recurring-overview-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.recurring-overview-title {
+  font-size: var(--fs-subhead);
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.recurring-overview-summary {
+  flex-basis: 100%;
+  font-size: var(--fs-caption);
+}
+
+.recurring-overview-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+
+.recurring-overview-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.recurring-overview-item + .recurring-overview-item {
+  border-top: 1px solid var(--c-line);
+}
+
+.recurring-overview-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recurring-overview-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-weight: 500;
+  color: var(--c-ink);
+}
+
+.recurring-overview-tag.ant-tag {
+  margin: 0;
+  font-size: var(--fs-caption);
+}
+
+.recurring-overview-meta {
+  font-size: var(--fs-caption);
+}
+
+.recurring-overview-next {
+  font-size: var(--fs-caption);
+  color: var(--c-teal-ink);
+}
+
+.recurring-overview-next.is-today {
+  color: var(--c-warn);
+  font-weight: 600;
+}
+
+.recurring-overview-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.recurring-overview-amount {
+  font-weight: 600;
+  color: var(--c-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.recurring-overview-cadence {
+  margin-left: 2px;
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  color: var(--c-muted);
+}
+
+.recurring-overview-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.recurring-overview-toggle.ant-btn {
+  align-self: flex-start;
+  padding-inline: 0;
+}
+
+/* Expense list: recurring / upcoming rows */
+.expense-recurring-tags {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.expense-recurring-tags .ant-tag {
+  margin: 0;
+  font-size: var(--fs-caption);
+  line-height: 18px;
+}
+
+.expense-recurring-tag.ant-tag {
+  color: var(--c-teal-ink);
+  background: var(--c-teal-soft);
+}
+
+.expense-row--upcoming > td {
+  opacity: 0.55;
+}
+
+.expense-type-filter {
+  margin-bottom: 8px;
+}
+
+.expense-upcoming-note {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--fs-caption);
+}
+
+.expense-recurring-edit-alert {
+  margin-bottom: 16px;
+}

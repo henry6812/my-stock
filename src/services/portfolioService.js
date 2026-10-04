@@ -39,6 +39,11 @@ import {
   planTemplateReorder,
 } from "../utils/expenseTemplates";
 import {
+  getMonthlyEquivalentTwd,
+  getNextRecurringOccurrence,
+  sumUpcomingRecurringTwd,
+} from "../utils/recurrence";
+import {
   HOLDING_SHARES_MODE,
   normalizeHoldingSymbol,
   resolveNextShares,
@@ -3379,6 +3384,7 @@ export const getExpenseDashboardView = async (input = {}) => {
   );
   const holderOptions = await ensureHolderOptions();
 
+  const todayIso = getNowDate();
   const expenseRows = expandRecurringOccurrencesForMonth(
     entries,
     activeMonth,
@@ -3398,6 +3404,9 @@ export const getExpenseDashboardView = async (input = {}) => {
     categoryId: item.categoryId ?? null,
     budgetId: item.budgetId ?? null,
     isRecurringOccurrence: Boolean(item.isRecurringOccurrence),
+    // A recurring charge later this month: listed, but not spent yet.
+    isUpcoming:
+      Boolean(item.isRecurringOccurrence) && item.occurrenceDate > todayIso,
     updatedAt: item.updatedAt,
   }));
 
@@ -3417,10 +3426,14 @@ export const getExpenseDashboardView = async (input = {}) => {
       ? budgetMap.get(row.budgetId) || "未指定"
       : "未指定",
   }));
-  const monthlyExpenseTotalTwd = decoratedExpenseRows.reduce(
+  const chargedExpenseRows = expenseRows.filter((row) => !row.isUpcoming);
+  const monthlyExpenseTotalTwd = chargedExpenseRows.reduce(
     (sum, row) => sum + (Number(row.amountTwd) || 0),
     0,
   );
+  const upcomingMonthTotalTwd = expenseRows
+    .filter((row) => row.isUpcoming)
+    .reduce((sum, row) => sum + (Number(row.amountTwd) || 0), 0);
   const cumulativeExpenseTotalTwd = computeCumulativeExpenseTotal(
     entries,
     getNowDate(),
@@ -3460,7 +3473,7 @@ export const getExpenseDashboardView = async (input = {}) => {
   const monthHasIncome =
     typeof incomeForActiveMonthTwd === "number" && incomeForActiveMonthTwd > 0;
   const yearHasIncome = incomeForCurrentYearTwd > 0;
-  const monthBreakdown = computeExpenseBreakdown(expenseRows);
+  const monthBreakdown = computeExpenseBreakdown(chargedExpenseRows);
 
   const today = getNowDate();
   const todayObj = toDayjsDateOnly(today);
@@ -3509,6 +3522,15 @@ export const getExpenseDashboardView = async (input = {}) => {
       hasCarryInApplied: stats.hasCarryInApplied ?? false,
       availableTwd: stats.availableTwd,
       spentTwd: stats.spentTwd,
+      // Part of spentTwd that is recurring charges still to come this cycle.
+      upcomingTwd: stats.isConfigured
+        ? sumUpcomingRecurringTwd(entries, {
+            budgetId: budget.id,
+            today: todayIso,
+            cycleStart: stats.cycleStart,
+            cycleEnd: stats.cycleEnd,
+          })
+        : 0,
       remainingTwd: stats.remainingTwd,
       progressPct: stats.progressPct,
       isConfigured: stats.isConfigured,
@@ -3552,27 +3574,36 @@ export const getExpenseDashboardView = async (input = {}) => {
         categoryId: entry.categoryId ?? null,
         budgetId: entry.budgetId ?? null,
         hasOccurrenceToday,
+        nextOccurrenceDate: getNextRecurringOccurrence(entry, today),
+        monthlyEquivalentTwd: getMonthlyEquivalentTwd(entry),
+        startsInFuture: (normalizeDateOnly(entry.occurredAt) || "") > today,
         updatedAt: entry.updatedAt ?? null,
         createdAt: entry.createdAt ?? null,
       };
     })
-    .sort((a, b) => {
-      const updatedCompare = (b.updatedAt || "").localeCompare(
-        a.updatedAt || "",
-      );
-      if (updatedCompare !== 0) return updatedCompare;
-      const createdCompare = (b.createdAt || "").localeCompare(
-        a.createdAt || "",
-      );
-      if (createdCompare !== 0) return createdCompare;
-      return Number(b.id || 0) - Number(a.id || 0);
-    });
+    // Soonest charge first; rows without one (shouldn't happen for active
+    // rules) go last.
+    .sort(
+      (a, b) =>
+        (a.nextOccurrenceDate || "9999").localeCompare(
+          b.nextOccurrenceDate || "9999",
+        ) || String(a.name).localeCompare(String(b.name)),
+    );
+  const recurringSummary = {
+    count: recurringExpenseRows.length,
+    monthlyEquivalentTwd: recurringExpenseRows.reduce(
+      (sum, row) => sum + row.monthlyEquivalentTwd,
+      0,
+    ),
+  };
 
   const allHistoryOccurrences = expandExpenseOccurrencesUntilDate(
     entries,
     today,
   );
-  const monthOccurrences = getOccurrencesForMonth(entries, activeMonth);
+  const monthOccurrences = getOccurrencesForMonth(entries, activeMonth).filter(
+    (item) => !(item.isRecurringOccurrence && item.occurredAt > today),
+  );
   const cumulativeBreakdown = computeExpenseBreakdown(allHistoryOccurrences);
   const expenseIncomeProgress = {
     month: {
@@ -3628,6 +3659,7 @@ export const getExpenseDashboardView = async (input = {}) => {
     monthOptions,
     activeMonth,
     monthlyExpenseTotalTwd,
+    upcomingMonthTotalTwd,
     cumulativeExpenseTotalTwd,
     firstExpenseDate,
     incomeForActiveMonthTwd: monthHasIncome ? incomeForActiveMonthTwd : null,
@@ -3659,6 +3691,7 @@ export const getExpenseDashboardView = async (input = {}) => {
       name: item.name,
     })),
     recurringExpenseRows,
+    recurringSummary,
     expenseNameSuggestions: buildExpenseNameSuggestions(entries),
     expenseTemplates: buildTemplateRows(await db.expense_templates.toArray(), {
       categories,
