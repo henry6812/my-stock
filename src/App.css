@@ -1501,3 +1501,207 @@
   font-size: var(--fs-caption);
   white-space: nowrap;
 }
+
+/* Quick expense sheet (mobile) */
+.quick-expense-sheet .ant-drawer-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.quick-expense {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.quick-expense-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quick-expense-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s;
+}
+
+.quick-expense-category-label {
+  align-self: flex-start;
+  color: var(--c-muted);
+  font-size: var(--fs-body);
+}
+
+.quick-expense-amount-value {
+  font-size: var(--fs-hero);
+  font-weight: 600;
+  color: var(--c-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.quick-expense-expr {
+  color: var(--c-subtle);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.quick-expense-name {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-subhead); /* >= 16px keeps iOS from zooming on focus */
+  color: var(--c-ink);
+  background: var(--c-surface);
+}
+
+.quick-expense-name:focus {
+  outline: none;
+  border-color: var(--c-teal);
+}
+
+.quick-expense-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.quick-expense-row-label {
+  flex: 0 0 auto;
+  color: var(--c-muted);
+  font-size: var(--fs-caption);
+}
+
+.quick-expense-scroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  min-width: 0;
+  scrollbar-width: none;
+}
+
+.quick-expense-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-expense-categories,
+.quick-expense-dates,
+.quick-expense-picker-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s;
+}
+
+.quick-expense-chip {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font-size: var(--fs-body);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.quick-expense-chip.is-active {
+  border-color: var(--c-teal);
+  background: var(--c-teal);
+  color: #fff;
+}
+
+.quick-expense-chip-meta {
+  margin-left: 2px;
+  opacity: 0.7;
+  font-size: var(--fs-caption);
+}
+
+.quick-expense-date-chip {
+  position: relative;
+}
+
+.quick-expense-date-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+
+.quick-expense .is-flashing {
+  background: var(--c-teal-soft);
+}
+
+.quick-expense-keypad {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--c-line);
+  border-top: 1px solid var(--c-line);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.quick-expense-key {
+  min-height: 56px;
+  border: none;
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font-size: var(--fs-title);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.quick-expense-key:active {
+  background: var(--c-neutral-fill);
+}
+
+.quick-expense-key--save {
+  background: var(--c-teal);
+  color: #fff;
+  font-weight: 600;
+}
+
+.quick-expense-key--save:active {
+  background: var(--c-teal-ink);
+}
+
+.quick-expense-key--save[aria-disabled="true"] {
+  background: var(--c-line-strong);
+}
+
+.quick-expense-link {
+  border: none;
+  background: none;
+  padding: 4px 0;
+  color: var(--c-teal);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+.quick-expense-picker {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
