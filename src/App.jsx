@@ -1,5 +1,6 @@
 import {
   Component,
+  Fragment,
   createContext,
   useCallback,
   useContext,
@@ -105,6 +106,7 @@ import QuickExpenseSheet from "./components/QuickExpenseSheet";
 import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
 import RecurringOverview from "./components/RecurringOverview";
 import SwipeActions from "./components/SwipeActions";
+import CollapsibleGroups from "./components/CollapsibleGroups";
 import ExpenseDayList, {
   UpcomingExpenseList,
 } from "./components/ExpenseDayList";
@@ -203,6 +205,7 @@ import {
 } from "./utils/expenseSuggestions";
 import { applyTemplateToFormValues } from "./utils/expenseTemplates";
 import { describeRecurrenceStart } from "./utils/recurrence";
+import { groupHoldingsByHolder } from "./utils/holdingGroups";
 import { applyPwaUpdate, onPwaNeedRefresh } from "./pwaUpdate";
 import "./App.css";
 
@@ -2208,6 +2211,19 @@ function App() {
     }
     return items;
   }, [holderOptions, rows]);
+
+  // Mobile: holdings grouped by holder (replacing the holder tabs), each
+  // with its count and total value.
+  const holdingGroups = useMemo(
+    () =>
+      groupHoldingsByHolder(rows, holderOptions).map((group) => ({
+        key: group.key,
+        title: `${group.label} · ${group.count} 檔`,
+        total: formatTwd(group.totalTwd),
+        rows: group.rows,
+      })),
+    [holderOptions, rows],
+  );
 
   const filteredCashRows = useMemo(() => {
     return filterRowsByHolderTab(cashRows, activeCashHolderTab);
@@ -6301,39 +6317,21 @@ function App() {
                       </div>
                     </div>
                     <div className="mobile-list-body">
-                      <Tabs
-                        activeKey={activeHoldingTab}
-                        onChange={setActiveHoldingTab}
-                        items={holdingHolderTabItems}
-                        style={{ marginBottom: 12 }}
-                      />
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEnd}
-                      >
-                        <SortableContext
-                          items={filteredRows.map((row) => row.id)}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          <Table
-                            showHeader={false}
-                            className="mobile-swipe-table"
-                            tableLayout="fixed"
-                            rowKey="id"
-                            dataSource={filteredRows}
-                            columns={tableColumns}
-                            pagination={false}
-                            loading={loadingData || loadingReorder}
-                            locale={{ emptyText: holdingsEmptyState }}
-                            components={{
-                              body: {
-                                row: DraggableBodyRow,
-                              },
-                            }}
-                          />
-                        </SortableContext>
-                      </DndContext>
+                      {/* Grouped by holder, each foldable with its total;
+                          rows reuse the mobile holding row (swipe actions,
+                          inline editor). */}
+                      <Spin spinning={loadingData || loadingReorder}>
+                        <CollapsibleGroups
+                          className="holding-groups"
+                          groups={holdingGroups}
+                          renderRow={(record) => (
+                            <Fragment key={record.id}>
+                              {tableColumns[0].render(null, record)}
+                            </Fragment>
+                          )}
+                          empty={holdingsEmptyState}
+                        />
+                      </Spin>
                     </div>
                   </div>
                 ) : (
