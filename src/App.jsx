@@ -6913,15 +6913,8 @@ function App() {
                             getActions={getExpenseSwipeActions}
                             disabled={isWriteDisabled}
                           />
-                          <Tabs
-                            className="expense-category-tabs"
-                            activeKey={activeExpenseCategoryTab}
-                            onChange={setActiveExpenseCategoryTab}
-                            items={expenseCategoryTabItems}
-                            style={{ marginBottom: 12 }}
-                          />
                           <ExpenseDayList
-                            rows={filteredExpenseRowsByCategory}
+                            rows={expenseListRows}
                             today={dayjs().format("YYYY-MM-DD")}
                             getActions={getExpenseSwipeActions}
                             disabled={isWriteDisabled}
