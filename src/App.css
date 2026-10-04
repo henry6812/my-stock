@@ -1863,9 +1863,17 @@
   opacity: 0.55;
 }
 
-/* 本月預計 stands alone above the 支出列表 section. */
+/* 本月預計 stands alone under the 支出列表 section, with a taller, easy to
+   tap toggle. */
 .expense-day-list.expense-upcoming-group {
   margin-bottom: 16px;
+}
+
+.expense-upcoming-group .expense-upcoming-toggle {
+  min-height: 48px;
+  padding: 12px;
+  font-size: var(--fs-body);
+  color: var(--c-ink);
 }
 
 .expense-upcoming-note {
@@ -2105,8 +2113,11 @@
   color: var(--c-ink);
 }
 
+/* Same height whether or not the row has a category · payer line. */
 .expense-day-row {
   align-items: center;
+  min-height: 64px;
+  padding-block: 12px;
 }
 
 .expense-day-group .swipe-actions + .swipe-actions {

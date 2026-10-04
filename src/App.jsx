@@ -6874,11 +6874,6 @@ function App() {
                   <Col xs={24}>
                     {isMobileViewport ? (
                       <>
-                      <UpcomingExpenseList
-                        rows={expenseRows}
-                        getActions={getExpenseSwipeActions}
-                        disabled={isWriteDisabled}
-                      />
                       <div className="mobile-list-section mobile-list-section--expense">
                         <div className="mobile-list-header">
                           <span className="mobile-list-title">支出列表</span>
@@ -6900,6 +6895,13 @@ function App() {
                           />
                         </div>
                       </div>
+                      {/* This month's upcoming recurring charges, apart and
+                          collapsed, under the list. */}
+                      <UpcomingExpenseList
+                        rows={expenseRows}
+                        getActions={getExpenseSwipeActions}
+                        disabled={isWriteDisabled}
+                      />
                       </>
                     ) : (
                       <Card title="支出列表">
