@@ -2936,19 +2936,16 @@ function App() {
       {
         key: "row",
         render: (_, record) => {
-          const main = (
-            <div>
-              {byKey.account.render(null, record)}
-              <div className="holding-mobile-tags">
-                {byKey.holder.render(record.holder, record)}
-              </div>
-            </div>
-          );
           const balance = byKey.balanceTwd.render(record.balanceTwd, record);
           if (editingCashAccountId === record.id) {
             return (
               <div className="mobile-swipe-row mobile-swipe-row--editing">
-                {main}
+                <div>
+                  {byKey.account.render(null, record)}
+                  <div className="holding-mobile-tags">
+                    {byKey.holder.render(record.holder, record)}
+                  </div>
+                </div>
                 {balance}
                 <div className="holding-mobile-editor-actions">
                   {byKey.actions.render(null, record)}
@@ -2957,6 +2954,27 @@ function App() {
             );
           }
           const name = record.accountAlias || record.bankName || "帳戶";
+          // Like the expense list: 「備註 · 持有人」 as plain secondary text.
+          const meta = [
+            record.accountAlias,
+            record.holderName && record.holderName !== "未設定"
+              ? record.holderName
+              : null,
+          ].filter(Boolean);
+          const main = (
+            <div>
+              <div className="holding-main-text">
+                {record.bankCode
+                  ? `${record.bankName} (${record.bankCode})`
+                  : record.bankName}
+              </div>
+              {meta.length > 0 && (
+                <Text type="secondary" className="holding-subline">
+                  {meta.join(" · ")}
+                </Text>
+              )}
+            </div>
+          );
           return (
             <MobileSwipeRow
               disabled={
