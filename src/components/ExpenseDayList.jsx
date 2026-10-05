@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Typography } from "antd";
-import { DownOutlined, RightOutlined, SyncOutlined } from "@ant-design/icons";
+import { RightOutlined, SyncOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
+import Collapsible from "./Collapsible";
 import SwipeActions from "./SwipeActions";
 import { formatTwd } from "../utils/formatters";
 import {
@@ -83,13 +84,13 @@ export function UpcomingExpenseList({
         <span>
           {label} {upcoming.rows.length} 筆 · {formatTwd(upcoming.totalTwd)}
         </span>
-        {expanded ? <DownOutlined /> : <RightOutlined />}
+        <RightOutlined className="collapse-chevron" />
       </button>
-      {expanded && (
+      <Collapsible open={expanded}>
         <div className="expense-day-group">
           {renderRows(upcoming.rows, getActions, disabled)}
         </div>
-      )}
+      </Collapsible>
     </div>
   );
 }
@@ -127,10 +128,12 @@ function ExpenseDayList({
               <span>{formatDayHeading(day.date, today)}</span>
               <span className="expense-day-heading-end">
                 <span className="expense-day-total">{formatTwd(day.totalTwd)}</span>
-                {expanded ? <DownOutlined /> : <RightOutlined />}
+                <RightOutlined className="collapse-chevron" />
               </span>
             </button>
-            {expanded && renderRows(day.rows, getActions, disabled)}
+            <Collapsible open={expanded}>
+              {renderRows(day.rows, getActions, disabled)}
+            </Collapsible>
           </section>
         );
       })}

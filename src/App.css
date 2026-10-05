@@ -2154,6 +2154,21 @@
   gap: 8px;
 }
 
+/* Fold chevron: one icon that turns to point down when its heading opens. */
+.collapse-chevron {
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+[aria-expanded="true"] .collapse-chevron {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collapse-chevron {
+    transition: none;
+  }
+}
+
 /* Mobile 目前生效預算 (BudgetOverview) */
 .budget-overview {
   width: 100%;

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { DownOutlined, RightOutlined } from "@ant-design/icons";
+import { RightOutlined } from "@ant-design/icons";
+import Collapsible from "./Collapsible";
 
 // One framed list of groups, each folding from its heading (title on the
 // left, total + chevron on the right). Shares the expense day list's styles.
@@ -32,10 +33,10 @@ function CollapsibleGroups({
               <span>{group.title}</span>
               <span className="expense-day-heading-end">
                 <span className="expense-day-total">{group.total}</span>
-                {expanded ? <DownOutlined /> : <RightOutlined />}
+                <RightOutlined className="collapse-chevron" />
               </span>
             </button>
-            {expanded && group.rows.map(renderRow)}
+            <Collapsible open={expanded}>{group.rows.map(renderRow)}</Collapsible>
           </section>
         );
       })}
