@@ -34,3 +34,22 @@ const INTERACTIVE_SELECTOR = [
 // Desktop rows open the detail sheet on click, except clicks that land on
 // the row's own controls (edit, delete, drag handle, inline editors).
 export const isInteractiveTarget = (target) => Boolean(target?.closest?.(INTERACTIVE_SELECTOR))
+
+const CHART_QUARTERS = 8
+
+const shortLabel = ({ year, quarter }) => `${String(year).slice(2)}Q${quarter}`
+
+// Latest 8 quarters for the EPS chart, each with last year's same quarter
+// and (US) the consensus estimate it was measured against.
+export const buildEpsChartData = ({ singles = [], surprises = [] }) =>
+  singles.slice(-CHART_QUARTERS).map((item) => {
+    const lastYear = singles.find((other) => other.year === item.year - 1 && other.quarter === item.quarter)
+    const surprise = surprises.find((other) => other.year === item.year && other.quarter === item.quarter)
+    return {
+      label: shortLabel(item),
+      eps: Number.isFinite(item.eps) ? item.eps : null,
+      lastYearEps: Number.isFinite(lastYear?.eps) ? lastYear.eps : null,
+      estimate: Number.isFinite(surprise?.estimate) ? surprise.estimate : null,
+      surprisePercent: Number.isFinite(surprise?.surprisePercent) ? surprise.surprisePercent : null,
+    }
+  })
