@@ -26,7 +26,8 @@ const keyOfQuarterIndex = (index) => quarterKey(Math.floor(index / 4), (index % 
 const REVENUE_FIELDS = ['營業收入', '淨收益', '收益', '利息淨收益']
 const OPERATING_INCOME_FIELDS = ['營業利益（損失）', '營業利益']
 const NET_INCOME_FIELDS = ['本期淨利（淨損）', '本期稅後淨利（淨損）']
-const EPS_FIELDS = ['基本每股盈餘（元）']
+// Insurers moved to IFRS 17 in 2026; their MOPS layout drops the （元）.
+const EPS_FIELDS = ['基本每股盈餘（元）', '基本每股盈餘']
 
 const pickNumber = (row, names) => {
   for (const name of names) {
@@ -82,6 +83,8 @@ export const mergeEpsRows = (history, rows) => {
 
 // A company whose latest quarter is present but whose previous quarter is
 // missing, while it has older data, means a daily run missed a filing.
+// Semi-annual filers (創新板) only ever report Q2 / Q4; with at least three
+// such filings and nothing else, a missing Q1 / Q3 is not a gap.
 export const findRecentGaps = (history) => {
   const gaps = []
   for (const [code, company] of Object.entries(history?.companies ?? {})) {
@@ -89,7 +92,8 @@ export const findRecentGaps = (history) => {
     if (indexes.length < 2) continue
     const latest = indexes.at(-1)
     const previous = latest - 1
-    if (!indexes.includes(previous) && indexes[0] < previous) {
+    const semiAnnual = indexes.length >= 3 && indexes.every((index) => index % 2 === 1)
+    if (!indexes.includes(previous) && indexes[0] < previous && !semiAnnual) {
       gaps.push({ code, missing: keyOfQuarterIndex(previous) })
     }
   }

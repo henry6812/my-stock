@@ -73,6 +73,14 @@ describe('normalizeIncomeRow', () => {
     expect(row).toMatchObject({ code: '2330', year: 2025, quarter: 2, eps: 29.31, revenue: 1773045533 })
   })
 
+  it('reads the IFRS 17 insurance layout, whose EPS header has no （元）', () => {
+    const row = normalizeIncomeRow(
+      { 公司代號: '2851', 公司名稱: '中再保', 保險服務結果: '707,341', 基本每股盈餘: '3.99' },
+      { year: 2026, quarter: 1 },
+    )
+    expect(row).toMatchObject({ code: '2851', year: 2026, quarter: 1, eps: 3.99 })
+  })
+
   it('drops rows without a usable EPS or period', () => {
     expect(normalizeIncomeRow({ ...tsmcOpenApiRow, '基本每股盈餘（元）': '--' })).toBeNull()
     expect(normalizeIncomeRow({ ...tsmcOpenApiRow, 季別: '5' })).toBeNull()
@@ -125,6 +133,10 @@ describe('findRecentGaps', () => {
 
   it('ignores companies whose history starts at the latest quarter', () => {
     expect(findRecentGaps(withQuarters(['2026Q2']))).toEqual([])
+  })
+
+  it('ignores semi-annual filers (創新板) that never report that quarter', () => {
+    expect(findRecentGaps(withQuarters(['2025Q2', '2025Q4', '2026Q2']))).toEqual([])
   })
 
   it('ignores contiguous histories', () => {
