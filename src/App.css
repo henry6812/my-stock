@@ -2437,3 +2437,143 @@
     animation: none !important;
   }
 }
+
+/* ---- Stock detail sheet ---- */
+.stock-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.valuation-card-message {
+  padding: 12px 0;
+}
+
+.valuation-ruler {
+  position: relative;
+  padding-top: 18px;
+}
+
+.valuation-ruler-track {
+  position: relative;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--c-track);
+  overflow: hidden;
+}
+
+.valuation-ruler-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.valuation-ruler-band--cheap {
+  left: 0;
+  background: var(--c-up);
+  opacity: 0.55;
+}
+
+.valuation-ruler-band--fair {
+  background: var(--c-line-strong);
+}
+
+.valuation-ruler-band--expensive {
+  background: var(--c-down);
+  opacity: 0.55;
+}
+
+.valuation-ruler-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--c-ink);
+}
+
+.valuation-ruler-marker {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: var(--fs-caption);
+  color: var(--c-ink);
+  line-height: 1;
+}
+
+.valuation-card-prices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  text-align: center;
+}
+
+.valuation-card-price {
+  display: flex;
+  flex-direction: column;
+}
+
+.valuation-card-price-value {
+  font-size: var(--fs-subhead);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+
+.valuation-card-price--cheap .valuation-card-price-value {
+  color: var(--c-up);
+}
+
+.valuation-card-price--expensive .valuation-card-price-value {
+  color: var(--c-down);
+}
+
+.valuation-card-verdict {
+  font-size: var(--fs-subhead);
+  font-weight: 600;
+  text-align: center;
+}
+
+.valuation-card-verdict--below {
+  color: var(--c-up);
+}
+
+.valuation-card-verdict--above {
+  color: var(--c-down);
+}
+
+.valuation-assumptions-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--fs-subhead);
+  color: var(--c-ink);
+  cursor: pointer;
+}
+
+.valuation-assumptions-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.valuation-assumptions-formulas {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+}
+
+.valuation-assumption-row {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.valuation-assumption-row .ant-input-number {
+  width: 100%;
+}
