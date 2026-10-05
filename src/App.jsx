@@ -83,6 +83,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import dayjs from "dayjs";
 import anime from "animejs/lib/anime.es.js";
+import { flushSync } from "react-dom";
 import {
   Bar,
   BarChart,
@@ -210,6 +211,10 @@ import { describeRecurrenceStart } from "./utils/recurrence";
 import { groupHoldingsByHolder } from "./utils/holdingGroups";
 import useBodyScrollLock from "./hooks/useBodyScrollLock";
 import { applyPwaUpdate, onPwaNeedRefresh } from "./pwaUpdate";
+import {
+  getMainTabDirection,
+  runDirectionalTransition,
+} from "./utils/viewTransition";
 import "./App.css";
 
 const { Header, Content } = Layout;
@@ -453,6 +458,15 @@ function App() {
   const [pullDistance, setPullDistance] = useState(0);
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const [activeMainTab, setActiveMainTab] = useState("asset");
+  // Main tab switches slide in the direction of travel (View Transitions API);
+  // flushSync makes React commit inside the transition's update callback, and
+  // scrolling there means the incoming tab is captured already at the top.
+  const switchMainTab = (nextTab) => {
+    runDirectionalTransition(getMainTabDirection(activeMainTab, nextTab), () => {
+      flushSync(() => setActiveMainTab(nextTab));
+      window.scrollTo(0, 0);
+    });
+  };
   const [isTrendExpanded, setIsTrendExpanded] = useState(false);
   const [isPieExpanded, setIsPieExpanded] = useState(false);
   const [activeAllocationTab, setActiveAllocationTab] = useState("assetType");
@@ -5975,7 +5989,7 @@ function App() {
               <Segmented
                 size="middle"
                 value={activeMainTab}
-                onChange={setActiveMainTab}
+                onChange={switchMainTab}
                 options={[
                   { label: "資產總覽", value: "asset", icon: <HomeOutlined /> },
                   {
@@ -7451,7 +7465,7 @@ function App() {
               <Segmented
                 size="middle"
                 value={activeMainTab}
-                onChange={setActiveMainTab}
+                onChange={switchMainTab}
                 options={[
                   { icon: <HomeOutlined />, text: "資產", value: "asset" },
                   {

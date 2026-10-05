@@ -542,7 +542,6 @@
   .expanded-chart-item--visible {
     animation: none;
   }
-
 }
 
 .holdings-card-actions {
@@ -888,7 +887,6 @@
   height: 28px;
   padding: 0;
 }
-
 
 .expense-summary-subtext {
   display: block;
@@ -2299,4 +2297,93 @@
   font-size: var(--fs-caption);
   font-weight: 600;
   color: var(--c-muted);
+}
+
+/* ── Main tab switch: side-by-side page slide (View Transitions API) ──
+   The page animates as the viewport-sized root snapshot, so the outgoing tab
+   leaves exactly as it was scrolled while the incoming one arrives at the top.
+   Header, tabbar and FAB get their own names to stay out of the slide. */
+.app-header {
+  view-transition-name: main-header;
+}
+
+.mobile-main-tabbar {
+  view-transition-name: main-tabbar;
+}
+
+.expense-fab.ant-btn {
+  view-transition-name: main-fab;
+}
+
+/* Chrome stays put and shows its live state (the Segmented thumb animates). */
+::view-transition-group(main-header),
+::view-transition-old(main-header),
+::view-transition-new(main-header),
+::view-transition-group(main-tabbar),
+::view-transition-old(main-tabbar),
+::view-transition-new(main-tabbar) {
+  animation: none;
+}
+
+:root {
+  --main-tab-push-duration: 500ms;
+  --main-tab-push-ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+:root[data-tab-direction]::view-transition-old(root),
+:root[data-tab-direction]::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation-duration: var(--main-tab-push-duration);
+  animation-timing-function: var(--main-tab-push-ease);
+  animation-fill-mode: both;
+}
+
+/* Both pages move together, side by side like a pager: the outgoing tab
+   slides off one edge while the incoming one slides in from the other. */
+:root[data-tab-direction="forward"]::view-transition-old(root) {
+  animation-name: main-tab-out-left;
+}
+
+:root[data-tab-direction="forward"]::view-transition-new(root) {
+  animation-name: main-tab-in-right;
+}
+
+:root[data-tab-direction="back"]::view-transition-old(root) {
+  animation-name: main-tab-out-right;
+}
+
+:root[data-tab-direction="back"]::view-transition-new(root) {
+  animation-name: main-tab-in-left;
+}
+
+@keyframes main-tab-out-left {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes main-tab-in-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes main-tab-out-right {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes main-tab-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
