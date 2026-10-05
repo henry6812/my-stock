@@ -78,6 +78,14 @@ describe('<RecurringOverview />', () => {
     expect(listItems()).toHaveLength(4)
   })
 
+  it('marks the show-all toggle expanded so its arrow can turn', async () => {
+    const { user } = renderOverview()
+    const showAll = screen.getByRole('button', { name: '看全部 5 筆' })
+    expect(showAll).toHaveAttribute('aria-expanded', 'false')
+    await user.click(showAll)
+    expect(screen.getByRole('button', { name: '收合' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('describes the next charge relative to today', () => {
     renderOverview({ rows: [rows[0], rows[1], rows[4]] })
     const [rent, phone, streaming] = listItems()

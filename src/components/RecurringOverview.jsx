@@ -1,16 +1,23 @@
 import { useState } from "react";
 import { Button, Empty, Tag, Typography } from "antd";
 import HoverTooltip from "./HoverTooltip";
-import { EditOutlined, PlusOutlined, StopOutlined } from "@ant-design/icons";
+import {
+  DownOutlined,
+  EditOutlined,
+  PlusOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
 import { formatDate, formatTwd } from "../utils/formatters";
 import { formatRecurringScheduleText } from "../utils/portfolioView";
+import Collapsible from "./Collapsible";
 import SwipeActions from "./SwipeActions";
 
 const { Text } = Typography;
 
 // 固定支出總覽: the active recurring rules, soonest charge first (the service
-// sorts them), with a monthly-equivalent total. Collapsed to the next few.
+// sorts them), with a monthly-equivalent total. Rows past the first few fold
+// away behind a centred 看全部 / 收合 toggle.
 
 const COLLAPSED_COUNT = 4;
 
@@ -50,8 +57,112 @@ function RecurringOverview({
   swipeable = false,
 }) {
   const [expanded, setExpanded] = useState(false);
-  const visibleRows = expanded ? rows : rows.slice(0, COLLAPSED_COUNT);
   const hiddenCount = rows.length - COLLAPSED_COUNT;
+
+  const renderItem = (item) => {
+    const isYearly = item.recurrenceType === "YEARLY";
+    const meta = [
+      categoryNames.get(item.categoryId),
+      formatRecurringScheduleText(item),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const nextCharge = describeNextCharge(item.nextOccurrenceDate, today, {
+      withPrefix: !swipeable,
+    });
+    const nextChargeLine = nextCharge && (
+      <Text
+        className={`recurring-overview-next${
+          nextCharge === "今天扣款" ? " is-today" : ""
+        }`}
+      >
+        {nextCharge}
+      </Text>
+    );
+    return (
+      <li key={item.id} className="recurring-overview-item">
+        <RowShell
+          swipeable={swipeable}
+          disabled={disabled || Boolean(stoppingById[item.id])}
+          actions={[
+            {
+              key: "edit",
+              label: `編輯 ${item.name}`,
+              text: "編輯",
+              icon: <EditOutlined />,
+              onClick: () => onEdit?.(item),
+            },
+            {
+              key: "stop",
+              label: `停止 ${item.name}`,
+              text: "停止",
+              icon: <StopOutlined />,
+              tone: "warn",
+              onClick: () => onStop?.(item),
+            },
+          ]}
+        >
+        <div className="recurring-overview-main">
+          <div className="recurring-overview-name">
+            <span>{item.name}</span>
+            {item.startsInFuture && (
+              <Tag variant="filled" className="recurring-overview-tag">
+                {dayjs(item.occurredAt).format("M/D")} 起
+              </Tag>
+            )}
+            {item.recurrenceUntil && (
+              <Tag variant="filled" className="recurring-overview-tag">
+                至 {formatDate(item.recurrenceUntil)}
+              </Tag>
+            )}
+          </div>
+          <Text type="secondary" className="recurring-overview-meta">
+            {meta}
+          </Text>
+          {!swipeable && nextChargeLine}
+        </div>
+        <div className="recurring-overview-side">
+          <div className="recurring-overview-amount">
+            {formatTwd(Number(item.amountTwd) || 0)}
+            <span className="recurring-overview-cadence">
+              /{isYearly ? "年" : "月"}
+            </span>
+          </div>
+          {/* Mobile: the next charge sits right under the amount. */}
+          {swipeable && nextChargeLine}
+          {isYearly && (
+            <Text type="secondary" className="recurring-overview-meta">
+              約 {formatTwd(item.monthlyEquivalentTwd)}/月
+            </Text>
+          )}
+          {!swipeable && (
+          <div className="recurring-overview-actions">
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              aria-label={`編輯 ${item.name}`}
+              disabled={disabled}
+              onClick={() => onEdit?.(item)}
+            />
+            <HoverTooltip title="停止（已發生的紀錄會保留）">
+              <Button
+                type="text"
+                size="small"
+                icon={<StopOutlined />}
+                aria-label={`停止 ${item.name}`}
+                loading={Boolean(stoppingById[item.id])}
+                disabled={disabled}
+                onClick={() => onStop?.(item)}
+              />
+            </HoverTooltip>
+          </div>
+          )}
+        </div>
+        </RowShell>
+      </li>
+    );
+  };
 
   const createButton = (
     <HoverTooltip title="新增定期支出">
@@ -92,120 +203,26 @@ function RecurringOverview({
         </Empty>
       ) : (
         <>
-          <ul className="recurring-overview-list">
-            {visibleRows.map((item) => {
-              const isYearly = item.recurrenceType === "YEARLY";
-              const meta = [
-                categoryNames.get(item.categoryId),
-                formatRecurringScheduleText(item),
-              ]
-                .filter(Boolean)
-                .join(" · ");
-              const nextCharge = describeNextCharge(item.nextOccurrenceDate, today, {
-                withPrefix: !swipeable,
-              });
-              const nextChargeLine = nextCharge && (
-                <Text
-                  className={`recurring-overview-next${
-                    nextCharge === "今天扣款" ? " is-today" : ""
-                  }`}
-                >
-                  {nextCharge}
-                </Text>
-              );
-              return (
-                <li key={item.id} className="recurring-overview-item">
-                  <RowShell
-                    swipeable={swipeable}
-                    disabled={disabled || Boolean(stoppingById[item.id])}
-                    actions={[
-                      {
-                        key: "edit",
-                        label: `編輯 ${item.name}`,
-                        text: "編輯",
-                        icon: <EditOutlined />,
-                        onClick: () => onEdit?.(item),
-                      },
-                      {
-                        key: "stop",
-                        label: `停止 ${item.name}`,
-                        text: "停止",
-                        icon: <StopOutlined />,
-                        tone: "warn",
-                        onClick: () => onStop?.(item),
-                      },
-                    ]}
-                  >
-                  <div className="recurring-overview-main">
-                    <div className="recurring-overview-name">
-                      <span>{item.name}</span>
-                      {item.startsInFuture && (
-                        <Tag variant="filled" className="recurring-overview-tag">
-                          {dayjs(item.occurredAt).format("M/D")} 起
-                        </Tag>
-                      )}
-                      {item.recurrenceUntil && (
-                        <Tag variant="filled" className="recurring-overview-tag">
-                          至 {formatDate(item.recurrenceUntil)}
-                        </Tag>
-                      )}
-                    </div>
-                    <Text type="secondary" className="recurring-overview-meta">
-                      {meta}
-                    </Text>
-                    {!swipeable && nextChargeLine}
-                  </div>
-                  <div className="recurring-overview-side">
-                    <div className="recurring-overview-amount">
-                      {formatTwd(Number(item.amountTwd) || 0)}
-                      <span className="recurring-overview-cadence">
-                        /{isYearly ? "年" : "月"}
-                      </span>
-                    </div>
-                    {/* Mobile: the next charge sits right under the amount. */}
-                    {swipeable && nextChargeLine}
-                    {isYearly && (
-                      <Text type="secondary" className="recurring-overview-meta">
-                        約 {formatTwd(item.monthlyEquivalentTwd)}/月
-                      </Text>
-                    )}
-                    {!swipeable && (
-                    <div className="recurring-overview-actions">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<EditOutlined />}
-                        aria-label={`編輯 ${item.name}`}
-                        disabled={disabled}
-                        onClick={() => onEdit?.(item)}
-                      />
-                      <HoverTooltip title="停止（已發生的紀錄會保留）">
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<StopOutlined />}
-                          aria-label={`停止 ${item.name}`}
-                          loading={Boolean(stoppingById[item.id])}
-                          disabled={disabled}
-                          onClick={() => onStop?.(item)}
-                        />
-                      </HoverTooltip>
-                    </div>
-                    )}
-                  </div>
-                  </RowShell>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="recurring-overview-list">
+            <ul className="recurring-overview-items">
+              {rows.slice(0, COLLAPSED_COUNT).map(renderItem)}
+            </ul>
+            <Collapsible open={expanded}>
+              <ul className="recurring-overview-items recurring-overview-items--more">
+                {rows.slice(COLLAPSED_COUNT).map(renderItem)}
+              </ul>
+            </Collapsible>
+          </div>
           {hiddenCount > 0 && (
             <Button
-              type="link"
+              type="text"
               size="small"
               className="recurring-overview-toggle"
+              aria-expanded={expanded}
               onClick={() => setExpanded((value) => !value)}
             >
               {expanded ? "收合" : `看全部 ${rows.length} 筆`}
+              <DownOutlined className="recurring-overview-toggle-icon" aria-hidden />
             </Button>
           )}
         </>
