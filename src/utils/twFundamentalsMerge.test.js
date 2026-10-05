@@ -124,7 +124,7 @@ describe('findRecentGaps', () => {
   })
 
   it('flags a missing quarter right before the latest one', () => {
-    expect(findRecentGaps(withQuarters(['2025Q4', '2026Q2']))).toEqual([{ code: '1101', missing: '2026Q1' }])
+    expect(findRecentGaps(withQuarters(['2025Q3', '2025Q4', '2026Q2']))).toEqual([{ code: '1101', missing: '2026Q1' }])
   })
 
   it('treats Q4 of last year as the predecessor of Q1', () => {
@@ -137,6 +137,10 @@ describe('findRecentGaps', () => {
 
   it('ignores semi-annual filers (創新板) that never report that quarter', () => {
     expect(findRecentGaps(withQuarters(['2025Q2', '2025Q4', '2026Q2']))).toEqual([])
+  })
+
+  it('ignores a newly listed 創新板 company with only two semi-annual filings', () => {
+    expect(findRecentGaps(withQuarters(['2025Q2', '2025Q4']))).toEqual([])
   })
 
   it('ignores contiguous histories', () => {
