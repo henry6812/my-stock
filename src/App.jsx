@@ -113,6 +113,7 @@ import BudgetOverview from "./components/BudgetOverview";
 import BudgetDetailSheet from "./components/BudgetDetailSheet";
 import StockDetailSheet from "./components/StockDetailSheet";
 import { buildStockDetailHolding, isInteractiveTarget } from "./utils/stockDetail";
+import { isFromPortal } from "./utils/portalEvent";
 import ExpenseDayList, {
   UpcomingExpenseList,
 } from "./components/ExpenseDayList";
@@ -4548,7 +4549,10 @@ function App() {
       if (isPullRefreshing || event.touches.length !== 1) {
         return;
       }
-      if (window.scrollY > 0) {
+      // Sheets render inside <Content> but are portalled to <body>; their
+      // touches bubble here while the body is pinned at scrollY 0, which
+      // would pull the page behind the sheet down.
+      if (isFromPortal(event) || window.scrollY > 0) {
         pullingRef.current = false;
         return;
       }
