@@ -2577,3 +2577,51 @@
 .valuation-assumption-row .ant-input-number {
   width: 100%;
 }
+
+.holding-row--clickable {
+  cursor: pointer;
+}
+
+.stock-detail-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.stock-detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.stock-detail-price {
+  font-size: var(--fs-title);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-detail-change--up {
+  color: var(--c-up);
+}
+
+.stock-detail-change--down {
+  color: var(--c-down);
+}
+
+.stock-detail-holding {
+  flex-basis: 100%;
+}
+
+.stock-detail-chart {
+  width: 100%;
+  min-width: 0;
+}
+
+.stock-detail-source {
+  display: block;
+  padding: 16px 0 8px;
+  font-size: var(--fs-caption);
+}

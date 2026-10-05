@@ -111,6 +111,8 @@ import HoverTooltip from "./components/HoverTooltip";
 import CollapsibleGroups from "./components/CollapsibleGroups";
 import BudgetOverview from "./components/BudgetOverview";
 import BudgetDetailSheet from "./components/BudgetDetailSheet";
+import StockDetailSheet from "./components/StockDetailSheet";
+import { buildStockDetailHolding, isInteractiveTarget } from "./utils/stockDetail";
 import ExpenseDayList, {
   UpcomingExpenseList,
 } from "./components/ExpenseDayList";
@@ -338,10 +340,25 @@ function SortableRow({ disabled, ...props }) {
 
 // Mobile list row: content on the left / right, actions revealed by swiping
 // left (see SwipeActions).
-function MobileSwipeRow({ actions, disabled = false, main, side = null }) {
+function MobileSwipeRow({ actions, disabled = false, main, side = null, onTap }) {
   return (
     <SwipeActions actions={actions} disabled={disabled}>
-      <div className="mobile-swipe-row">
+      <div
+        className="mobile-swipe-row"
+        onClick={onTap}
+        role={onTap ? "button" : undefined}
+        tabIndex={onTap ? 0 : undefined}
+        onKeyDown={
+          onTap
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onTap();
+                }
+              }
+            : undefined
+        }
+      >
         <div className="mobile-swipe-row-main">{main}</div>
         {side !== null && <div className="mobile-swipe-row-side">{side}</div>}
       </div>
@@ -482,6 +499,7 @@ function App() {
   const [isQuickExpenseOpen, setIsQuickExpenseOpen] = useState(false);
   // Mobile: the budget whose current-cycle detail sheet is open.
   const [budgetDetailId, setBudgetDetailId] = useState(null);
+  const [stockDetailId, setStockDetailId] = useState(null);
   // Bumped on every open so QuickExpenseSheet remounts with fresh state.
   const [quickExpenseKey, setQuickExpenseKey] = useState(0);
   const [quickExpenseDefaults, setQuickExpenseDefaults] = useState({});
@@ -2096,6 +2114,11 @@ function App() {
     return filterRowsByHolderTab(rows, activeHoldingTab);
   }, [activeHoldingTab, rows]);
 
+  const stockDetail = useMemo(
+    () => (stockDetailId === null ? null : buildStockDetailHolding(rows, stockDetailId)),
+    [rows, stockDetailId],
+  );
+
   const handleExportHoldingsCsv = useCallback(() => {
     if (rows.length === 0) {
       return;
@@ -2733,6 +2756,7 @@ function App() {
             Boolean(loadingActionById[record.id]) || loadingReorder;
           return (
             <MobileSwipeRow
+              onTap={() => setStockDetailId(record.id)}
               disabled={isWriteDisabled || editingHoldingId !== null || rowBusy}
               actions={[
                 swipeEditAction(name, () => handleEditClick(record)),
@@ -6471,6 +6495,13 @@ function App() {
                           loading={loadingData || loadingReorder}
                           scroll={{ x: 980 }}
                           locale={{ emptyText: holdingsEmptyState }}
+                          onRow={(record) => ({
+                            className: "holding-row--clickable",
+                            onClick: (event) => {
+                              if (editingHoldingId === record.id || isInteractiveTarget(event.target)) return;
+                              setStockDetailId(record.id);
+                            },
+                          })}
                           components={{
                             body: {
                               row: DraggableBodyRow,
@@ -7748,6 +7779,15 @@ function App() {
               disabled={isWriteDisabled}
             />
           )}
+
+          <StockDetailSheet
+            key={stockDetail ? `${stockDetail.market}_${stockDetail.symbol}` : "none"}
+            open={Boolean(stockDetail)}
+            holding={stockDetail}
+            isMobile={isMobileViewport}
+            disabled={isWriteDisabled}
+            onClose={() => setStockDetailId(null)}
+          />
 
           <QuickExpenseSheet
             key={quickExpenseKey}
