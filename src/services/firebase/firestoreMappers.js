@@ -204,6 +204,9 @@ export const appConfigToRemote = (config) => ({
   monthOverrides: Array.isArray(config.monthOverrides)
     ? config.monthOverrides
     : [],
+  ...(config.valuation && typeof config.valuation === 'object'
+    ? { valuation: config.valuation }
+    : {}),
   updatedAt: config.updatedAt,
   deletedAt: config.deletedAt ?? null,
   clientUpdatedAt: config.updatedAt,
@@ -387,6 +390,8 @@ export const remoteToAppConfig = (data) => ({
   monthOverrides: Array.isArray(data.monthOverrides)
     ? data.monthOverrides
     : [],
+  valuation:
+    data.valuation && typeof data.valuation === 'object' ? data.valuation : undefined,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),
 })

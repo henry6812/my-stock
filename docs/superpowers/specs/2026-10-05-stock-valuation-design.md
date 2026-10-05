@@ -203,24 +203,20 @@ TWSE 的 EPS 是**年度累計值**。單季 EPS：
 
 **風險**：MOPS 是否能穩定以程式取得歷史彙總報表**尚未驗證**，是 implementation plan 的第一個任務。若無法取得：第一版仍上線，台股 TTM / 預估顯示「資料累積中」，等每日 workflow 累積到足夠季數為止；本益比回補不受影響。
 
-## 覆寫值同步：`valuationSettings`
+## 覆寫值同步（存於 `app_config`）
+
+覆寫值存在既有的 `app_config` 表（primary key 為字串），doc key 為 `valuation:<market>_<symbol>`，欄位：
 
 | 欄位 | 型別 | 說明 |
 |---|---|---|
-| `id` | string | `${market}_${symbol}` |
-| `market`, `symbol` | string | |
-| `peCheap`, `peFair`, `peExpensive` | number \| null | null = 用自動值 |
-| `growthRate` | number \| null | 小數（0.2 = 20%），僅台股 |
-| `forwardEps` | number \| null | 直接指定預估 EPS |
-| `updatedAt`, `deletedAt` | | 與其他表一致 |
+| `valuation.peCheap` / `peFair` / `peExpensive` | number \| null | null = 用自動值；必須 > 0 |
+| `valuation.growthRate` | number \| null | 小數（0.2 = 20%），> −1，僅台股 |
+| `valuation.forwardEps` | number \| null | 直接指定預估 EPS |
 
-需要同步修改：
-
-- `src/db/database.js`：`TABLE_STORAGE_KEYS.valuationSettings = 'my-stock:valuation_settings'` 與對應 `PersistedInMemoryTable`。
-- `src/services/firebase/firestoreMappers.js`：to / from remote mapper。
-- `cloudSyncService.js`：subscription，Firestore 路徑 `users/{uid}/valuationSettings`。
-- `portfolioService.js`：`saveValuationSettings(market, symbol, patch)`、`resetValuationSetting(market, symbol, field)`，走既有的 validate → local write → `mirrorToCloud` pattern。
-- `firestore.rules`：新增 collection 的規則（部署仍由使用者決定）。
+- 實作時改用 `app_config` 而非新表：sync、realtime listener、清除與匯出已完整支援，效果相同（以股票為 key、跨裝置同步、寫入需登入）。
+- `firestoreMappers.js` 的 `appConfigToRemote` / `remoteToAppConfig` 多帶 `valuation` 欄位。
+- `portfolioService.js`：`getValuationSettings({ market, symbol })`、`saveValuationSettings({ market, symbol, patch })`（patch 值為 null 即重設）。
+- `firestore.rules` 的 `users/{userId}/{document=**}` 已涵蓋，不需修改。
 
 ## 測試
 

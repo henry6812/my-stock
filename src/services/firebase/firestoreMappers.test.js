@@ -3,6 +3,8 @@ import {
   buildExpenseTemplateKey,
   expenseTemplateToRemote,
   remoteToExpenseTemplate,
+  appConfigToRemote,
+  remoteToAppConfig,
 } from './firestoreMappers'
 
 const template = {
@@ -84,5 +86,23 @@ describe('remoteToExpenseTemplate', () => {
     expect(result.budgetRemoteKey).toBeNull()
     expect(result.payer).toBeNull()
     expect(result.updatedAt).toBe('2026-10-04T02:00:00.000Z')
+  })
+})
+describe('valuation settings in app_config', () => {
+  const record = {
+    key: 'valuation:TW_2330',
+    valuation: { peCheap: 12, peFair: null, peExpensive: 20, growthRate: 0.1, forwardEps: null },
+    updatedAt: '2026-10-05T00:00:00.000Z',
+  }
+
+  it('round-trips the valuation object', () => {
+    const remote = appConfigToRemote(record)
+    expect(remote.valuation).toEqual(record.valuation)
+    expect(remoteToAppConfig(remote).valuation).toEqual(record.valuation)
+  })
+
+  it('omits valuation for other config docs', () => {
+    expect(appConfigToRemote({ key: 'income_settings', updatedAt: 'x' })).not.toHaveProperty('valuation')
+    expect(remoteToAppConfig({ key: 'income_settings' }).valuation).toBeUndefined()
   })
 })

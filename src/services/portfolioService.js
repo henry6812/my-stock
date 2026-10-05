@@ -28,6 +28,10 @@ import {
 import { buildCashAccountKey, buildHoldingKey } from "./firebase/firestoreMappers";
 import { parseNumericLike } from "../utils/number";
 import {
+  EMPTY_VALUATION_SETTINGS,
+  VALUATION_SETTING_FIELDS,
+} from "../utils/valuation";
+import {
   buildExpenseNameSuggestions,
   rankCategoriesByUsage,
 } from "../utils/expenseSuggestions";
@@ -809,6 +813,59 @@ export const removeIncomeOverride = async ({ month }) => {
     defaultMonthlyIncomeTwd,
     monthOverrides: next,
   });
+};
+
+// Per-stock overrides for the detail sheet's valuation, shared by every
+// holder of the same stock. Stored in app_config so they sync like the
+// other settings.
+const valuationConfigKey = (market, symbol) => `valuation:${market}_${symbol}`;
+
+const normalizeValuationValue = (field, value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw new Error(`${field} 必須是數字`);
+  }
+  if (field.startsWith("pe") && number <= 0) {
+    throw new Error("本益比必須大於 0");
+  }
+  if (field === "growthRate" && number <= -1) {
+    throw new Error("成長率必須大於 -100%");
+  }
+  return number;
+};
+
+export const getValuationSettings = async ({ market, symbol }) => {
+  const config = await db.app_config.get(valuationConfigKey(market, symbol));
+  const stored = config && !config.deletedAt ? config.valuation ?? {} : {};
+  return Object.fromEntries(
+    VALUATION_SETTING_FIELDS.map((field) => [
+      field,
+      Number.isFinite(stored[field]) ? stored[field] : EMPTY_VALUATION_SETTINGS[field],
+    ]),
+  );
+};
+
+export const saveValuationSettings = async ({ market, symbol, patch }) => {
+  ensureCloudWritable();
+  if (!market || !symbol) {
+    throw new Error("Missing market / symbol");
+  }
+  const next = await getValuationSettings({ market, symbol });
+  for (const [field, value] of Object.entries(patch ?? {})) {
+    if (!VALUATION_SETTING_FIELDS.includes(field)) {
+      throw new Error(`Unknown valuation field: ${field}`);
+    }
+    next[field] = normalizeValuationValue(field, value);
+  }
+  await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, {
+    key: valuationConfigKey(market, symbol),
+    valuation: next,
+    updatedAt: getNowIso(),
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  });
+  return next;
 };
 
 const settleQuote = (promise) =>
