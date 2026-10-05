@@ -46,6 +46,16 @@ describe('estimateTwForwardEps', () => {
     const result = estimateTwForwardEps({ '2024Q4': { eps: 50 }, '2025Q4': { eps: 60 } }, EMPTY_VALUATION_SETTINGS)
     expect(result.targetYear).toBe(2026)
     expect(result.eps).toBeCloseTo(72, 6)
+    expect(result.formula).toContain('2026 年預估')
+  })
+
+  it('says growth is unknown instead of implying 0% when last year was a loss', () => {
+    const result = estimateTwForwardEps(
+      { '2025Q1': { eps: -1 }, '2025Q2': { eps: -0.5 }, '2025Q3': { eps: 0.2 }, '2025Q4': { eps: 1 }, '2026Q1': { eps: 0.4 }, '2026Q2': { eps: 0.9 } },
+      EMPTY_VALUATION_SETTINGS,
+    )
+    expect(result.autoGrowthRate).toBeNull()
+    expect(result.formula).toContain('無法計算成長率，以 0% 計')
   })
 
   it('labels a single remaining quarter without a range', () => {

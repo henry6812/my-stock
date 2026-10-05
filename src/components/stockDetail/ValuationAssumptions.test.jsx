@@ -64,6 +64,11 @@ describe('ValuationAssumptions', () => {
     expect(screen.getByText('成長率異常，建議覆寫')).toBeInTheDocument()
   })
 
+  it('shows that the growth rate is unknown rather than 0', () => {
+    renderOpen({ model: { ...model, forward: { ...model.forward, growthRate: 0, autoGrowthRate: null } } })
+    expect(screen.getByLabelText('成長率 (%)')).toHaveAttribute('placeholder', '無法計算')
+  })
+
   it('hides growth rate for US stocks', () => {
     renderOpen({ market: 'US' })
     expect(screen.queryByLabelText('成長率 (%)')).not.toBeInTheDocument()

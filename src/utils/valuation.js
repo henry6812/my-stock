@@ -156,13 +156,15 @@ export const estimateTwForwardEps = (cumulative, settings) => {
     }
   }
   const overridden = { forwardEps: false, growthRate: overrideGrowth !== null }
+  // 0% is a fallback, not a forecast: say so instead of looking like flat growth.
+  const unknownGrowth = overrideGrowth === null && autoGrowthRate === null ? `（${growthNote}）` : ''
 
   if (quarter === 4) {
     return {
       ...common,
       overridden,
       eps: round(latestCum * (1 + growthRate)),
-      formula: `${year} 全年 ${formatEps(latestCum)} × (1 + ${formatPercent(growthRate)})`,
+      formula: `${targetYear} 年預估：${year} 全年 ${formatEps(latestCum)} × (1 + ${formatPercent(growthRate)})${unknownGrowth}`,
     }
   }
 
@@ -179,7 +181,7 @@ export const estimateTwForwardEps = (cumulative, settings) => {
     ...common,
     overridden,
     eps: round(latestCum + restSum * (1 + growthRate)),
-    formula: `今年 Q1–Q${quarter} 累計 ${formatEps(latestCum)} + 去年 ${range} ${formatEps(restSum)} × (1 + ${formatPercent(growthRate)})`,
+    formula: `今年 Q1–Q${quarter} 累計 ${formatEps(latestCum)} + 去年 ${range} ${formatEps(restSum)} × (1 + ${formatPercent(growthRate)})${unknownGrowth}`,
   }
 }
 

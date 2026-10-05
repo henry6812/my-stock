@@ -123,7 +123,7 @@ function ValuationAssumptions({ model, market, settings, disabled, open, onToggl
                 placeholder={
                   Number.isFinite(model.forward?.autoGrowthRate)
                     ? (model.forward.autoGrowthRate * 100).toFixed(1)
-                    : "0"
+                    : "無法計算"
                 }
                 disabled={disabled || saving}
                 onChange={setField("growthPercent")}
