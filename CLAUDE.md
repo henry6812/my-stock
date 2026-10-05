@@ -84,6 +84,10 @@ Same-origin TPEX snapshot 由 `.github/workflows/update-tpex-snapshot.yml` 更�
 
 FX (`fxProvider.js`) 打 open.er-api 取得 USD/TWD；不需要 API key。
 
+### TW fundamentals snapshot（個股細節頁估價用）
+
+`.github/workflows/update-tw-fundamentals.yml`（平日 12:00 UTC）跑 `scripts/update-tw-fundamentals.mjs`：把 TWSE openapi `t187ap06_L_*` 的最新一季（**年度累計** EPS）合併進 `public/data/tw_eps_history.json`，每月補一次上月底本益比（TWSE rwd `BWIBBU_d`）到 `public/data/tw_pe_history.json`，有變更才 commit，並以 `gh workflow run deploy.yml` 觸發部署（`GITHUB_TOKEN` 的 push 不會觸發 `deploy.yml`）。`scripts/check-tw-fundamentals.mjs` 發現漏季會讓 job 失敗；修法是以 `backfill=true` 手動跑 workflow（`scripts/backfill-tw-fundamentals.mjs`，MOPS 用 `mopsov.twse.com.tw`）。純邏輯在 `src/utils/twFundamentalsMerge.js`。
+
 `src/services/bankProviders/twBankDirectoryProvider.js` 與報價無關 — 它抓 data.gov.tw 的台灣銀行/分行清單（FISC + 分行 datasets），供現金帳戶表單選銀行用，帶 7 天 localStorage cache 與硬編的 `FALLBACK_BANKS`（離線 / API 失敗時 fallback）。只被 `App.jsx` 使用。
 
 ### UI

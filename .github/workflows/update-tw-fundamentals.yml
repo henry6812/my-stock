@@ -1,0 +1,61 @@
+name: Update TW Fundamentals
+
+on:
+  schedule:
+    # 20:00 Asia/Taipei, weekdays
+    - cron: '0 12 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: 'Run the historical backfill (MOPS EPS + 60 months of P/E) instead of the daily update'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: tw-fundamentals
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Update snapshot
+        run: |
+          if [ "${{ inputs.backfill }}" = "true" ]; then
+            node scripts/backfill-tw-fundamentals.mjs
+          fi
+          node scripts/update-tw-fundamentals.mjs
+
+      - name: Commit and deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FILES="public/data/tw_eps_history.json public/data/tw_pe_history.json"
+          if [ -z "$(git status --porcelain -- $FILES)" ]; then
+            echo "No snapshot changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add $FILES
+          git commit -m "chore: update TW fundamentals snapshot"
+          git pull --rebase
+          git push
+          # Pushes made with GITHUB_TOKEN do not trigger deploy.yml's push
+          # event, so start the deploy explicitly.
+          gh workflow run deploy.yml --ref main
+
+      - name: Check for quarter gaps
+        run: node scripts/check-tw-fundamentals.mjs
