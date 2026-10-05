@@ -32,8 +32,12 @@ const INTERACTIVE_SELECTOR = [
 ].join(',')
 
 // Desktop rows open the detail sheet on click, except clicks that land on
-// the row's own controls (edit, delete, drag handle, inline editors).
-export const isInteractiveTarget = (target) => Boolean(target?.closest?.(INTERACTIVE_SELECTOR))
+// the row's own controls (edit, delete, drag handle, inline editors). The
+// row itself is skipped: dnd-kit marks sortable rows role="button".
+export const isInteractiveTarget = (target, row = null) => {
+  const hit = target?.closest?.(INTERACTIVE_SELECTOR)
+  return Boolean(hit) && hit !== row
+}
 
 const CHART_QUARTERS = 8
 

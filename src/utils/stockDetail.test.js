@@ -40,4 +40,13 @@ describe('isInteractiveTarget', () => {
     expect(isInteractiveTarget(document.getElementById('in'))).toBe(true)
     expect(isInteractiveTarget(null)).toBe(false)
   })
+
+  it('ignores the row itself when dnd-kit marks it role="button"', () => {
+    document.body.innerHTML = `
+      <table><tr id="row" role="button" aria-roledescription="sortable"><td id="cell">x</td>
+      <td><button id="btn">e</button></td></tr></table>`
+    const row = document.getElementById('row')
+    expect(isInteractiveTarget(document.getElementById('cell'), row)).toBe(false)
+    expect(isInteractiveTarget(document.getElementById('btn'), row)).toBe(true)
+  })
 })

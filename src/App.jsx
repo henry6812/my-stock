@@ -6498,7 +6498,7 @@ function App() {
                           onRow={(record) => ({
                             className: "holding-row--clickable",
                             onClick: (event) => {
-                              if (editingHoldingId === record.id || isInteractiveTarget(event.target)) return;
+                              if (editingHoldingId === record.id || isInteractiveTarget(event.target, event.currentTarget)) return;
                               setStockDetailId(record.id);
                             },
                           })}
