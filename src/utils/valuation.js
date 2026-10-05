@@ -124,3 +124,128 @@ export const computeValuation = ({ eps, bands, price }) => {
 
 export const positionOnScale = (value, scale) =>
   Math.min(1, Math.max(0, (value - scale.min) / (scale.max - scale.min)))
+const formatPercent = (value) => `${(value * 100).toFixed(1)}%`
+
+const quarterRangeLabel = (from) => (from === 4 ? 'Q4' : `Q${from}–Q4`)
+
+// 台股今年預估: YTD + last year's remaining quarters × (1 + YTD growth).
+// After Q4 (annual) is out, projects next year from the annual figure.
+export const estimateTwForwardEps = (cumulative, settings) => {
+  const singles = cumulativeToSingles(cumulative)
+  const latest = [...singles].reverse().find((item) => Number.isFinite(cumulative?.[`${item.year}Q${item.quarter}`]?.eps))
+  if (!latest) return null
+  const { year, quarter } = latest
+  const cumOf = (y, q) => cumulative?.[`${y}Q${q}`]?.eps
+  const latestCum = cumOf(year, quarter)
+  const base = cumOf(year - 1, quarter)
+  const autoGrowthRate = Number.isFinite(base) && base > 0 ? latestCum / base - 1 : null
+  const overrideGrowth = Number.isFinite(settings?.growthRate) ? settings.growthRate : null
+  const growthRate = overrideGrowth ?? autoGrowthRate ?? 0
+  let growthNote = '今年累計 YoY'
+  if (overrideGrowth !== null) growthNote = '自訂成長率'
+  else if (autoGrowthRate === null) growthNote = '無法計算成長率，以 0% 計'
+  const targetYear = quarter === 4 ? year + 1 : year
+  const common = { targetYear, growthRate, autoGrowthRate, growthNote }
+
+  if (Number.isFinite(settings?.forwardEps)) {
+    return {
+      ...common,
+      eps: settings.forwardEps,
+      overridden: { forwardEps: true, growthRate: overrideGrowth !== null },
+      formula: `自訂預估 EPS ${formatEps(settings.forwardEps)}`,
+    }
+  }
+  const overridden = { forwardEps: false, growthRate: overrideGrowth !== null }
+
+  if (quarter === 4) {
+    return {
+      ...common,
+      overridden,
+      eps: round(latestCum * (1 + growthRate)),
+      formula: `${year} 全年 ${formatEps(latestCum)} × (1 + ${formatPercent(growthRate)})`,
+    }
+  }
+
+  const range = quarterRangeLabel(quarter + 1)
+  const rest = []
+  for (let q = quarter + 1; q <= 4; q += 1) {
+    rest.push(singles.find((item) => item.year === year - 1 && item.quarter === q)?.eps)
+  }
+  if (rest.some((value) => !Number.isFinite(value))) {
+    return { ...common, overridden, eps: null, formula: `缺少 ${year - 1} 年 ${range} 資料，無法推估` }
+  }
+  const restSum = rest.reduce((sum, value) => sum + value, 0)
+  return {
+    ...common,
+    overridden,
+    eps: round(latestCum + restSum * (1 + growthRate)),
+    formula: `今年 Q1–Q${quarter} 累計 ${formatEps(latestCum)} + 去年 ${range} ${formatEps(restSum)} × (1 + ${formatPercent(growthRate)})`,
+  }
+}
+
+// 美股未來四季: up to 4 upcoming consensus estimates, topped up with the
+// most recent actual quarters.
+export const estimateUsForwardEps = ({ upcoming = [], singles = [] }, settings) => {
+  if (Number.isFinite(settings?.forwardEps)) {
+    return {
+      eps: settings.forwardEps,
+      overridden: { forwardEps: true, growthRate: false },
+      formula: `自訂預估 EPS ${formatEps(settings.forwardEps)}`,
+    }
+  }
+  const estimates = upcoming
+    .filter((item) => Number.isFinite(item.epsEstimate))
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .slice(0, 4)
+  if (estimates.length === 0) return null
+  const need = 4 - estimates.length
+  const actuals = need > 0 ? singles.filter((item) => Number.isFinite(item.eps)).slice(-need) : []
+  if (actuals.length < need) return null
+  const estimateSum = estimates.reduce((sum, item) => sum + item.epsEstimate, 0)
+  const actualSum = actuals.reduce((sum, item) => sum + item.eps, 0)
+  const parts = [`未來 ${estimates.length} 季預估 ${formatEps(estimateSum)}`]
+  if (need > 0) parts.push(`最近 ${need} 季實際 ${formatEps(actualSum)}`)
+  return {
+    eps: round(estimateSum + actualSum, 4),
+    overridden: { forwardEps: false, growthRate: false },
+    formula: `${parts.join(' + ')}（分析師 consensus，調整後 EPS）`,
+  }
+}
+
+// 一般業法定申報期限.
+const TW_DEADLINES = [
+  { month: '03', day: '31', label: '年報' },
+  { month: '05', day: '15', label: 'Q1 財報' },
+  { month: '08', day: '14', label: 'Q2 財報' },
+  { month: '11', day: '14', label: 'Q3 財報' },
+]
+
+export const nextTwFilingDeadline = (todayIso) => {
+  const year = Number(todayIso.slice(0, 4))
+  for (const candidateYear of [year, year + 1]) {
+    for (const { month, day, label } of TW_DEADLINES) {
+      const date = `${candidateYear}-${month}-${day}`
+      if (date >= todayIso) return { date, label }
+    }
+  }
+  return null
+}
+
+export const buildValuationModel = ({ fundamentals, settings, price, basis }) => {
+  const autoBands = peBandsFromHistory(fundamentals.peSeries.map((point) => point.pe))
+  const bands = resolvePeBands(autoBands, settings)
+  const ttm = computeTtm(fundamentals.singles)
+  const forward =
+    fundamentals.market === 'TW'
+      ? estimateTwForwardEps(fundamentals.cumulative, settings)
+      : estimateUsForwardEps(fundamentals, settings)
+  const chosen = basis === 'forward' ? forward : ttm
+  return {
+    basis,
+    ttm,
+    forward,
+    autoBands,
+    bands,
+    valuation: computeValuation({ eps: chosen?.eps, bands, price }),
+  }
+}
