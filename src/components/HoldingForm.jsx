@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Alert, Form, Input, InputNumber, Radio, Select } from "antd";
 import {
   HOLDING_SHARES_MODE,
@@ -32,11 +33,17 @@ function HoldingForm({
   const watchedHolder = Form.useWatch("holder", form);
   const watchedShares = Form.useWatch("shares", form);
   const watchedSharesMode = Form.useWatch("sharesMode", form);
-  const existingHolding = findExistingHolding(existingHoldings, {
+  const liveExistingHolding = findExistingHolding(existingHoldings, {
     symbol: watchedSymbol,
     market: watchedMarket,
     holder: watchedHolder,
   });
+  // While saving, the list refreshes with the holding being saved (the write
+  // lands locally before the price fetch finishes), so keep what existed when
+  // the user pressed submit. undefined = not submitting.
+  const [submittedExistingHolding, setSubmittedExistingHolding] = useState(undefined);
+  const existingHolding =
+    submittedExistingHolding === undefined ? liveExistingHolding : submittedExistingHolding;
   const inputShares = Number(watchedShares);
   const previewShares =
     existingHolding && Number.isFinite(inputShares) && inputShares > 0
@@ -48,9 +55,15 @@ function HoldingForm({
       : null;
 
   const handleFinish = async (values) => {
-    const shouldReset = await onSubmit(values);
-    if (shouldReset !== false) {
-      form.resetFields(["symbol", "shares"]);
+    // From the submitted values: useWatch can lag a fast edit-then-submit.
+    setSubmittedExistingHolding(findExistingHolding(existingHoldings, values));
+    try {
+      const shouldReset = await onSubmit(values);
+      if (shouldReset !== false) {
+        form.resetFields(["symbol", "shares"]);
+      }
+    } finally {
+      setSubmittedExistingHolding(undefined);
     }
   };
 
