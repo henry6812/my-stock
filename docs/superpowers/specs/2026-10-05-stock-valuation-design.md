@@ -34,7 +34,7 @@
 | 美股預估 EPS | Finnhub `/calendar/earnings` 未來各季 consensus（`/stock/eps-estimate` 為付費，實測 `You don't have access`） |
 | 台股資料抓取 | GitHub Actions 平日每日自動；不走手動 |
 | 第一版市場範圍 | 美股 + 台股上市 |
-| 覆寫值存放 | 新表 `valuationSettings`，以股票（`market_symbol`）為 key，不存在 holding 上（同一檔股票可能有多個 `holder`） |
+| 覆寫值存放 | 既有 `app_config` 表，key `valuation:<market>_<symbol>`，以股票為 key、不存在 holding 上（同一檔股票可能有多個 `holder`） |
 
 ## 畫面
 
