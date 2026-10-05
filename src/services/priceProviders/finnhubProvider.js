@@ -20,7 +20,7 @@ const getApiKey = () => {
 const RATE_LIMIT_MAX_RETRIES = 2
 const RATE_LIMIT_BACKOFF_MS = 1_500
 
-const requestFinnhub = async (path, params) => {
+export const requestFinnhub = async (path, params) => {
   const apiKey = getApiKey()
   const query = new URLSearchParams({ ...params, token: apiKey })
   const url = `${FINNHUB_BASE_URL}${path}?${query.toString()}`

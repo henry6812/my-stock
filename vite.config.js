@@ -52,6 +52,21 @@ export default defineConfig({
               },
             },
           },
+          {
+            // TW fundamentals snapshots (public/data/tw_*.json): fresh when
+            // online, last copy when offline. Not precached (globPatterns
+            // excludes json).
+            urlPattern: /\/data\/tw_(eps|pe)_history\.json$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'tw-fundamentals',
+              networkTimeoutSeconds: 8,
+              expiration: {
+                maxEntries: 4,
+                maxAgeSeconds: 60 * 60 * 24 * 14,
+              },
+            },
+          },
         ],
       },
       devOptions: {
