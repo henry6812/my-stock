@@ -107,6 +107,7 @@ import QuickExpenseSheet from "./components/QuickExpenseSheet";
 import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
 import RecurringOverview from "./components/RecurringOverview";
 import SwipeActions from "./components/SwipeActions";
+import HoverTooltip from "./components/HoverTooltip";
 import CollapsibleGroups from "./components/CollapsibleGroups";
 import BudgetOverview from "./components/BudgetOverview";
 import BudgetDetailSheet from "./components/BudgetDetailSheet";
@@ -3124,7 +3125,7 @@ function App() {
     // Upcoming rows already carry a 預計 tag next to the name.
     const formatRowDate = (record) => formatDate(record.occurredAt);
     const renderEditRuleButton = (record) => (
-      <Tooltip title="編輯定期規則">
+      <HoverTooltip title="編輯定期規則">
         <Button
           type="text"
           className="row-action"
@@ -3134,7 +3135,7 @@ function App() {
           onClick={() => openRecurringEditForm(record)}
           aria-label={`編輯定期規則 ${record.name}`}
         />
-      </Tooltip>
+      </HoverTooltip>
     );
 
     const columns = [
@@ -5682,6 +5683,10 @@ function App() {
     [],
   );
 
+  // Recharts series run with isAnimationActive={false} everywhere: their
+  // ~1.9s entry animation adds label <g>s when it ends, and iOS Safari treats
+  // any tap whose hover window sees new content as a hover only, so taps made
+  // right after a chart mounts (e.g. 支出 → +) needed a second try.
   const renderExpenseChartPreview = useCallback(
     (chartKey) => {
       if (chartKey === "trend") {
@@ -5700,6 +5705,7 @@ function App() {
                 formatter={(value) => formatTwd(Number(value))}
               />
               <Line
+                isAnimationActive={false}
                 type="monotone"
                 dataKey="totalTwd"
                 name="總支出"
@@ -5708,6 +5714,7 @@ function App() {
                 dot={false}
               />
               <Line
+                isAnimationActive={false}
                 type="monotone"
                 dataKey="recurringTwd"
                 name="定期支出"
@@ -5726,6 +5733,7 @@ function App() {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
+                isAnimationActive={false}
                 data={kindAnalysisData}
                 dataKey="value"
                 nameKey="name"
@@ -5763,7 +5771,7 @@ function App() {
               <RechartsTooltip
                 formatter={(value) => formatTwd(Number(value))}
               />
-              <Bar dataKey="value" fill={CHART_PALETTE[0]} radius={[0, 4, 4, 0]} />
+              <Bar isAnimationActive={false} dataKey="value" fill={CHART_PALETTE[0]} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         );
@@ -5775,6 +5783,7 @@ function App() {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
+                isAnimationActive={false}
                 data={familyBalanceData}
                 dataKey="value"
                 nameKey="name"
@@ -5798,6 +5807,7 @@ function App() {
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
+              isAnimationActive={false}
               data={categoryAnalysisData}
               dataKey="value"
               nameKey="name"
@@ -5842,6 +5852,7 @@ function App() {
                 formatter={(value) => formatTwd(Number(value))}
               />
               <Line
+                isAnimationActive={false}
                 type="monotone"
                 dataKey="totalTwd"
                 name="總支出"
@@ -5850,6 +5861,7 @@ function App() {
                 dot={{ r: 3 }}
               />
               <Line
+                isAnimationActive={false}
                 type="monotone"
                 dataKey="recurringTwd"
                 name="定期支出"
@@ -5869,6 +5881,7 @@ function App() {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
+                isAnimationActive={false}
                 data={kindAnalysisData}
                 dataKey="value"
                 nameKey="name"
@@ -5908,7 +5921,7 @@ function App() {
               <RechartsTooltip
                 formatter={(value) => formatTwd(Number(value))}
               />
-              <Bar dataKey="value" fill={CHART_PALETTE[0]} radius={[0, 4, 4, 0]} />
+              <Bar isAnimationActive={false} dataKey="value" fill={CHART_PALETTE[0]} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         );
@@ -5920,6 +5933,7 @@ function App() {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
+                isAnimationActive={false}
                 data={familyBalanceData}
                 dataKey="value"
                 nameKey="name"
@@ -5946,6 +5960,7 @@ function App() {
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
+              isAnimationActive={false}
               data={categoryAnalysisData}
               dataKey="value"
               nameKey="name"
@@ -6023,7 +6038,7 @@ function App() {
                   </Text>
                 </div>
                 <Space size={6}>
-                  <Tooltip title={authUser.email || "Google 帳號"}>
+                  <HoverTooltip title={authUser.email || "Google 帳號"}>
                     <Button
                       size="small"
                       icon={<LogoutOutlined />}
@@ -6031,7 +6046,7 @@ function App() {
                       loading={loadingAuthAction}
                       aria-label="Google 登出"
                     />
-                  </Tooltip>
+                  </HoverTooltip>
                 </Space>
               </Space>
             )}
@@ -6304,6 +6319,7 @@ function App() {
                               <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                   <Pie
+                                    isAnimationActive={false}
                                     data={allocationChartData}
                                     dataKey="value"
                                     nameKey="name"
@@ -6511,7 +6527,7 @@ function App() {
                     title={
                       <Space size={8}>
                         <span>銀行現金資產</span>
-                        <Tooltip title="新增銀行帳戶">
+                        <HoverTooltip title="新增銀行帳戶">
                           <Button
                             type="text"
                             size="small"
@@ -6523,7 +6539,7 @@ function App() {
                             icon={<PlusOutlined />}
                             aria-label="新增銀行帳戶"
                           />
-                        </Tooltip>
+                        </HoverTooltip>
                       </Space>
                     }
                   >
@@ -6621,7 +6637,7 @@ function App() {
                             formatter={(value) => formatTwd(Number(value))}
                           />
                           {expenseTotalMode === "cumulative" ? (
-                            <Tooltip title="查看支出走勢">
+                            <HoverTooltip title="查看支出走勢">
                               <Button
                                 type="text"
                                 size="small"
@@ -6633,7 +6649,7 @@ function App() {
                                   setIsExpenseChartModalOpen(true);
                                 }}
                               />
-                            </Tooltip>
+                            </HoverTooltip>
                           ) : null}
                         </div>
                         {expenseTotalMode !== "cumulative" &&
@@ -6769,7 +6785,7 @@ function App() {
                                 size={4}
                                 className="active-recurring-card-actions"
                               >
-                                <Tooltip title="展開圖表">
+                                <HoverTooltip title="展開圖表">
                                   <Button
                                     type="text"
                                     size="small"
@@ -6781,7 +6797,7 @@ function App() {
                                       setIsExpenseChartModalOpen(true);
                                     }}
                                   />
-                                </Tooltip>
+                                </HoverTooltip>
                               </Space>
                             </div>
                             <div className="expense-analytics-card-body">
@@ -7200,7 +7216,7 @@ function App() {
                         title={
                           <Space size={8}>
                             <span>類別列表</span>
-                            <Tooltip title="新增類別">
+                            <HoverTooltip title="新增類別">
                               <Button
                                 type="text"
                                 size="small"
@@ -7209,7 +7225,7 @@ function App() {
                                 disabled={isWriteDisabled}
                                 onClick={() => openCategoryForm()}
                               />
-                            </Tooltip>
+                            </HoverTooltip>
                           </Space>
                         }
                       >
@@ -7249,7 +7265,7 @@ function App() {
                         title={
                           <Space size={8}>
                             <span>常用支出</span>
-                            <Tooltip title="新增常用支出">
+                            <HoverTooltip title="新增常用支出">
                               <Button
                                 type="text"
                                 size="small"
@@ -7259,7 +7275,7 @@ function App() {
                                 disabled={isWriteDisabled}
                                 onClick={() => openTemplateForm()}
                               />
-                            </Tooltip>
+                            </HoverTooltip>
                           </Space>
                         }
                       >
@@ -7328,7 +7344,7 @@ function App() {
                         title={
                           <Space size={8}>
                             <span>預算列表</span>
-                            <Tooltip title="新增預算">
+                            <HoverTooltip title="新增預算">
                               <Button
                                 type="text"
                                 size="small"
@@ -7337,7 +7353,7 @@ function App() {
                                 disabled={isWriteDisabled}
                                 onClick={() => openBudgetForm()}
                               />
-                            </Tooltip>
+                            </HoverTooltip>
                           </Space>
                         }
                       >

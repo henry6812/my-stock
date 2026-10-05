@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Button, Empty, Tag, Tooltip, Typography } from "antd";
+import { Button, Empty, Tag, Typography } from "antd";
+import HoverTooltip from "./HoverTooltip";
 import { EditOutlined, PlusOutlined, StopOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { formatDate, formatTwd } from "../utils/formatters";
@@ -53,7 +54,7 @@ function RecurringOverview({
   const hiddenCount = rows.length - COLLAPSED_COUNT;
 
   const createButton = (
-    <Tooltip title="新增定期支出">
+    <HoverTooltip title="新增定期支出">
       <Button
         type="text"
         size="small"
@@ -63,7 +64,7 @@ function RecurringOverview({
         disabled={disabled}
         onClick={onCreate}
       />
-    </Tooltip>
+    </HoverTooltip>
   );
 
   return (
@@ -178,7 +179,7 @@ function RecurringOverview({
                         disabled={disabled}
                         onClick={() => onEdit?.(item)}
                       />
-                      <Tooltip title="停止（已發生的紀錄會保留）">
+                      <HoverTooltip title="停止（已發生的紀錄會保留）">
                         <Button
                           type="text"
                           size="small"
@@ -188,7 +189,7 @@ function RecurringOverview({
                           disabled={disabled}
                           onClick={() => onStop?.(item)}
                         />
-                      </Tooltip>
+                      </HoverTooltip>
                     </div>
                     )}
                   </div>

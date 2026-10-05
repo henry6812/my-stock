@@ -54,6 +54,7 @@ function TrendChart({ range, onRangeChange, data, height = 320 }) {
                 labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel ?? ''}
               />
               <Line
+                isAnimationActive={false}
                 dataKey="totalTwd"
                 type="monotone"
                 stroke="#44A194"
