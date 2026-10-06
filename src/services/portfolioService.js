@@ -25,7 +25,11 @@ import {
   stopCloudSync,
   syncNowWithCloud,
 } from "./firebase/cloudSyncService";
-import { buildCashAccountKey, buildHoldingKey } from "./firebase/firestoreMappers";
+import {
+  buildCashAccountKey,
+  buildHoldingKey,
+  buildSnapshotKey,
+} from "./firebase/firestoreMappers";
 import { parseNumericLike } from "../utils/number";
 import {
   EMPTY_VALUATION_SETTINGS,
@@ -460,6 +464,40 @@ const getEarliestCashBalanceSnapshotAfter = async (
     .toArray();
 
   return snapshots.find((item) => !isDeleted(item));
+};
+
+// Only a holding's last snapshot of each Taipei day is ever read (latest
+// price, the previous day-end baseline, daily trend points), so a new one
+// replaces the earlier ones from the same day instead of piling up — every
+// sign-in downloads the whole collection.
+export const pruneEarlierSnapshotsSameDay = async (snapshot) => {
+  const dayStartIso = dayjs(snapshot.capturedAt)
+    .tz("Asia/Taipei")
+    .startOf("day")
+    .utc()
+    .toISOString();
+  const earlier = await db.price_snapshots
+    .where("[holdingId+capturedAt]")
+    .between(
+      [snapshot.holdingId, dayStartIso],
+      [snapshot.holdingId, snapshot.capturedAt],
+      true,
+      false,
+    )
+    .toArray();
+  for (const row of earlier) {
+    // Best effort: a failed cleanup must not fail the price refresh, and the
+    // row stays locally so local and cloud still agree.
+    try {
+      await deleteCollectionDoc({
+        collectionName: CLOUD_COLLECTION.PRICE_SNAPSHOTS,
+        docId: buildSnapshotKey(row),
+      });
+      await db.price_snapshots.delete(row.id);
+    } catch (error) {
+      console.warn("[pruneEarlierSnapshotsSameDay] failed", error);
+    }
+  }
 };
 
 const getBaselineAtIso = () =>
@@ -1218,6 +1256,7 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
     syncState: SYNC_PENDING,
   };
   await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshotRecord);
+  await pruneEarlierSnapshotsSameDay(snapshotRecord);
 
   if (quote.name && quote.name !== holding.companyName) {
     await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
@@ -1389,6 +1428,7 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
     if (snapshots.length > 0) {
       for (const snapshot of snapshots) {
         await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot);
+        await pruneEarlierSnapshotsSameDay(snapshot);
       }
     }
 

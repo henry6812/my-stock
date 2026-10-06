@@ -165,6 +165,7 @@ import {
   observeAuthState,
 } from "./services/firebase/authService";
 import { CLOUD_SYNC_UPDATED_EVENT } from "./services/firebase/cloudSyncService";
+import { coalesceAsync } from "./utils/coalesce";
 import { getBankDirectory } from "./services/bankProviders/twBankDirectoryProvider";
 import {
   formatAxisTwd,
@@ -650,6 +651,8 @@ function App() {
   const pullStartYRef = useRef(0);
   const pullingRef = useRef(false);
   const activeHoldingTabRef = useRef(HOLDER_TAB_ALL);
+  // True while the first realtime snapshots are being applied after sign-in.
+  const initialSyncInFlightRef = useRef(false);
   const shouldAnimateNumbersRef = useRef(false);
   // Ensures the "auto-refresh on open if stale" runs at most once per session.
   const autoRefreshAttemptedRef = useRef(false);
@@ -3815,7 +3818,12 @@ function App() {
       try {
         setCloudSyncStatus("syncing");
         setCloudSyncError("");
-        await initSync(user.uid);
+        initialSyncInFlightRef.current = true;
+        try {
+          await initSync(user.uid);
+        } finally {
+          initialSyncInFlightRef.current = false;
+        }
         await Promise.all([
           loadAllData(),
           loadExpenseData(),
@@ -3887,15 +3895,24 @@ function App() {
   }, [loadAllData, loadExpenseData, loadHolderOptionSettings, message]);
 
   useEffect(() => {
+    // Each collection the listeners apply fires this event, so a burst of
+    // them folds into one trailing reload. During the initial sync they're
+    // skipped outright: the sign-in flow reloads everything once it's done.
+    const reloadFromCloud = coalesceAsync(async () => {
+      await Promise.all([
+        loadAllData(),
+        templateReorderInFlightRef.current ? null : loadExpenseData(),
+        loadHolderOptionSettings(),
+      ]);
+      refreshCloudRuntime();
+      setCloudLastSyncedAt(new Date().toISOString());
+    });
     const onCloudUpdated = async () => {
+      if (initialSyncInFlightRef.current) {
+        return;
+      }
       try {
-        await Promise.all([
-          loadAllData(),
-          templateReorderInFlightRef.current ? null : loadExpenseData(),
-          loadHolderOptionSettings(),
-        ]);
-        refreshCloudRuntime();
-        setCloudLastSyncedAt(new Date().toISOString());
+        await reloadFromCloud();
       } catch {
         // Keep UI stable; runtime state will surface errors.
       }
