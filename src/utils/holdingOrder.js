@@ -1,6 +1,7 @@
-// Fixed display order for holdings: 台股 → 美股, and within a market
-// ETF → 個股 → 債券. Ties keep the legacy sortOrder (from the old drag
-// reorder), then newest-updated first.
+// Fixed display order for holdings: 台股 → 美股, within a market
+// ETF → 個股 → 債券, and within that by market value (TWD) high → low.
+// Holdings without a value go last; remaining ties keep the legacy
+// sortOrder (from the old drag reorder), then newest-updated first.
 const MARKET_RANK = { TW: 0, US: 1 };
 const ASSET_TAG_RANK = { ETF: 0, STOCK: 1, BOND: 2 };
 
@@ -17,6 +18,18 @@ const getAssetTagRank = (holding) =>
     String(holding?.assetTag ?? "").trim().toUpperCase(),
     ASSET_TAG_RANK.STOCK,
   );
+
+// Higher value first; holdings without a finite value sort last.
+const compareByValueDesc = (a, b) => {
+  const aValue = Number(a?.latestValueTwd);
+  const bValue = Number(b?.latestValueTwd);
+  const aHasValue = Number.isFinite(aValue);
+  const bHasValue = Number.isFinite(bValue);
+  if (aHasValue && bHasValue) return bValue - aValue;
+  if (aHasValue) return -1;
+  if (bHasValue) return 1;
+  return 0;
+};
 
 export const compareHoldingsByLegacyOrder = (a, b) => {
   const aOrder = Number(a?.sortOrder);
@@ -40,4 +53,5 @@ export const compareHoldingsByLegacyOrder = (a, b) => {
 export const compareHoldingsForDisplay = (a, b) =>
   getMarketRank(a) - getMarketRank(b) ||
   getAssetTagRank(a) - getAssetTagRank(b) ||
+  compareByValueDesc(a, b) ||
   compareHoldingsByLegacyOrder(a, b);

@@ -1737,7 +1737,9 @@ export const repairNumericFields = async () => {
 export const getPortfolioView = async () => {
   const allHoldings = await db.holdings.toArray();
   const holdings = allHoldings.filter((item) => !isDeleted(item));
-  holdings.sort(compareHoldingsForDisplay);
+  // Legacy order first so value ties stay stable; the display order
+  // (which needs each row's value) is applied to rows below.
+  holdings.sort(compareHoldingsByLegacyOrder);
   const allCashAccounts = await db.cash_accounts.toArray();
   const holderOptions = await ensureHolderOptions();
   const tagOptions = await ensureHoldingTagOptions();
@@ -1860,6 +1862,7 @@ export const getPortfolioView = async () => {
 
     rows.push(row);
   }
+  rows.sort(compareHoldingsForDisplay);
 
   let baselineStockTotalTwd = 0;
   for (const holding of allHoldings) {
