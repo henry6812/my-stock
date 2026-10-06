@@ -398,6 +398,104 @@
   text-align: right;
 }
 
+/* ===== Net-worth jar (components/NetWorthJar.jsx) ===== */
+.networth-jar {
+  width: 120px;
+  height: 170px;
+  flex: none;
+  overflow: visible;
+}
+
+.networth-jar-glass {
+  fill: var(--c-track);
+}
+
+.networth-jar-wave-back {
+  fill: #86c4b9;
+  opacity: 0.55;
+}
+
+.networth-jar-outline {
+  fill: none;
+  stroke: var(--c-line-strong);
+  stroke-width: 1.5;
+}
+
+.networth-jar-shine {
+  fill: rgba(255, 255, 255, 0.55);
+}
+
+.networth-jar-tick {
+  stroke: rgba(27, 43, 41, 0.25);
+  stroke-width: 1;
+}
+
+.networth-jar-cap,
+.networth-jar-floor,
+.networth-jar-baseline text {
+  font-size: 10px;
+  fill: var(--c-muted);
+}
+
+.networth-jar-floor {
+  fill: var(--c-subtle);
+}
+
+.networth-jar-baseline line {
+  stroke: var(--c-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.networth-jar-baseline {
+  animation: jar-fade-in 300ms ease-out 1100ms both;
+}
+
+.networth-jar-current {
+  font-size: 10px;
+  font-weight: 700;
+  fill: var(--c-teal-ink);
+  animation: jar-fade-in 300ms ease-out 1900ms both;
+}
+
+.networth-jar-bubble {
+  fill: #fff;
+  transform-box: fill-box;
+  animation: jar-bubble-rise 1200ms ease-out both;
+}
+
+.networth-jar-halo {
+  fill: none;
+  stroke: var(--c-teal-bright);
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: jar-halo 900ms ease-out both;
+}
+
+@keyframes jar-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes jar-bubble-rise {
+  from { opacity: 0.9; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-70px); }
+}
+
+@keyframes jar-halo {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .networth-jar *,
+  .savings-tower * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
 .asset-summary-actions {
   margin-top: 14px;
   display: flex;

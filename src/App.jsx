@@ -202,6 +202,7 @@ import {
   buildProgressStops,
 } from "./utils/portfolioView";
 import { getBootPhase } from "./utils/bootPhase";
+import { prefersReducedMotion } from "./utils/motion";
 import { toUserMessage } from "./utils/userMessage";
 import { CHART_NEUTRAL, CHART_PALETTE, COLORS } from "./theme/tokens";
 import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "./utils/budgetStatus";
@@ -244,15 +245,8 @@ const downloadTextFile = (content, filename, type) => {
 
 // animejs ignores the CSS prefers-reduced-motion rule, so honour it here:
 // a 0ms tween jumps straight to the final number.
-const getNumberAnimationDuration = () => {
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      ? 0
-      : NUMBER_ANIMATION_DURATION_MS;
-  } catch {
-    return NUMBER_ANIMATION_DURATION_MS;
-  }
-};
+const getNumberAnimationDuration = () =>
+  prefersReducedMotion() ? 0 : NUMBER_ANIMATION_DURATION_MS;
 
 // Per-device convenience: prefill a new expense with the last payer / kind /
 // category used. Not synced — storage can be missing or throw, so fail soft.
