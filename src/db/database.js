@@ -56,11 +56,20 @@ const toComparable = (value) => {
   return value
 }
 
+// Queries call this once per row, so parse each index name only once.
+const compositeIndexCache = new Map()
+
 const parseCompositeIndex = (indexName) => {
   if (!indexName) return null
+  if (compositeIndexCache.has(indexName)) {
+    return compositeIndexCache.get(indexName)
+  }
   const match = String(indexName).match(/^\[(.+)\]$/)
-  if (!match) return null
-  return match[1].split('+').map((field) => field.trim()).filter(Boolean)
+  const fields = match
+    ? match[1].split('+').map((field) => field.trim()).filter(Boolean)
+    : null
+  compositeIndexCache.set(indexName, fields)
+  return fields
 }
 
 const normalizePrimaryKey = (key) => String(key || '').replace(/^(\+\+|&)/, '')
@@ -274,6 +283,35 @@ const getStorage = () => {
   }
 }
 
+// Tables with writes not yet saved to localStorage. Each table is serialised
+// whole, so a burst of writes (the cloud listener replays every snapshot on
+// sign-in) is saved once on the next task instead of once per row; saving per
+// row made sign-in O(n²) and froze the app on phones.
+const dirtyTables = new Set()
+let flushTimer = null
+
+export const flushPersistedTables = () => {
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
+  const tables = [...dirtyTables]
+  dirtyTables.clear()
+  tables.forEach((table) => table._writeToStorage())
+}
+
+// A backgrounded or closing page may never run the timer.
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushPersistedTables)
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        flushPersistedTables()
+      }
+    })
+  }
+}
+
 class PersistedInMemoryTable extends InMemoryTable {
   constructor({ storageKey, ...options }) {
     super(options)
@@ -311,6 +349,13 @@ class PersistedInMemoryTable extends InMemoryTable {
   }
 
   _persist() {
+    dirtyTables.add(this)
+    if (flushTimer === null) {
+      flushTimer = setTimeout(flushPersistedTables, 0)
+    }
+  }
+
+  _writeToStorage() {
     const storage = getStorage()
     if (!storage) {
       return
