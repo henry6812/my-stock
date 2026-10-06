@@ -221,6 +221,35 @@
   padding: 12px 0;
 }
 
+/* Hero row: figures on the left, the jar / tower on the right. */
+.summary-hero-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: min(560px, 100%);
+  text-align: left;
+}
+
+.summary-hero-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-hero-row .ant-statistic-content {
+  white-space: nowrap;
+}
+
+.summary-hero-row .asset-total-delta {
+  text-align: left;
+}
+
+.asset-jar-gap {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
 .asset-summary-value .ant-statistic-title,
 .expense-summary-value .ant-statistic-title {
   font-size: var(--fs-body);
@@ -241,161 +270,6 @@
   margin-top: 4px;
   font-size: 12px;
   text-align: center;
-}
-
-.networth-progress-wrap {
-  width: min(680px, 92vw);
-  margin: 36px auto 36px;
-  padding-bottom: 22px;
-}
-
-.networth-progress-scale {
-  position: relative;
-  height: 20px;
-}
-
-.networth-progress-scale-label {
-  position: absolute;
-  top: 36px;
-  transform: translateX(-50%);
-  font-size: 11px;
-  color: var(--c-muted);
-  white-space: nowrap;
-}
-
-.networth-progress-track {
-  position: relative;
-  height: 12px;
-  border-radius: 999px;
-  background: var(--c-track);
-  overflow: visible;
-}
-
-.networth-progress-fill {
-  height: 100%;
-  border-radius: var(--radius-pill) 4px 4px var(--radius-pill);
-  background: var(--c-teal-bright);
-}
-
-.networth-track-stop-line {
-  position: absolute;
-  top: 0;
-  transform: translateX(-50%);
-  width: 2px;
-  height: 100%;
-  background: var(--c-paper);
-  z-index: 1;
-}
-
-.networth-delta-segment {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.networth-delta-segment--up {
-  background-color: var(--c-up);
-  background-image: repeating-linear-gradient(
-    -45deg,
-    rgba(255, 255, 255, 0.55) 0 1px,
-    transparent 1px 4px
-  );
-}
-
-.networth-delta-segment--down {
-  background-color: rgba(207, 19, 34, 0.22);
-  background-image: repeating-linear-gradient(
-    -45deg,
-    rgba(207, 19, 34, 0.5) 0 1px,
-    transparent 1px 4px
-  );
-}
-
-.networth-marker {
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  height: 100%;
-  display: flex;
-  align-items: stretch;
-  z-index: 4;
-}
-
-.networth-marker--baseline {
-  pointer-events: auto;
-}
-
-.networth-marker--current {
-  pointer-events: auto;
-}
-
-.networth-marker-line {
-  display: block;
-  width: 2px;
-  height: 100%;
-  background: var(--c-paper);
-  position: relative;
-  z-index: 3;
-}
-
-.networth-marker-caret {
-  position: absolute;
-  top: -9px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid var(--c-ink);
-  z-index: 4;
-}
-
-.networth-marker--baseline .networth-marker-line {
-  background: var(--c-paper);
-}
-
-.networth-marker-label {
-  position: absolute;
-  left: 50%;
-  top: -30px;
-  transform: translateX(-50%);
-  font-size: 11px;
-  color: var(--c-muted);
-  white-space: nowrap;
-  background: rgba(255, 255, 255, 0.92);
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-}
-
-.networth-marker--offset .networth-marker-label {
-  top: -42px;
-}
-
-.networth-marker-value {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 10px);
-  transform: translateX(-50%);
-  font-size: var(--fs-caption);
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--c-teal-ink);
-  white-space: nowrap;
-  pointer-events: none;
-  background: var(--c-teal-soft);
-  border-radius: var(--radius-sm);
-  padding: 2px 6px;
-}
-
-.networth-progress-meta {
-  display: block;
-  margin-top: 6px;
-  font-size: 12px;
-  text-align: right;
 }
 
 /* ===== Net-worth jar (components/NetWorthJar.jsx) ===== */
@@ -708,23 +582,8 @@
     font-size: 30px;
   }
 
-  .asset-summary-value {
-    width: 80vw;
-    margin: 0 auto;
-  }
-
-  .networth-progress-wrap {
-    width: 100%;
-    margin-top: 24px;
-  }
-
-  .networth-progress-scale-label {
-    font-size: 11px;
-  }
-
-  .networth-marker-label {
-    font-size: 11px;
-    padding: 1px 5px;
+  .summary-hero-row .ant-statistic-content {
+    font-size: 26px;
   }
 
   .asset-summary-actions {

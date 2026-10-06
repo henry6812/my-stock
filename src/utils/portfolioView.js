@@ -9,8 +9,6 @@ export const PULL_REFRESH_MAX = 96;
 export const PULL_REFRESH_TRIGGER = 68;
 export const NUMBER_ANIMATION_DURATION_MS = 2000;
 
-const PROGRESS_UNIT_TWD = 10000000;
-
 export const DEFAULT_EXPENSE_ANALYTICS = {
   monthlyTotalsAllHistory: [],
   kindBreakdown: [],
@@ -222,47 +220,4 @@ export const filterRowsByHolderTab = (targetRows, tab) => {
     );
   }
   return targetRows;
-};
-
-const clampRatio = (value) => Math.min(1, Math.max(0, value));
-
-export const getProgressDisplayTargets = (currentTotal, baselineTotal) => {
-  const flooredCurrent = floorToTenThousand(currentTotal);
-  const flooredBaseline = floorToTenThousand(baselineTotal);
-  const maxValue = Math.max(
-    flooredCurrent + PROGRESS_UNIT_TWD,
-    flooredBaseline,
-    PROGRESS_UNIT_TWD,
-  );
-  const progressMax =
-    Math.ceil(maxValue / PROGRESS_UNIT_TWD) * PROGRESS_UNIT_TWD || 0;
-
-  if (progressMax <= 0) {
-    return {
-      progressMaxTwd: 0,
-      currentRatio: 0,
-      baselineRatio: 0,
-      deltaLeftRatio: 0,
-      deltaWidthRatio: 0,
-    };
-  }
-
-  const currentRatio = clampRatio(flooredCurrent / progressMax);
-  const baselineRatio = clampRatio(flooredBaseline / progressMax);
-
-  return {
-    progressMaxTwd: progressMax,
-    currentRatio,
-    baselineRatio,
-    deltaLeftRatio: Math.min(currentRatio, baselineRatio),
-    deltaWidthRatio: Math.abs(currentRatio - baselineRatio),
-  };
-};
-
-export const buildProgressStops = (progressMaxTwd) => {
-  const stops = [];
-  for (let value = 0; value <= progressMaxTwd; value += PROGRESS_UNIT_TWD) {
-    stops.push(value);
-  }
-  return stops;
 };

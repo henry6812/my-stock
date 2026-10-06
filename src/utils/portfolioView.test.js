@@ -15,8 +15,6 @@ import {
   formatRecurringScheduleText,
   formatBudgetModeLabel,
   formatBudgetCycleLabel,
-  getProgressDisplayTargets,
-  buildProgressStops,
 } from './portfolioView'
 
 describe('formatChangePercent', () => {
@@ -185,20 +183,6 @@ describe('budget label helpers', () => {
     expect(formatBudgetCycleLabel('QUARTERLY')).toBe('季度')
     expect(formatBudgetCycleLabel('YEARLY')).toBe('年度')
     expect(formatBudgetCycleLabel('MONTHLY')).toBe('月度')
-  })
-})
-
-describe('progress bar math', () => {
-  it('computes ratios and a rounded-up max in 10M units', () => {
-    const t = getProgressDisplayTargets(5_000_000, 3_000_000)
-    expect(t.progressMaxTwd).toBe(20_000_000)
-    expect(t.currentRatio).toBeCloseTo(0.25)
-    expect(t.baselineRatio).toBeCloseTo(0.15)
-    expect(t.deltaLeftRatio).toBeCloseTo(0.15)
-    expect(t.deltaWidthRatio).toBeCloseTo(0.1)
-  })
-  it('builds inclusive stops in 10M steps', () => {
-    expect(buildProgressStops(20_000_000)).toEqual([0, 10_000_000, 20_000_000])
   })
 })
 

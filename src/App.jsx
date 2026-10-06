@@ -190,7 +190,6 @@ import {
   formatSignedPrice,
   formatSignedTwd,
   formatChangePercent,
-  floorToTenThousand,
   formatNetWorthScaleLabel,
   formatBudgetModeLabel,
   formatBudgetCycleLabel,
@@ -198,11 +197,11 @@ import {
   createExpensesCsvContent,
   createHoldingsCsvContent,
   filterRowsByHolderTab,
-  getProgressDisplayTargets,
-  buildProgressStops,
 } from "./utils/portfolioView";
 import { getBootPhase } from "./utils/bootPhase";
 import { prefersReducedMotion } from "./utils/motion";
+import { getJarGeometry } from "./utils/netWorthJar";
+import NetWorthJar from "./components/NetWorthJar";
 import { toUserMessage } from "./utils/userMessage";
 import { CHART_NEUTRAL, CHART_PALETTE, COLORS } from "./theme/tokens";
 import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "./utils/budgetStatus";
@@ -635,11 +634,8 @@ function App() {
     selectedRecurringToStop?.hasOccurrenceToday,
   );
   const [rowAnimationValues, setRowAnimationValues] = useState({});
-  const [progressDisplayRatio, setProgressDisplayRatio] = useState(0);
-  const [baselineDisplayRatio, setBaselineDisplayRatio] = useState(0);
-  const [deltaDisplayLeftRatio, setDeltaDisplayLeftRatio] = useState(0);
-  const [deltaDisplayWidthRatio, setDeltaDisplayWidthRatio] = useState(0);
-  const [markerDisplayWan, setMarkerDisplayWan] = useState(0);
+  // Bumped whenever the asset summary should replay its entrance animation.
+  const [assetPlayKey, setAssetPlayKey] = useState(0);
   const pullStartYRef = useRef(0);
   const pullingRef = useRef(false);
   const activeHoldingTabRef = useRef(HOLDER_TAB_ALL);
@@ -656,8 +652,6 @@ function App() {
   const totalAnimationRef = useRef(null);
   const rowAnimationTargetRef = useRef([]);
   const rowAnimationInstanceRef = useRef(null);
-  const progressAnimationRef = useRef(null);
-  const markerValueAnimationRef = useRef(null);
   const expenseProgressAnimationRef = useRef(null);
   const animationLockedUntilRef = useRef(0);
   const expenseShouldAnimateRef = useRef(false);
@@ -672,13 +666,6 @@ function App() {
   const templateReorderInFlightRef = useRef(false);
   const didRunExpenseInitialAnimationRef = useRef(false);
   const latestTotalTwdRef = useRef(0);
-  const latestMarkerWanRef = useRef(0);
-  const latestProgressTargetsRef = useRef({
-    currentRatio: 0,
-    baselineRatio: 0,
-    deltaLeftRatio: 0,
-    deltaWidthRatio: 0,
-  });
   const latestExpenseProgressTargetsRef = useRef({
     recurringPercent: 0,
     oneTimePercent: 0,
@@ -717,40 +704,6 @@ function App() {
         rowAnimationInstanceRef.current = null;
       }
       animationLockedUntilRef.current = 0;
-      return true;
-    },
-    [isNumberAnimationLocked],
-  );
-
-  const stopProgressAnimation = useCallback(
-    (reason = "auto") => {
-      const canStop =
-        reason === "manual" || reason === "force" || !isNumberAnimationLocked();
-      if (!canStop) {
-        return false;
-      }
-
-      if (progressAnimationRef.current) {
-        progressAnimationRef.current.pause();
-        progressAnimationRef.current = null;
-      }
-      return true;
-    },
-    [isNumberAnimationLocked],
-  );
-
-  const stopMarkerValueAnimation = useCallback(
-    (reason = "auto") => {
-      const canStop =
-        reason === "manual" || reason === "force" || !isNumberAnimationLocked();
-      if (!canStop) {
-        return false;
-      }
-
-      if (markerValueAnimationRef.current) {
-        markerValueAnimationRef.current.pause();
-        markerValueAnimationRef.current = null;
-      }
       return true;
     },
     [isNumberAnimationLocked],
@@ -870,94 +823,6 @@ function App() {
     return true;
   }, []);
 
-  const animateProgress = useCallback((targetRatios) => {
-    const hasAnyProgress =
-      targetRatios.currentRatio > 0 ||
-      targetRatios.baselineRatio > 0 ||
-      targetRatios.deltaLeftRatio > 0 ||
-      targetRatios.deltaWidthRatio > 0;
-    if (!hasAnyProgress) {
-      setProgressDisplayRatio(targetRatios.currentRatio);
-      setBaselineDisplayRatio(targetRatios.baselineRatio);
-      setDeltaDisplayLeftRatio(targetRatios.deltaLeftRatio);
-      setDeltaDisplayWidthRatio(targetRatios.deltaWidthRatio);
-      return false;
-    }
-
-    const target = {
-      current: 0,
-      baseline: 0,
-      deltaLeft: 0,
-      deltaWidth: 0,
-    };
-    setProgressDisplayRatio(0);
-    setBaselineDisplayRatio(0);
-    setDeltaDisplayLeftRatio(0);
-    setDeltaDisplayWidthRatio(0);
-
-    const instance = anime({
-      targets: target,
-      current: targetRatios.currentRatio,
-      baseline: targetRatios.baselineRatio,
-      deltaLeft: targetRatios.deltaLeftRatio,
-      deltaWidth: targetRatios.deltaWidthRatio,
-      duration: getNumberAnimationDuration(),
-      easing: "easeOutExpo",
-      update: () => {
-        setProgressDisplayRatio(target.current);
-        setBaselineDisplayRatio(target.baseline);
-        setDeltaDisplayLeftRatio(target.deltaLeft);
-        setDeltaDisplayWidthRatio(target.deltaWidth);
-      },
-      complete: () => {
-        if (progressAnimationRef.current === instance) {
-          progressAnimationRef.current = null;
-        }
-        setProgressDisplayRatio(latestProgressTargetsRef.current.currentRatio);
-        setBaselineDisplayRatio(latestProgressTargetsRef.current.baselineRatio);
-        setDeltaDisplayLeftRatio(
-          latestProgressTargetsRef.current.deltaLeftRatio,
-        );
-        setDeltaDisplayWidthRatio(
-          latestProgressTargetsRef.current.deltaWidthRatio,
-        );
-      },
-    });
-    progressAnimationRef.current = instance;
-    return true;
-  }, []);
-
-  const animateMarkerValue = useCallback((targetWan) => {
-    const safeTargetWan =
-      Number.isFinite(targetWan) && targetWan > 0 ? Math.floor(targetWan) : 0;
-
-    if (safeTargetWan === 0) {
-      setMarkerDisplayWan(0);
-      return false;
-    }
-
-    const target = { wan: 0 };
-    setMarkerDisplayWan(0);
-
-    const instance = anime({
-      targets: target,
-      wan: safeTargetWan,
-      duration: getNumberAnimationDuration(),
-      easing: "easeOutExpo",
-      update: () => {
-        setMarkerDisplayWan(Math.floor(target.wan));
-      },
-      complete: () => {
-        if (markerValueAnimationRef.current === instance) {
-          markerValueAnimationRef.current = null;
-        }
-        setMarkerDisplayWan(latestMarkerWanRef.current);
-      },
-    });
-    markerValueAnimationRef.current = instance;
-    return true;
-  }, []);
-
   const stopExpenseProgressAnimation = useCallback(() => {
     if (expenseProgressAnimationRef.current) {
       expenseProgressAnimationRef.current.pause();
@@ -1070,25 +935,9 @@ function App() {
     setLastUpdatedAt(portfolio.lastUpdatedAt);
     setSyncError(portfolio.syncStatus === "error" ? portfolio.syncError : "");
     setTrend(trendData);
-    const progressTargets = getProgressDisplayTargets(
-      normalizedTotalTwd,
-      normalizedBaselineTotalTwd,
-    );
-    const targetMarkerWan = Math.floor(
-      floorToTenThousand(normalizedTotalTwd) / 10000,
-    );
-    latestMarkerWanRef.current = Number.isFinite(targetMarkerWan)
-      ? Math.max(0, targetMarkerWan)
-      : 0;
-    latestProgressTargetsRef.current = progressTargets;
     const applyLatestDisplayState = () => {
       setDisplayTotalTwd(normalizedTotalTwd);
       setRowAnimationValues({});
-      setProgressDisplayRatio(progressTargets.currentRatio);
-      setBaselineDisplayRatio(progressTargets.baselineRatio);
-      setDeltaDisplayLeftRatio(progressTargets.deltaLeftRatio);
-      setDeltaDisplayWidthRatio(progressTargets.deltaWidthRatio);
-      setMarkerDisplayWan(latestMarkerWanRef.current);
     };
 
     const shouldAnimateNow =
@@ -1097,25 +946,15 @@ function App() {
       didRunInitialAnimationRef.current = true;
       shouldAnimateNumbersRef.current = false;
       stopNumberAnimations("manual");
-      stopProgressAnimation("manual");
-      stopMarkerValueAnimation("manual");
+      setAssetPlayKey((key) => key + 1);
       const totalAnimationStarted = animateTotalValue(normalizedTotalTwd);
-      const progressAnimationStarted = animateProgress(progressTargets);
-      const markerAnimationStarted = animateMarkerValue(
-        latestMarkerWanRef.current,
-      );
       const rowAnimationStarted = animateVisibleRows(
         filterRowsByHolderTab(
           Array.isArray(portfolio.rows) ? portfolio.rows : [],
           activeHoldingTabRef.current,
         ),
       );
-      const startedAnyAnimation =
-        totalAnimationStarted ||
-        progressAnimationStarted ||
-        markerAnimationStarted ||
-        rowAnimationStarted;
-      if (startedAnyAnimation) {
+      if (totalAnimationStarted || rowAnimationStarted) {
         beginNumberAnimationLock();
       } else {
         applyLatestDisplayState();
@@ -1123,10 +962,7 @@ function App() {
     } else {
       const locked = isNumberAnimationLocked();
       const hasLiveAnimations = Boolean(
-        totalAnimationRef.current ||
-          progressAnimationRef.current ||
-          markerValueAnimationRef.current ||
-          rowAnimationInstanceRef.current,
+        totalAnimationRef.current || rowAnimationInstanceRef.current,
       );
       const hasStaleLock = locked && !hasLiveAnimations;
       if (!locked || hasStaleLock) {
@@ -1134,8 +970,6 @@ function App() {
           animationLockedUntilRef.current = 0;
         }
         stopNumberAnimations("force");
-        stopProgressAnimation("force");
-        stopMarkerValueAnimation("force");
         applyLatestDisplayState();
       }
     }
@@ -1157,16 +991,12 @@ function App() {
     console.info("Total Change (%):", portfolio.totalChangePct);
     console.groupEnd();
   }, [
-    animateProgress,
-    animateMarkerValue,
     animateTotalValue,
     animateVisibleRows,
     beginNumberAnimationLock,
     isNumberAnimationLocked,
     range,
-    stopMarkerValueAnimation,
     stopNumberAnimations,
-    stopProgressAnimation,
   ]);
 
   const refreshCloudRuntime = useCallback(() => {
@@ -3915,16 +3745,9 @@ function App() {
   useEffect(
     () => () => {
       stopNumberAnimations("force");
-      stopProgressAnimation("force");
-      stopMarkerValueAnimation("force");
       stopExpenseProgressAnimation();
     },
-    [
-      stopExpenseProgressAnimation,
-      stopMarkerValueAnimation,
-      stopNumberAnimations,
-      stopProgressAnimation,
-    ],
+    [stopExpenseProgressAnimation, stopNumberAnimations],
   );
 
   useEffect(() => {
@@ -4331,54 +4154,10 @@ function App() {
     [priceUpdatedRelativeText],
   );
 
-  const flooredBaselineTwd = useMemo(
-    () => floorToTenThousand(baselineTotalTwd),
-    [baselineTotalTwd],
-  );
-  const currentMarkerWanLabel = useMemo(
-    () => formatNetWorthScaleLabel(Math.max(0, markerDisplayWan) * 10000),
-    [markerDisplayWan],
-  );
-
-  const progressLayoutMetrics = useMemo(
-    () => getProgressDisplayTargets(totalTwd, baselineTotalTwd),
+  const jarGeometry = useMemo(
+    () => getJarGeometry({ totalTwd, baselineTwd: baselineTotalTwd }),
     [baselineTotalTwd, totalTwd],
   );
-  const progressMaxTwd = progressLayoutMetrics.progressMaxTwd;
-
-  const progressStops = useMemo(() => {
-    return buildProgressStops(progressMaxTwd);
-  }, [progressMaxTwd]);
-
-  const visibleProgressStops = useMemo(() => {
-    if (!isMobileViewport) {
-      return progressStops;
-    }
-    if (progressStops.length <= 1) {
-      return progressStops;
-    }
-    return [progressStops[0], progressStops[progressStops.length - 1]];
-  }, [isMobileViewport, progressStops]);
-
-  const currentRatio = progressLayoutMetrics.currentRatio;
-  const baselineRatio = progressLayoutMetrics.baselineRatio;
-
-  const isMarkerOverlap = useMemo(
-    () => Math.abs(currentRatio - baselineRatio) <= 0.02,
-    [baselineRatio, currentRatio],
-  );
-  const deltaSegmentWidthRatio = useMemo(
-    () => Math.abs(currentRatio - baselineRatio),
-    [baselineRatio, currentRatio],
-  );
-  const deltaSegmentClassName = useMemo(() => {
-    if (deltaSegmentWidthRatio === 0) {
-      return "";
-    }
-    return currentRatio >= baselineRatio
-      ? "networth-delta-segment networth-delta-segment--up"
-      : "networth-delta-segment networth-delta-segment--down";
-  }, [baselineRatio, currentRatio, deltaSegmentWidthRatio]);
 
   const handleGoogleLogin = useCallback(async () => {
     try {
@@ -6076,126 +5855,72 @@ function App() {
             >
               <Col xs={24}>
                 <div className="asset-summary-panel">
-                  <div className="asset-summary-value">
-                    <Statistic
-                      title="總現值（TWD）"
-                      value={displayTotalTwd}
-                      precision={0}
-                      formatter={(value) => formatTwd(Number(value))}
-                    />
-                    <Text
-                      className={`asset-total-delta ${
-                        typeof totalChangeTwd === "number" && !priceDataStale
-                          ? getDeltaClassName(totalChangeTwd)
-                          : "cell-delta cell-delta--flat"
-                      }`}
-                    >
-                      {priceDataStale || typeof totalChangeTwd !== "number"
-                        ? "當日 --"
-                        : totalChangeTwd === 0
-                          ? "當日 0.00 (0.00%)"
-                          : `當日 ${totalChangeTwd > 0 ? "▲" : "▼"} ${formatSignedTwd(totalChangeTwd)} (${formatChangePercent(totalChangePct)})`}
-                    </Text>
-                    {(priceDataStale || latestPriceCapturedAt) && (
+                  <div className="summary-hero-row">
+                    <div className="asset-summary-value">
+                      <Statistic
+                        title="總現值（TWD）"
+                        value={displayTotalTwd}
+                        precision={0}
+                        formatter={(value) => formatTwd(Number(value))}
+                      />
                       <Text
-                        type="secondary"
-                        style={{ fontSize: 12, display: "block" }}
+                        className={`asset-total-delta ${
+                          typeof totalChangeTwd === "number" && !priceDataStale
+                            ? getDeltaClassName(totalChangeTwd)
+                            : "cell-delta cell-delta--flat"
+                        }`}
                       >
-                        {priceDataStale
-                          ? latestPriceCapturedAt
-                            ? `尚未更新今日價格，顯示 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")} 的資料`
-                            : "尚未更新今日價格"
-                          : `報價更新於 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")}`}
-                        {usdTwdRate
-                          ? `・USD/TWD ${usdTwdRate.toFixed(2)}`
-                          : ""}
+                        {priceDataStale || typeof totalChangeTwd !== "number"
+                          ? "當日 --"
+                          : totalChangeTwd === 0
+                            ? "當日 0.00 (0.00%)"
+                            : `當日 ${totalChangeTwd > 0 ? "▲" : "▼"} ${formatSignedTwd(totalChangeTwd)} (${formatChangePercent(totalChangePct)})`}
                       </Text>
-                    )}
-                    {autoRefreshIssue && (
-                      <Text
-                        type="warning"
-                        style={{ fontSize: 12, display: "block" }}
-                      >
-                        {autoRefreshIssue}
-                        <Button
-                          type="link"
-                          size="small"
-                          onClick={() => handleRefreshPrices("ALL")}
-                          loading={loadingRefresh}
-                          disabled={isWriteDisabled}
-                          style={{ fontSize: 12, paddingInline: 6, height: "auto" }}
+                      {(priceDataStale || latestPriceCapturedAt) && (
+                        <Text
+                          type="secondary"
+                          style={{ fontSize: 12, display: "block" }}
                         >
-                          重試
-                        </Button>
-                      </Text>
-                    )}
-                    <div className="networth-progress-wrap">
-                      <div className="networth-progress-scale">
-                        {visibleProgressStops.map((stop) => (
-                          <span
-                            key={`stop-${stop}`}
-                            className="networth-progress-scale-label"
-                            style={{
-                              left:
-                                progressMaxTwd > 0
-                                  ? `${(stop / progressMaxTwd) * 100}%`
-                                  : "0%",
-                            }}
+                          {priceDataStale
+                            ? latestPriceCapturedAt
+                              ? `尚未更新今日價格，顯示 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")} 的資料`
+                              : "尚未更新今日價格"
+                            : `報價更新於 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")}`}
+                          {usdTwdRate
+                            ? `・USD/TWD ${usdTwdRate.toFixed(2)}`
+                            : ""}
+                        </Text>
+                      )}
+                      {autoRefreshIssue && (
+                        <Text
+                          type="warning"
+                          style={{ fontSize: 12, display: "block" }}
+                        >
+                          {autoRefreshIssue}
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() => handleRefreshPrices("ALL")}
+                            loading={loadingRefresh}
+                            disabled={isWriteDisabled}
+                            style={{ fontSize: 12, paddingInline: 6, height: "auto" }}
                           >
-                            {formatNetWorthScaleLabel(stop)}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="networth-progress-track">
-                        <div
-                          className="networth-progress-fill"
-                          style={{ width: `${progressDisplayRatio * 100}%` }}
-                        />
-                        {deltaSegmentClassName ? (
-                          <div
-                            className={deltaSegmentClassName}
-                            style={{
-                              left: `${deltaDisplayLeftRatio * 100}%`,
-                              width: `${deltaDisplayWidthRatio * 100}%`,
-                            }}
-                          />
-                        ) : null}
-                        {progressStops
-                          .filter((stop) => stop > 0)
-                          .map((stop) => (
-                            <span
-                              key={`track-stop-${stop}`}
-                              className="networth-track-stop-line"
-                              style={{
-                                left:
-                                  progressMaxTwd > 0
-                                    ? `${(stop / progressMaxTwd) * 100}%`
-                                    : "0%",
-                              }}
-                            />
-                          ))}
-                        <Tooltip
-                          title={`昨日23:59：${formatTwd(flooredBaselineTwd)}`}
-                        >
-                          <div
-                            className={`networth-marker networth-marker--baseline ${isMarkerOverlap ? "networth-marker--offset" : ""}`}
-                            style={{ left: `${baselineDisplayRatio * 100}%` }}
-                          >
-                            <span className="networth-marker-line" />
-                          </div>
-                        </Tooltip>
-                        <div
-                          className="networth-marker networth-marker--current"
-                          style={{ left: `${progressDisplayRatio * 100}%` }}
-                        >
-                          <span className="networth-marker-caret" />
-                          <span className="networth-marker-line" />
-                          <span className="networth-marker-value">
-                            {currentMarkerWanLabel}
-                          </span>
-                        </div>
-                      </div>
+                            重試
+                          </Button>
+                        </Text>
+                      )}
+                      {!jarGeometry.isEmpty && (
+                        <Text type="secondary" className="asset-jar-gap">
+                          距離 {formatNetWorthScaleLabel(jarGeometry.capTwd)} 還差{" "}
+                          {formatNetWorthScaleLabel(jarGeometry.gapToCapTwd)}
+                        </Text>
+                      )}
                     </div>
+                    <NetWorthJar
+                      totalTwd={totalTwd}
+                      baselineTwd={baselineTotalTwd}
+                      playKey={assetPlayKey}
+                    />
                   </div>
                   <div className="asset-summary-actions">
                     <Button
