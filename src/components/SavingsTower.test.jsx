@@ -22,6 +22,22 @@ describe('SavingsTower', () => {
     expect(screen.getByText('存下 3.2 萬')).toBeInTheDocument()
   })
 
+  it('leaves a tinted ghost of each removed chunk, by expense kind', () => {
+    mockMotion(true)
+    const { container } = render(
+      <SavingsTower incomeTwd={100_000} recurringTwd={25_000} oneTimeTwd={13_000} hasIncome playKey={1} />,
+    )
+    // Chunks: rows 9, 8, 7(top half) recurring; 7(bottom half), 6 one-time.
+    const recurringRows = new Set(
+      [...container.querySelectorAll('.savings-tower-spent--recurring')].map((n) => n.dataset.row),
+    )
+    const oneTimeRows = new Set(
+      [...container.querySelectorAll('.savings-tower-spent--oneTime')].map((n) => n.dataset.row),
+    )
+    expect([...recurringRows].sort()).toEqual(['7', '8', '9'])
+    expect([...oneTimeRows].sort()).toEqual(['6', '7'])
+  })
+
   it('puts the saved label inside the tower when nearly everything is saved', () => {
     mockMotion(true)
     render(<SavingsTower incomeTwd={85_000} recurringTwd={5_000} oneTimeTwd={0} hasIncome playKey={1} />)

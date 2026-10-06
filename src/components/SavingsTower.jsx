@@ -238,6 +238,26 @@ export default function SavingsTower({
           </g>
         )}
 
+        {/* Where spending removed income, a faint tint by kind shows the
+            recurring / one-time split. */}
+        {layout.chunks.slice(0, run.revealed).map((chunk) => {
+          const fullH = rowH - 1.5;
+          const y =
+            TOWER.base - (chunk.rowIndex + 1) * rowH + 0.75 + fullH * chunk.offset;
+          return rowBricks(chunk.rowIndex).map((brick) => (
+            <rect
+              key={`spent-${chunk.rowIndex}-${chunk.offset}-${brick.x}`}
+              className={`savings-tower-spent savings-tower-spent--${chunk.kind}`}
+              data-row={chunk.rowIndex}
+              x={brick.x}
+              y={y}
+              width={brick.w}
+              height={fullH * chunk.take}
+              rx="2"
+            />
+          ));
+        })}
+
         {run.shards.map((shard) => (
           <rect
             key={shard.id}

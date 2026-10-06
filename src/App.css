@@ -387,6 +387,23 @@
   stroke-dasharray: 2 2;
 }
 
+/* Spent area keeps a faint tint so the recurring / one-time split stays visible. */
+.savings-tower-spent {
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  animation: jar-fade-in 300ms ease-out both;
+}
+
+.savings-tower-spent--recurring {
+  fill: rgba(43, 127, 116, 0.2);
+  stroke: rgba(43, 127, 116, 0.45);
+}
+
+.savings-tower-spent--oneTime {
+  fill: rgba(134, 196, 185, 0.2);
+  stroke: rgba(134, 196, 185, 0.7);
+}
+
 .savings-tower-income {
   font-size: 9.5px;
   fill: var(--c-subtle);
@@ -414,11 +431,17 @@
   font-size: 10px;
   font-weight: 700;
   fill: #8a6414;
+  /* White halo keeps the label readable over the tinted spent area. */
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 3px;
+  stroke-linejoin: round;
   animation: jar-fade-in 400ms ease-out both;
 }
 
 .savings-tower-saved--inside {
   fill: #5c430d;
+  stroke: none;
 }
 
 .savings-tower-pit {
