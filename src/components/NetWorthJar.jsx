@@ -8,7 +8,9 @@ import { formatNetWorthScaleLabel } from "../utils/portfolioView";
 import { formatTwd } from "../utils/formatters";
 import { prefersReducedMotion } from "../utils/motion";
 
-const VIEW_W = 120;
+// Wider than the jar itself: the current-level label sits to its right and
+// must stay inside the box (the jar sits at the screen edge on phones).
+const VIEW_W = 150;
 const VIEW_H = 170;
 const JAR = { x: 18, y: 16, w: 84, h: 146, r: 18 };
 // Entrance: rise to yesterday's level first, then move to today's.

@@ -274,7 +274,7 @@
 
 /* ===== Net-worth jar (components/NetWorthJar.jsx) ===== */
 .networth-jar {
-  width: 120px;
+  width: 150px;
   height: 170px;
   flex: none;
   overflow: visible;
@@ -951,6 +951,13 @@
   display: block;
   margin-top: 4px;
   font-size: 12px;
+}
+
+/* In the hero row the left column is narrow: stack the two meta lines. */
+.summary-hero-text .expense-income-progress-meta-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
 .expense-saved-text {
