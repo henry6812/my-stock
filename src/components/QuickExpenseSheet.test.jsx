@@ -329,6 +329,14 @@ describe('<QuickExpenseSheet />', () => {
     expect(onOpenFullForm).not.toHaveBeenCalled()
   })
 
+  it('shows a busy save key while saving', () => {
+    renderSheet({ loading: true })
+    const key = screen.getByRole('button', { name: '儲存中' })
+    expect(key).toHaveAttribute('aria-busy', 'true')
+    expect(key).toHaveClass('is-loading')
+    expect(screen.queryByRole('button', { name: '存' })).not.toBeInTheDocument()
+  })
+
   it('stays usable after a failed submit', async () => {
     const onSubmit = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
     const { user } = renderSheet({ onSubmit })

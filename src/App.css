@@ -1676,6 +1676,19 @@
   background: var(--c-line-strong);
 }
 
+/* Saving: keep the key teal (it's working, not unavailable) with a spinner,
+   and fade the rest of the keypad so it reads as locked. */
+.quick-expense-key--save.is-loading,
+.quick-expense-key--save.is-loading:active {
+  background: var(--c-teal);
+  cursor: progress;
+}
+
+.quick-expense-keypad.is-saving .quick-expense-key:not(.quick-expense-key--save) {
+  color: var(--c-subtle);
+  transition: color 0.15s ease;
+}
+
 .quick-expense-link {
   border: none;
   background: none;

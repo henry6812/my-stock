@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer } from "antd";
+import { LoadingOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import {
   evaluateExpression,
@@ -344,7 +345,7 @@ function QuickExpenseSheet({
   );
 
   const renderKeypad = () => (
-    <div className="quick-expense-keypad">
+    <div className={`quick-expense-keypad${loading ? " is-saving" : ""}`}>
       {KEYPAD_ROWS.flat().map(({ key, label, aria }) => (
         <button
           key={key}
@@ -359,12 +360,15 @@ function QuickExpenseSheet({
       ))}
       <button
         type="button"
-        className="quick-expense-key quick-expense-key--save"
-        aria-label="存"
+        className={`quick-expense-key quick-expense-key--save${
+          loading ? " is-loading" : ""
+        }`}
+        aria-label={loading ? "儲存中" : "存"}
+        aria-busy={loading || undefined}
         aria-disabled={!canSave}
         onClick={handleSave}
       >
-        {loading ? "…" : "存"}
+        {loading ? <LoadingOutlined spin /> : "存"}
       </button>
     </div>
   );
