@@ -202,6 +202,8 @@ import { getBootPhase } from "./utils/bootPhase";
 import { prefersReducedMotion } from "./utils/motion";
 import { getJarGeometry } from "./utils/netWorthJar";
 import NetWorthJar from "./components/NetWorthJar";
+import SavingsTower from "./components/SavingsTower";
+import { getTowerLayout } from "./utils/savingsTower";
 import { toUserMessage } from "./utils/userMessage";
 import { CHART_NEUTRAL, CHART_PALETTE, COLORS } from "./theme/tokens";
 import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "./utils/budgetStatus";
@@ -597,15 +599,8 @@ function App() {
   const [newIncomeOverrideMonth, setNewIncomeOverrideMonth] = useState(dayjs());
   const [newIncomeOverrideValue, setNewIncomeOverrideValue] = useState(null);
   const [loadingIncomeSettings, setLoadingIncomeSettings] = useState(false);
-  const [expenseRecurringDisplayPercent, setExpenseRecurringDisplayPercent] =
-    useState(0);
-  const [expenseOneTimeDisplayPercent, setExpenseOneTimeDisplayPercent] =
-    useState(0);
-  const [expenseMarkerDisplayPercent, setExpenseMarkerDisplayPercent] =
-    useState(0);
-  const [expenseRateDisplayPercent, setExpenseRateDisplayPercent] = useState(0);
-  const [showExpenseRateMarkerDisplay, setShowExpenseRateMarkerDisplay] =
-    useState(false);
+  // Bumped whenever the expense summary should replay its tower entrance.
+  const [expensePlayKey, setExpensePlayKey] = useState(0);
   const [recurringExpenseRows, setRecurringExpenseRows] = useState([]);
   const [recurringSummary, setRecurringSummary] = useState({
     count: 0,
@@ -652,9 +647,7 @@ function App() {
   const totalAnimationRef = useRef(null);
   const rowAnimationTargetRef = useRef([]);
   const rowAnimationInstanceRef = useRef(null);
-  const expenseProgressAnimationRef = useRef(null);
   const animationLockedUntilRef = useRef(0);
-  const expenseShouldAnimateRef = useRef(false);
   // Quick-sheet values handed to the full expense form ("完整表單"); applied
   // by the form's open effect after its own defaults.
   const pendingExpenseDraftRef = useRef(null);
@@ -664,15 +657,7 @@ function App() {
   // While a template reorder is writing, realtime echoes of each row would
   // reload a half-applied order; the drag handler reloads once at the end.
   const templateReorderInFlightRef = useRef(false);
-  const didRunExpenseInitialAnimationRef = useRef(false);
   const latestTotalTwdRef = useRef(0);
-  const latestExpenseProgressTargetsRef = useRef({
-    recurringPercent: 0,
-    oneTimePercent: 0,
-    markerPercent: 0,
-    ratePercent: 0,
-    showMarker: false,
-  });
   const [expenseForm] = Form.useForm();
   const [categoryForm] = Form.useForm();
   const [budgetForm] = Form.useForm();
@@ -822,69 +807,6 @@ function App() {
     rowAnimationInstanceRef.current = instance;
     return true;
   }, []);
-
-  const stopExpenseProgressAnimation = useCallback(() => {
-    if (expenseProgressAnimationRef.current) {
-      expenseProgressAnimationRef.current.pause();
-      expenseProgressAnimationRef.current = null;
-    }
-  }, []);
-
-  const animateExpenseProgress = useCallback(
-    (targetValues) => {
-      stopExpenseProgressAnimation();
-      setExpenseRecurringDisplayPercent(0);
-      setExpenseOneTimeDisplayPercent(0);
-      setExpenseMarkerDisplayPercent(0);
-      setExpenseRateDisplayPercent(0);
-      setShowExpenseRateMarkerDisplay(Boolean(targetValues.showMarker));
-
-      if (!targetValues.showMarker) {
-        return;
-      }
-
-      const animated = {
-        recurring: 0,
-        oneTime: 0,
-        marker: 0,
-        rate: 0,
-      };
-
-      expenseProgressAnimationRef.current = anime({
-        targets: animated,
-        recurring: targetValues.recurringPercent,
-        oneTime: targetValues.oneTimePercent,
-        marker: targetValues.markerPercent,
-        rate: targetValues.ratePercent,
-        duration: getNumberAnimationDuration(),
-        easing: "easeOutExpo",
-        update: () => {
-          setExpenseRecurringDisplayPercent(animated.recurring);
-          setExpenseOneTimeDisplayPercent(animated.oneTime);
-          setExpenseMarkerDisplayPercent(animated.marker);
-          setExpenseRateDisplayPercent(animated.rate);
-        },
-        complete: () => {
-          setExpenseRecurringDisplayPercent(
-            latestExpenseProgressTargetsRef.current.recurringPercent,
-          );
-          setExpenseOneTimeDisplayPercent(
-            latestExpenseProgressTargetsRef.current.oneTimePercent,
-          );
-          setExpenseMarkerDisplayPercent(
-            latestExpenseProgressTargetsRef.current.markerPercent,
-          );
-          setExpenseRateDisplayPercent(
-            latestExpenseProgressTargetsRef.current.ratePercent,
-          );
-          setShowExpenseRateMarkerDisplay(
-            latestExpenseProgressTargetsRef.current.showMarker,
-          );
-        },
-      });
-    },
-    [stopExpenseProgressAnimation],
-  );
 
   // PointerSensor covers mouse + touch (the handle sets touch-action: none so
   // a touch drag doesn't scroll the page); KeyboardSensor lets the focused
@@ -1169,7 +1091,6 @@ function App() {
   // the background (the write itself already reached the cloud).
   const saveExpenseEntry = useCallback(
     async (payload) => {
-      expenseShouldAnimateRef.current = true;
       await upsertExpenseEntry(payload);
       if (!payload.id) {
         writeLastExpenseDefaults({
@@ -1709,7 +1630,6 @@ function App() {
     async (record) => {
       try {
         setLoadingExpenseAction(true);
-        expenseShouldAnimateRef.current = true;
         await removeExpenseEntry({ id: record.id });
         await loadExpenseData();
         await performCloudSync();
@@ -1749,7 +1669,6 @@ function App() {
 
     setStoppingRecurringById((prev) => ({ ...prev, [targetId]: true }));
     try {
-      expenseShouldAnimateRef.current = true;
       await stopRecurringExpense({
         id: targetId,
         keepToday: effectiveKeepToday,
@@ -3745,9 +3664,8 @@ function App() {
   useEffect(
     () => () => {
       stopNumberAnimations("force");
-      stopExpenseProgressAnimation();
     },
-    [stopExpenseProgressAnimation, stopNumberAnimations],
+    [stopNumberAnimations],
   );
 
   useEffect(() => {
@@ -4936,35 +4854,6 @@ function App() {
     expenseTotalMode === "cumulative"
       ? incomeProgress?.cumulative
       : incomeProgress?.month;
-  const expenseRecurringSegmentPercent = useMemo(() => {
-    const ratio = Number(activeIncomeProgress?.recurringRatio);
-    if (!Number.isFinite(ratio) || ratio <= 0) {
-      return 0;
-    }
-    return Math.min(100, ratio * 100);
-  }, [activeIncomeProgress]);
-  const expenseOneTimeSegmentPercent = useMemo(() => {
-    const ratio = Number(activeIncomeProgress?.oneTimeRatio);
-    if (!Number.isFinite(ratio) || ratio <= 0) {
-      return 0;
-    }
-    return Math.min(100, ratio * 100);
-  }, [activeIncomeProgress]);
-  const expenseRateRawPercent = useMemo(() => {
-    const ratio = Number(activeIncomeProgress?.ratio);
-    if (!Number.isFinite(ratio) || ratio <= 0) {
-      return 0;
-    }
-    return ratio * 100;
-  }, [activeIncomeProgress]);
-  const expenseRateMarkerLeftPercent = useMemo(
-    () => Math.min(100, Math.max(0, expenseRateRawPercent)),
-    [expenseRateRawPercent],
-  );
-  const expenseRateMarkerLabel = useMemo(
-    () => `${Math.max(0, expenseRateDisplayPercent).toFixed(1)}%`,
-    [expenseRateDisplayPercent],
-  );
   const expenseIncomeProgressMetaLeftText = useMemo(() => {
     const recurringRatio = Number(activeIncomeProgress?.recurringRatio);
     const oneTimeRatio = Number(activeIncomeProgress?.oneTimeRatio);
@@ -4990,47 +4879,34 @@ function App() {
       : "--";
     return `花費 ${expenseText} / 收入 ${incomeText}`;
   }, [activeIncomeProgress]);
-  const showExpenseRateMarker = Boolean(activeIncomeProgress?.hasIncome);
-  const showExpenseSegmentDividerDisplay =
-    expenseRecurringDisplayPercent > 0 && expenseOneTimeDisplayPercent > 0;
-  useEffect(() => {
-    const targets = {
-      recurringPercent: Math.min(
-        100,
-        Math.max(0, expenseRecurringSegmentPercent),
-      ),
-      oneTimePercent: Math.min(100, Math.max(0, expenseOneTimeSegmentPercent)),
-      markerPercent: Math.min(100, Math.max(0, expenseRateMarkerLeftPercent)),
-      ratePercent: Math.max(0, expenseRateRawPercent),
-      showMarker: Boolean(showExpenseRateMarker),
-    };
-    latestExpenseProgressTargetsRef.current = targets;
-
-    const shouldAnimateNow =
-      !didRunExpenseInitialAnimationRef.current ||
-      expenseShouldAnimateRef.current;
-    if (shouldAnimateNow) {
-      didRunExpenseInitialAnimationRef.current = true;
-      expenseShouldAnimateRef.current = false;
-      animateExpenseProgress(targets);
-      return;
+  const expenseTowerLayout = useMemo(
+    () =>
+      getTowerLayout({
+        incomeTwd: activeIncomeProgress?.hasIncome
+          ? activeIncomeProgress?.denominator
+          : 0,
+        recurringTwd: activeIncomeProgress?.recurringNumerator,
+        oneTimeTwd: activeIncomeProgress?.oneTimeNumerator,
+      }),
+    [activeIncomeProgress],
+  );
+  const expenseSavedText = useMemo(() => {
+    if (!expenseTowerLayout.hasIncome) {
+      return null;
     }
-
-    stopExpenseProgressAnimation();
-    setExpenseRecurringDisplayPercent(targets.recurringPercent);
-    setExpenseOneTimeDisplayPercent(targets.oneTimePercent);
-    setExpenseMarkerDisplayPercent(targets.markerPercent);
-    setExpenseRateDisplayPercent(targets.ratePercent);
-    setShowExpenseRateMarkerDisplay(targets.showMarker);
-  }, [
-    animateExpenseProgress,
-    expenseOneTimeSegmentPercent,
-    expenseRateMarkerLeftPercent,
-    expenseRateRawPercent,
-    expenseRecurringSegmentPercent,
-    showExpenseRateMarker,
-    stopExpenseProgressAnimation,
-  ]);
+    if (expenseTowerLayout.overspendTwd > 0) {
+      return {
+        over: true,
+        text: `超支 ${formatTwd(expenseTowerLayout.overspendTwd)}`,
+      };
+    }
+    return {
+      over: false,
+      text: `存下 ${formatTwd(expenseTowerLayout.savedTwd)}（${(
+        expenseTowerLayout.savedRatio * 100
+      ).toFixed(1)}%）`,
+    };
+  }, [expenseTowerLayout]);
   const expenseActiveMonthIndex = useMemo(
     () =>
       safeActiveExpenseMonth
@@ -5077,7 +4953,7 @@ function App() {
     }
     try {
       setLoadingIncomeSettings(true);
-      expenseShouldAnimateRef.current = true;
+      setExpensePlayKey((key) => key + 1);
       await setIncomeOverride({ month: monthValue, incomeTwd: incomeValue });
       await loadExpenseData();
       await performCloudSync();
@@ -5102,7 +4978,7 @@ function App() {
     async (month) => {
       try {
         setLoadingIncomeSettings(true);
-        expenseShouldAnimateRef.current = true;
+        setExpensePlayKey((key) => key + 1);
         await removeIncomeOverride({ month });
         await loadExpenseData();
         await performCloudSync();
@@ -5121,7 +4997,7 @@ function App() {
   const handleSaveIncomeSettings = useCallback(async () => {
     try {
       setLoadingIncomeSettings(true);
-      expenseShouldAnimateRef.current = true;
+      setExpensePlayKey((key) => key + 1);
       await saveIncomeSettings({
         defaultMonthlyIncomeTwd,
         monthOverrides: incomeMonthOverrides,
@@ -6245,189 +6121,150 @@ function App() {
                           { label: "累計", value: "cumulative" },
                         ]}
                         onChange={(value) => {
-                          expenseShouldAnimateRef.current = true;
+                          setExpensePlayKey((key) => key + 1);
                           setExpenseTotalMode(value);
                         }}
                       />
-                      <div className="expense-summary-title">
-                        <div className="expense-summary-meta">
-                          {expenseTotalMode === "month" ? (
-                            <div className="expense-month-nav">
-                              <Button
-                                type="text"
-                                size="small"
-                                icon={<LeftOutlined />}
-                                className="expense-month-nav-btn"
-                                aria-label="上個月份"
-                                disabled={!canGoPrevExpenseMonth}
-                                onClick={() => {
-                                  if (!canGoPrevExpenseMonth) return;
-                                  expenseShouldAnimateRef.current = true;
-                                  setActiveExpenseMonth(
-                                    expenseMonthNavOptions[
-                                      expenseActiveMonthIndex - 1
-                                    ],
-                                  );
-                                }}
-                              />
-                              <div className="expense-month-nav-title">
-                                <Text strong>{expenseMonthTitle}</Text>
-                              </div>
-                              <Button
-                                type="text"
-                                size="small"
-                                icon={<RightOutlined />}
-                                className="expense-month-nav-btn"
-                                aria-label="下個月份"
-                                disabled={!canGoNextExpenseMonth}
-                                onClick={() => {
-                                  if (!canGoNextExpenseMonth) return;
-                                  expenseShouldAnimateRef.current = true;
-                                  setActiveExpenseMonth(
-                                    expenseMonthNavOptions[
-                                      expenseActiveMonthIndex + 1
-                                    ],
-                                  );
-                                }}
-                              />
+                      <div className="summary-hero-row">
+                        <div className="summary-hero-text">
+                          <div className="expense-summary-title">
+                            <div className="expense-summary-meta">
+                              {expenseTotalMode === "month" ? (
+                                <div className="expense-month-nav">
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<LeftOutlined />}
+                                    className="expense-month-nav-btn"
+                                    aria-label="上個月份"
+                                    disabled={!canGoPrevExpenseMonth}
+                                    onClick={() => {
+                                      if (!canGoPrevExpenseMonth) return;
+                                      setExpensePlayKey((key) => key + 1);
+                                      setActiveExpenseMonth(
+                                        expenseMonthNavOptions[
+                                          expenseActiveMonthIndex - 1
+                                        ],
+                                      );
+                                    }}
+                                  />
+                                  <div className="expense-month-nav-title">
+                                    <Text strong>{expenseMonthTitle}</Text>
+                                  </div>
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<RightOutlined />}
+                                    className="expense-month-nav-btn"
+                                    aria-label="下個月份"
+                                    disabled={!canGoNextExpenseMonth}
+                                    onClick={() => {
+                                      if (!canGoNextExpenseMonth) return;
+                                      setExpensePlayKey((key) => key + 1);
+                                      setActiveExpenseMonth(
+                                        expenseMonthNavOptions[
+                                          expenseActiveMonthIndex + 1
+                                        ],
+                                      );
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <Text strong>累計總支出</Text>
+                              )}
                             </div>
-                          ) : (
-                            <Text strong>累計總支出</Text>
-                          )}
-                        </div>
-                      </div>
-                      <div className="expense-summary-value">
-                        <div className="expense-summary-value-main">
-                          <Statistic
-                            value={expenseSummaryValue}
-                            formatter={(value) => formatTwd(Number(value))}
-                          />
-                          {expenseTotalMode === "cumulative" ? (
-                            <HoverTooltip title="查看支出走勢">
-                              <Button
-                                type="text"
-                                size="small"
-                                icon={<AreaChartOutlined />}
-                                className="expense-summary-trend-btn"
-                                aria-label="查看支出走勢"
-                                onClick={() => {
-                                  setActiveExpenseChartKey("trend");
-                                  setIsExpenseChartModalOpen(true);
-                                }}
+                          </div>
+                          <div className="expense-summary-value">
+                            <div className="expense-summary-value-main">
+                              <Statistic
+                                value={expenseSummaryValue}
+                                formatter={(value) => formatTwd(Number(value))}
                               />
-                            </HoverTooltip>
-                          ) : null}
-                        </div>
-                        {expenseTotalMode !== "cumulative" &&
-                        expenseUpcomingTotalTwd > 0 ? (
-                          <Text
-                            type="secondary"
-                            className="expense-upcoming-note"
-                          >
-                            另有 {formatTwd(expenseUpcomingTotalTwd)}{" "}
-                            固定支出本月尚未扣款（未計入）
-                          </Text>
-                        ) : null}
-                        <div className="expense-income-progress">
-                          <div className="expense-income-segmented-track">
-                            <div className="expense-income-segmented-track-fill">
-                              <div
-                                className="expense-income-segment expense-income-segment--recurring"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    expenseRecurringDisplayPercent,
-                                  )}%`,
-                                }}
-                              />
-                              <div
-                                className="expense-income-segment expense-income-segment--onetime"
-                                style={{
-                                  left: `${Math.min(
-                                    100,
-                                    expenseRecurringDisplayPercent,
-                                  )}%`,
-                                  width: `${Math.min(
-                                    100,
-                                    expenseOneTimeDisplayPercent,
-                                  )}%`,
-                                }}
-                              />
-                              {showExpenseSegmentDividerDisplay ? (
-                                <span
-                                  className="expense-income-segment-divider"
-                                  style={{
-                                    left: `${Math.min(
-                                      100,
-                                      expenseRecurringDisplayPercent,
-                                    )}%`,
-                                  }}
-                                />
+                              {expenseTotalMode === "cumulative" ? (
+                                <HoverTooltip title="查看支出走勢">
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<AreaChartOutlined />}
+                                    className="expense-summary-trend-btn"
+                                    aria-label="查看支出走勢"
+                                    onClick={() => {
+                                      setActiveExpenseChartKey("trend");
+                                      setIsExpenseChartModalOpen(true);
+                                    }}
+                                  />
+                                </HoverTooltip>
                               ) : null}
                             </div>
-                            {showExpenseRateMarkerDisplay ? (
-                              <span
-                                className={[
-                                  "expense-rate-marker",
-                                  expenseMarkerDisplayPercent <= 5
-                                    ? "expense-rate-marker--edge-left"
-                                    : "",
-                                  expenseMarkerDisplayPercent >= 95
-                                    ? "expense-rate-marker--edge-right"
-                                    : "",
-                                ]
-                                  .filter(Boolean)
-                                  .join(" ")}
-                                style={{
-                                  left: `${expenseMarkerDisplayPercent}%`,
-                                }}
+                            {expenseSavedText ? (
+                              <Text
+                                className={`expense-saved-text${
+                                  expenseSavedText.over ? " expense-saved-text--over" : ""
+                                }`}
                               >
-                                <span className="expense-rate-marker-label">
-                                  {expenseRateMarkerLabel}
-                                </span>
-                                <span className="expense-rate-marker-caret" />
-                              </span>
+                                {expenseSavedText.text}
+                              </Text>
                             ) : null}
-                          </div>
-                          <div className="expense-income-progress-meta-row">
-                            <Text
-                              type="secondary"
-                              className="expense-income-progress-meta-left"
-                            >
-                              {expenseIncomeProgressMetaLeftText}
-                              {!activeIncomeProgress?.hasIncome && (
-                                <Button
-                                  type="link"
-                                  size="small"
-                                  onClick={goToIncomeSettings}
-                                  style={{
-                                    fontSize: 12,
-                                    height: "auto",
-                                    paddingInline: 4,
-                                  }}
+                            <div className="expense-tower-legend">
+                              <span>
+                                <i className="expense-tower-swatch expense-tower-swatch--recurring" />
+                                定期
+                              </span>
+                              <span>
+                                <i className="expense-tower-swatch expense-tower-swatch--onetime" />
+                                單筆
+                              </span>
+                              <span>
+                                <i className="expense-tower-swatch expense-tower-swatch--saved" />
+                                存下
+                              </span>
+                            </div>
+                            {expenseTotalMode !== "cumulative" &&
+                            expenseUpcomingTotalTwd > 0 ? (
+                              <Text
+                                type="secondary"
+                                className="expense-upcoming-note"
+                              >
+                                另有 {formatTwd(expenseUpcomingTotalTwd)}{" "}
+                                固定支出本月尚未扣款（未計入）
+                              </Text>
+                            ) : null}
+                            <div className="expense-income-progress">
+                              <div className="expense-income-progress-meta-row">
+                                <Text
+                                  type="secondary"
+                                  className="expense-income-progress-meta-left"
                                 >
-                                  前往設定收入
-                                </Button>
-                              )}
-                            </Text>
-                            <Text
-                              type="secondary"
-                              className="expense-income-progress-meta-right"
-                            >
-                              {expenseIncomeProgressMetaRightText}
-                            </Text>
+                                  {expenseIncomeProgressMetaLeftText}
+                                </Text>
+                                <Text
+                                  type="secondary"
+                                  className="expense-income-progress-meta-right"
+                                >
+                                  {expenseIncomeProgressMetaRightText}
+                                </Text>
+                              </div>
+                            </div>
+                            {expenseTotalMode === "cumulative" && (
+                              <Text
+                                type="secondary"
+                                className="expense-summary-subtext"
+                              >
+                                {expenseFirstDate
+                                  ? `自 ${formatDate(expenseFirstDate)} 起`
+                                  : "尚無支出資料"}
+                              </Text>
+                            )}
                           </div>
                         </div>
-                        {expenseTotalMode === "cumulative" && (
-                          <Text
-                            type="secondary"
-                            className="expense-summary-subtext"
-                          >
-                            {expenseFirstDate
-                              ? `自 ${formatDate(expenseFirstDate)} 起`
-                              : "尚無支出資料"}
-                          </Text>
-                        )}
+                        <SavingsTower
+                          incomeTwd={activeIncomeProgress?.denominator}
+                          recurringTwd={activeIncomeProgress?.recurringNumerator}
+                          oneTimeTwd={activeIncomeProgress?.oneTimeNumerator}
+                          hasIncome={Boolean(activeIncomeProgress?.hasIncome)}
+                          playKey={expensePlayKey}
+                          onSetupIncome={goToIncomeSettings}
+                        />
                       </div>
                     </div>
                   </Col>

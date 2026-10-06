@@ -931,7 +931,7 @@
 }
 
 .expense-summary-value {
-  text-align: center;
+  text-align: left;
 }
 
 .expense-summary-value-main {
@@ -953,9 +953,52 @@
   font-size: 12px;
 }
 
+.expense-saved-text {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-teal-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.expense-saved-text--over {
+  color: var(--c-down);
+}
+
+.expense-tower-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--c-muted);
+}
+
+.expense-tower-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 4px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
+.expense-tower-swatch--recurring {
+  background: var(--c-teal);
+}
+
+.expense-tower-swatch--onetime {
+  background: #86c4b9;
+}
+
+.expense-tower-swatch--saved {
+  background: linear-gradient(#f2cf6b, #d9a93a);
+}
+
 .expense-income-progress {
-  width: min(520px, 92vw);
-  margin: 48px auto 0;
+  width: 100%;
+  margin: 8px 0 0;
   position: relative;
 }
 
@@ -984,103 +1027,6 @@
 
 .expense-category-tabs .ant-tabs-nav {
   margin-bottom: 8px;
-}
-
-.expense-income-segmented-track {
-  position: relative;
-  height: 8px;
-  overflow: visible;
-}
-
-.expense-income-segmented-track-fill {
-  position: relative;
-  height: 100%;
-  border-radius: var(--radius-pill);
-  background: var(--c-track);
-  overflow: hidden;
-}
-
-.expense-income-segment {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  will-change: width, left;
-}
-
-.expense-income-segment--recurring {
-  left: 0;
-  background: var(--c-teal);
-}
-
-.expense-income-segment--onetime {
-  background: #86c4b9;
-}
-
-.expense-income-segment-divider {
-  position: absolute;
-  top: 0;
-  transform: translateX(-50%);
-  width: 1px;
-  height: 100%;
-  background: var(--c-surface);
-  z-index: 2;
-}
-
-.expense-rate-marker {
-  position: absolute;
-  left: 0;
-  top: auto;
-  bottom: calc(100% + 2px);
-  transform: translateX(-50%);
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  width: 0;
-  pointer-events: none;
-  z-index: 4;
-  will-change: left, transform;
-}
-
-.expense-rate-marker-caret {
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid var(--c-ink);
-}
-
-.expense-rate-marker-label {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 2px);
-  transform: translateX(-50%);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  background: var(--c-teal-soft);
-  color: var(--c-teal-ink);
-  font-weight: 500;
-  font-size: var(--fs-caption);
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-.expense-rate-marker--edge-left {
-  transform: translateX(-50%);
-}
-
-.expense-rate-marker--edge-left .expense-rate-marker-label {
-  left: 0;
-  transform: none;
-}
-
-.expense-rate-marker--edge-right {
-  transform: translateX(-50%);
-}
-
-.expense-rate-marker--edge-right .expense-rate-marker-label {
-  left: auto;
-  right: 0;
-  transform: none;
 }
 
 .income-settings-row {
