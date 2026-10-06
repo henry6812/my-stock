@@ -200,7 +200,7 @@ import {
 } from "./utils/portfolioView";
 import { getBootPhase } from "./utils/bootPhase";
 import { prefersReducedMotion } from "./utils/motion";
-import { getJarGeometry } from "./utils/netWorthJar";
+import { getAssetAnimationPlan, getJarGeometry } from "./utils/netWorthJar";
 import NetWorthJar from "./components/NetWorthJar";
 import SavingsTower from "./components/SavingsTower";
 import { getTowerLayout } from "./utils/savingsTower";
@@ -862,13 +862,17 @@ function App() {
       setRowAnimationValues({});
     };
 
-    const shouldAnimateNow =
-      !didRunInitialAnimationRef.current || shouldAnimateNumbersRef.current;
-    if (shouldAnimateNow) {
+    const animationPlan = getAssetAnimationPlan({
+      isInitialLoad: !didRunInitialAnimationRef.current,
+      numbersRequested: shouldAnimateNumbersRef.current,
+    });
+    if (animationPlan.replayJar) {
+      setAssetPlayKey((key) => key + 1);
+    }
+    if (animationPlan.animateNumbers) {
       didRunInitialAnimationRef.current = true;
       shouldAnimateNumbersRef.current = false;
       stopNumberAnimations("manual");
-      setAssetPlayKey((key) => key + 1);
       const totalAnimationStarted = animateTotalValue(normalizedTotalTwd);
       const rowAnimationStarted = animateVisibleRows(
         filterRowsByHolderTab(

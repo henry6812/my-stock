@@ -44,3 +44,11 @@ export const getJarGeometry = ({ totalTwd, baselineTwd }) => {
     isEmpty: total <= 0,
   };
 };
+
+// What a portfolio load should animate. Numbers count up on the first load and
+// whenever a refresh asks for it; the jar replays its entrance only on the
+// first load — after a price refresh it glides to the new level instead.
+export const getAssetAnimationPlan = ({ isInitialLoad, numbersRequested }) => ({
+  animateNumbers: isInitialLoad || numbersRequested,
+  replayJar: isInitialLoad,
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getJarGeometry, JAR_UNIT_TWD } from './netWorthJar'
+import { getAssetAnimationPlan, getJarGeometry, JAR_UNIT_TWD } from './netWorthJar'
 
 describe('getJarGeometry', () => {
   it('fills the first 千萬 jar on an up day', () => {
@@ -79,5 +79,28 @@ describe('getJarGeometry', () => {
 
   it('accepts numeric strings', () => {
     expect(getJarGeometry({ totalTwd: '6384200', baselineTwd: '6301000' }).levelRatio).toBeCloseTo(0.638)
+  })
+})
+
+describe('getAssetAnimationPlan', () => {
+  it('replays the jar entrance only on the first load', () => {
+    expect(getAssetAnimationPlan({ isInitialLoad: true, numbersRequested: false })).toEqual({
+      animateNumbers: true,
+      replayJar: true,
+    })
+  })
+
+  it('counts up numbers but lets the jar glide on a price refresh', () => {
+    expect(getAssetAnimationPlan({ isInitialLoad: false, numbersRequested: true })).toEqual({
+      animateNumbers: true,
+      replayJar: false,
+    })
+  })
+
+  it('animates nothing on a plain background reload', () => {
+    expect(getAssetAnimationPlan({ isInitialLoad: false, numbersRequested: false })).toEqual({
+      animateNumbers: false,
+      replayJar: false,
+    })
   })
 })
