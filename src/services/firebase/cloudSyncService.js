@@ -1174,6 +1174,17 @@ export const syncNowWithCloud = async () => {
   if (syncInFlight) {
     return syncInFlight
   }
+  // Live listeners already keep the local store current, and every write is
+  // mirrored to Firestore directly. Restarting them would wipe the store and
+  // re-download every collection, so only do that to recover from a failure.
+  if (runtimeState.listenersReady && !runtimeState.lastError) {
+    return {
+      pushed: 0,
+      pulled: 0,
+      durationMs: 0,
+      triggeredFullResync: false,
+    }
+  }
 
   syncInFlight = (async () => {
     const startedAt = Date.now()
