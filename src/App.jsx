@@ -127,7 +127,6 @@ import {
   getHolderUsageSummary,
   getHoldingTagOptions,
   removeHolding,
-  reorderHoldings,
   stopSync,
   syncNow as syncNowPortfolio,
   removeCashAccount,
@@ -462,7 +461,6 @@ function App() {
   const [loadingRefresh, setLoadingRefresh] = useState(false);
   const [loadingAddHolding, setLoadingAddHolding] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
-  const [loadingReorder, setLoadingReorder] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [authUser, setAuthUser] = useState(null);
   const [loadingAuthAction, setLoadingAuthAction] = useState(false);
@@ -2181,68 +2179,6 @@ function App() {
     activeHoldingTabRef.current = activeHoldingTab;
   }, [activeHoldingTab]);
 
-  const dragDisabled =
-    editingHoldingId !== null || loadingData || loadingReorder;
-
-  const handleDragEnd = useCallback(
-    async ({ active, over }) => {
-      if (dragDisabled || !over || active.id === over.id) {
-        return;
-      }
-
-      const currentRows = filteredRows;
-      const oldIndex = currentRows.findIndex((row) => row.id === active.id);
-      const newIndex = currentRows.findIndex((row) => row.id === over.id);
-
-      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
-        return;
-      }
-
-      const reorderedTabRows = arrayMove(currentRows, oldIndex, newIndex);
-
-      let orderedIds = [];
-      if (activeHoldingTab === HOLDER_TAB_ALL) {
-        orderedIds = reorderedTabRows.map((row) => row.id);
-      } else {
-        const reorderedIds = reorderedTabRows.map((row) => row.id);
-        const reorderedIdSet = new Set(reorderedIds);
-        let index = 0;
-        const mergedRows = rows.map((row) => {
-          if (!reorderedIdSet.has(row.id)) {
-            return row;
-          }
-
-          const next = reorderedTabRows[index];
-          index += 1;
-          return next;
-        });
-        orderedIds = mergedRows.map((row) => row.id);
-      }
-
-      try {
-        setLoadingReorder(true);
-        await reorderHoldings({ orderedIds });
-        await loadAllData();
-        await performCloudSync();
-      } catch (error) {
-        message.error(
-          toUserMessage(error, "持股排序更新失敗"),
-        );
-        await loadAllData();
-      } finally {
-        setLoadingReorder(false);
-      }
-    },
-    [
-      activeHoldingTab,
-      dragDisabled,
-      filteredRows,
-      loadAllData,
-      message,
-      performCloudSync,
-      rows,
-    ],
-  );
 
   const holdingHolderTabItems = useMemo(() => {
     const items = [{ key: HOLDER_TAB_ALL, label: `全部 (${rows.length})` }];
@@ -2458,21 +2394,6 @@ function App() {
   const tableColumns = useMemo(() => {
     const columns = [
       {
-        title: "",
-        key: "drag",
-        width: 52,
-        align: "center",
-        render: (_, record) => (
-          <DragHandle
-            disabled={
-              isWriteDisabled ||
-              dragDisabled ||
-              Boolean(loadingActionById[record.id])
-            }
-          />
-        ),
-      },
-      {
         title: "標的",
         key: "target",
         render: (_, record) => (
@@ -2617,8 +2538,7 @@ function App() {
         width: isMobileViewport ? undefined : 190,
         align: "left",
         render: (_, record) => {
-          const rowLoading =
-            Boolean(loadingActionById[record.id]) || loadingReorder;
+          const rowLoading = Boolean(loadingActionById[record.id]);
           const isEditing = editingHoldingId === record.id;
 
           if (isEditing) {
@@ -2650,7 +2570,7 @@ function App() {
                 type="text"
                 className="row-action"
                 size="small"
-                disabled={isWriteDisabled || editingHoldingId !== null || loadingReorder}
+                disabled={isWriteDisabled || editingHoldingId !== null}
                 loading={rowLoading}
                 onClick={() => handleEditClick(record)}
                 icon={<EditOutlined />}
@@ -2663,7 +2583,7 @@ function App() {
                 cancelText="取消"
                 onConfirm={() => handleRemoveHolding(record)}
                 okButtonProps={{ danger: true, loading: rowLoading }}
-                disabled={isWriteDisabled || editingHoldingId !== null || loadingReorder}
+                disabled={isWriteDisabled || editingHoldingId !== null}
               >
                 <Button
                   type="text"
@@ -2672,8 +2592,7 @@ function App() {
                   disabled={
                     isWriteDisabled ||
                     editingHoldingId !== null ||
-                    rowLoading ||
-                    loadingReorder
+                    rowLoading
                   }
                   icon={<DeleteOutlined />}
                   aria-label="移除持股"
@@ -2756,8 +2675,7 @@ function App() {
             );
           }
           const name = record.companyName || record.symbol;
-          const rowBusy =
-            Boolean(loadingActionById[record.id]) || loadingReorder;
+          const rowBusy = Boolean(loadingActionById[record.id]);
           return (
             <MobileSwipeRow
               onTap={() => setStockDetailId(record.id)}
@@ -2838,7 +2756,6 @@ function App() {
       confirmDestructive,
       getDeltaClassName,
       getHolderTagStyle,
-      dragDisabled,
       isWriteDisabled,
       editingHoldingId,
     editingHoldingTag,
@@ -2853,7 +2770,6 @@ function App() {
     holdingTagOptions,
     isMobileViewport,
     loadingActionById,
-    loadingReorder,
     rowAnimationValues,
     renderValueDelta,
   ]);
@@ -3776,11 +3692,6 @@ function App() {
       isWriteDisabled,
       openBudgetForm,
     ],
-  );
-
-  const DraggableBodyRow = useCallback(
-    (props) => <SortableRow {...props} disabled={dragDisabled} />,
-    [dragDisabled],
   );
 
   const TemplateDraggableRow = useCallback(
@@ -6431,7 +6342,7 @@ function App() {
                       {/* Grouped by holder, each foldable with its total;
                           rows reuse the mobile holding row (swipe actions,
                           inline editor). */}
-                      <Spin spinning={loadingData || loadingReorder}>
+                      <Spin spinning={loadingData}>
                         <CollapsibleGroups
                           className="holding-groups"
                           groups={holdingGroups}
@@ -6499,38 +6410,22 @@ function App() {
                       items={holdingHolderTabItems}
                       style={{ marginBottom: 12 }}
                     />
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleDragEnd}
-                    >
-                      <SortableContext
-                        items={filteredRows.map((row) => row.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <Table
-                          rowKey="id"
-                          dataSource={filteredRows}
-                          columns={tableColumns}
-                          pagination={false}
-                          loading={loadingData || loadingReorder}
-                          scroll={{ x: 980 }}
-                          locale={{ emptyText: holdingsEmptyState }}
-                          onRow={(record) => ({
-                            className: "holding-row--clickable",
-                            onClick: (event) => {
-                              if (editingHoldingId === record.id || isInteractiveTarget(event.target, event.currentTarget)) return;
-                              setStockDetailId(record.id);
-                            },
-                          })}
-                          components={{
-                            body: {
-                              row: DraggableBodyRow,
-                            },
-                          }}
-                        />
-                      </SortableContext>
-                    </DndContext>
+                    <Table
+                      rowKey="id"
+                      dataSource={filteredRows}
+                      columns={tableColumns}
+                      pagination={false}
+                      loading={loadingData}
+                      scroll={{ x: 980 }}
+                      locale={{ emptyText: holdingsEmptyState }}
+                      onRow={(record) => ({
+                        className: "holding-row--clickable",
+                        onClick: (event) => {
+                          if (editingHoldingId === record.id || isInteractiveTarget(event.target, event.currentTarget)) return;
+                          setStockDetailId(record.id);
+                        },
+                      })}
+                    />
                   </Card>
                 )}
               </Col>

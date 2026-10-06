@@ -58,6 +58,10 @@ import {
   resolveNextShares,
 } from "../utils/holdingShares";
 import {
+  compareHoldingsByLegacyOrder,
+  compareHoldingsForDisplay,
+} from "../utils/holdingOrder";
+import {
   computeHoldingDailyChange,
   computePortfolioDailyChange,
   isPriceDataStale,
@@ -340,24 +344,6 @@ const resolveIncomeForMonth = ({
   return typeof defaultMonthlyIncomeTwd === "number"
     ? defaultMonthlyIncomeTwd
     : null;
-};
-
-const sortHoldingsByOrder = (a, b) => {
-  const aOrder = Number(a?.sortOrder);
-  const bOrder = Number(b?.sortOrder);
-  const aHasOrder = Number.isFinite(aOrder);
-  const bHasOrder = Number.isFinite(bOrder);
-
-  if (aHasOrder && bHasOrder && aOrder !== bOrder) {
-    return aOrder - bOrder;
-  }
-  if (aHasOrder && !bHasOrder) return -1;
-  if (!aHasOrder && bHasOrder) return 1;
-
-  if (!a?.updatedAt && !b?.updatedAt) return 0;
-  if (!a?.updatedAt) return 1;
-  if (!b?.updatedAt) return -1;
-  return a.updatedAt > b.updatedAt ? -1 : 1;
 };
 
 const normalizeSymbol = normalizeHoldingSymbol;
@@ -1149,53 +1135,8 @@ export const removeHolding = async ({ id }) => {
       ...holding,
       sortOrder: remaining
         .slice()
-        .sort(sortHoldingsByOrder)
+        .sort(compareHoldingsByLegacyOrder)
         .findIndex((item) => item.id === holding.id) + 1,
-      updatedAt: nowIso,
-      syncState: SYNC_PENDING,
-    });
-  }
-};
-
-export const reorderHoldings = async ({ orderedIds }) => {
-  ensureCloudWritable();
-  if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
-    throw new Error("orderedIds is required");
-  }
-
-  const normalizedIds = orderedIds.map((id) => Number(id));
-  if (normalizedIds.some((id) => !Number.isInteger(id) || id <= 0)) {
-    throw new Error("orderedIds contains invalid id");
-  }
-
-  const uniqueIds = new Set(normalizedIds);
-  if (uniqueIds.size !== normalizedIds.length) {
-    throw new Error("orderedIds contains duplicate id");
-  }
-
-  const holdings = (await db.holdings.toArray()).filter(
-    (item) => !isDeleted(item),
-  );
-  const existingIds = holdings.map((item) => item.id);
-
-  if (existingIds.length !== normalizedIds.length) {
-    throw new Error("orderedIds does not match holdings length");
-  }
-
-  const existingIdSet = new Set(existingIds);
-  for (const id of normalizedIds) {
-    if (!existingIdSet.has(id)) {
-      throw new Error("orderedIds contains unknown id");
-    }
-  }
-
-  const nowIso = getNowIso();
-  for (let i = 0; i < normalizedIds.length; i += 1) {
-    const holding = holdings.find((item) => item.id === normalizedIds[i]);
-    if (!holding) continue;
-    await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
-      ...holding,
-      sortOrder: i + 1,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
@@ -1796,7 +1737,7 @@ export const repairNumericFields = async () => {
 export const getPortfolioView = async () => {
   const allHoldings = await db.holdings.toArray();
   const holdings = allHoldings.filter((item) => !isDeleted(item));
-  holdings.sort(sortHoldingsByOrder);
+  holdings.sort(compareHoldingsForDisplay);
   const allCashAccounts = await db.cash_accounts.toArray();
   const holderOptions = await ensureHolderOptions();
   const tagOptions = await ensureHoldingTagOptions();
