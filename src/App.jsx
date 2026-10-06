@@ -6116,68 +6116,70 @@ function App() {
                 <>
                   <Col xs={24}>
                     <div className="expense-summary-panel expense-summary-panel--plain">
-                      <Segmented
-                        className="expense-summary-toggle"
-                        size="small"
-                        value={expenseTotalMode}
-                        options={[
-                          { label: "月份", value: "month" },
-                          { label: "累計", value: "cumulative" },
-                        ]}
-                        onChange={(value) => {
-                          setExpensePlayKey((key) => key + 1);
-                          setExpenseTotalMode(value);
-                        }}
-                      />
+                      <div className="expense-summary-header">
+                        <Segmented
+                          className="expense-summary-toggle"
+                          size="small"
+                          value={expenseTotalMode}
+                          options={[
+                            { label: "月份", value: "month" },
+                            { label: "累計", value: "cumulative" },
+                          ]}
+                          onChange={(value) => {
+                            setExpensePlayKey((key) => key + 1);
+                            setExpenseTotalMode(value);
+                          }}
+                        />
+                        <div className="expense-summary-title">
+                          <div className="expense-summary-meta">
+                            {expenseTotalMode === "month" ? (
+                              <div className="expense-month-nav">
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<LeftOutlined />}
+                                  className="expense-month-nav-btn"
+                                  aria-label="上個月份"
+                                  disabled={!canGoPrevExpenseMonth}
+                                  onClick={() => {
+                                    if (!canGoPrevExpenseMonth) return;
+                                    setExpensePlayKey((key) => key + 1);
+                                    setActiveExpenseMonth(
+                                      expenseMonthNavOptions[
+                                        expenseActiveMonthIndex - 1
+                                      ],
+                                    );
+                                  }}
+                                />
+                                <div className="expense-month-nav-title">
+                                  <Text strong>{expenseMonthTitle}</Text>
+                                </div>
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<RightOutlined />}
+                                  className="expense-month-nav-btn"
+                                  aria-label="下個月份"
+                                  disabled={!canGoNextExpenseMonth}
+                                  onClick={() => {
+                                    if (!canGoNextExpenseMonth) return;
+                                    setExpensePlayKey((key) => key + 1);
+                                    setActiveExpenseMonth(
+                                      expenseMonthNavOptions[
+                                        expenseActiveMonthIndex + 1
+                                      ],
+                                    );
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <Text strong>累計總支出</Text>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                       <div className="summary-hero-row">
                         <div className="summary-hero-text">
-                          <div className="expense-summary-title">
-                            <div className="expense-summary-meta">
-                              {expenseTotalMode === "month" ? (
-                                <div className="expense-month-nav">
-                                  <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<LeftOutlined />}
-                                    className="expense-month-nav-btn"
-                                    aria-label="上個月份"
-                                    disabled={!canGoPrevExpenseMonth}
-                                    onClick={() => {
-                                      if (!canGoPrevExpenseMonth) return;
-                                      setExpensePlayKey((key) => key + 1);
-                                      setActiveExpenseMonth(
-                                        expenseMonthNavOptions[
-                                          expenseActiveMonthIndex - 1
-                                        ],
-                                      );
-                                    }}
-                                  />
-                                  <div className="expense-month-nav-title">
-                                    <Text strong>{expenseMonthTitle}</Text>
-                                  </div>
-                                  <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<RightOutlined />}
-                                    className="expense-month-nav-btn"
-                                    aria-label="下個月份"
-                                    disabled={!canGoNextExpenseMonth}
-                                    onClick={() => {
-                                      if (!canGoNextExpenseMonth) return;
-                                      setExpensePlayKey((key) => key + 1);
-                                      setActiveExpenseMonth(
-                                        expenseMonthNavOptions[
-                                          expenseActiveMonthIndex + 1
-                                        ],
-                                      );
-                                    }}
-                                  />
-                                </div>
-                              ) : (
-                                <Text strong>累計總支出</Text>
-                              )}
-                            </div>
-                          </div>
                           <div className="expense-summary-value">
                             <div className="expense-summary-value-main">
                               <Statistic

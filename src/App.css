@@ -909,12 +909,20 @@
   padding: 12px 0;
 }
 
+/* Mode toggle + month nav share one centred row above the figure / tower. */
+.expense-summary-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 14px;
+}
+
 .expense-summary-toggle {
   align-self: center;
 }
 
 .expense-summary-title {
-  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
