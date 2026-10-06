@@ -351,13 +351,9 @@ const findLocalHoldingByRemote = async (remote) => {
     .where('[symbol+market]')
     .equals([remote.symbol, remote.market])
     .toArray()
-  if (candidates.length === 1) {
-    return candidates[0]
-  }
-  if (normalizedHolder === null) {
-    return candidates.find((item) => (item.holder ?? null) === null)
-  }
-  return undefined
+  // Only a legacy row with no holder may be adopted; a row owned by another
+  // holder is a different holding and must not be overwritten.
+  return candidates.find((item) => (item.holder ?? null) === null)
 }
 
 const findLocalCashAccountByRemote = async (remote) => {
@@ -376,13 +372,9 @@ const findLocalCashAccountByRemote = async (remote) => {
     .where('[bankName+accountAlias]')
     .equals([remote.bankName, remote.accountAlias])
     .toArray()
-  if (candidates.length === 1) {
-    return candidates[0]
-  }
-  if (normalizedHolder === null) {
-    return candidates.find((item) => (item.holder ?? null) === null)
-  }
-  return undefined
+  // Only a legacy row with no holder may be adopted; a row owned by another
+  // holder is a different holding and must not be overwritten.
+  return candidates.find((item) => (item.holder ?? null) === null)
 }
 
 const applyRemoteHolding = async (remote, { preferLocalId } = {}) => {

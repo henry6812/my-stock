@@ -130,3 +130,92 @@ describe('applyCollectionRecordLocally (expense_templates)', () => {
   })
 })
 
+
+// Adding a stock another holder already owns writes a new doc and round-trips
+// it locally; matching by symbol+market alone used to pick the other holder's
+// row and overwrite it, so their holding vanished.
+describe('applyCollectionRecordLocally (holdings, another holder owns the stock)', () => {
+  beforeEach(async () => {
+    await db.holdings.clear()
+    await db.cash_accounts.clear()
+  })
+
+  it('adds a new row instead of taking over the other holder\'s row', async () => {
+    await db.holdings.add({
+      symbol: '2330',
+      market: 'TW',
+      holder: 'Po',
+      shares: 100,
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+
+    await applyCollectionRecordLocally({
+      collectionName: 'holdings',
+      record: {
+        symbol: '2330',
+        market: 'TW',
+        holder: 'Wei',
+        shares: 20,
+        updatedAt: '2026-10-06T00:00:00.000Z',
+      },
+    })
+
+    const rows = await db.holdings.toArray()
+    expect(rows.map((row) => [row.holder, row.shares]).sort()).toEqual([
+      ['Po', 100],
+      ['Wei', 20],
+    ])
+  })
+
+  it('still adopts a legacy row that has no holder', async () => {
+    await db.holdings.add({
+      symbol: '2330',
+      market: 'TW',
+      holder: null,
+      shares: 100,
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+
+    await applyCollectionRecordLocally({
+      collectionName: 'holdings',
+      record: {
+        symbol: '2330',
+        market: 'TW',
+        holder: 'Po',
+        shares: 100,
+        updatedAt: '2026-10-06T00:00:00.000Z',
+      },
+    })
+
+    const rows = await db.holdings.toArray()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].holder).toBe('Po')
+  })
+
+  it('adds a new cash account instead of taking over the other holder\'s one', async () => {
+    await db.cash_accounts.add({
+      bankName: '台新',
+      accountAlias: '薪轉',
+      holder: 'Po',
+      balanceTwd: 1000,
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    })
+
+    await applyCollectionRecordLocally({
+      collectionName: 'cash_accounts',
+      record: {
+        bankName: '台新',
+        accountAlias: '薪轉',
+        holder: 'Wei',
+        balanceTwd: 500,
+        updatedAt: '2026-10-06T00:00:00.000Z',
+      },
+    })
+
+    const rows = await db.cash_accounts.toArray()
+    expect(rows.map((row) => [row.holder, row.balanceTwd]).sort()).toEqual([
+      ['Po', 1000],
+      ['Wei', 500],
+    ])
+  })
+})
