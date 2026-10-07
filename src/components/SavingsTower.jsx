@@ -1,10 +1,9 @@
 // Expense-tab savings tower (月份 mode): this month's income is a tower of
 // teal bricks; spending knocks bricks off the top (recurring first, then
-// one-time) and what is left is what was saved. Upcoming recurring charges
-// are hatched on top of the saved bricks; overspending digs a red pit.
+// one-time) and what is left is what was saved; overspending digs a red pit.
 // Each part is tappable (onSelectKind). Layout maths lives in
 // utils/savingsTower.js — this file draws + animates.
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   diffTowerChunks,
   formatTowerWan,
@@ -81,7 +80,6 @@ export default function SavingsTower({
   incomeTwd,
   recurringTwd,
   oneTimeTwd,
-  upcomingTwd = 0,
   hasIncome,
   playKey,
   onSetupIncome,
@@ -95,12 +93,10 @@ export default function SavingsTower({
         incomeTwd: hasIncome ? incomeTwd : 0,
         recurringTwd,
         oneTimeTwd,
-        upcomingTwd,
       }),
-    [hasIncome, incomeTwd, recurringTwd, oneTimeTwd, upcomingTwd],
+    [hasIncome, incomeTwd, recurringTwd, oneTimeTwd],
   );
   const animate = !reduced && layout.hasIncome;
-  const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
 
   // Income appearing after mount (data loaded late) replays the entrance.
   const [incomeSeen, setIncomeSeen] = useState(layout.hasIncome);
@@ -176,7 +172,7 @@ export default function SavingsTower({
   };
   const partClass = (kind) =>
     `savings-tower-part${selectedKind && selectedKind !== kind ? " is-dim" : ""}`;
-  const chunkRects = (chunk, className, fill) => {
+  const chunkRects = (chunk, className) => {
     const fullH = rowH - 1.5;
     const y =
       TOWER.base - (chunk.rowIndex + 1) * rowH + 0.75 + fullH * chunk.offset;
@@ -190,7 +186,6 @@ export default function SavingsTower({
         width={brick.w}
         height={fullH * chunk.take}
         rx={BRICK_RX}
-        fill={fill}
       />
     ));
   };
@@ -202,18 +197,6 @@ export default function SavingsTower({
         aria-hidden="true"
         onClick={() => onSelectKind?.(null)}
       >
-        <defs>
-          <pattern
-            id={`${id}-hatch`}
-            width="5"
-            height="5"
-            patternUnits="userSpaceOnUse"
-            patternTransform="rotate(45)"
-          >
-            <rect className="savings-tower-hatch-bg" width="5" height="5" />
-            <rect className="savings-tower-hatch-line" width="2" height="5" />
-          </pattern>
-        </defs>
         <line
           className="savings-tower-ground"
           x1={TOWER.x - 14}
@@ -289,13 +272,6 @@ export default function SavingsTower({
           </g>
         ))}
 
-        {done && layout.pendingChunks.length > 0 && (
-          <g className={partClass("pending")} data-kind="pending" onClick={select("pending")}>
-            {layout.pendingChunks.flatMap((chunk) =>
-              chunkRects(chunk, "savings-tower-pending", `url(#${id}-hatch)`),
-            )}
-          </g>
-        )}
 
         {run.shards.map((shard) => (
           <rect

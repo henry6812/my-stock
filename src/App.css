@@ -402,21 +402,6 @@
   opacity: 0.75;
 }
 
-.savings-tower-pending {
-  stroke: var(--c-teal);
-  stroke-opacity: 0.35;
-  stroke-dasharray: 2 2;
-}
-
-.savings-tower-hatch-bg {
-  fill: #ffffff;
-}
-
-.savings-tower-hatch-line {
-  fill: var(--c-teal);
-  opacity: 0.55;
-}
-
 .savings-tower-part {
   cursor: pointer;
   transition: opacity 200ms ease;
@@ -634,8 +619,6 @@
   width: min(420px, 100%);
   margin: 0 auto;
   box-sizing: border-box;
-  border: 1.5px dashed var(--c-line-strong);
-  border-radius: 24px;
   padding: 20px 18px 16px;
   display: flex;
   flex-direction: column;

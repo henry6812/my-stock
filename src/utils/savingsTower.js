@@ -1,7 +1,6 @@
 // Pure layout for the expense-tab savings tower (components/SavingsTower.jsx).
 // Income is a tower of TOWER_ROWS rows; spending removes it from the top —
 // recurring first, then one-time. Whatever is left is what was saved.
-// Upcoming recurring charges are marked (not removed) right below the spent area.
 
 export const TOWER_ROWS = 10;
 // The overspend pit below the ground line never grows past this fraction of
@@ -23,7 +22,6 @@ export const getTowerLayout = ({
   incomeTwd,
   recurringTwd,
   oneTimeTwd,
-  upcomingTwd = 0,
   rows = TOWER_ROWS,
 }) => {
   const income = toAmount(incomeTwd);
@@ -42,8 +40,6 @@ export const getTowerLayout = ({
       savedRatio: 0,
       overspendTwd: 0,
       overspendDepthRatio: 0,
-      pendingTwd: 0,
-      pendingChunks: [],
     };
   }
 
@@ -66,9 +62,6 @@ export const getTowerLayout = ({
 
   const savedTwd = Math.max(0, income - spentTwd);
   const overspendTwd = Math.max(0, spentTwd - income);
-  const pendingTwd = Math.min(toAmount(upcomingTwd), savedTwd);
-  const pendingChunks = [];
-  sliceFromTop(pendingTwd, "pending", pendingChunks);
 
   return {
     hasIncome: true,
@@ -80,8 +73,6 @@ export const getTowerLayout = ({
     savedRatio: savedTwd / income,
     overspendTwd,
     overspendDepthRatio: Math.min(OVERSPEND_DEPTH_CAP, overspendTwd / income),
-    pendingTwd,
-    pendingChunks,
   };
 };
 

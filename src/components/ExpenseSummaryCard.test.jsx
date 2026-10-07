@@ -22,7 +22,6 @@ const renderCard = (props = {}) =>
       activeMonth="2026-10"
       monthlySummaries={summaries}
       monthProgress={monthProgress}
-      upcomingTwd={19_084}
       playKey={1}
       onSelectMonth={vi.fn()}
       onToggleMode={vi.fn()}
@@ -58,10 +57,9 @@ describe('ExpenseSummaryCard', () => {
     const { container } = renderCard()
     fireEvent.click(container.querySelector('[data-kind="recurring"]'))
     expect(text(container)).toEqual({ label: '定期', num: '$33,620', chip: '佔收入 18.7%' })
-    fireEvent.click(container.querySelector('[data-kind="pending"]'))
-    expect(text(container)).toEqual({ label: '待扣', num: '$19,084', chip: '本月尚未扣款・未計入' })
+    expect(container.querySelector('[data-kind="pending"]')).toBeNull()
     fireEvent.click(container.querySelector('[data-kind="saved"]'))
-    expect(text(container)).toEqual({ label: '存下', num: '$113,553', chip: '扣除待扣後・佔收入 63.1%' })
+    expect(text(container)).toEqual({ label: '存下', num: '$132,637', chip: '佔收入 73.7%' })
     fireEvent.click(container.querySelector('[data-kind="saved"]'))
     expect(text(container).label).toBe('2026 年 10 月')
   })
@@ -71,7 +69,7 @@ describe('ExpenseSummaryCard', () => {
     fireEvent.click(container.querySelector('[data-kind="recurring"]'))
     rerender(
       <ExpenseSummaryCard mode="month" activeMonth="2026-09" monthlySummaries={summaries}
-        monthProgress={monthProgress} upcomingTwd={0} playKey={2} />,
+        monthProgress={monthProgress} playKey={2} />,
     )
     expect(text(container).label).toBe('2026 年 9 月')
   })
@@ -79,7 +77,6 @@ describe('ExpenseSummaryCard', () => {
   it('flags overspending in red', () => {
     const { container } = renderCard({
       monthProgress: { ...monthProgress, numerator: 200_000, recurringNumerator: 120_000, oneTimeNumerator: 80_000 },
-      upcomingTwd: 0,
     })
     const chip = container.querySelector('.expense-card-chip')
     expect(chip.textContent).toBe('超支 $20,000')
