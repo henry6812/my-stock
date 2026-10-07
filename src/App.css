@@ -221,63 +221,115 @@
   padding: 12px 0;
 }
 
-/* Hero row: figures on the left, the jar / tower on the right. */
-.summary-hero-row {
+/* ===== Asset hero (components/AssetSummaryHero.jsx) ===== */
+.asset-hero {
+  width: min(420px, 100%);
+  margin: 0 auto;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
-  width: min(560px, 100%);
-  text-align: left;
+  text-align: center;
 }
 
-.summary-hero-row > :first-child {
-  flex: 1;
-  min-width: 0;
+.asset-hero-swap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: jar-fade-in 180ms ease-out both;
 }
 
-.summary-hero-row .ant-statistic-content {
-  white-space: nowrap;
+.asset-hero-label {
+  font-size: 14px;
+  color: var(--c-subtle);
+  min-height: 20px;
 }
 
-.summary-hero-row .asset-total-delta {
-  text-align: left;
-}
-
-.asset-jar-gap {
-  display: block;
+.asset-hero-num {
   margin-top: 4px;
-  font-size: 12px;
-}
-
-.asset-summary-value .ant-statistic-title,
-.expense-summary-value .ant-statistic-title {
-  font-size: var(--fs-body);
-  color: var(--c-muted);
-}
-
-/* The hero figure is the one loud element on each tab. */
-.asset-summary-value .ant-statistic-content,
-.expense-summary-value .ant-statistic-content {
-  font-size: var(--fs-hero);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
   color: var(--c-ink);
 }
 
-.asset-total-delta {
+.asset-hero-cur {
+  color: var(--c-subtle);
+}
+
+.asset-hero-sub {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-muted);
+}
+
+.asset-hero-sub--up {
+  color: var(--c-up);
+}
+
+.asset-hero-sub--down {
+  color: var(--c-down);
+}
+
+.asset-hero-jar {
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+}
+
+button.asset-hero-jar {
+  cursor: pointer;
+}
+
+.asset-hero-issue {
   display: block;
-  margin-top: 4px;
+  margin-top: 8px;
   font-size: 12px;
-  text-align: center;
+}
+
+.holdings-fx-rate {
+  font-size: 12px;
+  color: var(--c-subtle);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .asset-hero-num {
+    font-size: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asset-hero-swap {
+    animation: none;
+  }
 }
 
 /* ===== Net-worth jar (components/NetWorthJar.jsx) ===== */
 .networth-jar {
-  width: 150px;
+  width: 120px;
   height: 170px;
   flex: none;
   overflow: visible;
+}
+
+.networth-jar-wave-front {
+  fill: var(--c-teal);
+}
+
+/* Today's move: a pale solid band, no stripes. */
+.networth-jar-band--up {
+  fill: rgba(35, 120, 4, 0.22);
+}
+
+.networth-jar-band--down {
+  fill: rgba(207, 19, 34, 0.16);
 }
 
 .networth-jar-glass {
@@ -304,32 +356,9 @@
   stroke-width: 1;
 }
 
-.networth-jar-cap,
-.networth-jar-floor,
-.networth-jar-baseline text {
+.networth-jar-cap {
   font-size: 10px;
   fill: var(--c-muted);
-}
-
-.networth-jar-floor {
-  fill: var(--c-subtle);
-}
-
-.networth-jar-baseline line {
-  stroke: var(--c-muted);
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
-}
-
-.networth-jar-baseline {
-  animation: jar-fade-in 300ms ease-out 1100ms both;
-}
-
-.networth-jar-current {
-  font-size: 10px;
-  font-weight: 700;
-  fill: var(--c-teal-ink);
-  animation: jar-fade-in 300ms ease-out 1900ms both;
 }
 
 .networth-jar-bubble {
@@ -808,13 +837,9 @@ button.expense-card-chip {
     min-height: 140px;
   }
 
-  .asset-summary-value .ant-statistic-content {
-    font-size: 30px;
-  }
+  
 
-  .summary-hero-row .ant-statistic-content {
-    font-size: 26px;
-  }
+  
 
   .asset-summary-actions {
     width: 100%;

@@ -1,16 +1,14 @@
 // Asset-tab net-worth jar: the total is the water level inside a jar that
-// holds one 千萬. Yesterday's level is a dashed line; today's move between the
-// two is a striped band (green up / red down). Geometry lives in
-// utils/netWorthJar.js — this file only draws and animates it.
+// holds one 千萬. Today's move since yesterday is a pale solid band on top of
+// the water (green up / red down); only the capacity is labelled — the hero
+// text carries the figures. Geometry lives in utils/netWorthJar.js — this
+// file only draws and animates it.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { getJarGeometry } from "../utils/netWorthJar";
 import { formatNetWorthScaleLabel } from "../utils/portfolioView";
-import { formatTwd } from "../utils/formatters";
 import { prefersReducedMotion } from "../utils/motion";
 
-// Wider than the jar itself: the current-level label sits to its right and
-// must stay inside the box (the jar sits at the screen edge on phones).
-const VIEW_W = 150;
+const VIEW_W = 120;
 const VIEW_H = 170;
 const JAR = { x: 18, y: 16, w: 84, h: 146, r: 18 };
 // Entrance: rise to yesterday's level first, then move to today's.
@@ -149,18 +147,6 @@ export default function NetWorthJar({ totalTwd, baselineTwd, playKey }) {
         <clipPath id={`${id}-clip`}>
           <rect x={JAR.x} y={JAR.y} width={JAR.w} height={JAR.h} rx={JAR.r} />
         </clipPath>
-        <linearGradient id={`${id}-water`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#5cbcae" />
-          <stop offset="1" stopColor="#2b7f74" />
-        </linearGradient>
-        <pattern id={`${id}-up`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <rect width="5" height="5" fill="rgba(35,120,4,.35)" />
-          <rect width="1.2" height="5" fill="rgba(255,255,255,.6)" />
-        </pattern>
-        <pattern id={`${id}-down`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <rect width="5" height="5" fill="rgba(207,19,34,.10)" />
-          <rect width="1.2" height="5" fill="rgba(207,19,34,.45)" />
-        </pattern>
       </defs>
 
       <rect className="networth-jar-glass" x={JAR.x} y={JAR.y} width={JAR.w} height={JAR.h} rx={JAR.r} />
@@ -168,7 +154,7 @@ export default function NetWorthJar({ totalTwd, baselineTwd, playKey }) {
         {!geometry.isEmpty && (
           <g className="networth-jar-water">
             <path ref={backRef} className="networth-jar-wave-back" />
-            <path ref={frontRef} fill={`url(#${id}-water)`} />
+            <path ref={frontRef} className="networth-jar-wave-front" />
           </g>
         )}
         <rect
@@ -177,7 +163,6 @@ export default function NetWorthJar({ totalTwd, baselineTwd, playKey }) {
           x={JAR.x}
           width={JAR.w}
           height="0"
-          fill={`url(#${id}-${up ? "up" : "down"})`}
         />
         {celebrating &&
           Array.from({ length: BUBBLE_COUNT }, (_, index) => (
@@ -211,37 +196,6 @@ export default function NetWorthJar({ totalTwd, baselineTwd, playKey }) {
       <text className="networth-jar-cap" x={JAR.x + JAR.w / 2} y={JAR.y - 5} textAnchor="middle">
         {capLabel}
       </text>
-      {geometry.floorTwd > 0 && (
-        <text className="networth-jar-floor" x={JAR.x + JAR.w / 2} y={JAR.y + JAR.h + 13} textAnchor="middle">
-          {`從 ${formatNetWorthScaleLabel(geometry.floorTwd)} 起`}
-        </text>
-      )}
-
-      {geometry.baselineRatio !== null && (
-        <g key={`baseline-${playKey}`} className="networth-jar-baseline" data-testid="jar-baseline">
-          <title>{`昨日23:59：${formatTwd(geometry.baselineTwd)}`}</title>
-          <line
-            x1={JAR.x - 6}
-            x2={JAR.x + JAR.w + 6}
-            y1={yOf(geometry.baselineRatio)}
-            y2={yOf(geometry.baselineRatio)}
-          />
-          <text x={JAR.x - 8} y={yOf(geometry.baselineRatio) + 3} textAnchor="end">
-            昨日
-          </text>
-        </g>
-      )}
-
-      {!geometry.isEmpty && (
-        <text
-          key={`current-${playKey}`}
-          className="networth-jar-current"
-          x={JAR.x + JAR.w + 6}
-          y={levelY + 3}
-        >
-          {currentLabel}
-        </text>
-      )}
     </svg>
   );
 }

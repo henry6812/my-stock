@@ -190,7 +190,6 @@ import {
   formatSignedPrice,
   formatSignedTwd,
   formatChangePercent,
-  formatNetWorthScaleLabel,
   formatBudgetModeLabel,
   formatBudgetCycleLabel,
   createCashCsvContent,
@@ -200,8 +199,8 @@ import {
 } from "./utils/portfolioView";
 import { getBootPhase } from "./utils/bootPhase";
 import { prefersReducedMotion } from "./utils/motion";
-import { getAssetAnimationPlan, getJarGeometry } from "./utils/netWorthJar";
-import NetWorthJar from "./components/NetWorthJar";
+import { getAssetAnimationPlan } from "./utils/netWorthJar";
+import AssetSummaryHero from "./components/AssetSummaryHero";
 import ExpenseSummaryCard from "./components/ExpenseSummaryCard";
 import { toUserMessage } from "./utils/userMessage";
 import { CHART_NEUTRAL, CHART_PALETTE, COLORS } from "./theme/tokens";
@@ -4069,11 +4068,6 @@ function App() {
     [priceUpdatedRelativeText],
   );
 
-  const jarGeometry = useMemo(
-    () => getJarGeometry({ totalTwd, baselineTwd: baselineTotalTwd }),
-    [baselineTotalTwd, totalTwd],
-  );
-
   const handleGoogleLogin = useCallback(async () => {
     try {
       setLoadingAuthAction(true);
@@ -5648,73 +5642,34 @@ function App() {
             >
               <Col xs={24}>
                 <div className="asset-summary-panel">
-                  <div className="summary-hero-row">
-                    <div className="asset-summary-value">
-                      <Statistic
-                        title="總現值（TWD）"
-                        value={displayTotalTwd}
-                        precision={0}
-                        formatter={(value) => formatTwd(Number(value))}
-                      />
-                      <Text
-                        className={`asset-total-delta ${
-                          typeof totalChangeTwd === "number" && !priceDataStale
-                            ? getDeltaClassName(totalChangeTwd)
-                            : "cell-delta cell-delta--flat"
-                        }`}
+                  <AssetSummaryHero
+                    totalTwd={totalTwd}
+                    displayTotalTwd={displayTotalTwd}
+                    baselineTwd={baselineTotalTwd}
+                    changeTwd={totalChangeTwd}
+                    changePct={totalChangePct}
+                    priceDataStale={priceDataStale}
+                    quoteAt={latestPriceCapturedAt}
+                    playKey={assetPlayKey}
+                  />
+                  {autoRefreshIssue && (
+                    <Text
+                      type="warning"
+                      style={{ fontSize: 12, display: "block" }}
+                    >
+                      {autoRefreshIssue}
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={() => handleRefreshPrices("ALL")}
+                        loading={loadingRefresh}
+                        disabled={isWriteDisabled}
+                        style={{ fontSize: 12, paddingInline: 6, height: "auto" }}
                       >
-                        {priceDataStale || typeof totalChangeTwd !== "number"
-                          ? "當日 --"
-                          : totalChangeTwd === 0
-                            ? "當日 0.00 (0.00%)"
-                            : `當日 ${totalChangeTwd > 0 ? "▲" : "▼"} ${formatSignedTwd(totalChangeTwd)} (${formatChangePercent(totalChangePct)})`}
-                      </Text>
-                      {(priceDataStale || latestPriceCapturedAt) && (
-                        <Text
-                          type="secondary"
-                          style={{ fontSize: 12, display: "block" }}
-                        >
-                          {priceDataStale
-                            ? latestPriceCapturedAt
-                              ? `尚未更新今日價格，顯示 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")} 的資料`
-                              : "尚未更新今日價格"
-                            : `報價更新於 ${dayjs(latestPriceCapturedAt).format("MM/DD HH:mm")}`}
-                          {usdTwdRate
-                            ? `・USD/TWD ${usdTwdRate.toFixed(2)}`
-                            : ""}
-                        </Text>
-                      )}
-                      {autoRefreshIssue && (
-                        <Text
-                          type="warning"
-                          style={{ fontSize: 12, display: "block" }}
-                        >
-                          {autoRefreshIssue}
-                          <Button
-                            type="link"
-                            size="small"
-                            onClick={() => handleRefreshPrices("ALL")}
-                            loading={loadingRefresh}
-                            disabled={isWriteDisabled}
-                            style={{ fontSize: 12, paddingInline: 6, height: "auto" }}
-                          >
-                            重試
-                          </Button>
-                        </Text>
-                      )}
-                      {!jarGeometry.isEmpty && (
-                        <Text type="secondary" className="asset-jar-gap">
-                          距離 {formatNetWorthScaleLabel(jarGeometry.capTwd)} 還差{" "}
-                          {formatNetWorthScaleLabel(jarGeometry.gapToCapTwd)}
-                        </Text>
-                      )}
-                    </div>
-                    <NetWorthJar
-                      totalTwd={totalTwd}
-                      baselineTwd={baselineTotalTwd}
-                      playKey={assetPlayKey}
-                    />
-                  </div>
+                        重試
+                      </Button>
+                    </Text>
+                  )}
                   <div className="asset-summary-actions">
                     <Button
                       type={isTrendExpanded ? "primary" : "default"}
@@ -5827,6 +5782,11 @@ function App() {
                   <div className="mobile-list-section mobile-list-section--holdings">
                     <div className="mobile-list-header">
                       <span className="mobile-list-title">持股列表</span>
+                      {usdTwdRate ? (
+                        <span className="holdings-fx-rate">
+                          USD/TWD {usdTwdRate.toFixed(2)}
+                        </span>
+                      ) : null}
                       <div className="price-update-extra">
                         <Space>
                           <Space.Compact>
@@ -5874,6 +5834,11 @@ function App() {
                     title="持股列表"
                     extra={
                       <div className="holdings-card-actions">
+                        {usdTwdRate ? (
+                          <span className="holdings-fx-rate">
+                            USD/TWD {usdTwdRate.toFixed(2)}
+                          </span>
+                        ) : null}
                         <Button
                           icon={<DownloadOutlined />}
                           onClick={handleExportHoldingsCsv}
