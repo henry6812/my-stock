@@ -653,26 +653,27 @@
   color: var(--c-subtle);
 }
 
+/* The pill is plain secondary text: the number and the tower lead. */
 .expense-card-chip {
-  margin-top: 10px;
-  padding: 5px 14px;
-  border-radius: 999px;
-  border: 1.5px solid #bfe0d9;
-  background: var(--c-teal-soft);
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--c-teal-ink);
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 button.expense-card-chip {
+  color: var(--c-teal);
   cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .expense-card-chip--over {
-  border-color: #f5c2c2;
-  background: #fdeaea;
   color: var(--c-down);
 }
 
