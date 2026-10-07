@@ -74,9 +74,18 @@ const describeCumulative = ({ summaries, growth, selected }) => {
     };
   }
   const first = summaries[0]?.month;
-  const label = first ? `累計存下・${first.replace("-", "/")} 起` : "累計存下";
+  const since = first ? `・${first.replace("-", "/")} 起` : "";
+  // Without any income there is nothing saved to show — "saved" would just
+  // be minus the spending — so show the spending and ask for income instead.
+  if (!growth.hasIncome) {
+    return {
+      label: `累計支出${since}`,
+      amount: growth.totalSpentTwd,
+      chip: { text: "設定收入", action: true },
+    };
+  }
   return {
-    label,
+    label: `累計存下${since}`,
     amount: growth.totalSavedTwd,
     chip: { text: `期間支出 ${money(growth.totalSpentTwd)}` },
   };
@@ -122,7 +131,9 @@ export default function ExpenseSummaryCard({
     : describeMonth({ activeMonth, monthProgress, upcomingTwd, selected });
 
   return (
-    <section className="expense-card" aria-label="支出摘要">
+    // Tapping anywhere off a tower part goes back to the overview; the parts
+    // stop propagation, so their own taps don't reach here.
+    <section className="expense-card" aria-label="支出摘要" onClick={() => select(null)}>
       <div key={`${viewKey}|${selected ?? ""}`} className="expense-card-swap">
         <div className="expense-card-label">{text.label}</div>
         <div className="expense-card-num">
