@@ -50,18 +50,20 @@ describe('ExpenseSummaryCard', () => {
 
   it('summarises the month: spending and the share saved', () => {
     const { container } = renderCard()
-    expect(text(container)).toEqual({ label: '2026 年 10 月', num: '$47,363', chip: '存下 73.7%' })
+    expect(text(container)).toEqual({ label: '2026 年 10 月・總支出', num: '$47,363', chip: '存下 73.7%' })
   })
 
   it('shows a tapped part of the tower, then goes back', () => {
     const { container } = renderCard()
     fireEvent.click(container.querySelector('[data-kind="recurring"]'))
-    expect(text(container)).toEqual({ label: '定期', num: '$33,620', chip: '佔收入 18.7%' })
+    expect(text(container)).toEqual({ label: '2026 年 10 月・定期支出', num: '$33,620', chip: '佔收入 18.7%' })
+    fireEvent.click(container.querySelector('[data-kind="oneTime"]'))
+    expect(text(container)).toEqual({ label: '2026 年 10 月・單筆支出', num: '$13,743', chip: '佔收入 7.6%' })
     expect(container.querySelector('[data-kind="pending"]')).toBeNull()
     fireEvent.click(container.querySelector('[data-kind="saved"]'))
-    expect(text(container)).toEqual({ label: '存下', num: '$132,637', chip: '佔收入 73.7%' })
+    expect(text(container)).toEqual({ label: '2026 年 10 月・存下', num: '$132,637', chip: '佔收入 73.7%' })
     fireEvent.click(container.querySelector('[data-kind="saved"]'))
-    expect(text(container).label).toBe('2026 年 10 月')
+    expect(text(container).label).toBe('2026 年 10 月・總支出')
   })
 
   it('forgets the tapped part when the month changes', () => {
@@ -71,7 +73,7 @@ describe('ExpenseSummaryCard', () => {
       <ExpenseSummaryCard mode="month" activeMonth="2026-09" monthlySummaries={summaries}
         monthProgress={monthProgress} playKey={2} />,
     )
-    expect(text(container).label).toBe('2026 年 9 月')
+    expect(text(container).label).toBe('2026 年 9 月・總支出')
   })
 
   it('flags overspending in red', () => {
@@ -96,15 +98,15 @@ describe('ExpenseSummaryCard', () => {
   it('summarises 累計 as money saved since the first month', () => {
     const { container } = renderCard({ mode: 'cumulative' })
     // 50,000 − 60,000 (no income in Sept) + 132,637.
-    expect(text(container)).toEqual({ label: '累計存下・2026/08 起', num: '$122,637', chip: '期間支出 $157,363' })
+    expect(text(container)).toEqual({ label: '2026/08 起・累計存下', num: '$122,637', chip: '期間支出 $157,363' })
   })
 
   it('shows a tapped month in 累計', () => {
     const { container } = renderCard({ mode: 'cumulative' })
     fireEvent.click(container.querySelector('[data-month="2026-10"]'))
-    expect(text(container)).toEqual({ label: '2026 年 10 月・進行中', num: '$132,637', chip: '存下該月收入 73.7%' })
+    expect(text(container)).toEqual({ label: '2026 年 10 月・存下（進行中）', num: '$132,637', chip: '存下該月收入 73.7%' })
     fireEvent.click(container.querySelector('[data-month="2026-10"]'))
-    expect(text(container).label).toBe('累計存下・2026/08 起')
+    expect(text(container).label).toBe('2026/08 起・累計存下')
   })
 
   it('counts a month without income as all spending, with no layer to tap', () => {
@@ -117,14 +119,14 @@ describe('ExpenseSummaryCard', () => {
     expect(container.querySelector('[data-month="2026-10"]')).toBeNull()
     // The tap shows September's own surplus, not what is left of its layer.
     fireEvent.click(container.querySelector('[data-month="2026-09"]'))
-    expect(text(container)).toEqual({ label: '2026 年 9 月', num: '$100,000', chip: '存下該月收入 100.0%' })
+    expect(text(container)).toEqual({ label: '2026 年 9 月・存下', num: '$100,000', chip: '存下該月收入 100.0%' })
   })
 
   it('shows total spending and an income setup button in 累計 when no income was ever set', () => {
     const onSetupIncome = vi.fn()
     const noIncome = summaries.map((s) => ({ ...s, incomeTwd: null }))
     const { container } = renderCard({ mode: 'cumulative', monthlySummaries: noIncome, onSetupIncome })
-    expect(text(container)).toEqual({ label: '累計支出・2026/08 起', num: '$157,363', chip: '設定收入' })
+    expect(text(container)).toEqual({ label: '2026/08 起・累計支出', num: '$157,363', chip: '設定收入' })
     fireEvent.click(container.querySelector('button.expense-card-chip'))
     expect(onSetupIncome).toHaveBeenCalledTimes(1)
   })
@@ -132,9 +134,9 @@ describe('ExpenseSummaryCard', () => {
   it('goes back to the overview when tapping the card outside the tower', () => {
     const { container } = renderCard()
     fireEvent.click(container.querySelector('[data-kind="recurring"]'))
-    expect(text(container).label).toBe('定期')
+    expect(text(container).label).toBe('2026 年 10 月・定期支出')
     fireEvent.click(container.querySelector('.expense-card-num'))
-    expect(text(container).label).toBe('2026 年 10 月')
+    expect(text(container).label).toBe('2026 年 10 月・總支出')
   })
 
   it('shows a negative total with a minus sign', () => {

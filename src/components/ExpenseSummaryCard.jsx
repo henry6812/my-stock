@@ -1,7 +1,8 @@
 // Expense-tab summary card: label → big number → pill → tower → month bars,
 // centred. 月份 mode uses the subtractive SavingsTower; 累計 mode the
 // monthly-surplus SavingsGrowthTower. Tapping a part of either tower swaps
-// the number and pill for that part; anything else resets.
+// the number and pill for that part; anything else resets. The label always
+// reads 「時間・指標」 so it says both which period and which figure.
 import { useMemo, useState } from "react";
 import SavingsTower from "./SavingsTower";
 import SavingsGrowthTower from "./SavingsGrowthTower";
@@ -16,6 +17,9 @@ const monthName = (month) => {
   const [year, mon] = String(month ?? "").split("-");
   return year && mon ? `${year} 年 ${Number(mon)} 月` : "--";
 };
+// 「時間・指標」: the period changes when you switch month, the figure when
+// you tap a part of the tower.
+const heading = (period, figure) => `${period}・${figure}`;
 const percent = (part, whole) => `${((part / whole) * 100).toFixed(1)}%`;
 const digits = (value) => Math.round(Math.abs(value)).toLocaleString("en-US");
 const money = (value) => `${value < 0 ? "−" : ""}$${digits(value)}`;
@@ -30,14 +34,15 @@ const describeMonth = ({ activeMonth, monthProgress, selected }) => {
     oneTimeTwd: oneTime,
   });
 
+  const period = monthName(activeMonth);
   if (layout.hasIncome && selected === "recurring") {
-    return { label: "定期", amount: recurring, chip: { text: `佔收入 ${percent(recurring, income)}` } };
+    return { label: heading(period, "定期支出"), amount: recurring, chip: { text: `佔收入 ${percent(recurring, income)}` } };
   }
   if (layout.hasIncome && selected === "oneTime") {
-    return { label: "單筆", amount: oneTime, chip: { text: `佔收入 ${percent(oneTime, income)}` } };
+    return { label: heading(period, "單筆支出"), amount: oneTime, chip: { text: `佔收入 ${percent(oneTime, income)}` } };
   }
   if (layout.hasIncome && selected === "saved") {
-    return { label: "存下", amount: layout.savedTwd, chip: { text: `佔收入 ${percent(layout.savedTwd, income)}` } };
+    return { label: heading(period, "存下"), amount: layout.savedTwd, chip: { text: `佔收入 ${percent(layout.savedTwd, income)}` } };
   }
 
   const spent = Number(monthProgress?.numerator) || 0;
@@ -49,7 +54,7 @@ const describeMonth = ({ activeMonth, monthProgress, selected }) => {
   } else {
     chip = { text: `存下 ${percent(layout.savedTwd, income)}` };
   }
-  return { label: monthName(activeMonth), amount: spent, chip };
+  return { label: heading(period, "總支出"), amount: spent, chip };
 };
 
 const describeCumulative = ({ summaries, growth, selected }) => {
@@ -63,24 +68,25 @@ const describeCumulative = ({ summaries, growth, selected }) => {
         ? { text: `存下該月收入 ${percent(surplus, picked.incomeTwd)}` }
         : { text: `超支・支出 ${money(picked.expenseTwd)}`, over: true };
     return {
-      label: `${monthName(picked.month)}${picked.isCurrent ? "・進行中" : ""}`,
+      label: heading(monthName(picked.month), picked.isCurrent ? "存下（進行中）" : "存下"),
       amount: surplus,
       chip,
     };
   }
   const first = summaries[0]?.month;
-  const since = first ? `・${first.replace("-", "/")} 起` : "";
+  const withSince = (figure) =>
+    first ? heading(`${first.replace("-", "/")} 起`, figure) : figure;
   // Without any income there is nothing saved to show — "saved" would just
   // be minus the spending — so show the spending and ask for income instead.
   if (!growth.hasIncome) {
     return {
-      label: `累計支出${since}`,
+      label: withSince("累計支出"),
       amount: growth.totalSpentTwd,
       chip: { text: "設定收入", action: true },
     };
   }
   return {
-    label: `累計存下${since}`,
+    label: withSince("累計存下"),
     amount: growth.totalSavedTwd,
     chip: { text: `期間支出 ${money(growth.totalSpentTwd)}` },
   };
