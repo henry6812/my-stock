@@ -52,6 +52,7 @@ import {
   sumUpcomingRecurringTwd,
 } from "../utils/recurrence";
 import { listBudgetCycleExpenses } from "../utils/budgetView";
+import { buildMonthlySummaries } from "../utils/monthlySummaries";
 import {
   HOLDING_SHARES_MODE,
   normalizeHoldingSymbol,
@@ -3655,6 +3656,19 @@ export const getExpenseDashboardView = async (input = {}) => {
     entries,
     today,
   );
+  // One row per month from the first expense to today (charged spending only,
+  // like the month total) — feeds the month bars and the 累計 growth tower.
+  const monthlySummaries = buildMonthlySummaries({
+    occurrences: allHistoryOccurrences,
+    firstMonth: firstExpenseDate ? firstExpenseDate.slice(0, 7) : null,
+    currentMonth: today.slice(0, 7),
+    incomeForMonth: (month) =>
+      resolveIncomeForMonth({
+        month,
+        defaultMonthlyIncomeTwd: incomeSettings.defaultMonthlyIncomeTwd,
+        monthOverridesMap,
+      }),
+  });
   const monthOccurrences = getOccurrencesForMonth(entries, activeMonth).filter(
     (item) => !(item.isRecurringOccurrence && item.occurredAt > today),
   );
@@ -3719,6 +3733,7 @@ export const getExpenseDashboardView = async (input = {}) => {
     incomeForActiveMonthTwd: monthHasIncome ? incomeForActiveMonthTwd : null,
     incomeForCurrentYearTwd: yearHasIncome ? incomeForCurrentYearTwd : null,
     expenseIncomeProgress,
+    monthlySummaries,
     incomeSettings,
     expenseRows: decoratedExpenseRows,
     categoryRows: categories

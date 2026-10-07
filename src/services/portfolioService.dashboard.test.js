@@ -161,3 +161,47 @@ describe('getExpenseDashboardView — upcoming recurring charges', () => {
     expect(view.upcomingMonthTotalTwd).toBe(0)
   })
 })
+
+describe('getExpenseDashboardView — monthly summaries', () => {
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(TODAY)
+    await db.expense_entries.clear()
+    await db.budgets.clear()
+    await db.expense_categories.clear()
+    await db.expense_templates.clear()
+    await db.app_config.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('lists every month up to today with charged spending and that month\'s income', async () => {
+    await seed()
+    await db.app_config.put({
+      key: 'income_settings',
+      defaultMonthlyIncomeTwd: 100000,
+      monthOverrides: [{ month: '2026-03', incomeTwd: 50000 }],
+    })
+    const view = await getExpenseDashboardView({ month: '2026-10' })
+    const rows = view.monthlySummaries
+
+    expect(rows.map((r) => r.month)).toEqual([
+      '2026-01', '2026-02', '2026-03', '2026-04', '2026-05',
+      '2026-06', '2026-07', '2026-08', '2026-09', '2026-10',
+    ])
+    // 房租 18000 + 電話費 600 every month.
+    expect(rows[0]).toMatchObject({ expenseTwd: 18600, recurringTwd: 18600, oneTimeTwd: 0, incomeTwd: 100000, isCurrent: false })
+    // March adds the yearly 保險 and uses the income override.
+    expect(rows[2]).toMatchObject({ expenseTwd: 42600, incomeTwd: 50000 })
+    // October: 房租 (10/20) is still upcoming → not counted; 電話費 + 午餐 are.
+    expect(rows[9]).toMatchObject({ expenseTwd: 750, recurringTwd: 600, oneTimeTwd: 150, isCurrent: true })
+  })
+
+  it('reports null income when none is configured', async () => {
+    await seed()
+    const view = await getExpenseDashboardView({ month: '2026-10' })
+    expect(view.monthlySummaries.every((r) => r.incomeTwd === null)).toBe(true)
+  })
+})

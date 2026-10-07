@@ -387,26 +387,53 @@
   stroke-dasharray: 2 2;
 }
 
-/* Spent area keeps a faint tint so the recurring / one-time split stays visible. */
+/* Spent area keeps a pale teal tint so the recurring / one-time split stays visible. */
 .savings-tower-spent {
-  stroke-width: 1;
-  stroke-dasharray: 2 2;
   animation: jar-fade-in 300ms ease-out both;
 }
 
 .savings-tower-spent--recurring {
-  fill: rgba(43, 127, 116, 0.2);
-  stroke: rgba(43, 127, 116, 0.45);
+  fill: #9fcfc6;
+  opacity: 0.55;
 }
 
 .savings-tower-spent--oneTime {
-  fill: rgba(134, 196, 185, 0.2);
-  stroke: rgba(134, 196, 185, 0.7);
+  fill: #cfe6e1;
+  opacity: 0.75;
+}
+
+.savings-tower-pending {
+  stroke: var(--c-teal);
+  stroke-opacity: 0.35;
+  stroke-dasharray: 2 2;
+}
+
+.savings-tower-hatch-bg {
+  fill: #ffffff;
+}
+
+.savings-tower-hatch-line {
+  fill: var(--c-teal);
+  opacity: 0.55;
+}
+
+.savings-tower-part {
+  cursor: pointer;
+  transition: opacity 200ms ease;
+}
+
+.savings-tower .is-dim,
+.growth-tower .is-dim {
+  opacity: 0.3;
 }
 
 .savings-tower-income {
   font-size: 9.5px;
   fill: var(--c-subtle);
+}
+
+.savings-tower-brick {
+  fill: var(--c-teal);
 }
 
 .savings-tower-build .savings-tower-brick {
@@ -424,39 +451,15 @@
 }
 
 .savings-tower-shard--oneTime {
-  fill: #86c4b9;
-}
-
-.savings-tower-saved {
-  font-size: 10px;
-  font-weight: 700;
-  fill: #8a6414;
-  /* White halo keeps the label readable over the tinted spent area. */
-  paint-order: stroke;
-  stroke: rgba(255, 255, 255, 0.9);
-  stroke-width: 3px;
-  stroke-linejoin: round;
-  animation: jar-fade-in 400ms ease-out both;
-}
-
-.savings-tower-saved--inside {
-  fill: #5c430d;
-  stroke: none;
+  fill: #9fcfc6;
 }
 
 .savings-tower-pit {
-  fill: rgba(207, 19, 34, 0.12);
-  stroke: var(--c-down);
-  stroke-dasharray: 3 2;
+  fill: var(--c-down);
+  opacity: 0.18;
   transform-box: fill-box;
   transform-origin: top;
   animation: tower-pit-grow 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-.savings-tower-over {
-  font-size: 9.5px;
-  font-weight: 700;
-  fill: var(--c-down);
 }
 
 .savings-tower-setup {
@@ -487,9 +490,229 @@
   to { transform: scaleY(1); }
 }
 
+/* ===== Growth tower (components/SavingsGrowthTower.jsx) ===== */
+.growth-tower {
+  position: relative;
+  width: 120px;
+  height: 180px;
+  flex: none;
+}
+
+.growth-tower svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.growth-tower-layer {
+  cursor: pointer;
+  transition: opacity 200ms ease;
+}
+
+.growth-tower-layer rect {
+  fill: var(--c-teal);
+}
+
+.growth-tower-layer--alt rect {
+  fill: #3a8f84;
+}
+
+.growth-tower-layer--current rect {
+  fill: var(--c-teal-soft);
+  stroke: var(--c-teal);
+  stroke-opacity: 0.55;
+  stroke-dasharray: 3 2;
+}
+
+.growth-tower-layer--enter {
+  animation: growth-layer-in 500ms cubic-bezier(0.3, 0.7, 0.3, 1) both;
+}
+
+.growth-tower-ghost rect {
+  fill: none;
+  stroke: var(--c-teal);
+  stroke-opacity: 0.35;
+  stroke-dasharray: 3 2;
+}
+
+.growth-tower-shard {
+  fill: var(--c-teal);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tower-shard-fall 650ms ease-in forwards;
+}
+
+@keyframes growth-layer-in {
+  0% { opacity: 0; transform: translateY(-40px); }
+  70% { opacity: 1; transform: translateY(2px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Expense month bars (components/ExpenseMonthBars.jsx) ===== */
+.expense-month-bars {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 18px;
+}
+
+.expense-month-bars-track {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 64px;
+}
+
+.expense-month-bar {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: #e1efec;
+  cursor: pointer;
+  transition: background 250ms ease;
+}
+
+.expense-month-bars--cumulative .expense-month-bar {
+  background: #c4e0da;
+}
+
+/* More than 12 months: fixed-width bars in a sideways-scrolling track. */
+.expense-month-bars-track--scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.expense-month-bars-track--scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.expense-month-bars-track--scroll .expense-month-bar {
+  flex: 0 0 18px;
+}
+
+.expense-month-bar--future,
+.expense-month-bars--cumulative .expense-month-bar--future {
+  background: transparent;
+  border: 1.5px dashed #c4e0da;
+}
+
+.expense-month-bar--future.is-on {
+  background: var(--c-teal);
+  border-color: var(--c-teal);
+}
+
+.expense-month-bar.is-on,
+.expense-month-bars--cumulative .expense-month-bar.is-on {
+  background: var(--c-teal);
+}
+
+.expense-month-bars-all {
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--c-line-strong);
+  background: transparent;
+  color: var(--c-muted);
+  cursor: pointer;
+}
+
+.expense-month-bars-all.is-on {
+  background: var(--c-teal);
+  border-color: var(--c-teal);
+  color: #ffffff;
+}
+
+/* ===== Expense summary card (components/ExpenseSummaryCard.jsx) ===== */
+.expense-card {
+  width: min(420px, 100%);
+  margin: 0 auto;
+  box-sizing: border-box;
+  border: 1.5px dashed var(--c-line-strong);
+  border-radius: 24px;
+  padding: 20px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.expense-card-swap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: jar-fade-in 180ms ease-out both;
+}
+
+.expense-card-label {
+  font-size: 14px;
+  color: var(--c-subtle);
+  min-height: 20px;
+}
+
+.expense-card-num {
+  margin-top: 4px;
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+
+.expense-card-cur {
+  color: var(--c-subtle);
+}
+
+.expense-card-chip {
+  margin-top: 10px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1.5px solid #bfe0d9;
+  background: var(--c-teal-soft);
+  color: var(--c-teal-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+button.expense-card-chip {
+  cursor: pointer;
+}
+
+.expense-card-chip--over {
+  border-color: #f5c2c2;
+  background: #fdeaea;
+  color: var(--c-down);
+}
+
+.expense-card-tower {
+  margin-top: 14px;
+}
+
+@media (max-width: 768px) {
+  .expense-card-num {
+    font-size: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expense-card-swap {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .networth-jar *,
-  .savings-tower * {
+  .savings-tower *,
+  .growth-tower * {
     animation: none !important;
     transition: none !important;
   }
@@ -893,172 +1116,6 @@
   color: var(--c-muted);
 }
 
-.expense-summary-panel {
-  min-height: 180px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  text-align: center;
-}
-
-.expense-summary-panel--plain {
-  width: min(680px, 92vw);
-  margin: 0 auto;
-  padding: 12px 0;
-}
-
-/* Mode toggle + month nav share one centred row above the figure / tower. */
-.expense-summary-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px 14px;
-}
-
-.expense-summary-toggle {
-  align-self: center;
-}
-
-.expense-summary-title {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 24px;
-}
-
-.expense-summary-meta {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-}
-
-.expense-month-nav {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.expense-month-nav-btn.ant-btn {
-  width: 24px;
-  min-width: 24px;
-  height: 24px;
-  padding: 0;
-  color: var(--c-muted);
-}
-
-.expense-month-nav-btn.ant-btn[disabled] {
-  color: var(--c-subtle);
-  cursor: not-allowed;
-}
-
-.expense-month-nav-title {
-  min-width: 120px;
-  text-align: center;
-}
-
-.expense-summary-value {
-  text-align: left;
-}
-
-.expense-summary-value-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.expense-summary-trend-btn.ant-btn {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  padding: 0;
-}
-
-.expense-summary-subtext {
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
-}
-
-/* In the hero row the left column is narrow: stack the two meta lines. */
-.summary-hero-text .expense-income-progress-meta-row {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-
-.expense-saved-text {
-  display: block;
-  margin-top: 2px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--c-teal-ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.expense-saved-text--over {
-  color: var(--c-down);
-}
-
-.expense-tower-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--c-muted);
-}
-
-.expense-tower-swatch {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  margin-right: 4px;
-  border-radius: 2px;
-  vertical-align: -1px;
-}
-
-.expense-tower-swatch--recurring {
-  background: var(--c-teal);
-}
-
-.expense-tower-swatch--onetime {
-  background: #86c4b9;
-}
-
-.expense-tower-swatch--saved {
-  background: linear-gradient(#f2cf6b, #d9a93a);
-}
-
-.expense-income-progress {
-  width: 100%;
-  margin: 8px 0 0;
-  position: relative;
-}
-
-.expense-income-progress-meta-row {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.expense-income-progress-meta-left {
-  font-size: 12px;
-  text-align: left;
-}
-
-.expense-income-progress-meta-right {
-  font-size: 12px;
-  text-align: right;
-  flex-shrink: 0;
-}
-
 .expense-category-tabs {
   margin-bottom: 8px;
 }
@@ -1346,19 +1403,6 @@
 
   .cell-delta {
     font-size: 12px;
-  }
-
-  .expense-summary-title {
-    align-items: center;
-  }
-
-  .expense-summary-panel {
-    min-height: 140px;
-    gap: 10px;
-  }
-
-  .expense-summary-value .ant-statistic-content {
-    font-size: 30px;
   }
 
   .expense-fab.ant-btn {
@@ -1944,12 +1988,6 @@
   padding: 12px;
   font-size: var(--fs-body);
   color: var(--c-ink);
-}
-
-.expense-upcoming-note {
-  display: block;
-  margin-top: 4px;
-  font-size: var(--fs-caption);
 }
 
 .expense-recurring-edit-alert {

@@ -202,8 +202,7 @@ import { getBootPhase } from "./utils/bootPhase";
 import { prefersReducedMotion } from "./utils/motion";
 import { getAssetAnimationPlan, getJarGeometry } from "./utils/netWorthJar";
 import NetWorthJar from "./components/NetWorthJar";
-import SavingsTower from "./components/SavingsTower";
-import { getTowerLayout } from "./utils/savingsTower";
+import ExpenseSummaryCard from "./components/ExpenseSummaryCard";
 import { toUserMessage } from "./utils/userMessage";
 import { CHART_NEUTRAL, CHART_PALETTE, COLORS } from "./theme/tokens";
 import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "./utils/budgetStatus";
@@ -562,11 +561,9 @@ function App() {
   const activeExpenseMonthRef = useRef(activeExpenseMonth);
   activeExpenseMonthRef.current = activeExpenseMonth;
   const [expenseTotalMode, setExpenseTotalMode] = useState("month");
-  const [expenseMonthlyTotalTwd, setExpenseMonthlyTotalTwd] = useState(0);
   // Recurring charges later this month: listed but not in the month total.
   const [expenseUpcomingTotalTwd, setExpenseUpcomingTotalTwd] = useState(0);
-  const [expenseCumulativeTotalTwd, setExpenseCumulativeTotalTwd] = useState(0);
-  const [expenseFirstDate, setExpenseFirstDate] = useState(null);
+  const [expenseMonthlySummaries, setExpenseMonthlySummaries] = useState([]);
   const [expenseCategoryRows, setExpenseCategoryRows] = useState([]);
   const [expenseNameSuggestions, setExpenseNameSuggestions] = useState([]);
   const [categoryUsageOrder, setCategoryUsageOrder] = useState([]);
@@ -1014,10 +1011,8 @@ function App() {
       if (resolvedMonth !== requestedMonth) {
         setActiveExpenseMonth(resolvedMonth);
       }
-      setExpenseMonthlyTotalTwd(Number(view.monthlyExpenseTotalTwd) || 0);
       setExpenseUpcomingTotalTwd(Number(view.upcomingMonthTotalTwd) || 0);
-      setExpenseCumulativeTotalTwd(Number(view.cumulativeExpenseTotalTwd) || 0);
-      setExpenseFirstDate(view.firstExpenseDate || null);
+      setExpenseMonthlySummaries(view.monthlySummaries ?? []);
       setExpenseCategoryRows(view.categoryRows ?? []);
       setExpenseNameSuggestions(view.expenseNameSuggestions ?? []);
       setExpenseTemplateRows(view.expenseTemplates ?? []);
@@ -4842,86 +4837,6 @@ function App() {
     return expenseMonthNavOptions[expenseMonthNavOptions.length - 1];
   }, [activeExpenseMonth, expenseMonthNavOptions]);
 
-  const expenseMonthTitle = useMemo(() => {
-    if (!safeActiveExpenseMonth) {
-      return "-- 總支出";
-    }
-    const [year, month] = safeActiveExpenseMonth.split("-");
-    return `${year}/${Number(month)} 總支出`;
-  }, [safeActiveExpenseMonth]);
-
-  const expenseSummaryValue =
-    expenseTotalMode === "cumulative"
-      ? expenseCumulativeTotalTwd
-      : expenseMonthlyTotalTwd;
-  const activeIncomeProgress =
-    expenseTotalMode === "cumulative"
-      ? incomeProgress?.cumulative
-      : incomeProgress?.month;
-  const expenseIncomeProgressMetaLeftText = useMemo(() => {
-    const recurringRatio = Number(activeIncomeProgress?.recurringRatio);
-    const oneTimeRatio = Number(activeIncomeProgress?.oneTimeRatio);
-    const recurringText = Number.isFinite(recurringRatio)
-      ? `${Math.max(0, recurringRatio * 100).toFixed(1)}%`
-      : "--";
-    const oneTimeText = Number.isFinite(oneTimeRatio)
-      ? `${Math.max(0, oneTimeRatio * 100).toFixed(1)}%`
-      : "--";
-    if (!activeIncomeProgress?.hasIncome) {
-      return `尚未設定收入（定期支出 ${recurringText}｜單筆支出 ${oneTimeText}）`;
-    }
-    return `定期支出 ${recurringText}｜單筆支出 ${oneTimeText}`;
-  }, [activeIncomeProgress]);
-  const expenseIncomeProgressMetaRightText = useMemo(() => {
-    const numerator = Number(activeIncomeProgress?.numerator);
-    const denominator = Number(activeIncomeProgress?.denominator);
-    const expenseText = Number.isFinite(numerator)
-      ? formatTwd(numerator)
-      : "--";
-    const incomeText = Number.isFinite(denominator)
-      ? formatTwd(denominator)
-      : "--";
-    return `花費 ${expenseText} / 收入 ${incomeText}`;
-  }, [activeIncomeProgress]);
-  const expenseTowerLayout = useMemo(
-    () =>
-      getTowerLayout({
-        incomeTwd: activeIncomeProgress?.hasIncome
-          ? activeIncomeProgress?.denominator
-          : 0,
-        recurringTwd: activeIncomeProgress?.recurringNumerator,
-        oneTimeTwd: activeIncomeProgress?.oneTimeNumerator,
-      }),
-    [activeIncomeProgress],
-  );
-  const expenseSavedText = useMemo(() => {
-    if (!expenseTowerLayout.hasIncome) {
-      return null;
-    }
-    if (expenseTowerLayout.overspendTwd > 0) {
-      return {
-        over: true,
-        text: `超支 ${formatTwd(expenseTowerLayout.overspendTwd)}`,
-      };
-    }
-    return {
-      over: false,
-      text: `存下 ${formatTwd(expenseTowerLayout.savedTwd)}（${(
-        expenseTowerLayout.savedRatio * 100
-      ).toFixed(1)}%）`,
-    };
-  }, [expenseTowerLayout]);
-  const expenseActiveMonthIndex = useMemo(
-    () =>
-      safeActiveExpenseMonth
-        ? expenseMonthNavOptions.indexOf(safeActiveExpenseMonth)
-        : -1,
-    [expenseMonthNavOptions, safeActiveExpenseMonth],
-  );
-  const canGoPrevExpenseMonth = expenseActiveMonthIndex > 0;
-  const canGoNextExpenseMonth =
-    expenseActiveMonthIndex >= 0 &&
-    expenseActiveMonthIndex < expenseMonthNavOptions.length - 1;
   const activeBudgetCards = useMemo(
     () =>
       (budgetRows || []).filter(
@@ -6115,164 +6030,27 @@ function App() {
               {activeMainTab === "expense" && (
                 <>
                   <Col xs={24}>
-                    <div className="expense-summary-panel expense-summary-panel--plain">
-                      <div className="expense-summary-header">
-                        <Segmented
-                          className="expense-summary-toggle"
-                          size="small"
-                          value={expenseTotalMode}
-                          options={[
-                            { label: "月份", value: "month" },
-                            { label: "累計", value: "cumulative" },
-                          ]}
-                          onChange={(value) => {
-                            setExpensePlayKey((key) => key + 1);
-                            setExpenseTotalMode(value);
-                          }}
-                        />
-                        <div className="expense-summary-title">
-                          <div className="expense-summary-meta">
-                            {expenseTotalMode === "month" ? (
-                              <div className="expense-month-nav">
-                                <Button
-                                  type="text"
-                                  size="small"
-                                  icon={<LeftOutlined />}
-                                  className="expense-month-nav-btn"
-                                  aria-label="上個月份"
-                                  disabled={!canGoPrevExpenseMonth}
-                                  onClick={() => {
-                                    if (!canGoPrevExpenseMonth) return;
-                                    setExpensePlayKey((key) => key + 1);
-                                    setActiveExpenseMonth(
-                                      expenseMonthNavOptions[
-                                        expenseActiveMonthIndex - 1
-                                      ],
-                                    );
-                                  }}
-                                />
-                                <div className="expense-month-nav-title">
-                                  <Text strong>{expenseMonthTitle}</Text>
-                                </div>
-                                <Button
-                                  type="text"
-                                  size="small"
-                                  icon={<RightOutlined />}
-                                  className="expense-month-nav-btn"
-                                  aria-label="下個月份"
-                                  disabled={!canGoNextExpenseMonth}
-                                  onClick={() => {
-                                    if (!canGoNextExpenseMonth) return;
-                                    setExpensePlayKey((key) => key + 1);
-                                    setActiveExpenseMonth(
-                                      expenseMonthNavOptions[
-                                        expenseActiveMonthIndex + 1
-                                      ],
-                                    );
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <Text strong>累計總支出</Text>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="summary-hero-row">
-                        <div className="summary-hero-text">
-                          <div className="expense-summary-value">
-                            <div className="expense-summary-value-main">
-                              <Statistic
-                                value={expenseSummaryValue}
-                                formatter={(value) => formatTwd(Number(value))}
-                              />
-                              {expenseTotalMode === "cumulative" ? (
-                                <HoverTooltip title="查看支出走勢">
-                                  <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<AreaChartOutlined />}
-                                    className="expense-summary-trend-btn"
-                                    aria-label="查看支出走勢"
-                                    onClick={() => {
-                                      setActiveExpenseChartKey("trend");
-                                      setIsExpenseChartModalOpen(true);
-                                    }}
-                                  />
-                                </HoverTooltip>
-                              ) : null}
-                            </div>
-                            {expenseSavedText ? (
-                              <Text
-                                className={`expense-saved-text${
-                                  expenseSavedText.over ? " expense-saved-text--over" : ""
-                                }`}
-                              >
-                                {expenseSavedText.text}
-                              </Text>
-                            ) : null}
-                            <div className="expense-tower-legend">
-                              <span>
-                                <i className="expense-tower-swatch expense-tower-swatch--recurring" />
-                                定期
-                              </span>
-                              <span>
-                                <i className="expense-tower-swatch expense-tower-swatch--onetime" />
-                                單筆
-                              </span>
-                              <span>
-                                <i className="expense-tower-swatch expense-tower-swatch--saved" />
-                                存下
-                              </span>
-                            </div>
-                            {expenseTotalMode !== "cumulative" &&
-                            expenseUpcomingTotalTwd > 0 ? (
-                              <Text
-                                type="secondary"
-                                className="expense-upcoming-note"
-                              >
-                                另有 {formatTwd(expenseUpcomingTotalTwd)}{" "}
-                                固定支出本月尚未扣款（未計入）
-                              </Text>
-                            ) : null}
-                            <div className="expense-income-progress">
-                              <div className="expense-income-progress-meta-row">
-                                <Text
-                                  type="secondary"
-                                  className="expense-income-progress-meta-left"
-                                >
-                                  {expenseIncomeProgressMetaLeftText}
-                                </Text>
-                                <Text
-                                  type="secondary"
-                                  className="expense-income-progress-meta-right"
-                                >
-                                  {expenseIncomeProgressMetaRightText}
-                                </Text>
-                              </div>
-                            </div>
-                            {expenseTotalMode === "cumulative" && (
-                              <Text
-                                type="secondary"
-                                className="expense-summary-subtext"
-                              >
-                                {expenseFirstDate
-                                  ? `自 ${formatDate(expenseFirstDate)} 起`
-                                  : "尚無支出資料"}
-                              </Text>
-                            )}
-                          </div>
-                        </div>
-                        <SavingsTower
-                          incomeTwd={activeIncomeProgress?.denominator}
-                          recurringTwd={activeIncomeProgress?.recurringNumerator}
-                          oneTimeTwd={activeIncomeProgress?.oneTimeNumerator}
-                          hasIncome={Boolean(activeIncomeProgress?.hasIncome)}
-                          playKey={expensePlayKey}
-                          onSetupIncome={goToIncomeSettings}
-                        />
-                      </div>
-                    </div>
+                    <ExpenseSummaryCard
+                      mode={expenseTotalMode}
+                      activeMonth={safeActiveExpenseMonth}
+                      monthlySummaries={expenseMonthlySummaries}
+                      monthOptions={expenseMonthNavOptions}
+                      monthProgress={incomeProgress?.month}
+                      upcomingTwd={expenseUpcomingTotalTwd}
+                      playKey={expensePlayKey}
+                      onSelectMonth={(month) => {
+                        setExpensePlayKey((key) => key + 1);
+                        setExpenseTotalMode("month");
+                        setActiveExpenseMonth(month);
+                      }}
+                      onToggleMode={() => {
+                        setExpensePlayKey((key) => key + 1);
+                        setExpenseTotalMode((current) =>
+                          current === "cumulative" ? "month" : "cumulative",
+                        );
+                      }}
+                      onSetupIncome={goToIncomeSettings}
+                    />
                   </Col>
                   <Col xs={24}>
                     <section className="expense-analytics-section">
