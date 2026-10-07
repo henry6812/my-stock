@@ -604,6 +604,86 @@
   color: #ffffff;
 }
 
+/* ===== Expense summary card (components/ExpenseSummaryCard.jsx) ===== */
+.expense-card {
+  width: min(420px, 100%);
+  margin: 0 auto;
+  box-sizing: border-box;
+  border: 1.5px dashed var(--c-line-strong);
+  border-radius: 24px;
+  padding: 20px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.expense-card-swap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: jar-fade-in 180ms ease-out both;
+}
+
+.expense-card-label {
+  font-size: 14px;
+  color: var(--c-subtle);
+  min-height: 20px;
+}
+
+.expense-card-num {
+  margin-top: 4px;
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+
+.expense-card-cur {
+  color: var(--c-subtle);
+}
+
+.expense-card-chip {
+  margin-top: 10px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1.5px solid #bfe0d9;
+  background: var(--c-teal-soft);
+  color: var(--c-teal-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+button.expense-card-chip {
+  cursor: pointer;
+}
+
+.expense-card-chip--over {
+  border-color: #f5c2c2;
+  background: #fdeaea;
+  color: var(--c-down);
+}
+
+.expense-card-tower {
+  margin-top: 14px;
+}
+
+@media (max-width: 768px) {
+  .expense-card-num {
+    font-size: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expense-card-swap {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .networth-jar *,
   .savings-tower *,
