@@ -40,12 +40,13 @@ describe('SavingsTower', () => {
     expect(rowsOf(container, '.savings-tower-spent--oneTime')).toEqual(['6', '7'])
   })
 
-  it('hatches upcoming charges right below the spent area', () => {
+  it('draws only what has been charged, not upcoming charges', () => {
     mockMotion(true)
     const { container } = render(
       <SavingsTower incomeTwd={100_000} recurringTwd={25_000} oneTimeTwd={13_000} upcomingTwd={10_000} hasIncome playKey={1} />,
     )
-    expect(rowsOf(container, '.savings-tower-pending')).toEqual(['5', '6'])
+    expect(container.querySelector('[data-kind="pending"]')).toBeNull()
+    expect(container.querySelector('pattern')).toBeNull()
   })
 
   it('reports the clicked part and dims the others when one is selected', () => {

@@ -562,7 +562,6 @@ function App() {
   activeExpenseMonthRef.current = activeExpenseMonth;
   const [expenseTotalMode, setExpenseTotalMode] = useState("month");
   // Recurring charges later this month: listed but not in the month total.
-  const [expenseUpcomingTotalTwd, setExpenseUpcomingTotalTwd] = useState(0);
   const [expenseMonthlySummaries, setExpenseMonthlySummaries] = useState([]);
   const [expenseCategoryRows, setExpenseCategoryRows] = useState([]);
   const [expenseNameSuggestions, setExpenseNameSuggestions] = useState([]);
@@ -1011,7 +1010,6 @@ function App() {
       if (resolvedMonth !== requestedMonth) {
         setActiveExpenseMonth(resolvedMonth);
       }
-      setExpenseUpcomingTotalTwd(Number(view.upcomingMonthTotalTwd) || 0);
       setExpenseMonthlySummaries(view.monthlySummaries ?? []);
       setExpenseCategoryRows(view.categoryRows ?? []);
       setExpenseNameSuggestions(view.expenseNameSuggestions ?? []);
@@ -6036,7 +6034,6 @@ function App() {
                       monthlySummaries={expenseMonthlySummaries}
                       monthOptions={expenseMonthNavOptions}
                       monthProgress={incomeProgress?.month}
-                      upcomingTwd={expenseUpcomingTotalTwd}
                       playKey={expensePlayKey}
                       onSelectMonth={(month) => {
                         setExpensePlayKey((key) => key + 1);

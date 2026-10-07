@@ -402,21 +402,6 @@
   opacity: 0.75;
 }
 
-.savings-tower-pending {
-  stroke: var(--c-teal);
-  stroke-opacity: 0.35;
-  stroke-dasharray: 2 2;
-}
-
-.savings-tower-hatch-bg {
-  fill: #ffffff;
-}
-
-.savings-tower-hatch-line {
-  fill: var(--c-teal);
-  opacity: 0.55;
-}
-
 .savings-tower-part {
   cursor: pointer;
   transition: opacity 200ms ease;

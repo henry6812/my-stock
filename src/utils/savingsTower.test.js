@@ -54,30 +54,6 @@ describe('getTowerLayout', () => {
     expect(small.overspendDepthRatio).toBeCloseTo(0.05)
   })
 
-  it('marks upcoming charges right below the spent area, without removing them', () => {
-    const t = getTowerLayout({ incomeTwd: 100_000, recurringTwd: 25_000, oneTimeTwd: 13_000, upcomingTwd: 10_000 })
-    expect(t.pendingTwd).toBe(10_000)
-    expect(strip(t.pendingChunks)).toEqual([
-      [6, 0.8, 0.2, 'pending'],
-      [5, 0, 0.8, 'pending'],
-    ])
-    // Pending does not change what was spent or saved.
-    expect(strip(t.chunks)).toHaveLength(5)
-    expect(t.savedTwd).toBe(62_000)
-  })
-
-  it('caps pending at what is left of the tower', () => {
-    const t = getTowerLayout({ incomeTwd: 100_000, recurringTwd: 90_000, oneTimeTwd: 5_000, upcomingTwd: 20_000 })
-    expect(t.pendingTwd).toBe(5_000)
-  })
-
-  it('has no pending without upcoming charges or without income', () => {
-    expect(getTowerLayout({ incomeTwd: 100_000, recurringTwd: 1, oneTimeTwd: 0 }).pendingChunks).toEqual([])
-    const none = getTowerLayout({ incomeTwd: 0, recurringTwd: 1, oneTimeTwd: 0, upcomingTwd: 5 })
-    expect(none.pendingChunks).toEqual([])
-    expect(none.pendingTwd).toBe(0)
-  })
-
   it('has no tower without income', () => {
     const t = getTowerLayout({ incomeTwd: 0, recurringTwd: 12_000, oneTimeTwd: 3_000 })
     expect(t.hasIncome).toBe(false)

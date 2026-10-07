@@ -20,7 +20,7 @@ const percent = (part, whole) => `${((part / whole) * 100).toFixed(1)}%`;
 const digits = (value) => Math.round(Math.abs(value)).toLocaleString("en-US");
 const money = (value) => `${value < 0 ? "−" : ""}$${digits(value)}`;
 
-const describeMonth = ({ activeMonth, monthProgress, upcomingTwd, selected }) => {
+const describeMonth = ({ activeMonth, monthProgress, selected }) => {
   const income = monthProgress?.hasIncome ? Number(monthProgress.denominator) || 0 : 0;
   const recurring = Number(monthProgress?.recurringNumerator) || 0;
   const oneTime = Number(monthProgress?.oneTimeNumerator) || 0;
@@ -28,7 +28,6 @@ const describeMonth = ({ activeMonth, monthProgress, upcomingTwd, selected }) =>
     incomeTwd: income,
     recurringTwd: recurring,
     oneTimeTwd: oneTime,
-    upcomingTwd,
   });
 
   if (layout.hasIncome && selected === "recurring") {
@@ -37,12 +36,8 @@ const describeMonth = ({ activeMonth, monthProgress, upcomingTwd, selected }) =>
   if (layout.hasIncome && selected === "oneTime") {
     return { label: "單筆", amount: oneTime, chip: { text: `佔收入 ${percent(oneTime, income)}` } };
   }
-  if (layout.hasIncome && selected === "pending") {
-    return { label: "待扣", amount: layout.pendingTwd, chip: { text: "本月尚未扣款・未計入" } };
-  }
   if (layout.hasIncome && selected === "saved") {
-    const left = layout.savedTwd - layout.pendingTwd;
-    return { label: "存下", amount: left, chip: { text: `扣除待扣後・佔收入 ${percent(left, income)}` } };
+    return { label: "存下", amount: layout.savedTwd, chip: { text: `佔收入 ${percent(layout.savedTwd, income)}` } };
   }
 
   const spent = Number(monthProgress?.numerator) || 0;
@@ -97,7 +92,6 @@ export default function ExpenseSummaryCard({
   monthlySummaries = [],
   monthOptions = [],
   monthProgress,
-  upcomingTwd = 0,
   playKey,
   onSelectMonth,
   onToggleMode,
@@ -128,7 +122,7 @@ export default function ExpenseSummaryCard({
   );
   const text = cumulative
     ? describeCumulative({ summaries: monthlySummaries, growth, selected })
-    : describeMonth({ activeMonth, monthProgress, upcomingTwd, selected });
+    : describeMonth({ activeMonth, monthProgress, selected });
 
   return (
     // Tapping anywhere off a tower part goes back to the overview; the parts
@@ -164,7 +158,6 @@ export default function ExpenseSummaryCard({
             incomeTwd={monthProgress?.denominator}
             recurringTwd={monthProgress?.recurringNumerator}
             oneTimeTwd={monthProgress?.oneTimeNumerator}
-            upcomingTwd={upcomingTwd}
             hasIncome={Boolean(monthProgress?.hasIncome)}
             playKey={playKey}
             selectedKind={selected}
