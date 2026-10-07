@@ -123,12 +123,29 @@ describe('ExpenseSummaryCard', () => {
     expect(text(container)).toEqual({ label: '2026 年 9 月', num: '$100,000', chip: '存下該月收入 100.0%' })
   })
 
+  it('shows total spending and an income setup button in 累計 when no income was ever set', () => {
+    const onSetupIncome = vi.fn()
+    const noIncome = summaries.map((s) => ({ ...s, incomeTwd: null }))
+    const { container } = renderCard({ mode: 'cumulative', monthlySummaries: noIncome, onSetupIncome })
+    expect(text(container)).toEqual({ label: '累計支出・2026/08 起', num: '$157,363', chip: '設定收入' })
+    fireEvent.click(container.querySelector('button.expense-card-chip'))
+    expect(onSetupIncome).toHaveBeenCalledTimes(1)
+  })
+
+  it('goes back to the overview when tapping the card outside the tower', () => {
+    const { container } = renderCard()
+    fireEvent.click(container.querySelector('[data-kind="recurring"]'))
+    expect(text(container).label).toBe('定期')
+    fireEvent.click(container.querySelector('.expense-card-num'))
+    expect(text(container).label).toBe('2026 年 10 月')
+  })
+
   it('shows a negative total with a minus sign', () => {
     const { container } = renderCard({
       mode: 'cumulative',
-      monthlySummaries: [{ month: '2026-10', expenseTwd: 5_000, incomeTwd: null, isCurrent: true }],
+      monthlySummaries: [{ month: '2026-10', expenseTwd: 5_000, incomeTwd: 1_000, isCurrent: true }],
     })
-    expect(text(container).num).toBe('−$5,000')
+    expect(text(container).num).toBe('−$4,000')
   })
 
   it('lists months after the current one as future bars', () => {

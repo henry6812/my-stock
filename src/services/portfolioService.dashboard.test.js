@@ -199,6 +199,19 @@ describe('getExpenseDashboardView — monthly summaries', () => {
     expect(rows[9]).toMatchObject({ expenseTwd: 750, recurringTwd: 600, oneTimeTwd: 150, isCurrent: true })
   })
 
+  it('counts a one-time expense dated later this month, like the month total does', async () => {
+    await seed()
+    await db.expense_entries.add({
+      payer: null, expenseKind: null, categoryId: null, deletedAt: null,
+      createdAt: '2026-10-04T00:00:00.000Z', updatedAt: '2026-10-04T00:00:00.000Z',
+      name: '演唱會門票', amountTwd: 3200, occurredAt: '2026-10-25', entryType: 'ONE_TIME',
+    })
+    const view = await getExpenseDashboardView({ month: '2026-10' })
+    const october = view.monthlySummaries[view.monthlySummaries.length - 1]
+    expect(october).toMatchObject({ expenseTwd: 3950, oneTimeTwd: 3350 })
+    expect(october.expenseTwd).toBe(view.monthlyExpenseTotalTwd)
+  })
+
   it('reports null income when none is configured', async () => {
     await seed()
     const view = await getExpenseDashboardView({ month: '2026-10' })

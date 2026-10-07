@@ -3656,12 +3656,28 @@ export const getExpenseDashboardView = async (input = {}) => {
     entries,
     today,
   );
-  // One row per month from the first expense to today (charged spending only,
-  // like the month total) — feeds the month bars and the 累計 growth tower.
+  // One row per month from the first expense to today, on the same basis as
+  // the month total (only recurring charges still to come are left out, so
+  // one-time expenses dated later this month count) — feeds the month bars
+  // and the 累計 growth tower.
+  const currentMonthKey = today.slice(0, 7);
+  const laterThisMonthOneTime = entries
+    .filter(
+      (entry) =>
+        entry.entryType !== EXPENSE_ENTRY_TYPE.RECURRING &&
+        String(entry.occurredAt ?? "") > today &&
+        String(entry.occurredAt ?? "").slice(0, 7) === currentMonthKey,
+    )
+    .map((entry) => ({
+      amountTwd: Number(entry.amountTwd) || 0,
+      occurredAt: entry.occurredAt,
+      entryType: entry.entryType,
+      isRecurringOccurrence: false,
+    }));
   const monthlySummaries = buildMonthlySummaries({
-    occurrences: allHistoryOccurrences,
+    occurrences: [...allHistoryOccurrences, ...laterThisMonthOneTime],
     firstMonth: firstExpenseDate ? firstExpenseDate.slice(0, 7) : null,
-    currentMonth: today.slice(0, 7),
+    currentMonth: currentMonthKey,
     incomeForMonth: (month) =>
       resolveIncomeForMonth({
         month,
