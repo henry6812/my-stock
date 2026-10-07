@@ -548,6 +548,62 @@
   100% { opacity: 1; transform: translateY(0); }
 }
 
+/* ===== Expense month bars (components/ExpenseMonthBars.jsx) ===== */
+.expense-month-bars {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 18px;
+}
+
+.expense-month-bars-track {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 64px;
+}
+
+.expense-month-bar {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: #e1efec;
+  cursor: pointer;
+  transition: background 250ms ease;
+}
+
+.expense-month-bars--cumulative .expense-month-bar {
+  background: #c4e0da;
+}
+
+.expense-month-bar.is-on,
+.expense-month-bars--cumulative .expense-month-bar.is-on {
+  background: var(--c-teal);
+}
+
+.expense-month-bars-all {
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--c-line-strong);
+  background: transparent;
+  color: var(--c-muted);
+  cursor: pointer;
+}
+
+.expense-month-bars-all.is-on {
+  background: var(--c-teal);
+  border-color: var(--c-teal);
+  color: #ffffff;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .networth-jar *,
   .savings-tower *,
