@@ -86,6 +86,7 @@ export default function ExpenseSummaryCard({
   mode,
   activeMonth,
   monthlySummaries = [],
+  monthOptions = [],
   monthProgress,
   upcomingTwd = 0,
   playKey,
@@ -105,6 +106,16 @@ export default function ExpenseSummaryCard({
   const growth = useMemo(
     () => getGrowthTowerLayout(monthlySummaries),
     [monthlySummaries],
+  );
+  // Months the app can show but that have no summary yet (scheduled charges
+  // in the months ahead) — offered as empty bars so they stay reachable.
+  const lastSummaryMonth = monthlySummaries[monthlySummaries.length - 1]?.month;
+  const futureMonths = useMemo(
+    () =>
+      lastSummaryMonth
+        ? monthOptions.filter((month) => month > lastSummaryMonth)
+        : [],
+    [monthOptions, lastSummaryMonth],
   );
   const text = cumulative
     ? describeCumulative({ summaries: monthlySummaries, growth, selected })
@@ -153,6 +164,7 @@ export default function ExpenseSummaryCard({
       </div>
       <ExpenseMonthBars
         summaries={monthlySummaries}
+        futureMonths={futureMonths}
         mode={mode}
         activeMonth={activeMonth}
         highlightMonth={cumulative ? selected : null}

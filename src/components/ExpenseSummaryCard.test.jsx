@@ -131,6 +131,13 @@ describe('ExpenseSummaryCard', () => {
     expect(text(container).num).toBe('−$5,000')
   })
 
+  it('lists months after the current one as future bars', () => {
+    const onSelectMonth = vi.fn()
+    renderCard({ monthOptions: ['2026-08', '2026-09', '2026-10', '2026-11'], onSelectMonth })
+    fireEvent.click(screen.getByRole('button', { name: '2026 年 11 月，尚未到來' }))
+    expect(onSelectMonth).toHaveBeenCalledWith('2026-11')
+  })
+
   it('sends bar taps and the 累計 pill to the app', () => {
     const onSelectMonth = vi.fn()
     const onToggleMode = vi.fn()

@@ -581,6 +581,31 @@
   background: #c4e0da;
 }
 
+/* More than 12 months: fixed-width bars in a sideways-scrolling track. */
+.expense-month-bars-track--scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.expense-month-bars-track--scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.expense-month-bars-track--scroll .expense-month-bar {
+  flex: 0 0 18px;
+}
+
+.expense-month-bar--future,
+.expense-month-bars--cumulative .expense-month-bar--future {
+  background: transparent;
+  border: 1.5px dashed #c4e0da;
+}
+
+.expense-month-bar--future.is-on {
+  background: var(--c-teal);
+  border-color: var(--c-teal);
+}
+
 .expense-month-bar.is-on,
 .expense-month-bars--cumulative .expense-month-bar.is-on {
   background: var(--c-teal);

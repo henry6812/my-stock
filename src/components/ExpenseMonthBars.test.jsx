@@ -12,11 +12,31 @@ const months = (n) =>
 const bars = () => screen.getAllByRole('button').filter((b) => b.classList.contains('expense-month-bar'))
 
 describe('ExpenseMonthBars', () => {
-  it('shows at most the last 12 months, oldest first', () => {
-    render(<ExpenseMonthBars summaries={months(14)} mode="month" activeMonth="2026-11" />)
-    expect(bars()).toHaveLength(12)
-    expect(bars()[0]).toHaveAccessibleName('2025 年 12 月，支出 $3,000')
-    expect(bars()[11]).toHaveAccessibleName('2026 年 11 月，支出 $14,000')
+  it('keeps every month reachable, scrolling once there are more than 12', () => {
+    const { container } = render(<ExpenseMonthBars summaries={months(14)} mode="month" activeMonth="2026-11" />)
+    expect(bars()).toHaveLength(14)
+    expect(bars()[0]).toHaveAccessibleName('2025 年 10 月，支出 $1,000')
+    expect(bars()[13]).toHaveAccessibleName('2026 年 11 月，支出 $14,000')
+    expect(container.querySelector('.expense-month-bars-track')).toHaveClass('expense-month-bars-track--scroll')
+  })
+
+  it('does not scroll with 12 months or fewer', () => {
+    const { container } = render(<ExpenseMonthBars summaries={months(12)} mode="month" activeMonth="2026-09" />)
+    expect(container.querySelector('.expense-month-bars-track')).not.toHaveClass('expense-month-bars-track--scroll')
+  })
+
+  it('offers future months as empty bars that can still be picked', () => {
+    const onSelectMonth = vi.fn()
+    render(
+      <ExpenseMonthBars summaries={months(2)} futureMonths={['2025-12']} mode="month" activeMonth="2025-12"
+        onSelectMonth={onSelectMonth} />,
+    )
+    const future = bars()[2]
+    expect(future).toHaveClass('expense-month-bar--future')
+    expect(future).toHaveAccessibleName('2025 年 12 月，尚未到來')
+    expect(future).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(future)
+    expect(onSelectMonth).toHaveBeenCalledWith('2025-12')
   })
 
   it('marks the active month in month mode', () => {
