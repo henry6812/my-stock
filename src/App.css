@@ -1091,172 +1091,6 @@ button.expense-card-chip {
   color: var(--c-muted);
 }
 
-.expense-summary-panel {
-  min-height: 180px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  text-align: center;
-}
-
-.expense-summary-panel--plain {
-  width: min(680px, 92vw);
-  margin: 0 auto;
-  padding: 12px 0;
-}
-
-/* Mode toggle + month nav share one centred row above the figure / tower. */
-.expense-summary-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px 14px;
-}
-
-.expense-summary-toggle {
-  align-self: center;
-}
-
-.expense-summary-title {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 24px;
-}
-
-.expense-summary-meta {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-}
-
-.expense-month-nav {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.expense-month-nav-btn.ant-btn {
-  width: 24px;
-  min-width: 24px;
-  height: 24px;
-  padding: 0;
-  color: var(--c-muted);
-}
-
-.expense-month-nav-btn.ant-btn[disabled] {
-  color: var(--c-subtle);
-  cursor: not-allowed;
-}
-
-.expense-month-nav-title {
-  min-width: 120px;
-  text-align: center;
-}
-
-.expense-summary-value {
-  text-align: left;
-}
-
-.expense-summary-value-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.expense-summary-trend-btn.ant-btn {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  padding: 0;
-}
-
-.expense-summary-subtext {
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
-}
-
-/* In the hero row the left column is narrow: stack the two meta lines. */
-.summary-hero-text .expense-income-progress-meta-row {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-
-.expense-saved-text {
-  display: block;
-  margin-top: 2px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--c-teal-ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.expense-saved-text--over {
-  color: var(--c-down);
-}
-
-.expense-tower-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--c-muted);
-}
-
-.expense-tower-swatch {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  margin-right: 4px;
-  border-radius: 2px;
-  vertical-align: -1px;
-}
-
-.expense-tower-swatch--recurring {
-  background: var(--c-teal);
-}
-
-.expense-tower-swatch--onetime {
-  background: #86c4b9;
-}
-
-.expense-tower-swatch--saved {
-  background: linear-gradient(#f2cf6b, #d9a93a);
-}
-
-.expense-income-progress {
-  width: 100%;
-  margin: 8px 0 0;
-  position: relative;
-}
-
-.expense-income-progress-meta-row {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.expense-income-progress-meta-left {
-  font-size: 12px;
-  text-align: left;
-}
-
-.expense-income-progress-meta-right {
-  font-size: 12px;
-  text-align: right;
-  flex-shrink: 0;
-}
-
 .expense-category-tabs {
   margin-bottom: 8px;
 }
@@ -1544,19 +1378,6 @@ button.expense-card-chip {
 
   .cell-delta {
     font-size: 12px;
-  }
-
-  .expense-summary-title {
-    align-items: center;
-  }
-
-  .expense-summary-panel {
-    min-height: 140px;
-    gap: 10px;
-  }
-
-  .expense-summary-value .ant-statistic-content {
-    font-size: 30px;
   }
 
   .expense-fab.ant-btn {
@@ -2142,12 +1963,6 @@ button.expense-card-chip {
   padding: 12px;
   font-size: var(--fs-body);
   color: var(--c-ink);
-}
-
-.expense-upcoming-note {
-  display: block;
-  margin-top: 4px;
-  font-size: var(--fs-caption);
 }
 
 .expense-recurring-edit-alert {

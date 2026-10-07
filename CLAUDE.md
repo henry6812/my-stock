@@ -92,7 +92,7 @@ FX (`fxProvider.js`) 打 open.er-api 取得 USD/TWD；不需要 API key。
 
 ### UI
 
-`src/App.jsx` 刻意維持為 monolithic（約 6.4k 行）— 包含 tabs (holdings、expenses、budgets、charts)、drawers、modals，以及大部分內嵌的 reducers。只有四個元件被抽出到 `src/components/` 之下：`HoldingForm`、`CashAccountForm`、`MobileFormSheetLayout`、`TrendChart`。新增 top-level state 之前，先在 `App.jsx` 中搜尋是否有可以延伸的既有 `useState`，而不是再開一個新 context。
+`src/App.jsx` 刻意維持為 monolithic（約 6.4k 行）— 包含 tabs (holdings、expenses、budgets、charts)、drawers、modals，以及大部分內嵌的 reducers。部分元件已抽出到 `src/components/`（表單、mobile sheet、圖表，以及支出頁摘要卡 `ExpenseSummaryCard` 與其 `SavingsTower` / `SavingsGrowthTower` / `ExpenseMonthBars`、資產頁 `NetWorthJar` 等）；塔與長條的純計算在 `src/utils/savingsTower.js`、`savingsGrowthTower.js`、`monthlySummaries.js`。新增 top-level state 之前，先在 `App.jsx` 中搜尋是否有可以延伸的既有 `useState`，而不是再開一個新 context。
 
 Stack：React 19、Ant Design 6、Recharts 3、`@dnd-kit` (用於可拖曳重排的 holdings)、`animejs` (數字 tweening)、`dayjs`（含 `utc` + `timezone` plugins）。
 
