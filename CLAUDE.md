@@ -80,7 +80,7 @@ Query API 模仿 Dexie (`db.holdings.where('...').equals(...).toArray()`、compo
 
 `alphaVantageProvider.js` 目前是 **dead code** — 沒有任何檔案 import 它，不在上述 chain 內。要重新啟用需自己接進 `getHoldingQuote`。
 
-Same-origin TPEX snapshot 由 `.github/workflows/update-tpex-snapshot.yml` 更新（cron，平日 10:10 UTC）。當 TPEX 新增或移除欄位時，該 workflow 的 curl 目標與 `tpexProvider` 的 parser 必須同步調整。
+Same-origin TPEX snapshot 由 `.github/workflows/update-tpex-snapshot.yml` 更新（cron，平日 12:30 + 15:00 UTC；TPEX 約 12:00 UTC 才發布當日資料），commit 後以 `gh workflow run deploy.yml` 觸發部署 — TPEX API 沒有 CORS header，瀏覽器實際上只吃得到這份 snapshot，沒部署就等於沒更新。當 TPEX 新增或移除欄位時，該 workflow 的 curl 目標與 `tpexProvider` 的 parser 必須同步調整。
 
 FX (`fxProvider.js`) 打 open.er-api 取得 USD/TWD；不需要 API key。
 
