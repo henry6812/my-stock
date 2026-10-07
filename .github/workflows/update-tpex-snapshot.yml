@@ -26,7 +26,9 @@ jobs:
       - name: Fetch latest TPEX daily close quotes
         run: |
           mkdir -p public/data
-          curl -sSf --retry 3 --retry-delay 10 \
+          # TPEX intermittently resets connections / aborts HTTP/2 streams
+          # mid-transfer (curl 56/92), which plain --retry does not cover.
+          curl -sSf --http1.1 --max-time 120 --retry 5 --retry-delay 30 --retry-all-errors \
             "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes" -o /tmp/tpex_raw.json
           # Only replace the snapshot with a non-empty JSON array, trimmed to
           # the fields tpexProvider reads (the full rows are ~3.5 MB).
