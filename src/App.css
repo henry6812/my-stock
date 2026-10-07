@@ -387,26 +387,53 @@
   stroke-dasharray: 2 2;
 }
 
-/* Spent area keeps a faint tint so the recurring / one-time split stays visible. */
+/* Spent area keeps a pale teal tint so the recurring / one-time split stays visible. */
 .savings-tower-spent {
-  stroke-width: 1;
-  stroke-dasharray: 2 2;
   animation: jar-fade-in 300ms ease-out both;
 }
 
 .savings-tower-spent--recurring {
-  fill: rgba(43, 127, 116, 0.2);
-  stroke: rgba(43, 127, 116, 0.45);
+  fill: #9fcfc6;
+  opacity: 0.55;
 }
 
 .savings-tower-spent--oneTime {
-  fill: rgba(134, 196, 185, 0.2);
-  stroke: rgba(134, 196, 185, 0.7);
+  fill: #cfe6e1;
+  opacity: 0.75;
+}
+
+.savings-tower-pending {
+  stroke: var(--c-teal);
+  stroke-opacity: 0.35;
+  stroke-dasharray: 2 2;
+}
+
+.savings-tower-hatch-bg {
+  fill: #ffffff;
+}
+
+.savings-tower-hatch-line {
+  fill: var(--c-teal);
+  opacity: 0.55;
+}
+
+.savings-tower-part {
+  cursor: pointer;
+  transition: opacity 200ms ease;
+}
+
+.savings-tower .is-dim,
+.growth-tower .is-dim {
+  opacity: 0.3;
 }
 
 .savings-tower-income {
   font-size: 9.5px;
   fill: var(--c-subtle);
+}
+
+.savings-tower-brick {
+  fill: var(--c-teal);
 }
 
 .savings-tower-build .savings-tower-brick {
@@ -424,39 +451,15 @@
 }
 
 .savings-tower-shard--oneTime {
-  fill: #86c4b9;
-}
-
-.savings-tower-saved {
-  font-size: 10px;
-  font-weight: 700;
-  fill: #8a6414;
-  /* White halo keeps the label readable over the tinted spent area. */
-  paint-order: stroke;
-  stroke: rgba(255, 255, 255, 0.9);
-  stroke-width: 3px;
-  stroke-linejoin: round;
-  animation: jar-fade-in 400ms ease-out both;
-}
-
-.savings-tower-saved--inside {
-  fill: #5c430d;
-  stroke: none;
+  fill: #9fcfc6;
 }
 
 .savings-tower-pit {
-  fill: rgba(207, 19, 34, 0.12);
-  stroke: var(--c-down);
-  stroke-dasharray: 3 2;
+  fill: var(--c-down);
+  opacity: 0.18;
   transform-box: fill-box;
   transform-origin: top;
   animation: tower-pit-grow 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-.savings-tower-over {
-  font-size: 9.5px;
-  font-weight: 700;
-  fill: var(--c-down);
 }
 
 .savings-tower-setup {
