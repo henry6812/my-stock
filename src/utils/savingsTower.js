@@ -1,6 +1,7 @@
 // Pure layout for the expense-tab savings tower (components/SavingsTower.jsx).
 // Income is a tower of TOWER_ROWS rows; spending removes it from the top —
 // recurring first, then one-time. Whatever is left is what was saved.
+// Upcoming recurring charges are marked (not removed) right below the spent area.
 
 export const TOWER_ROWS = 10;
 // The overspend pit below the ground line never grows past this fraction of
@@ -22,6 +23,7 @@ export const getTowerLayout = ({
   incomeTwd,
   recurringTwd,
   oneTimeTwd,
+  upcomingTwd = 0,
   rows = TOWER_ROWS,
 }) => {
   const income = toAmount(incomeTwd);
@@ -40,28 +42,34 @@ export const getTowerLayout = ({
       savedRatio: 0,
       overspendTwd: 0,
       overspendDepthRatio: 0,
+      pendingTwd: 0,
+      pendingChunks: [],
     };
   }
 
   const chunks = [];
-  let cursor = 0; // rows removed so far, counted from the top
-  const removeFromTop = (amountTwd, kind) => {
+  let cursor = 0; // rows sliced so far, counted from the top
+  const sliceFromTop = (amountTwd, kind, out) => {
     let remaining = round(Math.min((amountTwd / income) * rows, rows - cursor));
     while (remaining > EPS) {
       const rowFromTop = Math.floor(cursor + EPS);
       const offset = round(cursor - rowFromTop);
       const take = round(Math.min(1 - offset, remaining));
       if (take <= 0) break;
-      chunks.push({ rowIndex: rows - 1 - rowFromTop, offset, take, kind });
+      out.push({ rowIndex: rows - 1 - rowFromTop, offset, take, kind });
       cursor = round(cursor + take);
       remaining = round(remaining - take);
     }
   };
-  removeFromTop(recurring, "recurring");
-  removeFromTop(oneTime, "oneTime");
+  sliceFromTop(recurring, "recurring", chunks);
+  sliceFromTop(oneTime, "oneTime", chunks);
 
   const savedTwd = Math.max(0, income - spentTwd);
   const overspendTwd = Math.max(0, spentTwd - income);
+  const pendingTwd = Math.min(toAmount(upcomingTwd), savedTwd);
+  const pendingChunks = [];
+  sliceFromTop(pendingTwd, "pending", pendingChunks);
+
   return {
     hasIncome: true,
     rows,
@@ -72,6 +80,8 @@ export const getTowerLayout = ({
     savedRatio: savedTwd / income,
     overspendTwd,
     overspendDepthRatio: Math.min(OVERSPEND_DEPTH_CAP, overspendTwd / income),
+    pendingTwd,
+    pendingChunks,
   };
 };
 
