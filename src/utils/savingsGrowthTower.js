@@ -5,6 +5,13 @@
 // `peakTwd`, the tallest the stack ever got.
 
 const EPS = 1e-9;
+const MAX_STEP_MS = 260;
+const MAX_TOTAL_MS = 3000;
+
+// Per-month pace of the stacking animation: long histories speed up so the
+// whole entrance stays within about three seconds.
+export const getStepDelay = (stepCount) =>
+  Math.min(MAX_STEP_MS, MAX_TOTAL_MS / Math.max(1, stepCount));
 
 export const getMonthSurplus = (summary) =>
   (Number(summary?.incomeTwd) || 0) - (Number(summary?.expenseTwd) || 0);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getGrowthTowerLayout, getMonthSurplus } from './savingsGrowthTower'
+import { getGrowthTowerLayout, getMonthSurplus, getStepDelay } from './savingsGrowthTower'
 
 const m = (month, incomeTwd, expenseTwd, isCurrent = false) => ({ month, incomeTwd, expenseTwd, isCurrent })
 const spans = (layers) => layers.map((l) => [l.month, l.bottom, l.top])
@@ -58,5 +58,12 @@ describe('getGrowthTowerLayout', () => {
     expect(getGrowthTowerLayout([m('2026-01', null, 10)]).hasIncome).toBe(false)
     expect(getGrowthTowerLayout([]).hasIncome).toBe(false)
     expect(getGrowthTowerLayout([m('2026-01', 5, 10)]).hasIncome).toBe(true)
+  })
+})
+
+describe('getStepDelay', () => {
+  it('keeps long histories within about three seconds', () => {
+    expect(getStepDelay(3)).toBe(260)
+    expect(getStepDelay(30)).toBe(100)
   })
 })
