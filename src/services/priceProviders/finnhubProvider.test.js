@@ -91,6 +91,6 @@ describe('getHoldingQuote (TW)', () => {
     const quote = await getHoldingQuote({ symbol: '00679B', market: 'TW' }, { tpexFirst: true })
     expect(quote.price).toBe(24.77)
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(String(fetchMock.mock.calls[0][0])).toContain('tpex_off_market')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('tpex_daily_close_quotes')
   })
 })

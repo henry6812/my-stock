@@ -72,7 +72,7 @@ Query API 模仿 Dexie (`db.holdings.where('...').equals(...).toArray()`、compo
 `src/services/priceProviders/` — 順序很重要，且在 `finnhubProvider.getHoldingQuote` 中是寫死的（`finnhubProvider.js:55-91`）：
 
 1. **US stocks**：只用 Finnhub (`/quote`)。
-2. **TW stocks**：**不打 Finnhub**。直接走 `twseRwdProvider` → `twseProvider` (full snapshot) → `tpexProvider`（自己內部又會嘗試 `public/data/tpex_off_market.json` same-origin snapshot、TPEX 官方 API，最後是 `VITE_TPEX_PROXY_URL`）。三者全失敗才拋出彙整後的錯誤。
+2. **TW stocks**：**不打 Finnhub**。直接走 `twseRwdProvider` → `twseProvider` (full snapshot) → `tpexProvider`（自己內部又會嘗試 `public/data/tpex_daily_close_quotes.json` same-origin snapshot、TPEX 官方 API，最後是 `VITE_TPEX_PROXY_URL`）。三者全失敗才拋出彙整後的錯誤。
 
 批次刷新（`portfolioService.refreshPrices`）時台股先打一次 `twseDailyProvider`（TWSE `rwd/.../MI_INDEX?type=ALLBUT0999`，當天收盤後即更新；**不要**換成 openapi 的 `STOCK_DAY_ALL`，它隔天清晨才更新），命中的直接用；沒命中的才逐檔走上面的 chain（不在 TWSE 名單的代碼帶 `tpexFirst` 先查 TPEX），逐檔打 TWSE 前仍需 `sleepForRateLimit(1_200)`。美股與台股兩條線並行，美股用 `mapWithConcurrency` 限制 4 個同時請求。
 
@@ -80,7 +80,7 @@ Query API 模仿 Dexie (`db.holdings.where('...').equals(...).toArray()`、compo
 
 `alphaVantageProvider.js` 目前是 **dead code** — 沒有任何檔案 import 它，不在上述 chain 內。要重新啟用需自己接進 `getHoldingQuote`。
 
-Same-origin TPEX snapshot 由 `.github/workflows/update-tpex-snapshot.yml` 更新（cron，平日 12:30 + 15:00 UTC；TPEX 約 12:00 UTC 才發布當日資料），commit 後以 `gh workflow run deploy.yml` 觸發部署 — TPEX API 沒有 CORS header，瀏覽器實際上只吃得到這份 snapshot，沒部署就等於沒更新。當 TPEX 新增或移除欄位時，該 workflow 的 curl 目標與 `tpexProvider` 的 parser 必須同步調整。
+Same-origin TPEX snapshot 由 `.github/workflows/update-tpex-snapshot.yml` 更新（cron，平日 12:30 + 15:00 UTC；TPEX 約 12:00 UTC 才發布當日資料），commit 後以 `gh workflow run deploy.yml` 觸發部署 — TPEX API 沒有 CORS header，瀏覽器實際上只吃得到這份 snapshot，沒部署就等於沒更新。來源是 `tpex_mainboard_daily_close_quotes`（workflow 用 jq 只留 `Date/SecuritiesCompanyCode/CompanyName/Close/Change`），`tpexProvider` 從 `Change` 推 `previousClose`（除息/除權日為 undefined）；**不要**換回 `tpex_off_market`（盤後定價，沒有盤後成交的股票 `Close` 是 `0.00`，也沒有 `Change`）。當 TPEX 新增或移除欄位時，該 workflow 的 curl 目標與 `tpexProvider` 的 parser 必須同步調整。
 
 FX (`fxProvider.js`) 打 open.er-api 取得 USD/TWD；不需要 API key。
 

@@ -1,23 +1,40 @@
-const TPEX_OFF_MARKET_URL = 'https://www.tpex.org.tw/openapi/v1/tpex_off_market'
-const TPEX_SNAPSHOT_URL = `${import.meta.env.BASE_URL}data/tpex_off_market.json`
+// 上櫃每日收盤行情. Not tpex_off_market (盤後定價): that one has Close 0.00
+// for every stock without an after-hours trade, and no Change column.
+const TPEX_DAILY_CLOSE_URL = 'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes'
+const TPEX_SNAPSHOT_URL = `${import.meta.env.BASE_URL}data/tpex_daily_close_quotes.json`
 const DEFAULT_PROXY_URLS = [
-  `https://api.codetabs.com/v1/proxy/?quest=${TPEX_OFF_MARKET_URL}`,
-  `https://corsproxy.io/?${encodeURIComponent(TPEX_OFF_MARKET_URL)}`,
+  `https://api.codetabs.com/v1/proxy/?quest=${TPEX_DAILY_CLOSE_URL}`,
+  `https://corsproxy.io/?${encodeURIComponent(TPEX_DAILY_CLOSE_URL)}`,
 ]
 const REQUEST_TIMEOUT_MS = 8000
 const RETRY_COUNT = 2
 
+const parseNumber = (value) => {
+  const text = String(value ?? '').replaceAll(',', '').trim()
+  // Number('') is 0, so reject blanks explicitly; '---' (no trade) and
+  // '除息'/'除權' fall out as NaN.
+  if (!text) {
+    return null
+  }
+  const parsed = Number(text)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 const parsePrice = (value) => {
-  if (!value || value === '--') {
-    return null
-  }
+  const price = parseNumber(value)
+  return price !== null && price > 0 ? price : null
+}
 
-  const price = Number(String(value).replaceAll(',', '').trim())
-  if (!Number.isFinite(price) || price <= 0) {
-    return null
+// Change is signed ('+10.00', '-0.03', '0.00'). On ex-dividend/ex-rights
+// days it reads '除息'/'除權' — the change is vs. a reference price, not the
+// previous close — so leave previousClose unknown.
+const parsePreviousClose = (price, change) => {
+  const delta = parseNumber(change)
+  if (delta === null) {
+    return undefined
   }
-
-  return price
+  // Round away float noise from the subtraction (24.3 + 0.03 → 24.33).
+  return Math.round((price - delta) * 10_000) / 10_000
 }
 
 export const getTwQuoteFromTpex = async (symbol) => {
@@ -25,7 +42,7 @@ export const getTwQuoteFromTpex = async (symbol) => {
   const urls = [
     // Same-origin snapshot is the most reliable option on GitHub Pages.
     TPEX_SNAPSHOT_URL,
-    TPEX_OFF_MARKET_URL,
+    TPEX_DAILY_CLOSE_URL,
     ...(customProxyUrl ? [customProxyUrl] : []),
     ...DEFAULT_PROXY_URLS,
   ]
@@ -97,5 +114,6 @@ export const getTwQuoteFromTpex = async (symbol) => {
     price,
     name: row.CompanyName?.trim() || symbol,
     currency: 'TWD',
+    previousClose: parsePreviousClose(price, row.Change),
   }
 }

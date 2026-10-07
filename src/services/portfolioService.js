@@ -1786,7 +1786,7 @@ export const getPortfolioView = async () => {
     });
     // Daily change is measured from the market's previous close (unified
     // baseline for both the row and the portfolio total). null when the
-    // latest snapshot has no previousClose (pre-Plan-A / TPEX) — the UI shows
+    // latest snapshot has no previousClose (pre-Plan-A, or ex-dividend day) — the UI shows
     // "—" instead of a misleading number.
     const previousCloseRaw = latestSnapshot?.previousClose;
     const dailyChange = hasLatestPrice

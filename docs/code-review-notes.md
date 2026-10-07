@@ -127,13 +127,13 @@ env:
 **`src/services/priceProviders/tpexProvider.js:3-6`**：
 ```js
 const DEFAULT_PROXY_URLS = [
-  `https://api.codetabs.com/v1/proxy/?quest=${TPEX_OFF_MARKET_URL}`,
-  `https://corsproxy.io/?${encodeURIComponent(TPEX_OFF_MARKET_URL)}`,
+  `https://api.codetabs.com/v1/proxy/?quest=${TPEX_DAILY_CLOSE_URL}`,
+  `https://corsproxy.io/?${encodeURIComponent(TPEX_DAILY_CLOSE_URL)}`,
 ]
 ```
 
 實際嘗試順序（共最多 5 個 URL × 各 retry 2 次）：
-1. 同源 `public/data/tpex_off_market.json` snapshot
+1. 同源 `public/data/tpex_daily_close_quotes.json` snapshot
 2. TPEX 官方 API
 3. `VITE_TPEX_PROXY_URL`（若有設）
 4. codetabs 公用 proxy

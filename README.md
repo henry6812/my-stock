@@ -10,7 +10,7 @@
 - 股票報價 fallback：
   1. **美股**：Finnhub
   2. **台股**：Finnhub → `twseRwdProvider` → `twseProvider` (full snapshot) → `tpexProvider`
-- TPEX 內部又會依序嘗試：同源快照 (`public/data/tpex_off_market.json`) → TPEX 官方 API → `VITE_TPEX_PROXY_URL`
+- TPEX 內部又會依序嘗試：同源快照 (`public/data/tpex_daily_close_quotes.json`) → TPEX 官方 API → `VITE_TPEX_PROXY_URL`
 - 同源 TPEX 快照由 GitHub Actions (`.github/workflows/update-tpex-snapshot.yml`) 平日 cron 更新
 - USD/TWD 匯率：open.er-api（無需 API key）
 - 手動更新價格，顯示上次更新時間
@@ -56,7 +56,7 @@ cp .env.example .env.local
 1. Finnhub
 2. TWSE RWD
 3. TWSE 全量 snapshot
-4. 同源 TPEX 快照（`public/data/tpex_off_market.json`）
+4. 同源 TPEX 快照（`public/data/tpex_daily_close_quotes.json`）
 5. TPEX 官方 API
 6. 代理 API（`VITE_TPEX_PROXY_URL`）
 

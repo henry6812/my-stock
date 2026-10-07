@@ -23,28 +23,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fetch latest TPEX off-market snapshot
+      - name: Fetch latest TPEX daily close quotes
         run: |
           mkdir -p public/data
           curl -sSf --retry 3 --retry-delay 10 \
-            "https://www.tpex.org.tw/openapi/v1/tpex_off_market" -o /tmp/tpex_off_market.json
-          # Only replace the snapshot with a non-empty JSON array.
-          jq -e 'type == "array" and length > 0' /tmp/tpex_off_market.json > /dev/null
-          mv /tmp/tpex_off_market.json public/data/tpex_off_market.json
+            "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes" -o /tmp/tpex_raw.json
+          # Only replace the snapshot with a non-empty JSON array, trimmed to
+          # the fields tpexProvider reads (the full rows are ~3.5 MB).
+          jq -e 'type == "array" and length > 0' /tmp/tpex_raw.json > /dev/null
+          jq -c 'map({Date, SecuritiesCompanyCode, CompanyName, Close, Change})' /tmp/tpex_raw.json \
+            | sed 's/},{/},\n{/g' > public/data/tpex_daily_close_quotes.json
 
       - name: Commit and deploy
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet -- public/data/tpex_off_market.json; then
+          if [ -z "$(git status --porcelain -- public/data/tpex_daily_close_quotes.json)" ]; then
             echo "No snapshot changes"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/data/tpex_off_market.json
-          git commit -m "chore: update TPEX off-market snapshot"
+          git add public/data/tpex_daily_close_quotes.json
+          git commit -m "chore: update TPEX daily close snapshot"
           git pull --rebase
           git push
           # Pushes made with GITHUB_TOKEN do not trigger deploy.yml's push
