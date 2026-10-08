@@ -43,7 +43,6 @@ import {
   Typography,
 } from "antd";
 import {
-  AreaChartOutlined,
   CloudSyncOutlined,
   DownOutlined,
   LeftOutlined,
@@ -60,7 +59,6 @@ import {
   MailOutlined,
   MenuOutlined,
   PlusOutlined,
-  PieChartOutlined,
   SettingOutlined,
   StopOutlined,
   SyncOutlined,
@@ -108,6 +106,8 @@ import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
 import RecurringOverview from "./components/RecurringOverview";
 import SwipeActions from "./components/SwipeActions";
 import HoverTooltip from "./components/HoverTooltip";
+import AllocationBreakdown from "./components/AllocationBreakdown";
+import { describeAllocation } from "./utils/allocation";
 import CollapsibleGroups from "./components/CollapsibleGroups";
 import BudgetOverview from "./components/BudgetOverview";
 import BudgetDetailSheet from "./components/BudgetDetailSheet";
@@ -335,13 +335,23 @@ function SortableRow({ disabled, ...props }) {
 
 // Mobile list row: content on the left / right, actions revealed by swiping
 // left (see SwipeActions).
-function MobileSwipeRow({ actions, disabled = false, main, side = null, onTap }) {
+// `label` names a tappable row for assistive tech, instead of having every
+// line of its content read out.
+function MobileSwipeRow({
+  actions,
+  disabled = false,
+  main,
+  side = null,
+  onTap,
+  label,
+}) {
   return (
     <SwipeActions actions={actions} disabled={disabled}>
       <div
         className="mobile-swipe-row"
         onClick={onTap}
         role={onTap ? "button" : undefined}
+        aria-label={onTap ? label : undefined}
         tabIndex={onTap ? 0 : undefined}
         onKeyDown={
           onTap
@@ -479,9 +489,8 @@ function App() {
       window.scrollTo(0, 0);
     });
   };
-  const [isTrendExpanded, setIsTrendExpanded] = useState(false);
-  const [isPieExpanded, setIsPieExpanded] = useState(false);
-  const [activeAllocationTab, setActiveAllocationTab] = useState("assetType");
+  // Which 資產分析 chart is open in its modal (null = none).
+  const [activeAssetChartKey, setActiveAssetChartKey] = useState(null);
   const [activeHoldingTab, setActiveHoldingTab] = useState(HOLDER_TAB_ALL);
   const [activeCashHolderTab, setActiveCashHolderTab] = useState(HOLDER_TAB_ALL);
   const [isAddHoldingModalOpen, setIsAddHoldingModalOpen] = useState(false);
@@ -2064,10 +2073,32 @@ function App() {
     ].filter((item) => item.value > 0);
   }, [cashRows, rows]);
 
-  const allocationChartData = useMemo(
-    () =>
-      activeAllocationTab === "market" ? marketAllocation : assetTypeAllocation,
-    [activeAllocationTab, assetTypeAllocation, marketAllocation],
+  // 資產分析 rows: each chart with a one-line headline; the chart itself
+  // opens in a modal (same pattern as 支出分析).
+  const assetChartRows = useMemo(() => {
+    // No figure for the trend: its first point is a snapshot from the start
+    // of the range, not yesterday's close, so a 「近 24 小時 ▼ $X」 would
+    // disagree with the hero's 今日 change right above it.
+    const trendSummary =
+      trend.length >= 2
+        ? "總資產在 24 小時、一週、一個月內的變化"
+        : "尚無走勢資料";
+    return [
+      { key: "trend", title: "現值走勢", summary: trendSummary },
+      {
+        key: "assetType",
+        title: "資產類型",
+        summary: describeAllocation(assetTypeAllocation) || "尚無資料",
+      },
+      {
+        key: "market",
+        title: "台股 / 美股",
+        summary: describeAllocation(marketAllocation) || "尚無資料",
+      },
+    ];
+  }, [assetTypeAllocation, marketAllocation, trend]);
+  const activeAssetChart = assetChartRows.find(
+    (row) => row.key === activeAssetChartKey,
   );
 
   const getDeltaClassName = useCallback((value) => {
@@ -2416,9 +2447,17 @@ function App() {
           }
           const name = record.companyName || record.symbol;
           const rowBusy = Boolean(loadingActionById[record.id]);
+          const pct = record.priceChangePct;
+          const todayText =
+            typeof pct !== "number" || !record.hasPreviousSnapshot
+              ? ""
+              : pct === 0
+                ? "，今日持平"
+                : `，今日${pct > 0 ? "漲" : "跌"} ${Math.abs(pct).toFixed(2)}%`;
           return (
             <MobileSwipeRow
               onTap={() => setStockDetailId(record.id)}
+              label={`${name}，市值 ${formatTwd(record.latestValueTwd)}${todayText}，查看個股`}
               disabled={isWriteDisabled || editingHoldingId !== null || rowBusy}
               actions={[
                 swipeEditAction(name, () => handleEditClick(record)),
@@ -2440,9 +2479,13 @@ function App() {
                 <span className="holding-main-text">
                   {record.companyName || record.symbol}
                 </span>
-                <Tag variant="filled" className="holding-mobile-kind">
-                  {tagLabel(record)}
-                </Tag>
+                {/* Only non-default kinds (ETF, 債券): a 個股 tag on nearly
+                    every row said nothing. */}
+                {(record.assetTag || "STOCK") !== "STOCK" && (
+                  <Tag variant="filled" className="holding-mobile-kind">
+                    {tagLabel(record)}
+                  </Tag>
+                )}
               </div>
               <Text type="secondary" className="holding-mobile-line">
                 {record.symbol} ·{" "}
@@ -2477,12 +2520,14 @@ function App() {
               {formatTwd(animatedOr(record, "latestValueTwd"))}
             </div>
             <div className="holding-mobile-line">
+              {/* Today's change in TWD only: the % is on the left, and the
+                  arrow already gives the direction (no minus sign). */}
               {renderCompactDelta(
                 record,
                 record.valueChangeTwd,
-                `${formatSignedTwd(record.valueChangeTwd)} ${formatChangePercent(
-                  record.valueChangePct,
-                )}`,
+                typeof record.valueChangeTwd === "number"
+                  ? formatTwd(Math.abs(record.valueChangeTwd))
+                  : "--",
               )}
             </div>
           </div>
@@ -2694,16 +2739,19 @@ function App() {
           const name = record.accountAlias || record.bankName || "帳戶";
           // Just the memo: rows are already grouped under their holder.
           const meta = [record.accountAlias].filter(Boolean);
+          // The family's own name for the account (薪轉戶, 房貸) leads; the
+          // bank is the detail underneath.
+          const bankText = record.bankCode
+            ? `${record.bankName} (${record.bankCode})`
+            : record.bankName;
           const main = (
             <div>
               <div className="holding-main-text">
-                {record.bankCode
-                  ? `${record.bankName} (${record.bankCode})`
-                  : record.bankName}
+                {meta.length > 0 ? meta.join(" · ") : bankText}
               </div>
               {meta.length > 0 && (
                 <Text type="secondary" className="holding-subline">
-                  {meta.join(" · ")}
+                  {bankText}
                 </Text>
               )}
             </div>
@@ -5495,12 +5543,7 @@ function App() {
               </Space>
             </Card>
           ) : activeMainTab === "asset" ? (
-            <Row
-              gutter={[16, 16]}
-              className={
-                activeMainTab === "expense" ? "expense-main-row" : undefined
-              }
-            >
+            <Row gutter={[16, 16]} style={{ rowGap: "var(--space-section)" }}>
               <Col xs={24}>
                 <div className="asset-summary-panel">
                   <AssetSummaryHero
@@ -5514,129 +5557,22 @@ function App() {
                     playKey={assetPlayKey}
                   />
                   {autoRefreshIssue && (
-                    <Text
-                      type="warning"
-                      style={{ fontSize: 12, display: "block" }}
-                    >
+                    <Text type="warning" className="asset-hero-issue">
                       {autoRefreshIssue}
                       <Button
                         type="link"
                         size="small"
+                        className="asset-hero-retry"
                         onClick={() => handleRefreshPrices("ALL")}
                         loading={loadingRefresh}
                         disabled={isWriteDisabled}
-                        style={{ fontSize: 12, paddingInline: 6, height: "auto" }}
                       >
                         重試
                       </Button>
                     </Text>
                   )}
-                  <div className="asset-summary-actions">
-                    <Button
-                      type={isTrendExpanded ? "primary" : "default"}
-                      onClick={() => setIsTrendExpanded((prev) => !prev)}
-                      icon={<AreaChartOutlined />}
-                    >
-                      趨勢
-                    </Button>
-                    <Button
-                      type={isPieExpanded ? "primary" : "default"}
-                      onClick={() =>
-                        setIsPieExpanded((prev) => {
-                          const next = !prev;
-                          if (next) {
-                            setActiveAllocationTab("assetType");
-                          }
-                          return next;
-                        })
-                      }
-                      icon={<PieChartOutlined />}
-                    >
-                      分配
-                    </Button>
-                  </div>
                 </div>
               </Col>
-
-              {(isTrendExpanded || isPieExpanded) && (
-                <Col xs={24}>
-                  <div
-                    className={`expanded-chart-grid ${isTrendExpanded !== isPieExpanded ? "expanded-chart-grid--single" : ""}`}
-                  >
-                    {isTrendExpanded && (
-                      <div className="expanded-chart-item expanded-chart-item--visible">
-                        <Card title="現值變化走勢">
-                          <div className="expanded-chart-frame">
-                            <TrendChart
-                              range={range}
-                              onRangeChange={(value) => setRange(value)}
-                              data={trend}
-                              height="100%"
-                            />
-                          </div>
-                        </Card>
-                      </div>
-                    )}
-
-                    {isPieExpanded && (
-                      <div className="expanded-chart-item expanded-chart-item--visible">
-                        <Card title="資產分配">
-                          <Tabs
-                            className="allocation-tabs"
-                            activeKey={activeAllocationTab}
-                            onChange={setActiveAllocationTab}
-                            items={[
-                              { key: "assetType", label: "資產類型比例" },
-                              { key: "market", label: "台股 / 美股比例" },
-                            ]}
-                          />
-                          {allocationChartData.length === 0 ? (
-                            <Empty
-                              description={
-                                activeAllocationTab === "market"
-                                  ? "尚無可計算台股 / 美股比例的持股資料"
-                                  : "尚無可計算資產類型比例的資料"
-                              }
-                            />
-                          ) : (
-                            <div className="expanded-chart-frame">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                  <Pie
-                                    isAnimationActive={false}
-                                    data={allocationChartData}
-                                    dataKey="value"
-                                    nameKey="name"
-                                    cx="50%"
-                                    cy="50%"
-                                    outerRadius="68%"
-                                    label={({ name, percent }) =>
-                                      `${name} ${(percent * 100).toFixed(0)}%`
-                                    }
-                                  >
-                                    {allocationChartData.map((entry) => (
-                                      <Cell
-                                        key={entry.key}
-                                        fill={entry.color}
-                                      />
-                                    ))}
-                                  </Pie>
-                                  <RechartsTooltip
-                                    formatter={(value) =>
-                                      formatTwd(Number(value))
-                                    }
-                                  />
-                                  <Legend />
-                                </PieChart>
-                              </ResponsiveContainer>
-                            </div>
-                          )}
-                        </Card>
-                      </div>
-                    )}
-                  </div>
-                </Col>
-              )}
 
               <Col xs={24}>
                 {isMobileViewport ? (
@@ -5847,6 +5783,36 @@ function App() {
                     />
                   </Card>
                 )}
+              </Col>
+
+              <Col xs={24}>
+                <section className="analysis-section">
+                  <span className="analysis-title">資產分析</span>
+                  <ul className="analysis-list">
+                    {assetChartRows.map((chart) => (
+                      <li key={chart.key}>
+                        <button
+                          type="button"
+                          className="analysis-item"
+                          onClick={() => setActiveAssetChartKey(chart.key)}
+                        >
+                          <span className="analysis-item-main">
+                            <span className="analysis-item-name">
+                              {chart.title}
+                            </span>
+                            <span className="analysis-item-summary">
+                              {chart.summary}
+                            </span>
+                          </span>
+                          <RightOutlined
+                            className="analysis-item-chevron"
+                            aria-hidden
+                          />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               </Col>
             </Row>
           ) : (
@@ -6078,30 +6044,30 @@ function App() {
                   <Col xs={24}>
                     {/* Reference, not daily use: one row per analysis with
                         its headline; the full chart opens on tap. */}
-                    <section className="expense-analytics-section">
-                      <span className="expense-analytics-title">支出分析</span>
-                      <ul className="expense-analytics-list">
+                    <section className="analysis-section">
+                      <span className="analysis-title">支出分析</span>
+                      <ul className="analysis-list">
                         {expenseChartCards.map((chart) => (
                           <li key={chart.key}>
                             <button
                               type="button"
-                              className="expense-analytics-item"
+                              className="analysis-item"
                               onClick={() => {
                                 setActiveExpenseChartKey(chart.key);
                                 setIsExpenseChartModalOpen(true);
                               }}
                             >
-                              <span className="expense-analytics-item-main">
-                                <span className="expense-analytics-item-name">
+                              <span className="analysis-item-main">
+                                <span className="analysis-item-name">
                                   {chart.title}
                                 </span>
-                                <span className="expense-analytics-item-summary">
+                                <span className="analysis-item-summary">
                                   {expenseChartPreviewSummary[chart.key] ||
                                     "尚無資料"}
                                 </span>
                               </span>
                               <RightOutlined
-                                className="expense-analytics-item-chevron"
+                                className="analysis-item-chevron"
                                 aria-hidden
                               />
                             </button>
@@ -6611,6 +6577,37 @@ function App() {
           )}
 
           <Modal
+            title={activeAssetChart?.title}
+            open={Boolean(activeAssetChart)}
+            onCancel={() => setActiveAssetChartKey(null)}
+            footer={null}
+            width={isMobileViewport ? "94vw" : 720}
+            destroyOnHidden
+          >
+            {activeAssetChartKey === "trend" ? (
+              <TrendChart
+                range={range}
+                onRangeChange={(value) => setRange(value)}
+                data={trend}
+                height={360}
+              />
+            ) : activeAssetChartKey ? (
+              <AllocationBreakdown
+                items={
+                  activeAssetChartKey === "market"
+                    ? marketAllocation
+                    : assetTypeAllocation
+                }
+                emptyText={
+                  activeAssetChartKey === "market"
+                    ? "尚無可計算台股 / 美股比例的持股資料"
+                    : "尚無可計算資產類型比例的資料"
+                }
+              />
+            ) : null}
+          </Modal>
+
+          <Modal
             title={activeExpenseChartTitle}
             open={isExpenseChartModalOpen}
             onCancel={() => setIsExpenseChartModalOpen(false)}
@@ -6678,7 +6675,7 @@ function App() {
             open={isMobileViewport && isUpdateSheetOpen}
             onClose={() => setIsUpdateSheetOpen(false)}
             size="auto"
-            closable={false}
+            title="更新價格"
             maskClosable
             destroyOnHidden={false}
             className="update-sheet"
@@ -6706,6 +6703,9 @@ function App() {
                 loading={loadingRefresh}
               >
                 更新美股
+              </Button>
+              <Button block type="text" onClick={() => setIsUpdateSheetOpen(false)}>
+                取消
               </Button>
             </div>
             <div className="update-sheet-footer">

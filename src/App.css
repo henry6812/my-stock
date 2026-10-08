@@ -223,13 +223,11 @@
 }
 
 .asset-summary-panel {
-  min-height: 180px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   text-align: center;
-  padding: 12px 0;
+  padding: var(--space-6) 0 var(--space-2);
 }
 
 /* ===== Asset hero (components/AssetSummaryHero.jsx) ===== */
@@ -256,7 +254,7 @@
 }
 
 .asset-hero-num {
-  margin-top: 4px;
+  margin-top: var(--space-1);
   font-size: var(--fs-display);
   font-weight: 700;
   letter-spacing: -0.8px;
@@ -270,7 +268,7 @@
 }
 
 .asset-hero-sub {
-  margin-top: 6px;
+  margin-top: var(--space-2);
   font-size: var(--fs-body);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -286,7 +284,7 @@
 }
 
 .asset-hero-jar {
-  margin-top: 14px;
+  margin-top: var(--space-5);
   padding: 0;
   border: 0;
   background: none;
@@ -297,10 +295,16 @@ button.asset-hero-jar {
   cursor: pointer;
 }
 
-.asset-hero-issue {
+.asset-hero-issue.ant-typography {
   display: block;
-  margin-top: 8px;
-  font-size: 12px;
+  margin-top: var(--space-3);
+  font-size: var(--fs-caption);
+}
+
+.asset-hero-retry.ant-btn {
+  height: auto;
+  padding-inline: var(--space-2);
+  font-size: var(--fs-caption);
 }
 
 .holdings-fx-rate {
@@ -342,7 +346,7 @@ button.asset-hero-jar {
 }
 
 .networth-jar-wave-back {
-  fill: #86c4b9;
+  fill: var(--c-teal-tint);
   opacity: 0.55;
 }
 
@@ -362,12 +366,12 @@ button.asset-hero-jar {
 }
 
 .networth-jar-cap {
-  font-size: 10px;
+  font-size: var(--fs-caption);
   fill: var(--c-muted);
 }
 
 .networth-jar-bubble {
-  fill: #fff;
+  fill: var(--c-surface);
   transform-box: fill-box;
   animation: jar-bubble-rise 1200ms ease-out both;
 }
@@ -718,7 +722,7 @@ button.asset-hero-jar {
 
 /* The pill is plain secondary text: the number and the tower lead. */
 .expense-card-chip {
-  margin-top: 6px;
+  margin-top: var(--space-2);
   padding: 0;
   border: 0;
   background: none;
@@ -813,71 +817,6 @@ button.expense-card-chip {
   }
 }
 
-.asset-summary-actions {
-  margin-top: 14px;
-  display: flex;
-  gap: 10px;
-}
-
-:root {
-  --chart-square-size-desktop: 33.333vw;
-  --chart-square-size-min: 280px;
-  --chart-square-size-max: 420px;
-}
-
-.expanded-chart-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 16px;
-}
-
-.expanded-chart-grid--single {
-  justify-content: center;
-}
-
-.expanded-chart-item {
-  width: clamp(
-    var(--chart-square-size-min),
-    var(--chart-square-size-desktop),
-    var(--chart-square-size-max)
-  );
-}
-
-.expanded-chart-item .ant-card {
-  height: 100%;
-}
-
-.expanded-chart-item .ant-card-body {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.allocation-tabs {
-  margin-bottom: 8px;
-}
-
-.expanded-chart-frame {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-}
-
-.expanded-chart-item--visible {
-  animation: chart-expand 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-
-@keyframes chart-expand {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 @media (max-width: 768px) {
   .app-header {
     grid-template-columns: auto 1fr;
@@ -915,29 +854,6 @@ button.expense-card-chip {
     padding-bottom: calc(78px + env(safe-area-inset-bottom));
   }
 
-  .asset-summary-panel {
-    min-height: 140px;
-  }
-
-  
-
-  
-
-  .asset-summary-actions {
-    width: 100%;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .expanded-chart-item {
-    width: min(86vw, var(--chart-square-size-max));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .expanded-chart-item--visible {
-    animation: none;
-  }
 }
 
 .holdings-card-actions {
@@ -972,12 +888,16 @@ button.expense-card-chip {
 .update-sheet-actions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-2);
+}
+
+.update-sheet-actions .ant-btn {
+  min-height: 44px;
 }
 
 .update-sheet-footer {
-  margin-top: 12px;
-  padding-top: 10px;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
   border-top: 1px solid var(--c-line);
   color: var(--c-muted);
   font-size: var(--fs-caption);
@@ -994,7 +914,6 @@ button.expense-card-chip {
   max-height: none;
 }
 
-.update-sheet.ant-drawer-bottom .ant-drawer-content-wrapper,
 .form-bottom-sheet.ant-drawer-bottom .ant-drawer-content-wrapper {
   height: 90vh !important;
   max-height: 90vh !important;
@@ -1105,6 +1024,7 @@ button.expense-card-chip {
 }
 
 .title-add-btn.ant-btn {
+  position: relative;
   width: 28px;
   min-width: 28px;
   height: 28px;
@@ -1112,6 +1032,13 @@ button.expense-card-chip {
   border: none;
   color: var(--c-teal);
   background: transparent;
+}
+
+/* Small to look at, 44px to hit. */
+.title-add-btn.ant-btn::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
 }
 
 .title-add-btn.ant-btn:hover,
@@ -1136,15 +1063,16 @@ button.expense-card-chip {
   margin-inline-start: auto;
 }
 
+/* Sections are spaced by their parent (--space-section), not by margins. */
 .mobile-list-section {
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .mobile-list-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-3);
   padding: 0 0 var(--space-section-head);
 }
 
@@ -1152,7 +1080,7 @@ button.expense-card-chip {
    the antd Card token). */
 .mobile-list-title,
 .active-budgets-title,
-.expense-analytics-title,
+.analysis-title,
 .active-recurring-title {
   font-size: var(--fs-subhead);
   font-weight: 600;
@@ -1173,9 +1101,9 @@ button.expense-card-chip {
 
 .holding-subline {
   display: block;
-  margin-top: 4px;
-  line-height: 1;
-  font-size: 12px;
+  margin-top: var(--space-1);
+  line-height: 1.2;
+  font-size: var(--fs-caption);
 }
 
 .cell-with-delta {
@@ -1190,7 +1118,7 @@ button.expense-card-chip {
 }
 
 .cell-delta {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.2;
 }
 
@@ -1242,16 +1170,16 @@ button.expense-card-chip {
   text-align: left;
 }
 
-.expense-analytics-section {
+.analysis-section {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--space-section-head);
 }
 
-/* 支出分析: one row per analysis (name + its headline), same framed list
-   as 預算 / 定期支出; the chart itself opens in a modal. */
-.expense-analytics-list {
+/* 支出分析 / 資產分析: one row per analysis (name + its headline), same
+   framed list as 預算 / 定期支出; the chart itself opens in a modal. */
+.analysis-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -1261,11 +1189,11 @@ button.expense-card-chip {
   overflow: hidden;
 }
 
-.expense-analytics-list > li + li {
+.analysis-list > li + li {
   border-top: 1px solid var(--c-line);
 }
 
-.expense-analytics-item {
+.analysis-item {
   width: 100%;
   min-height: 72px;
   display: flex;
@@ -1280,7 +1208,7 @@ button.expense-card-chip {
   cursor: pointer;
 }
 
-.expense-analytics-item-main {
+.analysis-item-main {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -1288,20 +1216,79 @@ button.expense-card-chip {
   gap: 4px;
 }
 
-.expense-analytics-item-name {
+.analysis-item-name {
   font-weight: 500;
   color: var(--c-ink);
 }
 
-.expense-analytics-item-summary {
+.analysis-item-summary {
   font-size: var(--fs-caption);
   color: var(--c-muted);
   font-variant-numeric: tabular-nums;
 }
 
-.expense-analytics-item-chevron {
+.analysis-item-chevron {
   flex: none;
   color: var(--c-subtle);
+}
+
+/* 資產分析 allocation: donut, then the same slices as a list with amounts. */
+.allocation-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.allocation-breakdown-chart {
+  width: min(220px, 100%);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+}
+
+.allocation-breakdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.allocation-breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding: var(--space-3) var(--space-row-x);
+  font-variant-numeric: tabular-nums;
+}
+
+.allocation-breakdown-row + .allocation-breakdown-row {
+  border-top: 1px solid var(--c-line);
+}
+
+.allocation-breakdown-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  flex: none;
+}
+
+.allocation-breakdown-name {
+  flex: 1;
+  color: var(--c-ink);
+}
+
+.allocation-breakdown-share {
+  color: var(--c-muted);
+  font-size: var(--fs-caption);
+}
+
+.allocation-breakdown-amount {
+  min-width: 96px;
+  text-align: right;
+  font-weight: 600;
+  color: var(--c-ink);
 }
 
 .expense-chart-modal-body {
@@ -2125,14 +2112,14 @@ button.expense-card-chip {
 .holding-mobile-target {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .holding-mobile-name {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -2164,7 +2151,7 @@ button.expense-card-chip {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 3px;
+  gap: var(--space-1);
 }
 
 .holding-mobile-value-main {
@@ -2263,6 +2250,25 @@ button.expense-card-chip {
 .mobile-swipe-row-side {
   flex: 0 0 auto;
   text-align: right;
+}
+
+/* Holdings and cash rows follow the list-row standard (as expense rows do);
+   cash balances carry the same weight as holding values. */
+.holding-groups .mobile-swipe-row,
+.cash-groups .mobile-swipe-row {
+  min-height: 72px;
+  padding-block: var(--space-row-y);
+}
+
+.cash-groups .mobile-swipe-row-side {
+  font-weight: 600;
+  color: var(--c-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 更新價格 in the holdings header: a 44px thumb target. */
+.mobile-list-section--holdings .price-update-extra .ant-btn {
+  height: 44px;
 }
 
 .mobile-swipe-row--editing {

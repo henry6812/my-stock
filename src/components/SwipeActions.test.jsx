@@ -44,13 +44,27 @@ const rootOf = (label) => screen.getByTestId(`content-${label}`).closest('.swipe
 const surfaceOf = (label) => screen.getByTestId(`content-${label}`).closest('.swipe-actions-content')
 
 describe('<SwipeActions />', () => {
-  it('renders the content with its actions hidden until swiped', () => {
+  it('renders the content with its actions transparent until swiped', () => {
     renderRow()
     expect(screen.getByText('row')).toBeInTheDocument()
     expect(rootOf('row')).toHaveAttribute('data-open', 'false')
-    expect(screen.queryByRole('button', { name: '編輯 row' })).not.toBeInTheDocument()
+    const buttons = rootOf('row').querySelector('.swipe-actions-buttons')
+    expect(buttons).toHaveStyle({ opacity: '0' })
     swipe(surfaceOf('row'), { dx: -150 })
-    expect(screen.getByRole('button', { name: '編輯 row' })).toBeInTheDocument()
+    expect(buttons).toHaveStyle({ opacity: '1' })
+  })
+
+  it('keeps the actions reachable without swiping: focus opens the row, leaving closes it', () => {
+    const { onDelete } = renderRow()
+    const remove = screen.getByRole('button', { name: '刪除 row' })
+    fireEvent.focus(remove)
+    expect(rootOf('row')).toHaveAttribute('data-open', 'true')
+    fireEvent.click(remove)
+    expect(onDelete).toHaveBeenCalledTimes(1)
+    fireEvent.focus(screen.getByRole('button', { name: '編輯 row' }))
+    expect(rootOf('row')).toHaveAttribute('data-open', 'true')
+    fireEvent.blur(screen.getByRole('button', { name: '編輯 row' }), { relatedTarget: document.body })
+    expect(rootOf('row')).toHaveAttribute('data-open', 'false')
   })
 
   it('opens after a left swipe past half the action width', () => {

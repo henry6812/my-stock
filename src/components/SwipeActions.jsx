@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // Mobile list row whose actions (編輯 / 刪除 …) sit behind the content and are
 // revealed by swiping left. Only one row is open at a time; tapping anywhere
 // closes it. A plain tap on a closed row passes through to its content.
+// The actions stay in the tab order: focusing one (keyboard, screen reader)
+// slides the row open, and focus leaving the row closes it again.
 
 const ACTION_WIDTH = 72;
 const DIRECTION_LOCK_PX = 8;
@@ -94,18 +96,25 @@ function SwipeActions({ actions = [], disabled = false, className = "", children
     }
   };
 
+  const handleBlur = (event) => {
+    if (!rootRef.current?.contains(event.relatedTarget)) close();
+  };
+
   return (
     <div
       ref={rootRef}
       className={`swipe-actions ${className}`.trim()}
       data-open={isOpen ? "true" : "false"}
+      onBlur={handleBlur}
     >
       {enabled && (
         <div
           className="swipe-actions-buttons"
-          // Hidden while fully closed: with fractional row heights their
-          // colour otherwise bleeds along the row's top / bottom edge.
-          style={{ width: maxReveal, visibility: offset === 0 ? "hidden" : "visible" }}
+          // Transparent while fully closed: with fractional row heights their
+          // colour otherwise bleeds along the row's top / bottom edge. Not
+          // `visibility: hidden`, which would also take them out of the tab
+          // order.
+          style={{ width: maxReveal, opacity: offset === 0 ? 0 : 1 }}
         >
           {actions.map((action) => (
             <button
@@ -117,7 +126,7 @@ function SwipeActions({ actions = [], disabled = false, className = "", children
               style={{ width: ACTION_WIDTH }}
               aria-label={action.label}
               disabled={action.disabled}
-              tabIndex={isOpen ? 0 : -1}
+              onFocus={() => setOffset(-maxReveal)}
               onClick={() => {
                 close();
                 action.onClick?.();
