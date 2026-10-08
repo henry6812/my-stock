@@ -4,8 +4,11 @@
 
 export const COLORS = {
   ink: "#1B2B29",
-  muted: "#66756F",
-  subtle: "#9AA5A1",
+  // Secondary text: ≥4.5:1 on paper, surface, neutral-fill and teal-soft.
+  muted: "#5F6E68",
+  // Tertiary: ≥3:1 on paper / surface, so only for large text (the hero
+  // currency sign) and non-text marks. Small text that must be read uses muted.
+  subtle: "#838E8A",
   paper: "#F4F6F5",
   surface: "#FFFFFF",
   line: "#E2E7E5",
@@ -18,10 +21,14 @@ export const COLORS = {
   tealActive: "#22675E",
   tealBright: "#44A194",
   tealSoft: "#E4F1EE",
+  // Mid tint between soft and bright: the savings tower's recurring part.
+  tealTint: "#A9D3CB",
   tealInk: "#1E5E56",
   up: "#237804",
   down: "#CF1322",
   warn: "#D48806",
+  // Warn as text: the fill colour is too light to read on white.
+  warnInk: "#A36100",
   neutralFill: "#EEF2F1",
 };
 

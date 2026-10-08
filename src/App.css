@@ -120,10 +120,21 @@
   font-size: var(--fs-caption);
 }
 
+/* The selected tab is filled, not just a hair lighter than the bar. */
 .mobile-main-tabbar .ant-segmented-item-selected {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  background: var(--c-teal-soft);
+}
+
+/* The thumb that slides between tabs carries the same fill. */
+.mobile-main-tabbar .ant-segmented-thumb {
+  background: var(--c-teal-soft);
+}
+
+.mobile-main-tabbar .ant-segmented-item-selected {
+  color: var(--c-teal-ink);
 }
 
 .expense-fab.ant-btn {
@@ -239,14 +250,14 @@
 }
 
 .asset-hero-label {
-  font-size: 14px;
-  color: var(--c-subtle);
+  font-size: var(--fs-body);
+  color: var(--c-muted);
   min-height: 20px;
 }
 
 .asset-hero-num {
   margin-top: 4px;
-  font-size: 38px;
+  font-size: var(--fs-display);
   font-weight: 700;
   letter-spacing: -0.8px;
   line-height: 1.15;
@@ -260,7 +271,7 @@
 
 .asset-hero-sub {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--c-muted);
@@ -293,16 +304,10 @@ button.asset-hero-jar {
 }
 
 .holdings-fx-rate {
-  font-size: 12px;
-  color: var(--c-subtle);
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-@media (max-width: 768px) {
-  .asset-hero-num {
-    font-size: 34px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -422,13 +427,11 @@ button.asset-hero-jar {
 }
 
 .savings-tower-spent--recurring {
-  fill: #9fcfc6;
-  opacity: 0.55;
+  fill: var(--c-teal-tint);
 }
 
 .savings-tower-spent--oneTime {
-  fill: #cfe6e1;
-  opacity: 0.75;
+  fill: var(--c-teal-soft);
 }
 
 .savings-tower-part {
@@ -442,8 +445,8 @@ button.asset-hero-jar {
 }
 
 .savings-tower-income {
-  font-size: 9.5px;
-  fill: var(--c-subtle);
+  font-size: var(--fs-caption);
+  fill: var(--c-muted);
 }
 
 .savings-tower-brick {
@@ -465,7 +468,7 @@ button.asset-hero-jar {
 }
 
 .savings-tower-shard--oneTime {
-  fill: #9fcfc6;
+  fill: var(--c-teal-tint);
 }
 
 .savings-tower-pit {
@@ -473,7 +476,7 @@ button.asset-hero-jar {
   opacity: 0.18;
   transform-box: fill-box;
   transform-origin: top;
-  animation: tower-pit-grow 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: tower-pit-grow 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .savings-tower-setup {
@@ -484,7 +487,7 @@ button.asset-hero-jar {
   border: 0;
   background: none;
   padding: 4px 6px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--c-teal);
   cursor: pointer;
 }
@@ -528,7 +531,7 @@ button.asset-hero-jar {
 }
 
 .growth-tower-layer--alt rect {
-  fill: #3a8f84;
+  fill: var(--c-teal-hover);
 }
 
 .growth-tower-layer--current rect {
@@ -539,7 +542,7 @@ button.asset-hero-jar {
 }
 
 .growth-tower-layer--enter {
-  animation: growth-layer-in 500ms cubic-bezier(0.3, 0.7, 0.3, 1) both;
+  animation: growth-layer-in 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .growth-tower-ghost rect {
@@ -557,9 +560,8 @@ button.asset-hero-jar {
 }
 
 @keyframes growth-layer-in {
-  0% { opacity: 0; transform: translateY(-40px); }
-  70% { opacity: 1; transform: translateY(2px); }
-  100% { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(-40px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ===== Expense month bars (components/ExpenseMonthBars.jsx) ===== */
@@ -567,35 +569,74 @@ button.asset-hero-jar {
   width: 100%;
   display: flex;
   align-items: flex-end;
-  gap: 6px;
-  margin-top: 18px;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
 }
 
+/* Columns touch (no gap) so every month's tap target is as wide as the
+   track allows; the visible bar is inset by the column's padding. */
 .expense-month-bars-track {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: flex-end;
-  gap: 5px;
-  height: 64px;
+  align-items: stretch;
 }
 
 .expense-month-bar {
   flex: 1;
-  min-width: 0;
-  padding: 0;
+  min-width: 24px;
+  height: 84px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  gap: 4px;
+  padding: 0 2px;
   border: 0;
-  border-radius: 5px;
-  background: #e1efec;
+  background: none;
+  font: inherit;
   cursor: pointer;
+}
+
+.expense-month-bar-fill {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--c-teal-soft);
   transition: background 250ms ease;
 }
 
-.expense-month-bars--cumulative .expense-month-bar {
-  background: #c4e0da;
+.expense-month-bar-label {
+  font-size: var(--fs-caption);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-muted);
 }
 
-/* More than 12 months: fixed-width bars in a sideways-scrolling track. */
+.expense-month-bar[data-current="true"] .expense-month-bar-label {
+  color: var(--c-ink);
+  font-weight: 600;
+}
+
+.expense-month-bar.is-on .expense-month-bar-fill {
+  background: var(--c-teal);
+}
+
+.expense-month-bar.is-on .expense-month-bar-label {
+  color: var(--c-teal-ink);
+  font-weight: 600;
+}
+
+.expense-month-bar--future .expense-month-bar-fill {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--c-line-strong);
+}
+
+.expense-month-bar--future.is-on .expense-month-bar-fill {
+  background: var(--c-teal);
+  box-shadow: none;
+}
+
+/* More than 12 months: fixed-width columns in a sideways-scrolling track. */
 .expense-month-bars-track--scroll {
   overflow-x: auto;
   scrollbar-width: none;
@@ -606,41 +647,34 @@ button.asset-hero-jar {
 }
 
 .expense-month-bars-track--scroll .expense-month-bar {
-  flex: 0 0 18px;
+  flex: 0 0 28px;
 }
 
-.expense-month-bar--future,
-.expense-month-bars--cumulative .expense-month-bar--future {
-  background: transparent;
-  border: 1.5px dashed #c4e0da;
-}
-
-.expense-month-bar--future.is-on {
-  background: var(--c-teal);
-  border-color: var(--c-teal);
-}
-
-.expense-month-bar.is-on,
-.expense-month-bars--cumulative .expense-month-bar.is-on {
-  background: var(--c-teal);
-}
-
+/* The pill reads small but its tap area is 44px tall. */
 .expense-month-bars-all {
+  position: relative;
   flex: none;
+  margin-bottom: 14px;
   font: inherit;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
+  font-size: var(--fs-caption);
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
   border: 1.5px solid var(--c-line-strong);
   background: transparent;
   color: var(--c-muted);
   cursor: pointer;
 }
 
+.expense-month-bars-all::after {
+  content: "";
+  position: absolute;
+  inset: -8px -4px;
+}
+
 .expense-month-bars-all.is-on {
   background: var(--c-teal);
   border-color: var(--c-teal);
-  color: #ffffff;
+  color: var(--c-surface);
 }
 
 /* ===== Expense summary card (components/ExpenseSummaryCard.jsx) ===== */
@@ -648,7 +682,7 @@ button.asset-hero-jar {
   width: min(420px, 100%);
   margin: 0 auto;
   box-sizing: border-box;
-  padding: 20px 18px 16px;
+  padding: var(--space-6) var(--space-4) var(--space-2);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -663,14 +697,14 @@ button.asset-hero-jar {
 }
 
 .expense-card-label {
-  font-size: 14px;
-  color: var(--c-subtle);
+  font-size: var(--fs-body);
+  color: var(--c-muted);
   min-height: 20px;
 }
 
 .expense-card-num {
   margin-top: 4px;
-  font-size: 38px;
+  font-size: var(--fs-display);
   font-weight: 700;
   letter-spacing: -0.8px;
   line-height: 1.15;
@@ -690,7 +724,7 @@ button.asset-hero-jar {
   background: none;
   color: var(--c-teal-ink);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -707,13 +741,61 @@ button.expense-card-chip {
 }
 
 .expense-card-tower {
-  margin-top: 14px;
+  margin-top: var(--space-5);
 }
 
-@media (max-width: 768px) {
-  .expense-card-num {
-    font-size: 34px;
-  }
+/* Legend under the tower: one swatch + word per part, each a toggle that
+   does what tapping the part does. */
+/* The tower's SVG keeps ~30px under its ground line for falling shards;
+   pull the legend up into that space so it reads as the tower's caption. */
+.expense-card-legend {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: -24px;
+}
+
+.expense-card-legend-item {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  font: inherit;
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+  cursor: pointer;
+}
+
+.expense-card-legend-item.is-on {
+  color: var(--c-ink);
+  font-weight: 600;
+}
+
+/* 3px corners echo the tower's bricks (BRICK_RX in SavingsTower). */
+.expense-card-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.expense-card-swatch--saved {
+  background: var(--c-teal);
+}
+
+.expense-card-swatch--recurring {
+  background: var(--c-teal-tint);
+}
+
+.expense-card-swatch--oneTime {
+  background: var(--c-teal-soft);
+  box-shadow: inset 0 0 0 1px var(--c-teal-tint);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1063,7 +1145,7 @@ button.expense-card-chip {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 0 2px 8px;
+  padding: 0 0 var(--space-section-head);
 }
 
 /* One section-title style across tabs (card heads use the same size via
@@ -1153,7 +1235,7 @@ button.expense-card-chip {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--space-section-head);
 }
 
 .active-budgets-title {
@@ -1163,54 +1245,63 @@ button.expense-card-chip {
 .expense-analytics-section {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: stretch;
+  gap: var(--space-section-head);
 }
 
-.expense-analytics-title {
-  text-align: left;
+/* 支出分析: one row per analysis (name + its headline), same framed list
+   as 預算 / 定期支出; the chart itself opens in a modal. */
+.expense-analytics-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  overflow: hidden;
 }
 
-.expense-analytics-row {
+.expense-analytics-list > li + li {
+  border-top: 1px solid var(--c-line);
+}
+
+.expense-analytics-item {
   width: 100%;
-  display: flex;
-  justify-content: flex-start;
-  gap: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 4px;
-}
-
-/* Four chart cards fill the row on desktop; below that they scroll. */
-.expense-analytics-card {
-  flex: 1 0 240px;
-}
-
-.expense-analytics-card-head {
+  min-height: 72px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--space-3);
+  padding: var(--space-row-y) var(--space-row-x);
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.expense-analytics-card-body {
+.expense-analytics-item-main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 6px;
+  gap: 4px;
 }
 
-.expense-chart-preview {
-  width: 100%;
-  height: 150px;
+.expense-analytics-item-name {
+  font-weight: 500;
+  color: var(--c-ink);
 }
 
-.expense-chart-preview-summary {
-  display: block;
-  font-size: 12px;
-  line-height: 1.2;
+.expense-analytics-item-summary {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.expense-analytics-item-chevron {
+  flex: none;
+  color: var(--c-subtle);
 }
 
 .expense-chart-modal-body {
@@ -1245,18 +1336,13 @@ button.expense-card-chip {
   align-items: center;
 }
 
+/* Desktop budgets: a wrapping grid, most urgent first, so none hide
+   off-screen in a sideways scroller. */
 .active-budgets-row {
   width: 100%;
-  display: flex;
-  justify-content: flex-start;
-  gap: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 4px;
-}
-
-.active-budget-card {
-  flex: 0 0 260px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
 }
 
 .active-budget-head {
@@ -1303,7 +1389,7 @@ button.expense-card-chip {
   display: block;
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -1348,7 +1434,7 @@ button.expense-card-chip {
 
 /* Amber fill is decorative; the text uses a darker amber for contrast. */
 .active-budget-status--warn {
-  color: #ad6800;
+  color: var(--c-warn-ink);
 }
 
 .active-budget-status--over {
@@ -1358,7 +1444,7 @@ button.expense-card-chip {
 .active-budget-meta {
   display: block;
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 
 .active-budget-progress.ant-progress {
@@ -1372,7 +1458,7 @@ button.expense-card-chip {
 .active-budget-carry {
   display: block;
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 
 .active-recurring-amount {
@@ -1427,14 +1513,6 @@ button.expense-card-chip {
 
   .income-settings-actions {
     justify-content: stretch;
-  }
-
-  .active-budget-card {
-    flex-basis: 220px;
-  }
-
-  .expense-analytics-card {
-    flex-basis: 220px;
   }
 
   .active-recurring-card {
@@ -1646,7 +1724,7 @@ button.expense-card-chip {
 }
 
 .quick-expense-expr {
-  color: var(--c-subtle);
+  color: var(--c-muted);
   font-size: var(--fs-caption);
   font-variant-numeric: tabular-nums;
 }
@@ -1718,6 +1796,7 @@ button.expense-card-chip {
 
 .quick-expense-date-chip {
   position: relative;
+  gap: 4px;
 }
 
 .quick-expense-date-input {
@@ -1826,7 +1905,7 @@ button.expense-card-chip {
 .recurring-overview {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-section-head);
 }
 
 .recurring-overview-head {
@@ -1868,8 +1947,8 @@ button.expense-card-chip {
 .recurring-overview-row {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: var(--space-3);
+  padding: var(--space-row-y) var(--space-row-x);
 }
 
 .recurring-overview-item + .recurring-overview-item {
@@ -1949,7 +2028,7 @@ button.expense-card-chip {
 }
 
 .recurring-overview-toggle-icon {
-  font-size: 10px;
+  font-size: var(--fs-caption);
   transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -1994,7 +2073,7 @@ button.expense-card-chip {
 
 .expense-upcoming-group .expense-upcoming-toggle {
   min-height: 48px;
-  padding: 12px;
+  padding: var(--space-3) var(--space-row-x);
   font-size: var(--fs-body);
   color: var(--c-ink);
 }
@@ -2171,8 +2250,8 @@ button.expense-card-chip {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-row-x);
   min-width: 0;
 }
 
@@ -2216,7 +2295,7 @@ button.expense-card-chip {
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  padding: 6px 12px;
+  padding: var(--space-2) var(--space-row-x);
   border: 0;
   background: var(--c-neutral-fill);
   color: var(--c-muted);
@@ -2233,14 +2312,14 @@ button.expense-card-chip {
 /* Same height whether or not the row has a category · payer line. */
 .expense-day-row {
   align-items: center;
-  min-height: 64px;
-  padding-block: 12px;
+  min-height: 72px;
+  padding-block: var(--space-row-y);
 }
 
 /* Settings 類別列表 rows match the expense list's row height. */
 .mobile-list-section--category .mobile-swipe-row {
-  min-height: 64px;
-  padding-block: 12px;
+  min-height: 72px;
+  padding-block: var(--space-row-y);
 }
 
 .expense-day-group .swipe-actions + .swipe-actions {
@@ -2262,7 +2341,7 @@ button.expense-card-chip {
 
 .expense-day-row-recurring {
   flex: 0 0 auto;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--c-teal);
 }
 
@@ -2323,9 +2402,9 @@ button.expense-card-chip {
 .budget-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   width: 100%;
-  padding: 12px;
+  padding: var(--space-row-y) var(--space-row-x);
   border: 0;
   background: transparent;
   text-align: left;
@@ -2370,7 +2449,7 @@ button.expense-card-chip {
 }
 
 .budget-row-remaining--warn {
-  color: #b7791f;
+  color: var(--c-warn-ink);
 }
 
 .budget-row-remaining--over {

@@ -16,8 +16,10 @@ const VIEW_W = 120;
 const VIEW_H = 180;
 const TOWER = { x: 22, w: 76, top: 14, base: 150 };
 const TOWER_HEIGHT = TOWER.base - TOWER.top;
-const BUILD_STAGGER_MS = 45;
-const BUILD_PAUSE_MS = 900; // after the last row lands, before chipping starts
+// Kept short: until the chipping ends the tower shows more saved than there
+// is, so the whole entrance (build + pause + chips) stays around a second.
+const BUILD_STAGGER_MS = 28;
+const BUILD_PAUSE_MS = 250; // after the last row lands, before chipping starts
 const SETTLE_MS = 200;
 const BRICK_RX = 3;
 const SPENT_KINDS = ["recurring", "oneTime"];
@@ -143,7 +145,7 @@ export default function SavingsTower({
         return;
       }
       const chunk = current.chunks[index];
-      const delay = Math.max(110, 240 - index * 18);
+      const delay = Math.max(60, 120 - index * 10);
       index += 1;
       const revealed = index;
       setRun((s) =>

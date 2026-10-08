@@ -1,7 +1,9 @@
 // Month picker for the expense summary card: one bar per month (height =
-// spending), the selected month solid teal; months still to come are empty
-// dashed bars. Past 12 bars the track scrolls sideways, kept on the picked
-// month. The 累計 pill switches mode. Deliberately text-free apart from it.
+// spending) with its month number underneath, the selected month solid teal
+// and the current month's number in bold; months still to come are empty
+// dashed bars. Each month is a full-height column, so the tap target is the
+// column, not the (possibly tiny) bar. Past 12 bars the track scrolls
+// sideways, kept on the picked month. The 累計 pill switches mode.
 import { useLayoutEffect, useRef } from "react";
 import { formatTwd } from "../utils/formatters";
 
@@ -48,12 +50,16 @@ export default function ExpenseMonthBars({
         key={month}
         type="button"
         className={`expense-month-bar${future ? " expense-month-bar--future" : ""}${on ? " is-on" : ""}`}
-        style={{ height: `${height}px` }}
         data-current={isCurrent || undefined}
         aria-label={label}
         aria-pressed={!cumulative && month === activeMonth}
         onClick={() => onSelectMonth?.(month)}
-      />
+      >
+        <span className="expense-month-bar-fill" style={{ height: `${height}px` }} />
+        <span className="expense-month-bar-label" aria-hidden="true">
+          {Number(month.split("-")[1])}
+        </span>
+      </button>
     );
   };
 

@@ -205,6 +205,7 @@ import ExpenseSummaryCard from "./components/ExpenseSummaryCard";
 import { toUserMessage } from "./utils/userMessage";
 import { CHART_NEUTRAL, CHART_PALETTE, COLORS } from "./theme/tokens";
 import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "./utils/budgetStatus";
+import { sortBudgetsByUrgency } from "./utils/budgetView";
 import {
   filterNameSuggestions,
   pickQuickCategories,
@@ -5203,151 +5204,6 @@ function App() {
   // ~1.9s entry animation adds label <g>s when it ends, and iOS Safari treats
   // any tap whose hover window sees new content as a hover only, so taps made
   // right after a chart mounts (e.g. 支出 → +) needed a second try.
-  const renderExpenseChartPreview = useCallback(
-    (chartKey) => {
-      if (chartKey === "trend") {
-        if (trendMonths.length === 0)
-          return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={trendMonths}
-              margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="monthLabel" tick={{ fontSize: 10 }} />
-              <YAxis hide />
-              <RechartsTooltip
-                formatter={(value) => formatTwd(Number(value))}
-              />
-              <Line
-                isAnimationActive={false}
-                type="monotone"
-                dataKey="totalTwd"
-                name="總支出"
-                stroke={CHART_PALETTE[0]}
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                isAnimationActive={false}
-                type="monotone"
-                dataKey="recurringTwd"
-                name="定期支出"
-                stroke={CHART_PALETTE[1]}
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        );
-      }
-      if (chartKey === "kind") {
-        if (kindAnalysisData.length === 0)
-          return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                isAnimationActive={false}
-                data={kindAnalysisData}
-                dataKey="value"
-                nameKey="name"
-                innerRadius="35%"
-                outerRadius="70%"
-              >
-                {kindAnalysisData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
-                ))}
-              </Pie>
-              <RechartsTooltip
-                formatter={(value) => formatTwd(Number(value))}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        );
-      }
-      if (chartKey === "ranking") {
-        const hasValue = payerRankingData.some((item) => item.value > 0);
-        if (!hasValue) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={payerRankingData}
-              layout="vertical"
-              margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
-            >
-              <XAxis type="number" hide />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={68}
-                tick={{ fontSize: 10 }}
-              />
-              <RechartsTooltip
-                formatter={(value) => formatTwd(Number(value))}
-              />
-              <Bar isAnimationActive={false} dataKey="value" fill={CHART_PALETTE[0]} radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        );
-      }
-      if (chartKey === "family_balance") {
-        if (familyBalanceData.length === 0)
-          return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                isAnimationActive={false}
-                data={familyBalanceData}
-                dataKey="value"
-                nameKey="name"
-                innerRadius="35%"
-                outerRadius="70%"
-              >
-                {familyBalanceData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
-                ))}
-              </Pie>
-              <RechartsTooltip
-                formatter={(value) => formatTwd(Number(value))}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        );
-      }
-      if (categoryAnalysisData.length === 0)
-        return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-      return (
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              isAnimationActive={false}
-              data={categoryAnalysisData}
-              dataKey="value"
-              nameKey="name"
-              innerRadius="35%"
-              outerRadius="70%"
-            >
-              {categoryAnalysisData.map((entry) => (
-                <Cell key={entry.name} fill={entry.color} />
-              ))}
-            </Pie>
-            <RechartsTooltip formatter={(value) => formatTwd(Number(value))} />
-          </PieChart>
-        </ResponsiveContainer>
-      );
-    },
-    [
-      categoryAnalysisData,
-      familyBalanceData,
-      kindAnalysisData,
-      payerRankingData,
-      trendMonths,
-    ],
-  );
-
   const renderExpenseChartModalContent = useCallback(
     (chartKey) => {
       if (chartKey === "trend") {
@@ -5522,16 +5378,21 @@ function App() {
                 value={activeMainTab}
                 onChange={switchMainTab}
                 options={[
-                  { label: "資產總覽", value: "asset", icon: <HomeOutlined /> },
+                  // Icons are decoration: the tab's name is its label.
+                  {
+                    label: "資產總覽",
+                    value: "asset",
+                    icon: <HomeOutlined aria-hidden />,
+                  },
                   {
                     label: "支出分析",
                     value: "expense",
-                    icon: <FundProjectionScreenOutlined />,
+                    icon: <FundProjectionScreenOutlined aria-hidden />,
                   },
                   {
                     label: "設定",
                     value: "settings",
-                    icon: <SettingOutlined />,
+                    icon: <SettingOutlined aria-hidden />,
                   },
                 ]}
               />
@@ -5989,7 +5850,16 @@ function App() {
               </Col>
             </Row>
           ) : (
-            <Row gutter={[16, 16]}>
+            <Row
+              gutter={[16, 16]}
+              // Expense: sections sit a token-sized gap apart (antd's gutter
+              // writes row-gap inline, so it is overridden the same way).
+              style={
+                activeMainTab === "expense"
+                  ? { rowGap: "var(--space-section)" }
+                  : undefined
+              }
+            >
               {activeMainTab === "expense" && (
                 <>
                   <Col xs={24}>
@@ -6015,62 +5885,10 @@ function App() {
                     />
                   </Col>
                   <Col xs={24}>
-                    <section className="expense-analytics-section">
-                      <Text strong className="expense-analytics-title">
-                        支出圖表
-                      </Text>
-                      <div className="expense-analytics-row">
-                        {expenseChartCards.map((chart) => (
-                          <Card
-                            key={chart.key}
-                            size="small"
-                            className="expense-analytics-card"
-                          >
-                            <div className="expense-analytics-card-head">
-                              <Text strong className="active-recurring-title">
-                                {chart.title}
-                              </Text>
-                              <Space
-                                size={4}
-                                className="active-recurring-card-actions"
-                              >
-                                <HoverTooltip title="展開圖表">
-                                  <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<ExpandOutlined />}
-                                    className="active-recurring-stop-btn"
-                                    aria-label={`展開${chart.title}`}
-                                    onClick={() => {
-                                      setActiveExpenseChartKey(chart.key);
-                                      setIsExpenseChartModalOpen(true);
-                                    }}
-                                  />
-                                </HoverTooltip>
-                              </Space>
-                            </div>
-                            <div className="expense-analytics-card-body">
-                              <div className="expense-chart-preview">
-                                {renderExpenseChartPreview(chart.key)}
-                              </div>
-                              <Text
-                                type="secondary"
-                                className="expense-chart-preview-summary"
-                              >
-                                {expenseChartPreviewSummary[chart.key] ||
-                                  "尚無資料"}
-                              </Text>
-                            </div>
-                          </Card>
-                        ))}
-                      </div>
-                    </section>
-                  </Col>
-                  <Col xs={24}>
                     <section className="active-budgets-section">
                       <Space size={8} className="active-budgets-title-wrap">
                         <Text strong className="active-budgets-title">
-                          目前生效預算
+                          預算
                         </Text>
                         <Button
                           type="text"
@@ -6105,7 +5923,7 @@ function App() {
                         />
                       ) : (
                         <div className="active-budgets-row">
-                          {activeBudgetCards.map((budget) => {
+                          {sortBudgetsByUrgency(activeBudgetCards).map((budget) => {
                             const status = getBudgetStatus(budget);
                             return (
                               <Card
@@ -6195,22 +6013,6 @@ function App() {
                     </section>
                   </Col>
                   <Col xs={24}>
-                    <RecurringOverview
-                      rows={recurringExpenseRows}
-                      summary={recurringSummary}
-                      categoryNames={expenseCategoryNameById}
-                      today={dayjs().format("YYYY-MM-DD")}
-                      onEdit={openRecurringEditForm}
-                      onStop={openStopRecurringModal}
-                      onCreate={() =>
-                        openExpenseForm(null, { mode: "recurring-create" })
-                      }
-                      stoppingById={stoppingRecurringById}
-                      disabled={isWriteDisabled}
-                      swipeable={isMobileViewport}
-                    />
-                  </Col>
-                  <Col xs={24}>
                     {isMobileViewport ? (
                       <>
                       <div className="mobile-list-section mobile-list-section--expense">
@@ -6256,6 +6058,57 @@ function App() {
                         />
                       </Card>
                     )}
+                  </Col>
+                  <Col xs={24}>
+                    <RecurringOverview
+                      rows={recurringExpenseRows}
+                      summary={recurringSummary}
+                      categoryNames={expenseCategoryNameById}
+                      today={dayjs().format("YYYY-MM-DD")}
+                      onEdit={openRecurringEditForm}
+                      onStop={openStopRecurringModal}
+                      onCreate={() =>
+                        openExpenseForm(null, { mode: "recurring-create" })
+                      }
+                      stoppingById={stoppingRecurringById}
+                      disabled={isWriteDisabled}
+                      swipeable={isMobileViewport}
+                    />
+                  </Col>
+                  <Col xs={24}>
+                    {/* Reference, not daily use: one row per analysis with
+                        its headline; the full chart opens on tap. */}
+                    <section className="expense-analytics-section">
+                      <span className="expense-analytics-title">支出分析</span>
+                      <ul className="expense-analytics-list">
+                        {expenseChartCards.map((chart) => (
+                          <li key={chart.key}>
+                            <button
+                              type="button"
+                              className="expense-analytics-item"
+                              onClick={() => {
+                                setActiveExpenseChartKey(chart.key);
+                                setIsExpenseChartModalOpen(true);
+                              }}
+                            >
+                              <span className="expense-analytics-item-main">
+                                <span className="expense-analytics-item-name">
+                                  {chart.title}
+                                </span>
+                                <span className="expense-analytics-item-summary">
+                                  {expenseChartPreviewSummary[chart.key] ||
+                                    "尚無資料"}
+                                </span>
+                              </span>
+                              <RightOutlined
+                                className="expense-analytics-item-chevron"
+                                aria-hidden
+                              />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
                   </Col>
                 </>
               )}
@@ -6732,13 +6585,18 @@ function App() {
                 value={activeMainTab}
                 onChange={switchMainTab}
                 options={[
-                  { icon: <HomeOutlined />, text: "資產", value: "asset" },
+                  // Icons are decoration: the tab's name is its text.
+                  { icon: <HomeOutlined aria-hidden />, text: "資產", value: "asset" },
                   {
-                    icon: <FundProjectionScreenOutlined />,
+                    icon: <FundProjectionScreenOutlined aria-hidden />,
                     text: "支出",
                     value: "expense",
                   },
-                  { icon: <SettingOutlined />, text: "設定", value: "settings" },
+                  {
+                    icon: <SettingOutlined aria-hidden />,
+                    text: "設定",
+                    value: "settings",
+                  },
                 ].map(({ icon, text, value }) => ({
                   value,
                   label: (
@@ -7016,6 +6874,7 @@ function App() {
             budgets={selectableBudgetOptions}
             quickCategories={quickExpenseCategories}
             allCategories={expenseCategoryRows}
+            payerOptions={expensePayerOptions}
             defaults={quickExpenseDefaults}
             onSubmit={handleSubmitQuickExpense}
             onOpenFullForm={handleQuickExpenseFullForm}

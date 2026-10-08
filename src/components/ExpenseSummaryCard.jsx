@@ -24,7 +24,27 @@ const percent = (part, whole) => `${((part / whole) * 100).toFixed(1)}%`;
 const digits = (value) => Math.round(Math.abs(value)).toLocaleString("en-US");
 const money = (value) => `${value < 0 ? "−" : ""}$${digits(value)}`;
 
-const describeMonth = ({ activeMonth, monthProgress, selected }) => {
+// For a finished month, how its savings compare with the month before:
+// 「比 9 月多存 $2,150」. Skipped for the month in progress (a partial month
+// against a full one would always look worse) and when either month has no
+// income to save from.
+const compareWithPrevious = (summaries, month) => {
+  const index = summaries.findIndex((summary) => summary.month === month);
+  const current = summaries[index];
+  const previous = summaries[index - 1];
+  if (!current || !previous || current.isCurrent) return null;
+  if (!(Number(current.incomeTwd) > 0) || !(Number(previous.incomeTwd) > 0)) {
+    return null;
+  }
+  const diff = getMonthSurplus(current) - getMonthSurplus(previous);
+  const previousMonth = Number(previous.month.split("-")[1]);
+  if (Math.round(diff) === 0) return `和 ${previousMonth} 月存得一樣多`;
+  return diff > 0
+    ? `比 ${previousMonth} 月多存 ${money(diff)}`
+    : `比 ${previousMonth} 月少存 ${money(-diff)}`;
+};
+
+const describeMonth = ({ activeMonth, monthProgress, selected, comparison }) => {
   const income = monthProgress?.hasIncome ? Number(monthProgress.denominator) || 0 : 0;
   const recurring = Number(monthProgress?.recurringNumerator) || 0;
   const oneTime = Number(monthProgress?.oneTimeNumerator) || 0;
@@ -54,7 +74,28 @@ const describeMonth = ({ activeMonth, monthProgress, selected }) => {
   } else {
     chip = { text: `存下 ${percent(layout.savedTwd, income)}` };
   }
+  if (comparison && !chip.action) {
+    chip = { ...chip, text: `${chip.text}・${comparison}` };
+  }
   return { label: heading(period, "總支出"), amount: spent, chip };
+};
+
+// The tower's parts as buttons under it: a legend for its tints, and the
+// keyboard / screen-reader way to pick a part (the SVG itself is hidden from
+// assistive tech). Only parts that exist this month are listed.
+const towerParts = (monthProgress) => {
+  if (!monthProgress?.hasIncome) return [];
+  const layout = getTowerLayout({
+    incomeTwd: Number(monthProgress.denominator) || 0,
+    recurringTwd: Number(monthProgress.recurringNumerator) || 0,
+    oneTimeTwd: Number(monthProgress.oneTimeNumerator) || 0,
+  });
+  if (!layout.hasIncome) return [];
+  return [
+    { kind: "saved", label: "存下", amount: layout.savedTwd },
+    { kind: "recurring", label: "定期", amount: Number(monthProgress.recurringNumerator) || 0 },
+    { kind: "oneTime", label: "單筆", amount: Number(monthProgress.oneTimeNumerator) || 0 },
+  ].filter((part) => part.amount > 0);
 };
 
 const describeCumulative = ({ summaries, growth, selected }) => {
@@ -128,7 +169,12 @@ export default function ExpenseSummaryCard({
   );
   const text = cumulative
     ? describeCumulative({ summaries: monthlySummaries, growth, selected })
-    : describeMonth({ activeMonth, monthProgress, selected });
+    : describeMonth({
+        activeMonth,
+        monthProgress,
+        selected,
+        comparison: compareWithPrevious(monthlySummaries, activeMonth),
+      });
 
   return (
     // Tapping anywhere off a tower part goes back to the overview; the parts
@@ -149,6 +195,7 @@ export default function ExpenseSummaryCard({
             {text.chip.text}
           </span>
         )}
+
       </div>
       <div className="expense-card-tower">
         {cumulative ? (
@@ -172,6 +219,13 @@ export default function ExpenseSummaryCard({
           />
         )}
       </div>
+      {!cumulative && (
+        <TowerLegend
+          parts={towerParts(monthProgress)}
+          selected={selected}
+          onSelect={select}
+        />
+      )}
       <ExpenseMonthBars
         summaries={monthlySummaries}
         futureMonths={futureMonths}
@@ -182,5 +236,32 @@ export default function ExpenseSummaryCard({
         onToggleCumulative={onToggleMode}
       />
     </section>
+  );
+}
+
+function TowerLegend({ parts, selected, onSelect }) {
+  if (parts.length === 0) return null;
+  return (
+    <div className="expense-card-legend" role="group" aria-label="收入去向">
+      {parts.map((part) => (
+        <button
+          key={part.kind}
+          type="button"
+          className={`expense-card-legend-item${selected === part.kind ? " is-on" : ""}`}
+          aria-pressed={selected === part.kind}
+          aria-label={`${part.label} ${money(part.amount)}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect(part.kind);
+          }}
+        >
+          <span
+            className={`expense-card-swatch expense-card-swatch--${part.kind}`}
+            aria-hidden="true"
+          />
+          {part.label}
+        </button>
+      ))}
+    </div>
   );
 }

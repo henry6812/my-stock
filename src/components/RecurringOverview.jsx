@@ -15,7 +15,7 @@ import SwipeActions from "./SwipeActions";
 
 const { Text } = Typography;
 
-// 固定支出總覽: the active recurring rules, soonest charge first (the service
+// 定期支出總覽: the active recurring rules, soonest charge first (the service
 // sorts them), with a monthly-equivalent total. Rows past the first few fold
 // away behind a centred 看全部 / 收合 toggle.
 
@@ -182,7 +182,7 @@ function RecurringOverview({
     <section className="recurring-overview">
       <div className="recurring-overview-head">
         <Text strong className="recurring-overview-title">
-          固定支出
+          定期支出
         </Text>
         {rows.length > 0 && createButton}
         {rows.length > 0 && (

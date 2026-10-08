@@ -1,19 +1,22 @@
 /* Design tokens — mirror of src/theme/tokens.js for CSS. */
 :root {
   --c-ink: #1b2b29;
-  --c-muted: #66756f;
-  --c-subtle: #9aa5a1;
+  --c-muted: #5f6e68;
+  --c-subtle: #838e8a;
   --c-paper: #f4f6f5;
   --c-surface: #ffffff;
   --c-line: #e2e7e5;
   --c-line-strong: #cbd3d0;
   --c-teal: #2b7f74;
+  --c-teal-hover: #33907f;
   --c-teal-bright: #44a194;
   --c-teal-soft: #e4f1ee;
+  --c-teal-tint: #a9d3cb;
   --c-teal-ink: #1e5e56;
   --c-up: #237804;
   --c-down: #cf1322;
   --c-warn: #d48806;
+  --c-warn-ink: #a36100;
   --c-neutral-fill: #eef2f1;
   --c-track: #e9eeec;
 
@@ -25,11 +28,27 @@
 
   --shadow-float: 0 8px 24px rgba(27, 43, 41, 0.14);
 
+  /* Spacing: a 4px-based scale, plus the semantic roles every page uses.
+     The expense tab is the reference for these roles. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-section: var(--space-10); /* between page sections */
+  --space-section-head: var(--space-3); /* section title → its content */
+  --space-row-x: var(--space-4); /* list row side padding */
+  --space-row-y: var(--space-4); /* list row top / bottom padding */
+
   --fs-caption: 12px;
   --fs-body: 14px;
   --fs-subhead: 16px;
   --fs-title: 20px;
   --fs-hero: 36px;
+  --fs-display: 38px;
 }
 
 * {

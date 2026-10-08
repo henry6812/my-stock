@@ -74,11 +74,13 @@ describe('ExpenseMonthBars', () => {
   it('keeps bars tappable when every month spent nothing', () => {
     const zero = months(2).map((s) => ({ ...s, expenseTwd: 0 }))
     render(<ExpenseMonthBars summaries={zero} mode="month" activeMonth="2025-10" />)
-    expect(bars().map((b) => b.style.height)).toEqual(['12px', '12px'])
+    expect(bars().map((b) => b.querySelector('.expense-month-bar-fill').style.height)).toEqual(['12px', '12px'])
   })
 
-  it('has no text besides the 累計 pill', () => {
-    const { container } = render(<ExpenseMonthBars summaries={months(3)} mode="month" activeMonth="2025-10" />)
-    expect(container.textContent).toBe('累計')
+  it('labels each bar with its month number, kept out of the accessible name', () => {
+    render(<ExpenseMonthBars summaries={months(3)} mode="month" activeMonth="2025-10" />)
+    expect(bars().map((b) => b.querySelector('.expense-month-bar-label').textContent)).toEqual(['10', '11', '12'])
+    expect(bars()[2]).toHaveAccessibleName('2025 年 12 月，支出 $3,000')
+    expect(bars()[2]).toHaveAttribute('data-current', 'true')
   })
 })

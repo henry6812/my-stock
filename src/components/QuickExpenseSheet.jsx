@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer } from "antd";
-import { LoadingOutlined } from "@ant-design/icons";
+import { CalendarOutlined, LoadingOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import {
   evaluateExpression,
@@ -37,6 +37,9 @@ function QuickExpenseSheet({
   budgets = [],
   quickCategories = [],
   allCategories = [],
+  // Who paid ({ label, value }); the whole family shares one login, so the
+  // remembered default is shown and can be changed here.
+  payerOptions = [],
   defaults = {},
   onSubmit,
   onOpenFullForm,
@@ -68,6 +71,8 @@ function QuickExpenseSheet({
   // Set once the user picks a budget themselves, so clearing a template's
   // fields doesn't drop it.
   const [budgetTouched, setBudgetTouched] = useState(false);
+  // Same for a hand-picked payer: a template without a payer keeps it.
+  const [payerTouched, setPayerTouched] = useState(false);
   const [occurredAt, setOccurredAt] = useState(today);
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isPickingCategory, setIsPickingCategory] = useState(false);
@@ -117,7 +122,7 @@ function QuickExpenseSheet({
     // Like the full form: a pick without a (still valid) payer / kind keeps
     // the remembered default instead of clearing it.
     setExtras((current) => ({
-      payer: item.payer ?? defaultExtras.payer,
+      payer: item.payer ?? (payerTouched ? current.payer : defaultExtras.payer),
       expenseKind: item.expenseKind ?? defaultExtras.expenseKind,
       // A template's budget wins; otherwise a hand-picked one stays.
       budgetId: item.budgetId ?? (budgetTouched ? current.budgetId : null),
@@ -148,6 +153,11 @@ function QuickExpenseSheet({
     setBudgetTouched(true);
   };
 
+  const selectPayer = (value) => {
+    setExtras((current) => ({ ...current, payer: value }));
+    setPayerTouched(true);
+  };
+
   const selectCategory = (id) => {
     if (isNameAutoFilled && pickedCategoryId !== null && id !== pickedCategoryId) {
       setName("");
@@ -155,6 +165,7 @@ function QuickExpenseSheet({
       setPickedTemplateId(null);
       setExtras((current) => ({
         ...defaultExtras,
+        payer: payerTouched ? current.payer : defaultExtras.payer,
         budgetId: budgetTouched ? current.budgetId : null,
       }));
     }
@@ -295,6 +306,23 @@ function QuickExpenseSheet({
           </button>
         </div>,
       )}
+      {payerOptions.length > 0 &&
+        section(
+          "支出人",
+          <div className="quick-expense-scroll" role="group" aria-label="支出人">
+            {payerOptions.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                className={chipClass(extras.payer === item.value)}
+                aria-pressed={extras.payer === item.value}
+                onClick={() => selectPayer(item.value)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>,
+        )}
       {section(
         "日期",
         <div className="quick-expense-dates" role="group" aria-label="日期">
@@ -310,7 +338,8 @@ function QuickExpenseSheet({
             </button>
           ))}
           <label className={`${chipClass(isCustomDate)} quick-expense-date-chip`}>
-            📅 {isCustomDate ? occurredAt.format("M/D") : "其他"}
+            <CalendarOutlined aria-hidden />
+            {isCustomDate ? occurredAt.format("M/D") : "其他"}
             <input
               type="date"
               aria-label="其他日期"

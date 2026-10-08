@@ -457,4 +457,25 @@ describe('<QuickExpenseSheet />', () => {
     renderSheet({ budgets: [] })
     expect(screen.queryByText('預算', { selector: '.quick-expense-section-label' })).not.toBeInTheDocument()
   })
+  it('shows the remembered payer and lets it be changed', async () => {
+    const payerOptions = [
+      { label: 'Po', value: 'Po' },
+      { label: 'Wei', value: 'Wei' },
+      { label: '共同帳戶', value: '共同帳戶' },
+    ]
+    const { user, onSubmit } = renderSheet({ payerOptions })
+    expect(screen.getByRole('button', { name: '共同帳戶' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Wei' }))
+    expect(screen.getByRole('button', { name: 'Wei' })).toHaveAttribute('aria-pressed', 'true')
+    // A template without its own payer keeps the hand-picked one.
+    await user.click(screen.getByRole('button', { name: '常用 加油' }))
+    await press(user, ['5', '0'])
+    await user.click(saveButton())
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ payer: 'Wei' }))
+  })
+
+  it('hides the payer group when there are no payers', () => {
+    renderSheet()
+    expect(screen.queryByRole('group', { name: '支出人' })).toBeNull()
+  })
 })
