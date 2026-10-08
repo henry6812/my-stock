@@ -26,3 +26,6 @@ dev-dist/
 
 # Superpowers brainstorm mockups
 .superpowers/
+
+# Impeccable design-hook cache (local)
+.impeccable/hook.cache.json

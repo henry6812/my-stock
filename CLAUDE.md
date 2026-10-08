@@ -96,6 +96,18 @@ FX (`fxProvider.js`) 打 open.er-api 取得 USD/TWD；不需要 API key。
 
 Stack：React 19、Ant Design 6、Recharts 3、`@dnd-kit` (用於可拖曳重排的 holdings)、`animejs` (數字 tweening)、`dayjs`（含 `utc` + `timezone` plugins）。
 
+### Design system — 改 UI 前先讀 `DESIGN.md`
+
+任何介面修改（新增或調整元件、樣式、版面、文案層級）動手前，先讀根目錄的 `DESIGN.md`（視覺規範：token、元件、Do's and Don'ts）與 `PRODUCT.md`（產品脈絡：使用者、情境、產品原則），並遵守其中的規則：
+
+- 顏色、字級、圓角、間距只用 token：CSS 寫 `var(--c-*)`、`var(--fs-*)`、`var(--radius-*)`、`var(--space-*)`，JS 從 `src/theme/tokens.js` 取。不寫死 hex 或 px；需要新值時先問使用者，再同時更新 `src/index.css`、`src/theme/tokens.js` 與 `DESIGN.md` 的 frontmatter。
+- 間距以**支出頁為標準樣板**：區塊之間 `--space-section`、區塊標題到內容 `--space-section-head`、列表列 `--space-row-x` / `--space-row-y`。調整其他頁時照它對齊。
+- 小字的灰只用 `muted`（`subtle` 只給大字、停用狀態與非文字元素）；每頁只有一個會動的「存錢主角」與一個 display 級大數字。
+- 不用 lint disable 註解繞過規則。
+- 改動確立了新的規範（新 token、新元件模式）時，同步更新 `DESIGN.md`。
+
+`.impeccable/` 是 Impeccable 設計工具的資料（`design.json` 為 `DESIGN.md` 的附檔、`critique/` 為審查快照），由 `/impeccable` 指令維護，不要手動改。
+
 ### Build & deploy
 
 `vite.config.js` 讀取 `process.env.GITHUB_REPOSITORY`，且只在 `NODE_ENV === 'production'` 時把 `base` 改寫為 `/<repo-name>/`。PWA precache 上限調高到 3 MB（目前 bundle 約 2.2 MB）— 留意 bundle size。
