@@ -412,8 +412,48 @@ describe('<QuickExpenseSheet />', () => {
 
   it('titles each group of options', () => {
     renderSheet()
-    for (const title of ['常用支出', '分類', '日期', '預算']) {
+    for (const title of ['常用支出', '分類', '預算']) {
       expect(screen.getByText(title, { selector: '.quick-expense-section-label' })).toBeInTheDocument()
+    }
+  })
+
+  it('puts the dates right under the amount and the name after the options', () => {
+    renderSheet()
+    const order = [
+      screen.getByLabelText('金額'),
+      screen.getByRole('group', { name: '日期' }),
+      screen.getByRole('group', { name: '常用' }),
+      screen.getByRole('group', { name: '預算' }),
+      screen.getByLabelText('名稱'),
+    ]
+    for (let i = 1; i < order.length; i++) {
+      expect(
+        order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+    }
+  })
+
+  it('folds the dates and options away while the name is focused', async () => {
+    const { user } = renderSheet()
+    await user.click(screen.getByLabelText('名稱'))
+    expect(screen.queryByRole('group', { name: '日期' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: '分類' })).not.toBeInTheDocument()
+  })
+
+  it('gives a short haptic tick once saved, not on a failed save', async () => {
+    const vibrate = vi.fn()
+    Object.defineProperty(navigator, 'vibrate', { value: vibrate, configurable: true })
+    try {
+      const onSubmit = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+      const { user } = renderSheet({ onSubmit })
+      await user.click(screen.getByRole('button', { name: '餐飲' }))
+      await press(user, ['8'])
+      await user.click(saveButton())
+      expect(vibrate).not.toHaveBeenCalled()
+      await user.click(saveButton())
+      expect(vibrate).toHaveBeenCalledWith(10)
+    } finally {
+      delete navigator.vibrate
     }
   })
 

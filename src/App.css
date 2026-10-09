@@ -55,7 +55,9 @@
 .mobile-main-tabbar {
   position: fixed;
   left: 12px;
-  bottom: calc(24px + env(safe-area-inset-bottom));
+  /* On the home-indicator inset when there is one, 12px off the edge when
+     there isn't (24px on top of the inset wasted a row of content). */
+  bottom: max(var(--space-3), env(safe-area-inset-bottom));
   z-index: 20;
   width: fit-content;
   max-width: calc(100vw - 88px);
@@ -168,7 +170,9 @@
   left: auto;
   right: 12px;
   transform: none;
-  bottom: calc(37px + env(safe-area-inset-bottom));
+  /* Centred on the 66px tab bar beside it: (66 - 52) / 2 ≈ 8px above its
+     bottom edge. */
+  bottom: calc(max(var(--space-3), env(safe-area-inset-bottom)) + var(--space-2));
 }
 
 .app-content {
@@ -820,16 +824,38 @@ button.expense-card-chip {
 }
 
 @media (max-width: 768px) {
+  /* A slim bar: logo left, sync state right. The page's hero is the first
+     thing that matters, so the header gives its height back to it. */
   .app-header {
     grid-template-columns: auto 1fr;
     align-items: center;
     justify-items: stretch;
-    gap: 12px;
+    gap: var(--space-3);
+    min-height: 56px;
+    padding: var(--space-2) var(--space-4);
+    line-height: normal;
   }
 
+  /* Holds the desktop tabs only; on a phone it would take a grid row. */
   .header-spacer {
-    display: flex;
-    justify-content: flex-start;
+    display: none;
+  }
+
+  /* Read by screen readers, hidden on screen while all is well. */
+  .header-sync-label.is-quiet {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* 24px to look at, 44px to tap. */
+  .header-logout.ant-btn::before {
+    content: "";
+    position: absolute;
+    inset: -10px;
   }
 
   .header-logo {
@@ -925,6 +951,25 @@ button.expense-card-chip {
 
 .form-bottom-sheet .ant-drawer-header {
   border-bottom: 1px solid var(--c-line);
+}
+
+/* The sheet's × and its header link stay small to look at but take a 44px
+   tap. */
+.form-bottom-sheet .ant-drawer-close,
+.form-bottom-sheet .ant-drawer-extra .quick-expense-link {
+  position: relative;
+}
+
+.form-bottom-sheet .ant-drawer-close::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+}
+
+.form-bottom-sheet .ant-drawer-extra .quick-expense-link::before {
+  content: "";
+  position: absolute;
+  inset: -8px -12px;
 }
 
 .form-bottom-sheet .ant-drawer-body {
@@ -1737,10 +1782,11 @@ button.expense-card-chip {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px 16px;
+  padding: var(--space-2) var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /* Wider than a section's own title → chips gap, so each group reads as one. */
+  gap: var(--space-3);
 }
 
 .quick-expense-amount {
@@ -2317,15 +2363,28 @@ button.expense-card-chip {
   text-align: right;
 }
 
+/* Mobile income settings: name over a one-line note. */
+.income-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.income-row-meta.ant-typography {
+  font-size: var(--fs-caption);
+}
+
 /* Holdings and cash rows follow the list-row standard (as expense rows do);
    cash balances carry the same weight as holding values. */
 .holding-groups .mobile-swipe-row,
-.cash-groups .mobile-swipe-row {
+.cash-groups .mobile-swipe-row,
+.mobile-list-section--income .mobile-swipe-row {
   min-height: 72px;
   padding-block: var(--space-row-y);
 }
 
-.cash-groups .mobile-swipe-row-side {
+.cash-groups .mobile-swipe-row-side,
+.mobile-list-section--income .mobile-swipe-row-side {
   font-weight: 600;
   color: var(--c-ink);
   font-variant-numeric: tabular-nums;
@@ -2334,6 +2393,10 @@ button.expense-card-chip {
 /* 更新價格 in the holdings header: a 44px thumb target. */
 .mobile-list-section--holdings .price-update-extra .ant-btn {
   height: 44px;
+}
+
+.mobile-list-section--holdings .price-update-extra .ant-btn-icon-only {
+  width: 44px;
 }
 
 .mobile-swipe-row--editing {

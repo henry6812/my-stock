@@ -120,7 +120,12 @@ import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
 import RecurringOverview from "./components/RecurringOverview";
 import EmptyState from "./components/EmptyState";
 import SectionTitle from "./components/SectionTitle";
-import SwipeActions from "./components/SwipeActions";
+import MobileIncomeSettings from "./components/MobileIncomeSettings";
+import MobileSwipeRow from "./components/MobileSwipeRow";
+import {
+  swipeDeleteAction,
+  swipeEditAction,
+} from "./components/swipeActionItems";
 import HoverTooltip from "./components/HoverTooltip";
 import AllocationBreakdown from "./components/AllocationBreakdown";
 import { describeAllocation } from "./utils/allocation";
@@ -363,61 +368,6 @@ function SortableRow({ disabled, ...props }) {
     </RowContext.Provider>
   );
 }
-
-// Mobile list row: content on the left / right, actions revealed by swiping
-// left (see SwipeActions).
-// `label` names a tappable row for assistive tech, instead of having every
-// line of its content read out.
-function MobileSwipeRow({
-  actions,
-  disabled = false,
-  main,
-  side = null,
-  onTap,
-  label,
-}) {
-  return (
-    <SwipeActions actions={actions} disabled={disabled}>
-      <div
-        className="mobile-swipe-row"
-        onClick={onTap}
-        role={onTap ? "button" : undefined}
-        aria-label={onTap ? label : undefined}
-        tabIndex={onTap ? 0 : undefined}
-        onKeyDown={
-          onTap
-            ? (event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onTap();
-                }
-              }
-            : undefined
-        }
-      >
-        <div className="mobile-swipe-row-main">{main}</div>
-        {side !== null && <div className="mobile-swipe-row-side">{side}</div>}
-      </div>
-    </SwipeActions>
-  );
-}
-
-const swipeEditAction = (name, onClick, text = "編輯") => ({
-  key: "edit",
-  label: `${text} ${name}`,
-  text,
-  icon: <EditPencil />,
-  onClick,
-});
-
-const swipeDeleteAction = (name, onClick, text = "刪除") => ({
-  key: "delete",
-  label: `${text} ${name}`,
-  text,
-  icon: <Trash />,
-  danger: true,
-  onClick,
-});
 
 class AppErrorBoundary extends Component {
   constructor(props) {
@@ -2272,6 +2222,7 @@ function App() {
 
           return (
             <InputNumber
+              inputMode={record.market === "US" ? "decimal" : "numeric"}
               min={record.market === "US" ? 0.0001 : 1}
               step={1}
               precision={record.market === "US" ? 4 : 0}
@@ -2630,6 +2581,7 @@ function App() {
           }
           return (
             <InputNumber
+              inputMode="numeric"
               min={0}
               step={1000}
               precision={0}
@@ -3679,7 +3631,9 @@ function App() {
           title: "有新版本可以使用",
           description: "更新會重新載入頁面，請先儲存正在編輯的內容。",
           duration: 0,
-          placement: "bottom",
+          // Top, not bottom: at the bottom it covers the tab bar and the FAB,
+          // and it stays until dismissed.
+          placement: "top",
           actions: (
             <Button
               type="primary"
@@ -4576,7 +4530,7 @@ function App() {
                   name="monthlyDay"
                   rules={[{ required: true, message: "請輸入每月幾號" }]}
                 >
-                  <InputNumber min={1} max={31} style={{ width: "100%" }} />
+                  <InputNumber inputMode="numeric" min={1} max={31} style={{ width: "100%" }} />
                 </Form.Item>
               ) : null}
               {getFieldValue("recurrenceType") === "YEARLY" ? (
@@ -4587,7 +4541,7 @@ function App() {
                     rules={[{ required: true, message: "請輸入月份" }]}
                     style={{ flex: 1 }}
                   >
-                    <InputNumber min={1} max={12} style={{ width: "100%" }} />
+                    <InputNumber inputMode="numeric" min={1} max={12} style={{ width: "100%" }} />
                   </Form.Item>
                   <Form.Item
                     label="每年幾號"
@@ -4595,7 +4549,7 @@ function App() {
                     rules={[{ required: true, message: "請輸入日期" }]}
                     style={{ flex: 1 }}
                   >
-                    <InputNumber min={1} max={31} style={{ width: "100%" }} />
+                    <InputNumber inputMode="numeric" min={1} max={31} style={{ width: "100%" }} />
                   </Form.Item>
                 </Space>
               ) : null}
@@ -4771,6 +4725,7 @@ function App() {
                   rules={[{ required: true, message: "請輸入預算金額" }]}
                 >
                   <InputNumber
+                    inputMode="numeric"
                     min={1}
                     step={100}
                     precision={0}
@@ -4851,6 +4806,7 @@ function App() {
                 rules={[{ required: true, message: "請輸入百分比" }]}
               >
                 <InputNumber
+                  inputMode="decimal"
                   min={0.01}
                   step={1}
                   precision={2}
@@ -4961,35 +4917,42 @@ function App() {
     [confirmDestructive, handleRemoveBudget, openBudgetForm],
   );
 
+  // Adds a month's own income, or replaces it if the month already has one.
+  // Resolves to whether it saved.
+  const saveIncomeOverride = useCallback(
+    async ({ month, incomeTwd }) => {
+      const incomeValue = Number(incomeTwd);
+      if (!Number.isFinite(incomeValue) || incomeValue <= 0) {
+        message.error("請輸入有效的覆寫收入金額");
+        return false;
+      }
+      try {
+        setLoadingIncomeSettings(true);
+        setExpensePlayKey((key) => key + 1);
+        await setIncomeOverride({ month, incomeTwd: incomeValue });
+        await loadExpenseData();
+        await performCloudSync();
+        message.success("月份收入已儲存");
+        return true;
+      } catch (error) {
+        message.error(
+          toUserMessage(error, "儲存月份收入失敗"),
+        );
+        return false;
+      } finally {
+        setLoadingIncomeSettings(false);
+      }
+    },
+    [loadExpenseData, message, performCloudSync],
+  );
+
   const handleAddIncomeOverride = useCallback(async () => {
-    const monthValue = dayjs(newIncomeOverrideMonth).format("YYYY-MM");
-    const incomeValue = Number(newIncomeOverrideValue);
-    if (!Number.isFinite(incomeValue) || incomeValue <= 0) {
-      message.error("請輸入有效的覆寫收入金額");
-      return;
-    }
-    try {
-      setLoadingIncomeSettings(true);
-      setExpensePlayKey((key) => key + 1);
-      await setIncomeOverride({ month: monthValue, incomeTwd: incomeValue });
-      await loadExpenseData();
-      await performCloudSync();
-      setNewIncomeOverrideValue(null);
-      message.success("月份收入覆寫已新增");
-    } catch (error) {
-      message.error(
-        toUserMessage(error, "新增月份收入覆寫失敗"),
-      );
-    } finally {
-      setLoadingIncomeSettings(false);
-    }
-  }, [
-    loadExpenseData,
-    message,
-    newIncomeOverrideMonth,
-    newIncomeOverrideValue,
-    performCloudSync,
-  ]);
+    const saved = await saveIncomeOverride({
+      month: dayjs(newIncomeOverrideMonth).format("YYYY-MM"),
+      incomeTwd: newIncomeOverrideValue,
+    });
+    if (saved) setNewIncomeOverrideValue(null);
+  }, [newIncomeOverrideMonth, newIncomeOverrideValue, saveIncomeOverride]);
 
   const handleRemoveIncomeOverride = useCallback(
     async (month) => {
@@ -5011,31 +4974,38 @@ function App() {
     [loadExpenseData, message, performCloudSync],
   );
 
-  const handleSaveIncomeSettings = useCallback(async () => {
-    try {
-      setLoadingIncomeSettings(true);
-      setExpensePlayKey((key) => key + 1);
-      await saveIncomeSettings({
-        defaultMonthlyIncomeTwd,
-        monthOverrides: incomeMonthOverrides,
-      });
-      await loadExpenseData();
-      await performCloudSync();
-      message.success("收入設定已儲存");
-    } catch (error) {
-      message.error(
-        toUserMessage(error, "儲存收入設定失敗"),
-      );
-    } finally {
-      setLoadingIncomeSettings(false);
-    }
-  }, [
-    defaultMonthlyIncomeTwd,
-    incomeMonthOverrides,
-    loadExpenseData,
-    message,
-    performCloudSync,
-  ]);
+  // The mobile sheet passes its own draft; the desktop card saves the field
+  // it edits in place.
+  const handleSaveIncomeSettings = useCallback(
+    async (nextDefaultMonthlyIncomeTwd = defaultMonthlyIncomeTwd) => {
+      try {
+        setLoadingIncomeSettings(true);
+        setExpensePlayKey((key) => key + 1);
+        await saveIncomeSettings({
+          defaultMonthlyIncomeTwd: nextDefaultMonthlyIncomeTwd,
+          monthOverrides: incomeMonthOverrides,
+        });
+        await loadExpenseData();
+        await performCloudSync();
+        message.success("收入設定已儲存");
+        return true;
+      } catch (error) {
+        message.error(
+          toUserMessage(error, "儲存收入設定失敗"),
+        );
+        return false;
+      } finally {
+        setLoadingIncomeSettings(false);
+      }
+    },
+    [
+      defaultMonthlyIncomeTwd,
+      incomeMonthOverrides,
+      loadExpenseData,
+      message,
+      performCloudSync,
+    ],
+  );
 
   const handleHolderDraftValueChange = useCallback((id, value) => {
     setHolderDraftRows((current) =>
@@ -5472,6 +5442,12 @@ function App() {
     [activeExpenseChartKey, expenseChartCards],
   );
 
+  const isSyncTextQuiet =
+    isMobileViewport &&
+    authReady &&
+    cloudSyncStatus !== "offline" &&
+    cloudSyncStatus !== "error";
+
   return (
     <AppErrorBoundary>
       <Layout className="app-layout">
@@ -5519,13 +5495,24 @@ function App() {
                       status={cloudSyncStatus}
                       style={{ marginRight: 6 }}
                     />
-                    {authReady ? cloudSyncText : "讀取登入狀態中..."}
+                    {/* On a phone the icon alone carries the healthy states;
+                        the words only show when something needs attention. */}
+                    <span
+                      className={
+                        isSyncTextQuiet
+                          ? "header-sync-label is-quiet"
+                          : "header-sync-label"
+                      }
+                    >
+                      {authReady ? cloudSyncText : "讀取登入狀態中..."}
+                    </span>
                   </Text>
                 </div>
                 <Space size={6}>
                   <HoverTooltip title={authUser.email || "Google 帳號"}>
                     <Button
                       size="small"
+                      className="header-logout"
                       icon={<LogOut />}
                       onClick={handleGoogleLogout}
                       loading={loadingAuthAction}
@@ -5654,11 +5641,13 @@ function App() {
                           USD/TWD {usdTwdRate.toFixed(2)}
                         </span>
                       ) : null}
+                      {/* Outlined, not primary: prices refresh on their own
+                          once a day, and the FAB is this screen's one black
+                          call to action. */}
                       <div className="price-update-extra">
                         <Space>
                           <Space.Compact>
                             <Button
-                              type="primary"
                               icon={<Refresh />}
                               onClick={() => handleRefreshPrices("ALL")}
                               loading={loadingRefresh}
@@ -5668,7 +5657,6 @@ function App() {
                               更新價格
                             </Button>
                             <Button
-                              type="primary"
                               icon={<NavArrowDown />}
                               aria-label="選擇更新市場"
                               disabled={isWriteDisabled || loadingRefresh}
@@ -6155,116 +6143,136 @@ function App() {
               {activeMainTab === "settings" && (
                 <>
                   <Col xs={24}>
-                    <Card
-                      title={<SectionTitle icon={Coins}>收入設定</SectionTitle>}
-                      id="income-settings"
-                    >
-                      <Space
-                        direction="vertical"
-                        size={12}
-                        style={{ width: "100%" }}
+                    {isMobileViewport ? (
+                      <MobileIncomeSettings
+                        defaultMonthlyIncomeTwd={defaultMonthlyIncomeTwd}
+                        overrides={incomeMonthOverrides}
+                        disabled={isWriteDisabled}
+                        loading={loadingIncomeSettings}
+                        onSaveDefault={handleSaveIncomeSettings}
+                        onSaveOverride={saveIncomeOverride}
+                        onRemoveOverride={(month) =>
+                          confirmDestructive({
+                            title: `刪除 ${dayjs(month).format("YYYY 年 M 月")} 的收入？`,
+                            onOk: () => handleRemoveIncomeOverride(month),
+                          })
+                        }
+                        getPopupContainer={getSheetPopupContainer}
+                      />
+                    ) : (
+                      <Card
+                        title={<SectionTitle icon={Coins}>收入設定</SectionTitle>}
+                        id="income-settings"
                       >
-                        <div className="income-settings-row">
-                          <Text type="secondary">預設每月收入 (TWD)</Text>
-                          <InputNumber
-                            min={0}
-                            step={1000}
-                            precision={0}
-                            style={{ width: isMobileViewport ? "100%" : 240 }}
-                            value={defaultMonthlyIncomeTwd ?? undefined}
-                            placeholder="未設定"
-                            onChange={(value) =>
-                              setDefaultMonthlyIncomeTwd(
-                                typeof value === "number" ? value : null,
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="income-settings-row">
-                          <Text type="secondary">新增月份覆寫</Text>
-                          <Space wrap>
-                            <DatePicker
-                              picker="month"
-                              value={dayjs(newIncomeOverrideMonth)}
-                              disabled={isWriteDisabled}
-                              onChange={(value) =>
-                                setNewIncomeOverrideMonth(value || dayjs())
-                              }
-                              getPopupContainer={getSheetPopupContainer}
-                            />
+                        <Space
+                          direction="vertical"
+                          size={12}
+                          style={{ width: "100%" }}
+                        >
+                          <div className="income-settings-row">
+                            <Text type="secondary">預設每月收入 (TWD)</Text>
                             <InputNumber
-                              min={1}
+                              inputMode="numeric"
+                              min={0}
                               step={1000}
                               precision={0}
-                              disabled={isWriteDisabled}
-                              value={newIncomeOverrideValue ?? undefined}
-                              placeholder="收入金額"
+                              style={{ width: 240 }}
+                              value={defaultMonthlyIncomeTwd ?? undefined}
+                              placeholder="未設定"
                               onChange={(value) =>
-                                setNewIncomeOverrideValue(
+                                setDefaultMonthlyIncomeTwd(
                                   typeof value === "number" ? value : null,
                                 )
                               }
                             />
+                          </div>
+                          <div className="income-settings-row">
+                            <Text type="secondary">新增月份覆寫</Text>
+                            <Space wrap>
+                              <DatePicker
+                                picker="month"
+                                value={dayjs(newIncomeOverrideMonth)}
+                                disabled={isWriteDisabled}
+                                onChange={(value) =>
+                                  setNewIncomeOverrideMonth(value || dayjs())
+                                }
+                                getPopupContainer={getSheetPopupContainer}
+                              />
+                              <InputNumber
+                                inputMode="numeric"
+                                min={1}
+                                step={1000}
+                                precision={0}
+                                disabled={isWriteDisabled}
+                                value={newIncomeOverrideValue ?? undefined}
+                                placeholder="收入金額"
+                                onChange={(value) =>
+                                  setNewIncomeOverrideValue(
+                                    typeof value === "number" ? value : null,
+                                  )
+                                }
+                              />
+                              <Button
+                                onClick={handleAddIncomeOverride}
+                                loading={loadingIncomeSettings}
+                                disabled={isWriteDisabled}
+                              >
+                                新增覆寫
+                              </Button>
+                            </Space>
+                          </div>
+                          <Table
+                            rowKey="month"
+                            size="small"
+                            pagination={false}
+                            dataSource={incomeMonthOverrides}
+                            locale={{ emptyText: "尚無月份覆寫" }}
+                            columns={[
+                              {
+                                title: "月份",
+                                dataIndex: "month",
+                                key: "month",
+                              },
+                              {
+                                title: "收入 (TWD)",
+                                dataIndex: "incomeTwd",
+                                key: "incomeTwd",
+                                align: "right",
+                                render: (value) => formatTwd(value),
+                              },
+                              {
+                                title: "操作",
+                                key: "actions",
+                                width: 90,
+                                render: (_, record) => (
+                                  <Button
+                                    type="text"
+                                    className="row-action row-action--danger"
+                                    size="small"
+                                    icon={<Trash />}
+                                    loading={loadingIncomeSettings}
+                                    disabled={isWriteDisabled}
+                                    onClick={() =>
+                                      handleRemoveIncomeOverride(record.month)
+                                    }
+                                  />
+                                ),
+                              },
+                            ]}
+                          />
+                          <div className="income-settings-actions">
                             <Button
-                              onClick={handleAddIncomeOverride}
+                              type="primary"
+                              onClick={() => handleSaveIncomeSettings()}
                               loading={loadingIncomeSettings}
                               disabled={isWriteDisabled}
                             >
-                              新增覆寫
+                              儲存收入設定
                             </Button>
-                          </Space>
-                        </div>
-                        <Table
-                          rowKey="month"
-                          size="small"
-                          pagination={false}
-                          dataSource={incomeMonthOverrides}
-                          locale={{ emptyText: "尚無月份覆寫" }}
-                          columns={[
-                            {
-                              title: "月份",
-                              dataIndex: "month",
-                              key: "month",
-                            },
-                            {
-                              title: "收入 (TWD)",
-                              dataIndex: "incomeTwd",
-                              key: "incomeTwd",
-                              align: "right",
-                              render: (value) => formatTwd(value),
-                            },
-                            {
-                              title: "操作",
-                              key: "actions",
-                              width: 90,
-                              render: (_, record) => (
-                                <Button
-                                  type="text"
-                                  className="row-action row-action--danger"
-                                  size="small"
-                                  icon={<Trash />}
-                                  loading={loadingIncomeSettings}
-                                  disabled={isWriteDisabled}
-                                  onClick={() =>
-                                    handleRemoveIncomeOverride(record.month)
-                                  }
-                                />
-                              ),
-                            },
-                          ]}
-                        />
-                        <div className="income-settings-actions">
-                          <Button
-                            type="primary"
-                            onClick={handleSaveIncomeSettings}
-                            loading={loadingIncomeSettings}
-                            disabled={isWriteDisabled}
-                          >
-                            儲存收入設定
-                          </Button>
-                        </div>
-                      </Space>
-                    </Card>
+                          </div>
+                        </Space>
+                      </Card>
+                    )}
                   </Col>
                   <Col xs={24}>
                     <Card title={<SectionTitle icon={Group}>持有人設定</SectionTitle>}>

@@ -160,6 +160,7 @@ function CashAccountForm({
         rules={[{ required: true, message: "請輸入餘額" }]}
       >
         <InputNumber
+          inputMode="numeric"
           disabled={disabled}
           min={0}
           step={1000}

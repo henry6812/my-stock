@@ -101,6 +101,7 @@ function ValuationAssumptions({ model, market, settings, disabled, open, onToggl
             <div key={field} className="valuation-assumption-row">
               <span>{label}</span>
               <InputNumber
+                inputMode="decimal"
                 aria-label={label}
                 min={0}
                 step={0.5}

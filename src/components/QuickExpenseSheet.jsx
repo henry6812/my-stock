@@ -195,6 +195,9 @@ function QuickExpenseSheet({
         categoryId: categoryId ?? null,
         ...extras,
       });
+      // A short tick in the hand that it's saved (Android; iOS has no
+      // Vibration API and ignores this).
+      navigator.vibrate?.(10);
       // Stay locked after a success: the sheet is closing, and a stray tap on
       // its sliding-away save key must not write a second entry. The next
       // open remounts the sheet with a fresh ref.
@@ -324,36 +327,6 @@ function QuickExpenseSheet({
             ))}
           </div>,
         )}
-      {section(
-        "日期",
-        <div className="quick-expense-dates" role="group" aria-label="日期">
-          {dayChips.map(({ label, day }) => (
-            <button
-              key={label}
-              type="button"
-              className={chipClass(occurredAt.isSame(day, "day"))}
-              aria-pressed={occurredAt.isSame(day, "day")}
-              onClick={() => setOccurredAt(day)}
-            >
-              {label}
-            </button>
-          ))}
-          <label className={`${chipClass(isCustomDate)} quick-expense-date-chip`}>
-            <Calendar aria-hidden />
-            {isCustomDate ? occurredAt.format("M/D") : "其他"}
-            <input
-              type="date"
-              aria-label="其他日期"
-              className="quick-expense-date-input"
-              max={today.format("YYYY-MM-DD")}
-              value={occurredAt.format("YYYY-MM-DD")}
-              onChange={(event) => {
-                if (event.target.value) setOccurredAt(dayjs(event.target.value));
-              }}
-            />
-          </label>
-        </div>,
-      )}
       {budgets.length > 0 &&
         section(
           "預算",
@@ -372,6 +345,38 @@ function QuickExpenseSheet({
           </div>,
         )}
     </>
+  );
+
+  // Right under the amount and without a title: the chips say what they are,
+  // and a back-dated entry must not hinge on finding a row below the keypad.
+  const renderDates = () => (
+    <div className="quick-expense-dates" role="group" aria-label="日期">
+      {dayChips.map(({ label, day }) => (
+        <button
+          key={label}
+          type="button"
+          className={chipClass(occurredAt.isSame(day, "day"))}
+          aria-pressed={occurredAt.isSame(day, "day")}
+          onClick={() => setOccurredAt(day)}
+        >
+          {label}
+        </button>
+      ))}
+      <label className={`${chipClass(isCustomDate)} quick-expense-date-chip`}>
+        <Calendar aria-hidden />
+        {isCustomDate ? occurredAt.format("M/D") : "其他"}
+        <input
+          type="date"
+          aria-label="其他日期"
+          className="quick-expense-date-input"
+          max={today.format("YYYY-MM-DD")}
+          value={occurredAt.format("YYYY-MM-DD")}
+          onChange={(event) => {
+            if (event.target.value) setOccurredAt(dayjs(event.target.value));
+          }}
+        />
+      </label>
+    </div>
   );
 
   const renderKeypad = () => (
@@ -458,6 +463,11 @@ function QuickExpenseSheet({
                 {hasOperator(expr) ? expr : " "}
               </span>
             </div>
+            {!isNameFocused && renderDates()}
+            {!isNameFocused && renderSelectors()}
+            {/* The name is optional (it defaults to the category), so it sits
+                after the chips; focusing it folds them away and brings it up
+                under the amount. */}
             <input
               ref={nameInputRef}
               className="quick-expense-name"
@@ -480,28 +490,24 @@ function QuickExpenseSheet({
                 }
               }}
             />
-            {isNameFocused ? (
-              nameMatches.length > 0 && (
-                <div className="quick-expense-scroll">
-                  {nameMatches.map((item) => (
-                    <button
-                      key={item.name}
-                      type="button"
-                      className="quick-expense-chip"
-                      onPointerDown={keepFocus}
-                      onMouseDown={keepFocus}
-                      onClick={() => {
-                        applyPick(item);
-                        nameInputRef.current?.blur();
-                      }}
-                    >
-                      {item.name}
-                    </button>
-                  ))}
-                </div>
-              )
-            ) : (
-              renderSelectors()
+            {isNameFocused && nameMatches.length > 0 && (
+              <div className="quick-expense-scroll">
+                {nameMatches.map((item) => (
+                  <button
+                    key={item.name}
+                    type="button"
+                    className="quick-expense-chip"
+                    onPointerDown={keepFocus}
+                    onMouseDown={keepFocus}
+                    onClick={() => {
+                      applyPick(item);
+                      nameInputRef.current?.blur();
+                    }}
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
           {!isNameFocused && renderKeypad()}

@@ -242,7 +242,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 
 寬鬆的節奏來自「區塊之間大、區塊內部緊」的對比：區塊距離是標題距離的三倍以上。新寫的 CSS 用 `var(--space-*)`，不寫 px；5、10、14、18px 這類刻度外的值是待收斂的偏差（其他頁面還留有一些）。
 
-觸控：手機上所有輸入框、選單項目、主要按鈕最小高度 44px；`(hover: none)` 時移除 hover 樣式，避免 sticky hover。尊重 `env(safe-area-inset-bottom)`。
+觸控：手機上所有輸入框、選單項目、主要按鈕最小高度 44px；視覺上較小的控制項（header 的登出、sheet 的 × 與「完整表單」、標題旁的「新增」）用 `::before` 把點擊區延伸到 44px，不放大外觀。`(hover: none)` 時移除 hover 樣式，避免 sticky hover。尊重 `env(safe-area-inset-bottom)`。手機上的數字欄位一律加 `inputMode`（整數 `numeric`、小數 `decimal`；可能為負的欄位不加，因為 iOS 的 decimal 鍵盤沒有負號）。
 
 ## Elevation & Depth
 
@@ -316,14 +316,19 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 - iOS 上會觸發輸入的元素字級至少 16px，避免自動放大。
 
 ### Navigation
-- **Mobile tab bar:** 浮在左下的白色膠囊（94% 不透明 + 8px backdrop blur）、1px `line` 邊、Float 陰影。內含 Segmented：20px 圖示在上、12px 文字在下，選中項為 `track` 底膠囊 + `ink` 字。
+- **Mobile tab bar:** 浮在左下的白色膠囊（94% 不透明 + 8px backdrop blur）、1px `line` 邊、Float 陰影。底邊貼在 home indicator 的 safe area 上（`max(--space-3, safe-area-inset-bottom)`），不再多墊 24px；右下的 FAB 與它垂直置中。內含 Segmented：20px 圖示在上、12px 文字在下，選中項為 `track` 底膠囊 + `ink` 字。
 - **主分頁切換:** 用 View Transitions 做左右推頁（500ms，`cubic-bezier(0.32, 0.72, 0, 1)`）；header、tab bar、FAB 不參與滑動。
-- **Header:** 透明背景 + blur，三欄 grid：左空、中 logo（32px）、右同步狀態。
+- **Header:** 透明背景 + blur，三欄 grid：左空、中 logo（32px）、右同步狀態。手機上是 56px 高的細條：logo 在左、同步狀態在右；同步正常（已同步、同步中）時只顯示圖示，文字留給螢幕閱讀器，離線或失敗才顯示文字。
+- **系統通知**（例如「有新版本可以使用」）從頂端出現，不放底部，免得蓋住 tab bar 與 FAB。
 
 ### Bottom Sheet
-手機上所有表單都在從底部升起的 sheet 中完成：頂角 20px、高 90vh、標題下 1px 分隔線；內容區可捲動，底部動作列固定，以 `line` 分隔並避開 safe area。
+手機上所有表單都在從底部升起的 sheet 中完成：頂角 20px、高 90vh、標題下 1px 分隔線；內容區可捲動，底部動作列固定，以 `line` 分隔並避開 safe area。設定頁也照這個做：收入設定在手機上是列表（「每月收入」一列，下面是有自己收入的月份，新的在前），點列開 sheet 編輯，月份可左滑刪除（`MobileIncomeSettings`），不在頁面上放行內欄位或表格。
+
+手機上持股列表的「更新價格」是外框按鈕而不是 `action` 實心：價格每天會自動更新一次，而右下的 FAB（新增持股）才是畫面上唯一的黑色主 CTA。
 
 ### Quick Expense Keypad（signature）
+Sheet 由上而下：金額 → 日期 chips（今天 / 昨天 / 前天 / 其他，不加標題，緊接在金額下）→ 常用支出 → 分類 → 支出人 → 預算 → 名稱 → 數字鍵盤。名稱是選填（預設為分類名），所以排在 chips 之後；聚焦名稱時 chips 與鍵盤收起、名稱移到金額正下方。群組之間 `--space-3`，大於群組標題到 chips 的距離。存好時在支援的裝置上給一下 10ms 震動（`navigator.vibrate`，iOS 不支援）。
+
 記一筆支出的專屬輸入：4 欄格狀數字鍵盤，鍵與鍵之間 1px `line` 縫，每鍵最少 52px 高、20px 等寬數字。儲存鍵為 `action` 底白字、按壓時 `action-active`；不可用時變 `line-strong`；儲存中保持 `action` + spinner，其他鍵轉 `subtle` 表示鎖定。
 
 ### Savings Hero（signature：存錢罐）
