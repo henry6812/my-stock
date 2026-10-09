@@ -36,7 +36,7 @@ function PeHistoryChart({ peSeries, bands }) {
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.muted }} minTickGap={24} />
               <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} domain={["auto", "auto"]} />
               <Tooltip formatter={(value) => [Number.isFinite(value) ? value.toFixed(1) : "--", "本益比"]} />
-              <Line dataKey="pe" stroke={COLORS.teal} dot={false} connectNulls={false} strokeWidth={2} />
+              <Line dataKey="pe" stroke={COLORS.action} dot={false} connectNulls={false} strokeWidth={2} />
               {BAND_LINES.map(({ key, label, color }) =>
                 Number.isFinite(bands?.[key]) ? (
                   <ReferenceLine

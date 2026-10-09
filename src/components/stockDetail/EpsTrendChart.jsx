@@ -41,7 +41,7 @@ function EpsTrendChart({ fundamentals }) {
               <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
               <Tooltip formatter={formatTooltip} />
               <Bar dataKey="lastYearEps" fill={COLORS.lineStrong} radius={[3, 3, 0, 0]} />
-              <Bar dataKey="eps" fill={COLORS.teal} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="eps" fill={COLORS.action} radius={[3, 3, 0, 0]} />
               {hasEstimates && <Scatter dataKey="estimate" fill={COLORS.warn} />}
             </ComposedChart>
           </ResponsiveContainer>

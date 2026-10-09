@@ -1,21 +1,26 @@
-// Design tokens ("家計簿" direction): one quiet teal-ink system where the
-// big numbers are the only loud thing. CSS mirrors these as custom properties
+// Design tokens ("家計簿" direction): neutral cool greys with charcoal CTAs;
+// teal is kept for the savings visuals only, and the big numbers are the
+// only loud thing. CSS mirrors these as custom properties
 // in index.css; JS consumers (antd theme, Recharts, tags) import from here.
 
 export const COLORS = {
-  ink: "#1B2B29",
-  // Secondary text: ≥4.5:1 on paper, surface, neutral-fill and teal-soft.
-  muted: "#5F6E68",
+  ink: "#1C1F23",
+  // Secondary text: ≥4.5:1 on paper, surface, neutral-fill and track.
+  muted: "#5E646B",
   // Tertiary: ≥3:1 on paper / surface, so only for large text (the hero
   // currency sign) and non-text marks. Small text that must be read uses muted.
-  subtle: "#838E8A",
-  paper: "#F4F6F5",
+  subtle: "#868C93",
+  paper: "#F5F6F7",
   surface: "#FFFFFF",
-  line: "#E2E7E5",
-  lineStrong: "#CBD3D0",
-  // Primary is a step darker than the brand icon teal so white button text
-  // and teal link text both clear WCAG AA; the brighter teal stays for
-  // large fills (icon, FAB, progress bars).
+  line: "#E3E5E8",
+  lineStrong: "#CDD1D6",
+  // Every CTA, selected control, link and focus ring: charcoal, not pure
+  // black (white text 15.8:1).
+  action: "#1F2328",
+  actionHover: "#353B43",
+  actionActive: "#121417",
+  // Teal belongs to the savings visuals only: the jar's water, the towers,
+  // the month bars and the net-worth trend.
   teal: "#2B7F74",
   tealHover: "#33907F",
   tealActive: "#22675E",
@@ -29,7 +34,8 @@ export const COLORS = {
   warn: "#D48806",
   // Warn as text: the fill colour is too light to read on white.
   warnInk: "#A36100",
-  neutralFill: "#EEF2F1",
+  neutralFill: "#EFF1F3",
+  track: "#E8EBEE",
 };
 
 // Icons (iconoir-react, set once in main.jsx): 1em square so they size with
@@ -46,10 +52,11 @@ export const iconoirDefaults = {
   "data-icon": "",
 };
 
-// Categorical order for charts: teal first, then hues that sit calmly next
-// to it (no antd rainbow). Neutral grey is reserved for "other/cash".
+// Categorical order for charts: a slate first, then calm hues (no antd
+// rainbow, and no teal — that is the savings colour). Neutral grey is
+// reserved for "other/cash".
 export const CHART_PALETTE = [
-  "#2B7F74",
+  "#3D4550",
   "#4C6FA8",
   "#C08A2B",
   "#8E5A8C",
@@ -59,34 +66,36 @@ export const CHART_PALETTE = [
   "#6E7C99",
 ];
 
-export const CHART_NEUTRAL = "#A7B2AE";
+export const CHART_NEUTRAL = "#A9AFB6";
 
 // Holders are the one tag type that keeps colour — telling Po from Wei at a
 // glance is the point. Assigned by the holder's position in the settings list
 // so two holders never collide.
+// Teal goes last so it rarely shows outside the savings visuals.
 export const HOLDER_TONES = [
-  { color: "#1E5E56", background: "#E4F1EE" },
   { color: "#34507F", background: "#E6ECF5" },
   { color: "#7A5510", background: "#F6EEDC" },
   { color: "#6A3F68", background: "#F1E8F0" },
   { color: "#48633C", background: "#EAF1E5" },
+  { color: "#1E5E56", background: "#E4F1EE" },
 ];
 
 export const antdTheme = {
   token: {
-    colorPrimary: COLORS.teal,
-    colorPrimaryHover: COLORS.tealHover,
-    colorPrimaryActive: COLORS.tealActive,
-    colorInfo: COLORS.teal,
-    colorLink: COLORS.teal,
-    colorLinkHover: COLORS.tealHover,
+    colorPrimary: COLORS.action,
+    colorPrimaryHover: COLORS.actionHover,
+    colorPrimaryActive: COLORS.actionActive,
+    colorInfo: COLORS.action,
+    colorLink: COLORS.action,
+    colorLinkHover: COLORS.actionHover,
+    colorLinkActive: COLORS.actionActive,
     colorSuccess: COLORS.up,
     colorError: COLORS.down,
     colorWarning: COLORS.warn,
     // Status surfaces set explicitly: antd's derivation from these darker
     // brand colours produced muddy alert backgrounds.
-    colorInfoBg: COLORS.tealSoft,
-    colorInfoBorder: "#C5E0DA",
+    colorInfoBg: COLORS.neutralFill,
+    colorInfoBorder: COLORS.line,
     colorSuccessBg: "#EEF6EA",
     colorSuccessBorder: "#C9E0BD",
     colorWarningBg: "#FDF6E7",
@@ -106,8 +115,8 @@ export const antdTheme = {
     fontSize: 14,
     fontFamily:
       "'PingFang TC', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    boxShadow: "0 8px 24px rgba(27, 43, 41, 0.14)",
-    boxShadowSecondary: "0 8px 24px rgba(27, 43, 41, 0.14)",
+    boxShadow: "0 8px 24px rgba(28, 31, 35, 0.14)",
+    boxShadowSecondary: "0 8px 24px rgba(28, 31, 35, 0.14)",
   },
   components: {
     // Flat controls: only floating things (FAB, tab bar, overlays) cast shadows.
@@ -121,14 +130,14 @@ export const antdTheme = {
       headerBg: "transparent",
     },
     Table: {
-      headerBg: "#F7F9F8",
+      headerBg: COLORS.paper,
       headerColor: COLORS.muted,
       headerSplitColor: "transparent",
-      rowHoverBg: "#F7F9F8",
+      rowHoverBg: COLORS.paper,
       borderColor: COLORS.line,
     },
     Segmented: {
-      trackBg: "#E9EEEC",
+      trackBg: COLORS.track,
       itemSelectedBg: COLORS.surface,
       itemColor: COLORS.muted,
       itemSelectedColor: COLORS.ink,
@@ -143,8 +152,8 @@ export const antdTheme = {
       defaultColor: COLORS.muted,
     },
     Progress: {
-      remainingColor: "#E9EEEC",
-      defaultColor: COLORS.tealBright,
+      remainingColor: COLORS.track,
+      defaultColor: COLORS.action,
     },
     Alert: {
       withDescriptionPadding: "12px 16px",

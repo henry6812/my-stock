@@ -7,7 +7,7 @@ import { COLORS } from "../theme/tokens";
 export const BUDGET_WARN_RATIO = 0.8;
 
 export const BUDGET_LEVEL_COLORS = {
-  ok: COLORS.tealBright,
+  ok: COLORS.muted,
   warn: "#E8A93B",
   over: COLORS.down,
 };

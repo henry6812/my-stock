@@ -125,16 +125,16 @@
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  background: var(--c-teal-soft);
+  background: var(--c-track);
 }
 
 /* The thumb that slides between tabs carries the same fill. */
 .mobile-main-tabbar .ant-segmented-thumb {
-  background: var(--c-teal-soft);
+  background: var(--c-track);
 }
 
 .mobile-main-tabbar .ant-segmented-item-selected {
-  color: var(--c-teal-ink);
+  color: var(--c-ink);
 }
 
 .expense-fab.ant-btn {
@@ -156,7 +156,7 @@
 
 .expense-fab.ant-btn:hover,
 .expense-fab.ant-btn:focus-visible {
-  box-shadow: 0 10px 28px rgba(27, 43, 41, 0.2);
+  box-shadow: 0 10px 28px rgba(28, 31, 35, 0.2);
 }
 
 .expense-fab--desktop.ant-btn {
@@ -492,7 +492,7 @@ button.asset-hero-jar {
   background: none;
   padding: 4px 6px;
   font-size: var(--fs-caption);
-  color: var(--c-teal);
+  color: var(--c-ink);
   cursor: pointer;
 }
 
@@ -1030,7 +1030,7 @@ button.expense-card-chip {
   height: 28px;
   padding: 0;
   border: none;
-  color: var(--c-teal);
+  color: var(--c-ink);
   background: transparent;
 }
 
@@ -1043,8 +1043,8 @@ button.expense-card-chip {
 
 .title-add-btn.ant-btn:hover,
 .title-add-btn.ant-btn:focus-visible {
-  color: var(--c-teal);
-  background: var(--c-teal-soft);
+  color: var(--c-ink);
+  background: var(--c-neutral-fill);
 }
 
 .holdings-card .ant-card-head {
@@ -1613,8 +1613,8 @@ button.expense-card-chip {
 
 .row-action.ant-btn:not(:disabled):hover,
 .row-action.ant-btn:not(:disabled):focus-visible {
-  color: var(--c-teal);
-  background: var(--c-teal-soft);
+  color: var(--c-ink);
+  background: var(--c-neutral-fill);
 }
 
 .row-action--danger.ant-btn:not(:disabled):hover,
@@ -1644,8 +1644,8 @@ button.expense-card-chip {
 }
 
 .expense-quick-chips .ant-tag-checkable-checked {
-  border-color: var(--c-teal);
-  background: var(--c-teal);
+  border-color: var(--c-action);
+  background: var(--c-action);
   color: #fff;
 }
 
@@ -1729,7 +1729,7 @@ button.expense-card-chip {
 
 .quick-expense-name:focus {
   outline: none;
-  border-color: var(--c-teal);
+  border-color: var(--c-action);
 }
 
 .quick-expense-scroll {
@@ -1770,8 +1770,8 @@ button.expense-card-chip {
 }
 
 .quick-expense-chip.is-active {
-  border-color: var(--c-teal);
-  background: var(--c-teal);
+  border-color: var(--c-action);
+  background: var(--c-action);
   color: #fff;
 }
 
@@ -1796,7 +1796,7 @@ button.expense-card-chip {
 }
 
 .quick-expense .is-flashing {
-  background: var(--c-teal-soft);
+  background: var(--c-track);
 }
 
 .quick-expense-keypad {
@@ -1825,13 +1825,13 @@ button.expense-card-chip {
 }
 
 .quick-expense-key--save {
-  background: var(--c-teal);
+  background: var(--c-action);
   color: #fff;
   font-weight: 600;
 }
 
 .quick-expense-key--save:active {
-  background: var(--c-teal-ink);
+  background: var(--c-action-active);
 }
 
 .quick-expense-key--save[aria-disabled="true"] {
@@ -1842,7 +1842,7 @@ button.expense-card-chip {
    and fade the rest of the keypad so it reads as locked. */
 .quick-expense-key--save.is-loading,
 .quick-expense-key--save.is-loading:active {
-  background: var(--c-teal);
+  background: var(--c-action);
   cursor: progress;
 }
 
@@ -1855,7 +1855,7 @@ button.expense-card-chip {
   border: none;
   background: none;
   padding: 4px 0;
-  color: var(--c-teal);
+  color: var(--c-ink);
   font-size: var(--fs-body);
   cursor: pointer;
 }
@@ -1969,7 +1969,7 @@ button.expense-card-chip {
 
 .recurring-overview-next {
   font-size: var(--fs-caption);
-  color: var(--c-teal-ink);
+  color: var(--c-ink);
 }
 
 .recurring-overview-next.is-today {
@@ -2010,7 +2010,7 @@ button.expense-card-chip {
   min-height: 32px;
   padding-inline: 12px;
   border-radius: var(--radius-pill);
-  color: var(--c-teal-ink);
+  color: var(--c-ink);
   font-size: var(--fs-caption);
 }
 
@@ -2050,8 +2050,8 @@ button.expense-card-chip {
 }
 
 .expense-recurring-tag.ant-tag {
-  color: var(--c-teal-ink);
-  background: var(--c-teal-soft);
+  color: var(--c-muted);
+  background: var(--c-neutral-fill);
 }
 
 .expense-row--upcoming > td {
@@ -2206,7 +2206,7 @@ button.expense-card-chip {
   border: 0;
   padding: 0;
   color: #fff;
-  background: var(--c-teal);
+  background: var(--c-action);
   font-size: var(--fs-caption);
   cursor: pointer;
 }
@@ -2343,8 +2343,8 @@ button.expense-card-chip {
   width: var(--icon-tile);
   height: var(--icon-tile);
   border-radius: var(--radius-pill);
-  background: var(--c-teal-soft);
-  color: var(--c-teal-ink);
+  background: var(--c-neutral-fill);
+  color: var(--c-ink);
 }
 
 /* Icons default to --icon-sm on the svg itself, so size it there. */
@@ -2353,7 +2353,8 @@ button.expense-card-chip {
 }
 
 .category-icon--none {
-  background: var(--c-neutral-fill);
+  background: var(--c-surface);
+  box-shadow: inset 0 0 0 1px var(--c-line);
   color: var(--c-muted);
 }
 
@@ -2392,9 +2393,9 @@ button.expense-card-chip {
 }
 
 .category-icon-option--selected {
-  border-color: var(--c-teal);
-  background: var(--c-teal-soft);
-  color: var(--c-teal-ink);
+  border-color: var(--c-action);
+  background: var(--c-neutral-fill);
+  color: var(--c-ink);
 }
 
 .category-icon-option:disabled {
@@ -2435,7 +2436,7 @@ button.expense-card-chip {
 .expense-day-row-recurring {
   flex: 0 0 auto;
   font-size: var(--fs-caption);
-  color: var(--c-teal);
+  color: var(--c-muted);
 }
 
 .expense-day-row-amount {
