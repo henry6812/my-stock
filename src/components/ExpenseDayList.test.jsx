@@ -127,8 +127,8 @@ describe('<UpcomingExpenseList />', () => {
 
   it('starts collapsed with the count and total', () => {
     renderUpcoming()
-    const toggle = screen.getByRole('button', { name: /本月預計/ })
-    expect(toggle).toHaveTextContent('本月預計 2 筆 · $19,488')
+    const toggle = screen.getByRole('button', { name: '本月預計 2 筆 · $19,488' })
+    expect(toggle).toHaveTextContent('本月預計2 筆$19,488')
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('房租')).not.toBeInTheDocument()
   })
@@ -154,6 +154,23 @@ describe('<UpcomingExpenseList />', () => {
   it('takes a label', () => {
     render(<UpcomingExpenseList rows={rows} getActions={() => []} label="本期預計" />)
     expect(screen.getByRole('button', { name: /本期預計 2 筆/ })).toBeInTheDocument()
+  })
+
+  it('stacks one tile per distinct category of the upcoming charges', () => {
+    const { container } = render(<UpcomingExpenseList rows={rows} getActions={() => []} />)
+    const stack = container.querySelector('.expense-upcoming-stack')
+    expect(stack).toHaveAttribute('aria-hidden', 'true')
+    const upcomingCategories = new Set(
+      rows.filter((row) => row.isUpcoming).map((row) => `${row.categoryName}|${row.categoryIcon}`),
+    )
+    expect(stack.querySelectorAll('.category-icon')).toHaveLength(upcomingCategories.size)
+  })
+
+  it('hides the tile stack while open', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<UpcomingExpenseList rows={rows} getActions={() => []} />)
+    await user.click(screen.getByRole('button', { name: /本月預計/ }))
+    expect(container.querySelector('.expense-upcoming-stack')).toBeNull()
   })
 })
 

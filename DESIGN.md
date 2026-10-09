@@ -24,6 +24,14 @@ colors:
   down: "#CF1322"
   warn: "#D48806"
   warn-ink: "#A36100"
+  cat-peach: "#F7E2D2"
+  cat-butter: "#F4EBC9"
+  cat-sky: "#DDE9F6"
+  cat-periwinkle: "#E1E4F6"
+  cat-lavender: "#EAE3F3"
+  cat-mint: "#E0EFD9"
+  cat-rose: "#F6DFE5"
+  cat-sand: "#EFE6DC"
 typography:
   display:
     fontFamily: "'PingFang TC', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
@@ -202,10 +210,11 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 ### Data & Identity Palettes
 不屬於 UI 色，但同樣是 token，定義在 `src/theme/tokens.js`：
 - **`CHART_PALETTE`**：圖表類別色，石板灰為第一色，其餘是沉穩的色相（藍、赭、梅、苔綠⋯），不含 teal；`CHART_NEUTRAL` 保留給「其他 / 現金」。個股的 EPS / 本益比圖用 `action`。預算條平時為 `muted`，接近上限 `warn`、超支 `down`。
+- **`CATEGORY_TONES`**（CSS `--c-cat-*`）：分類圖示 tile 的八個淡底色：peach、butter、sky、periwinkle、lavender、mint、rose、sand，不含 teal。依分類性質分組（外食 / 咖啡 peach；買菜 / 日用 butter；水電 / 通訊 sky；交通 / 旅遊 periwinkle；房屋 / 學習 / 保險 lavender；運動 / 健康 mint；衣服 / 禮物 / 寶寶 rose；娛樂 sand；其他維持 `neutral-fill`），對應寫在 `App.css` 的 `.category-icon[data-category-icon]`。底上一律放 `ink` 圖示（≥12:1）。純粹讓分類一眼可分，不帶狀態語意。
 - **`HOLDER_TONES`**：holder tag 的五組字色 + 底色，依 holder 在設定中的順序分配，保證兩人不撞色；teal 那組排在最後，避免 teal 出現在存錢視覺以外。holder tag 是唯一保留彩色的 tag，因為一眼分出是誰的資產就是它的用途。
 
 ### Named Rules
-**The Saved-Money Color Rule.** Teal 只代表「存下來的錢」。可操作的強調用炭黑 `action` 或字重，不要用 teal，也不要引入新色相。
+**The Saved-Money Color Rule.** Teal 只代表「存下來的錢」。可操作的強調用炭黑 `action` 或字重，不要用 teal，也不要引入新色相（唯一的例外是下面的分類底色）。
 
 **The Semantic-Only Rule.** `up` / `down` / `warn` 只表達財務或動作的語意（漲跌、超支、危險），不當裝飾色使用。
 
@@ -251,9 +260,10 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 ### Shadow Vocabulary
 - **Float**（`box-shadow: 0 8px 24px rgba(27, 43, 41, 0.14)`）：浮在內容之上的東西：FAB、底部 tab bar、dropdown / modal 等 overlay。
 - **Float hover**（`box-shadow: 0 10px 28px rgba(27, 43, 41, 0.2)`）：只用於 FAB 的 hover / focus。
+- **Card**（`--shadow-card`：`0 4px 20px rgba(28, 31, 35, 0.07)`）：只用於支出頁的「本月預計」卡（見 Upcoming Card），無邊框、`--radius-sheet` 圓角。
 
 ### Named Rules
-**The Only-Floating-Things-Cast-Shadows Rule.** 按鈕、卡片、列表、輸入框在任何狀態下都沒有陰影（antd 的 button shadow 已在 theme 關掉）。會有陰影的只有真的浮在內容上方的元件。
+**The Only-Floating-Things-Cast-Shadows Rule.** 按鈕、卡片、列表、輸入框在任何狀態下都沒有陰影（antd 的 button shadow 已在 theme 關掉）。會有陰影的只有真的浮在內容上方的元件；唯一例外是「本月預計」卡的 Card 陰影。
 
 ## Shapes
 
@@ -297,7 +307,7 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 - **尺寸：** 三個尺寸 token 定義在 `src/index.css`（`--icon-sm` / `--icon-md` / `--icon-tile`）與 `tokens.js` 的 `ICON_SIZES`。預設 `--icon-sm`（16px，行內、按鈕、chevron、左滑動作）；tab bar、FAB、分類圖示用 `--icon-md`（20px）；分類圖示的圓底為 `--icon-tile`（36px）。CSS 對 svg 本身設 `font-size` 調整（預設值寫在 svg 上，只設父層不會生效），不另開尺寸。
 - **線寬：** 一律 1.5，不依位置加粗或變細。
 - **顏色：** 繼承文字色（`currentColor`），只用色彩 token；一般為 `muted`，可點的強調為 `ink`，左滑動作與 primary 按鈕上為白色。
-- **分類圖示（Category Icon）：** 支出列左側 36px（`--icon-tile`）圓形 tile，`neutral-fill` 底 + `ink` 圖示；沒有分類時為白底、1px `line` 內框 + `muted`。分類可在表單裡自選 18 個圖示之一（存在分類的 `icon` 欄位）；沒選時依名稱的關鍵字自動對應（`src/utils/categoryIcons.js`），對不到用通用的 `Label`。支出列、定期支出列與設定頁的類別列表都顯示這個 tile。純裝飾：分類名稱仍寫在列上。
+- **分類圖示（Category Icon）：** 支出列左側 36px（`--icon-tile`）圓形 tile，依分類用 `CATEGORY_TONES` 的淡底色（「其他」為 `neutral-fill`）+ `ink` 圖示；沒有分類時為白底、1px `line` 內框 + `muted`。分類可在表單裡自選 18 個圖示之一（存在分類的 `icon` 欄位）；沒選時依名稱的關鍵字自動對應（`src/utils/categoryIcons.js`），對不到用通用的 `Label`。支出列、定期支出列與設定頁的類別列表都顯示這個 tile。純裝飾：分類名稱仍寫在列上。
 - **圖示選擇器（Category Icon Picker）：** 分類表單中 6 欄的 44px 圓形按鈕（`aria-pressed`），平時白底 `line` 邊 + `muted` 圖示，選中為 `neutral-fill` 底、`action` 邊、`ink` 圖示。沒自選時標示依名稱對應的那個，下方以 `muted` 12px 註明「依名稱自動選擇」；自選後換成「改回依名稱自動選擇」連結。
 - **狀態圖示：** 狀態不只靠顏色表達。預算「接近上限」在金額前加 `WarningCircle`、「超支」加 `WarningTriangle`（跟著 `warn` / `down` 色，`BudgetRemaining`）；header 同步狀態依狀態換圖示：正常 `CloudCheck`、連線中 `CloudSync`、離線 `WifiOff`、失敗 `CloudXmark`。支出列的「固定」tag 帶 `Repeat`、「預計」tag 帶 `Clock`。
 - **動作圖示：** 同一個動作全 App 用同一個圖示：重新抓取（更新價格、重試、PWA 立即更新）是 `Refresh`，匯出是 `Download`，新增是 `Plus`。同一列並排的按鈕要嘛都有圖示、要嘛都沒有。
@@ -306,6 +316,9 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 - **下拉重新整理：** 指示器是 `ArrowDown` + 文字；拉過門檻時箭頭 180ms 轉向朝上，放開後換成 `LoadingOutlined`。拉動時整頁內容以 `transform: translateY` 往下滑（不改高度，避免每一幀重新排版），指示器固定在內容頂端的裁切槽裡、底邊跟著頁面頂端走；tab bar 與 FAB 不在滑動層內，以免 `transform` 改變它們的 fixed 定位。`prefers-reduced-motion` 下不轉場。
 - **無障礙：** 單獨傳達意義的圖示（例如名稱前的「定期支出」標記）加 `aria-hidden={false} role="img" aria-label`；純圖示按鈕把 `aria-label` 放在按鈕上。
 - **例外：** antd 元件內建的圖示（DatePicker、Select 箭頭、Modal ×）沿用 antd；載入中的轉圈仍用 antd `LoadingOutlined`。我們自己的 code 不再從 `@ant-design/icons` import 其他圖示。
+
+### Upcoming Card（本月預計）
+支出列表標題下的「本月預計」（`UpcomingExpenseList`，預算明細裡是「本期預計」）是一張無邊框、`--radius-sheet` 圓角、帶 Card 陰影的白卡，整個卡頭就是展開按鈕：左側 `--icon-tile` 的 `Clock`（無框、白底）→ 標題（16px `ink`）+ 筆數（14px `muted`）→ 下方一排重疊的 Category Icon（每個不同類別一個，最多 6 個，多的用 `+N` tile；相鄰 tile 重疊 `--space-2`，各帶 2px `surface` 外圈區隔；裝飾性、`aria-hidden`；只在收合時顯示，展開後由支出列取代）；右側合計（16px 粗體）+ 摺疊 chevron。展開後的支出列在卡頭下方，以 1px `line` 分隔，維持淡化（未發生）。
 
 ### Analysis List
 支出頁的「支出分析」與資產頁的「資產分析」用同一個框線列表（`.analysis-*`）：每列一種分析，左側 `--icon-md` `muted` 類型圖示 + 名稱 + 一句重點 + chevron（走勢 `GraphUp`、分配 `PercentageCircle`、台股 / 美股 `Globe`、家庭 / 個人 `HomeUser`、支出人 `Group`、家庭開銷平衡 `CoinsSwap`、類別 `Label`），點開在 modal 顯示完整圖表；頁面上不放縮圖卡片。重點句不能和頁面上其他數字打架（例如走勢的區間起點不是昨收，就不寫一個和 hero「今日」不同的漲跌金額）。分配類圖表在 modal 裡是甜甜圈 + 附金額與占比的列表，不用彩色字當圓餅標籤。

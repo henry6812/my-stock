@@ -37,6 +37,19 @@ export const COLORS = {
   track: "#E8EBEE",
 };
 
+// Category tile tints (CategoryIcon), mirrored as --c-cat-* in index.css and
+// mapped per icon key in App.css. Soft pastels behind ink icons; no teal.
+export const CATEGORY_TONES = {
+  peach: "#F7E2D2",
+  butter: "#F4EBC9",
+  sky: "#DDE9F6",
+  periwinkle: "#E1E4F6",
+  lavender: "#EAE3F3",
+  mint: "#E0EFD9",
+  rose: "#F6DFE5",
+  sand: "#EFE6DC",
+};
+
 // Icons (iconoir-react, set once in main.jsx): 1em square so they size with
 // the surrounding font-size like antd icons did — set font-size to
 // --icon-sm / --icon-md in CSS. Decorative by default; an icon that carries

@@ -2218,17 +2218,103 @@ button.expense-card-chip {
   opacity: 0.55;
 }
 
-/* 本月預計 sits right under the 支出列表 title, with a taller, easy to tap
-   toggle. */
+/* 本月預計 sits right under the 支出列表 title as a raised card (shadow,
+   no frame) like a category budget: clock tile, label + count with the category tiles stacked below,
+   total and fold chevron on the right. The whole head is the toggle. */
 .expense-day-list.expense-upcoming-group {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-card);
 }
 
-.expense-upcoming-group .expense-upcoming-toggle {
-  min-height: 48px;
-  padding: var(--space-3) var(--space-row-x);
-  font-size: var(--fs-body);
+.expense-upcoming-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-row-y) var(--space-row-x);
+  border: 0;
+  background: transparent;
   color: var(--c-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.expense-upcoming-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-tile);
+  height: var(--icon-tile);
+  border-radius: var(--radius-pill);
+}
+
+.expense-upcoming-icon svg[data-icon] {
+  font-size: var(--icon-md);
+}
+
+.expense-upcoming-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.expense-upcoming-title {
+  font-size: var(--fs-subhead);
+  line-height: 1.4;
+}
+
+.expense-upcoming-count {
+  font-size: var(--fs-body);
+  color: var(--c-muted);
+}
+
+/* Category tiles overlap, each ringed in the card's surface. */
+.expense-upcoming-stack {
+  display: flex;
+  margin-top: var(--space-3);
+}
+
+.expense-upcoming-stack .category-icon {
+  box-shadow: 0 0 0 2px var(--c-surface);
+}
+
+.expense-upcoming-stack .category-icon + .category-icon {
+  margin-left: calc(var(--space-2) * -1);
+}
+
+.expense-upcoming-stack .category-icon--none {
+  box-shadow:
+    inset 0 0 0 1px var(--c-line),
+    0 0 0 2px var(--c-surface);
+}
+
+.expense-upcoming-more {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.expense-upcoming-end {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: calc(var(--fs-subhead) * 1.4);
+}
+
+.expense-upcoming-total {
+  font-size: var(--fs-subhead);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.expense-upcoming-rows {
+  border-top: 1px solid var(--c-line);
 }
 
 .expense-recurring-edit-alert {
@@ -2524,6 +2610,48 @@ button.expense-card-chip {
   color: var(--c-ink);
 }
 
+/* Each category family has its own soft tint; 其他 stays neutral-fill. */
+.category-icon[data-category-icon="dining"],
+.category-icon[data-category-icon="coffee"] {
+  background: var(--c-cat-peach);
+}
+
+.category-icon[data-category-icon="groceries"],
+.category-icon[data-category-icon="household"] {
+  background: var(--c-cat-butter);
+}
+
+.category-icon[data-category-icon="utilities"],
+.category-icon[data-category-icon="phone"] {
+  background: var(--c-cat-sky);
+}
+
+.category-icon[data-category-icon="transport"],
+.category-icon[data-category-icon="travel"] {
+  background: var(--c-cat-periwinkle);
+}
+
+.category-icon[data-category-icon="housing"],
+.category-icon[data-category-icon="learning"],
+.category-icon[data-category-icon="insurance"] {
+  background: var(--c-cat-lavender);
+}
+
+.category-icon[data-category-icon="fitness"],
+.category-icon[data-category-icon="health"] {
+  background: var(--c-cat-mint);
+}
+
+.category-icon[data-category-icon="clothing"],
+.category-icon[data-category-icon="gift"],
+.category-icon[data-category-icon="baby"] {
+  background: var(--c-cat-rose);
+}
+
+.category-icon[data-category-icon="entertainment"] {
+  background: var(--c-cat-sand);
+}
+
 /* Icons default to --icon-sm on the svg itself, so size it there. */
 .category-icon svg[data-icon] {
   font-size: var(--icon-md);
@@ -2620,10 +2748,6 @@ button.expense-card-chip {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-.expense-upcoming-toggle {
-  cursor: pointer;
 }
 
 .expense-upcoming-group .expense-day-row {
