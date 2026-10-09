@@ -1,4 +1,5 @@
 import { parseNumericLike } from '../../utils/number'
+import { normalizeCategoryIcon } from '../../utils/categoryIcons'
 
 const toIso = (value) => {
   if (!value) return null
@@ -142,6 +143,7 @@ export const expenseEntryToRemote = (entry) => ({
 export const expenseCategoryToRemote = (category) => ({
   remoteKey: category.remoteKey || null,
   name: category.name,
+  icon: normalizeCategoryIcon(category.icon),
   isQuickPick: Boolean(category.isQuickPick),
   createdAt: category.createdAt ?? null,
   updatedAt: category.updatedAt,
@@ -337,6 +339,7 @@ export const remoteToExpenseEntry = (data) => ({
 export const remoteToExpenseCategory = (data) => ({
   remoteKey: data.remoteKey ?? null,
   name: data.name,
+  icon: normalizeCategoryIcon(data.icon),
   isQuickPick: Boolean(data.isQuickPick),
   createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,

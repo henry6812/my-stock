@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { getCategoryIconKey } from './categoryIcons'
+import {
+  CATEGORY_ICON_OPTIONS,
+  getCategoryIconKey,
+  normalizeCategoryIcon,
+  resolveCategoryIconKey,
+} from './categoryIcons'
 
 describe('getCategoryIconKey', () => {
   it.each([
@@ -27,5 +32,33 @@ describe('getCategoryIconKey', () => {
     expect(getCategoryIconKey('')).toBe('none')
     expect(getCategoryIconKey(null)).toBe('none')
     expect(getCategoryIconKey('未指定')).toBe('none')
+  })
+})
+
+describe('normalizeCategoryIcon', () => {
+  it('keeps pickable keys only', () => {
+    expect(normalizeCategoryIcon('coffee')).toBe('coffee')
+    expect(normalizeCategoryIcon('none')).toBeNull()
+    expect(normalizeCategoryIcon('rocket')).toBeNull()
+    expect(normalizeCategoryIcon(undefined)).toBeNull()
+  })
+
+  it('offers 18 icons', () => {
+    expect(CATEGORY_ICON_OPTIONS).toHaveLength(18)
+  })
+})
+
+describe('resolveCategoryIconKey', () => {
+  it('prefers the stored icon', () => {
+    expect(resolveCategoryIconKey({ name: '外食', icon: 'coffee' })).toBe('coffee')
+  })
+
+  it('falls back to the name when no valid icon is stored', () => {
+    expect(resolveCategoryIconKey({ name: '外食', icon: null })).toBe('dining')
+    expect(resolveCategoryIconKey({ name: '外食', icon: 'rocket' })).toBe('dining')
+  })
+
+  it('shows no-category rows as none even with an icon', () => {
+    expect(resolveCategoryIconKey({ name: '未指定', icon: 'coffee' })).toBe('none')
   })
 })

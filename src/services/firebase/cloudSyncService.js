@@ -680,6 +680,7 @@ const applyRemoteExpenseCategory = async (remote) => {
     const id = await db.expense_categories.add({
       remoteKey: remote.remoteKey,
       name: remote.name,
+      icon: remote.icon ?? null,
       isQuickPick: Boolean(remote.isQuickPick),
       createdAt: remote.createdAt || nowIso,
       updatedAt: remote.updatedAt || nowIso,
@@ -692,6 +693,7 @@ const applyRemoteExpenseCategory = async (remote) => {
   if (!isRemoteNewer(local.updatedAt, remote.updatedAt)) return
   await db.expense_categories.update(local.id, {
     name: remote.name,
+    icon: remote.icon ?? null,
     isQuickPick: Boolean(remote.isQuickPick),
     createdAt: remote.createdAt || local.createdAt,
     updatedAt: remote.updatedAt || local.updatedAt,

@@ -53,6 +53,7 @@ import {
 } from "../utils/recurrence";
 import { listBudgetCycleExpenses } from "../utils/budgetView";
 import { buildMonthlySummaries } from "../utils/monthlySummaries";
+import { normalizeCategoryIcon } from "../utils/categoryIcons";
 import {
   HOLDING_SHARES_MODE,
   normalizeHoldingSymbol,
@@ -2816,12 +2817,14 @@ const buildSpecialBudgetStats = ({ budget, entries, today }) => {
   };
 };
 
-export const upsertExpenseCategory = async ({ id, name }) => {
+// icon: one of CATEGORY_ICON_OPTIONS, or null to pick it from the name.
+export const upsertExpenseCategory = async ({ id, name, icon = null }) => {
   ensureCloudWritable();
   const normalizedName = String(name || "").trim();
   if (!normalizedName) {
     throw new Error("Category name is required");
   }
+  const normalizedIcon = normalizeCategoryIcon(icon);
 
   const nowIso = getNowIso();
   const parsedId = Number(id);
@@ -2833,6 +2836,7 @@ export const upsertExpenseCategory = async ({ id, name }) => {
     await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, {
       ...existing,
       name: normalizedName,
+      icon: normalizedIcon,
       updatedAt: nowIso,
       syncState: SYNC_PENDING,
     });
@@ -2843,6 +2847,7 @@ export const upsertExpenseCategory = async ({ id, name }) => {
   await mirrorToCloud(CLOUD_COLLECTION.EXPENSE_CATEGORIES, {
     remoteKey,
     name: normalizedName,
+    icon: normalizedIcon,
     createdAt: nowIso,
     updatedAt: nowIso,
     deletedAt: null,
@@ -3454,6 +3459,7 @@ export const getExpenseDashboardView = async (input = {}) => {
   }));
 
   const categoryMap = new Map(categories.map((item) => [item.id, item.name]));
+  const categoryIconMap = new Map(categories.map((item) => [item.id, item.icon ?? null]));
   const budgetMap = new Map(budgets.map((item) => [item.id, item.name]));
   const decorateExpenseRow = (row) => ({
     ...row,
@@ -3465,6 +3471,7 @@ export const getExpenseDashboardView = async (input = {}) => {
     categoryName: row.categoryId
       ? categoryMap.get(row.categoryId) || "未指定"
       : "未指定",
+    categoryIcon: row.categoryId ? (categoryIconMap.get(row.categoryId) ?? null) : null,
     budgetName: row.budgetId
       ? budgetMap.get(row.budgetId) || "未指定"
       : "未指定",
@@ -3756,6 +3763,7 @@ export const getExpenseDashboardView = async (input = {}) => {
       .map((item) => ({
         id: item.id,
         name: item.name,
+        icon: item.icon ?? null,
         isQuickPick: Boolean(item.isQuickPick),
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,

@@ -5,6 +5,8 @@ import {
   remoteToExpenseTemplate,
   appConfigToRemote,
   remoteToAppConfig,
+  expenseCategoryToRemote,
+  remoteToExpenseCategory,
 } from './firestoreMappers'
 
 const template = {
@@ -104,5 +106,29 @@ describe('valuation settings in app_config', () => {
   it('omits valuation for other config docs', () => {
     expect(appConfigToRemote({ key: 'income_settings', updatedAt: 'x' })).not.toHaveProperty('valuation')
     expect(remoteToAppConfig({ key: 'income_settings' }).valuation).toBeUndefined()
+  })
+})
+
+describe('expense category icon', () => {
+  const category = {
+    remoteKey: 'category_a',
+    name: '外食',
+    icon: 'coffee',
+    isQuickPick: true,
+    createdAt: '2026-10-01T00:00:00.000Z',
+    updatedAt: '2026-10-02T00:00:00.000Z',
+    deletedAt: null,
+  }
+
+  it('round-trips a picked icon', () => {
+    const remote = expenseCategoryToRemote(category)
+    expect(remote.icon).toBe('coffee')
+    expect(remoteToExpenseCategory(remote).icon).toBe('coffee')
+  })
+
+  it('stores null for no icon or an unknown one', () => {
+    expect(expenseCategoryToRemote({ ...category, icon: undefined }).icon).toBeNull()
+    expect(remoteToExpenseCategory({ ...category, icon: 'rocket' }).icon).toBeNull()
+    expect(remoteToExpenseCategory({ name: '舊分類' }).icon).toBeNull()
   })
 })

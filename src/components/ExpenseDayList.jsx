@@ -30,7 +30,7 @@ function ExpenseRow({ row, actions, disabled }) {
   return (
     <SwipeActions actions={actions} disabled={disabled}>
       <div className="mobile-swipe-row expense-day-row">
-        <CategoryIcon name={row.categoryName} />
+        <CategoryIcon name={row.categoryName} icon={row.categoryIcon} />
         <div className="mobile-swipe-row-main">
           <div className="holding-main-text expense-day-row-name">
             {row.isRecurringOccurrence && (

@@ -109,6 +109,8 @@ import BudgetDetailSheet from "./components/BudgetDetailSheet";
 import StockDetailSheet from "./components/StockDetailSheet";
 import { buildStockDetailHolding, isInteractiveTarget } from "./utils/stockDetail";
 import { isFromPortal } from "./utils/portalEvent";
+import CategoryIcon from "./components/CategoryIcon";
+import CategoryIconPicker from "./components/CategoryIconPicker";
 import ExpenseDayList, {
   UpcomingExpenseList,
 } from "./components/ExpenseDayList";
@@ -660,6 +662,7 @@ function App() {
   const latestTotalTwdRef = useRef(0);
   const [expenseForm] = Form.useForm();
   const [categoryForm] = Form.useForm();
+  const watchedCategoryName = Form.useWatch("name", categoryForm);
   const [budgetForm] = Form.useForm();
   const [emailLoginForm] = Form.useForm();
 
@@ -1158,6 +1161,7 @@ function App() {
       await upsertExpenseCategory({
         id: editingCategory?.id,
         name: values.name,
+        icon: values.icon ?? null,
       });
       await loadExpenseData();
       await performCloudSync();
@@ -2979,8 +2983,11 @@ function App() {
         title: "分類名稱",
         dataIndex: "name",
         key: "name",
-        render: (value) => (
-          <Tag bordered={false}>{value}</Tag>
+        render: (value, record) => (
+          <span className="category-list-name">
+            <CategoryIcon name={value} icon={record.icon} />
+            <span>{value}</span>
+          </span>
         ),
       },
       {
@@ -3362,7 +3369,12 @@ function App() {
                 }),
               ),
             ]}
-            main={<span className="holding-main-text">{record.name}</span>}
+            main={
+              <span className="category-list-name">
+                <CategoryIcon name={record.name} icon={record.icon} />
+                <span className="holding-main-text">{record.name}</span>
+              </span>
+            }
             side={
               <span className="mobile-inline-field">
                 <Text type="secondary" className="mobile-inline-label">
@@ -3866,6 +3878,7 @@ function App() {
     }
     categoryForm.setFieldsValue({
       name: editingCategory?.name ?? "",
+      icon: editingCategory?.icon ?? null,
     });
   }, [categoryForm, editingCategory, isCategoryModalOpen, isCategorySheetOpen]);
 
@@ -4657,6 +4670,9 @@ function App() {
         rules={[{ required: true, message: "請輸入分類名稱" }]}
       >
         <Input />
+      </Form.Item>
+      <Form.Item label="圖示" name="icon">
+        <CategoryIconPicker name={watchedCategoryName} />
       </Form.Item>
     </Form>
   );

@@ -290,10 +290,11 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 
 ### Icons
 圖示庫是 **`iconoir-react`**（線條、24 格線、圓角線頭），在 `main.jsx` 用 `IconoirProvider` 統一設定：1em 見方、線寬 1.5、預設 `aria-hidden`。
-- **尺寸：** 預設 `--icon-sm`（16px，行內、按鈕、chevron、左滑動作）；tab bar、FAB、分類圖示用 `--icon-md`（20px）。CSS 對 svg 設 `font-size` 調整，不另開尺寸。
+- **尺寸：** 預設 `--icon-sm`（16px，行內、按鈕、chevron、左滑動作）；tab bar、FAB、分類圖示用 `--icon-md`（20px）。CSS 對 svg 本身設 `font-size` 調整（預設值寫在 svg 上，只設父層不會生效），不另開尺寸。
 - **線寬：** 一律 1.5，不依位置加粗或變細。
 - **顏色：** 繼承文字色（`currentColor`），只用色彩 token；一般為 `muted`，可點的強調為 `teal`，左滑動作與 primary 按鈕上為白色。
-- **分類圖示（Category Icon）：** 支出列左側 36px（`--icon-tile`）圓形 tile，`teal-soft` 底 + `teal-ink` 圖示；沒有分類時為 `neutral-fill` 底 + `muted`。圖示依分類名稱的關鍵字自動對應（`src/utils/categoryIcons.js`），對不到時用通用的 `Label`。純裝飾：分類名稱仍寫在次行。
+- **分類圖示（Category Icon）：** 支出列左側 36px（`--icon-tile`）圓形 tile，`teal-soft` 底 + `teal-ink` 圖示；沒有分類時為 `neutral-fill` 底 + `muted`。分類可在表單裡自選 18 個圖示之一（存在分類的 `icon` 欄位）；沒選時依名稱的關鍵字自動對應（`src/utils/categoryIcons.js`），對不到用通用的 `Label`。支出列與設定頁的類別列表都顯示這個 tile。純裝飾：分類名稱仍寫在列上。
+- **圖示選擇器（Category Icon Picker）：** 分類表單中 6 欄的 44px 圓形按鈕（`aria-pressed`），平時白底 `line` 邊 + `muted` 圖示，選中為 `teal-soft` 底、`teal` 邊、`teal-ink` 圖示。沒自選時標示依名稱對應的那個，下方以 `muted` 12px 註明「依名稱自動選擇」；自選後換成「改回依名稱自動選擇」連結。
 - **無障礙：** 單獨傳達意義的圖示（例如名稱前的「定期支出」標記）加 `aria-hidden={false} role="img" aria-label`；純圖示按鈕把 `aria-label` 放在按鈕上。
 - **例外：** antd 元件內建的圖示（DatePicker、Select 箭頭、Modal ×）沿用 antd；載入中的轉圈仍用 antd `LoadingOutlined`。我們自己的 code 不再從 `@ant-design/icons` import 其他圖示。
 
