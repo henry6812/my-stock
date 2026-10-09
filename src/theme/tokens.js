@@ -10,7 +10,7 @@ export const COLORS = {
   // Tertiary: ≥3:1 on paper / surface, so only for large text (the hero
   // currency sign) and non-text marks. Small text that must be read uses muted.
   subtle: "#868C93",
-  paper: "#F5F6F7",
+  paper: "#FAFAFB",
   surface: "#FFFFFF",
   line: "#E3E5E8",
   lineStrong: "#CDD1D6",

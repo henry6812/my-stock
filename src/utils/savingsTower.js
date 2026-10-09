@@ -3,9 +3,6 @@
 // recurring first, then one-time. Whatever is left is what was saved.
 
 export const TOWER_ROWS = 10;
-// The overspend pit below the ground line never grows past this fraction of
-// the tower's height, however large the overspend.
-export const OVERSPEND_DEPTH_CAP = 0.12;
 
 const EPS = 1e-9;
 
@@ -39,7 +36,6 @@ export const getTowerLayout = ({
       savedTwd: 0,
       savedRatio: 0,
       overspendTwd: 0,
-      overspendDepthRatio: 0,
     };
   }
 
@@ -72,16 +68,7 @@ export const getTowerLayout = ({
     savedTwd,
     savedRatio: savedTwd / income,
     overspendTwd,
-    overspendDepthRatio: Math.min(OVERSPEND_DEPTH_CAP, overspendTwd / income),
   };
-};
-
-export const getRowRemovedFractions = (chunks, rows) => {
-  const removed = new Array(rows).fill(0);
-  chunks.forEach((chunk) => {
-    removed[chunk.rowIndex] = round(removed[chunk.rowIndex] + chunk.take);
-  });
-  return removed;
 };
 
 export const chunkKey = (chunk) =>

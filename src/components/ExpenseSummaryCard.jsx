@@ -1,4 +1,5 @@
-// Expense-tab summary card: label → big number → pill → tower → month bars,
+// Expense-tab summary card: label → big number → one muted line → tower →
+// month bars,
 // centred. 月份 mode uses the subtractive SavingsTower; 累計 mode the
 // monthly-surplus SavingsGrowthTower. Tapping a part of either tower swaps
 // the number and pill for that part; anything else resets. The label always
@@ -80,24 +81,6 @@ const describeMonth = ({ activeMonth, monthProgress, selected, comparison }) => 
   return { label: heading(period, "總支出"), amount: spent, chip };
 };
 
-// The tower's parts as buttons under it: a legend for its tints, and the
-// keyboard / screen-reader way to pick a part (the SVG itself is hidden from
-// assistive tech). Only parts that exist this month are listed.
-const towerParts = (monthProgress) => {
-  if (!monthProgress?.hasIncome) return [];
-  const layout = getTowerLayout({
-    incomeTwd: Number(monthProgress.denominator) || 0,
-    recurringTwd: Number(monthProgress.recurringNumerator) || 0,
-    oneTimeTwd: Number(monthProgress.oneTimeNumerator) || 0,
-  });
-  if (!layout.hasIncome) return [];
-  return [
-    { kind: "saved", label: "存下", amount: layout.savedTwd },
-    { kind: "recurring", label: "定期", amount: Number(monthProgress.recurringNumerator) || 0 },
-    { kind: "oneTime", label: "單筆", amount: Number(monthProgress.oneTimeNumerator) || 0 },
-  ].filter((part) => part.amount > 0);
-};
-
 const describeCumulative = ({ summaries, growth, selected }) => {
   const picked = selected ? summaries.find((s) => s.month === selected) : null;
   if (picked) {
@@ -137,7 +120,6 @@ export default function ExpenseSummaryCard({
   mode,
   activeMonth,
   monthlySummaries = [],
-  monthOptions = [],
   monthProgress,
   playKey,
   onSelectMonth,
@@ -156,16 +138,6 @@ export default function ExpenseSummaryCard({
   const growth = useMemo(
     () => getGrowthTowerLayout(monthlySummaries),
     [monthlySummaries],
-  );
-  // Months the app can show but that have no summary yet (scheduled charges
-  // in the months ahead) — offered as empty bars so they stay reachable.
-  const lastSummaryMonth = monthlySummaries[monthlySummaries.length - 1]?.month;
-  const futureMonths = useMemo(
-    () =>
-      lastSummaryMonth
-        ? monthOptions.filter((month) => month > lastSummaryMonth)
-        : [],
-    [monthOptions, lastSummaryMonth],
   );
   const text = cumulative
     ? describeCumulative({ summaries: monthlySummaries, growth, selected })
@@ -219,16 +191,8 @@ export default function ExpenseSummaryCard({
           />
         )}
       </div>
-      {!cumulative && (
-        <TowerLegend
-          parts={towerParts(monthProgress)}
-          selected={selected}
-          onSelect={select}
-        />
-      )}
       <ExpenseMonthBars
         summaries={monthlySummaries}
-        futureMonths={futureMonths}
         mode={mode}
         activeMonth={activeMonth}
         highlightMonth={cumulative ? selected : null}
@@ -239,29 +203,3 @@ export default function ExpenseSummaryCard({
   );
 }
 
-function TowerLegend({ parts, selected, onSelect }) {
-  if (parts.length === 0) return null;
-  return (
-    <div className="expense-card-legend" role="group" aria-label="收入去向">
-      {parts.map((part) => (
-        <button
-          key={part.kind}
-          type="button"
-          className={`expense-card-legend-item${selected === part.kind ? " is-on" : ""}`}
-          aria-pressed={selected === part.kind}
-          aria-label={`${part.label} ${money(part.amount)}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onSelect(part.kind);
-          }}
-        >
-          <span
-            className={`expense-card-swatch expense-card-swatch--${part.kind}`}
-            aria-hidden="true"
-          />
-          {part.label}
-        </button>
-      ))}
-    </div>
-  );
-}

@@ -41,13 +41,21 @@ describe('SavingsGrowthTower', () => {
     expect(container.querySelector('[data-month="2026-09"]')).not.toHaveClass('is-dim')
   })
 
-  it('leaves a ghost where an overspent month chipped the tower', () => {
+  it('draws each month as its own rounded block with a gap between, no background and no ghosts', () => {
     mockMotion(true)
-    const { container } = render(
+    const { container } = render(<SavingsGrowthTower summaries={three} playKey={1} />)
+    expect(container.querySelector('.savings-tower-body')).toBeNull()
+    const rects = [...container.querySelectorAll('.growth-tower-layer rect')]
+    expect(rects).toHaveLength(3)
+    rects.forEach((rect) => expect(Number(rect.getAttribute('rx'))).toBeGreaterThan(0))
+    // Layers are listed bottom-up; the next one sits 2 units above.
+    const [aug, sep] = rects
+    expect(Number(aug.getAttribute('y')) - (Number(sep.getAttribute('y')) + Number(sep.getAttribute('height')))).toBeCloseTo(2)
+    const chipped = render(
       <SavingsGrowthTower summaries={[m('2026-08', 100, 40), m('2026-09', 100, 70), m('2026-10', 100, 150)]} playKey={1} />,
     )
-    expect(layers(container)).toEqual(['2026-08'])
-    expect(container.querySelectorAll('.growth-tower-ghost rect').length).toBeGreaterThan(0)
+    expect(layers(chipped.container)).toEqual(['2026-08'])
+    expect(chipped.container.querySelectorAll('[stroke-dasharray], .growth-tower-ghost')).toHaveLength(0)
   })
 
   it('stacks month by month, shattering overspent months, then settles', () => {
@@ -63,8 +71,9 @@ describe('SavingsGrowthTower', () => {
     })
     expect(container.querySelector('.growth-tower')).toHaveAttribute('data-phase', 'done')
     expect(layers(container)).toEqual(['2026-08'])
-    // Two removed segments × 4 pieces (jsdom never fires animationend).
-    expect(container.querySelectorAll('.growth-tower-shard')).toHaveLength(8)
+    // Removed segments of month index 1 (4 pieces) and 0 (3 pieces); jsdom
+    // never fires animationend, so they all stay in the DOM.
+    expect(container.querySelectorAll('.growth-tower-shard')).toHaveLength(7)
   })
 
   it('shows the latest data when it changes mid-animation', () => {

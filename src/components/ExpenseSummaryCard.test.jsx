@@ -147,11 +147,13 @@ describe('ExpenseSummaryCard', () => {
     expect(text(container).num).toBe('−$4,000')
   })
 
-  it('lists months after the current one as future bars', () => {
+  it('shows months after the current one as disabled bars', () => {
     const onSelectMonth = vi.fn()
-    renderCard({ monthOptions: ['2026-08', '2026-09', '2026-10', '2026-11'], onSelectMonth })
-    fireEvent.click(screen.getByRole('button', { name: '2026 年 11 月，尚未到來' }))
-    expect(onSelectMonth).toHaveBeenCalledWith('2026-11')
+    renderCard({ onSelectMonth })
+    const november = screen.getByRole('button', { name: '2026 年 11 月，沒有資料' })
+    expect(november).toBeDisabled()
+    fireEvent.click(november)
+    expect(onSelectMonth).not.toHaveBeenCalled()
   })
 
   it('sends bar taps and the 累計 pill to the app', () => {
@@ -184,30 +186,8 @@ describe('ExpenseSummaryCard', () => {
     expect(text(container).chip).not.toMatch(/比/)
   })
 
-  it('lists the tower parts as toggles that pick the part', () => {
-    const { container } = renderCard()
-    const legend = screen.getByRole('group', { name: '收入去向' })
-    const recurring = screen.getByRole('button', { name: '定期 $33,620' })
-    expect(legend).toContainElement(recurring)
-    fireEvent.click(recurring)
-    expect(text(container).label).toBe('2026 年 10 月・定期支出')
-    expect(screen.getByRole('button', { name: '定期 $33,620' })).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('leaves 存下 out of the legend when overspent, and drops the legend without income or in 累計', () => {
-    const { rerender } = renderCard({
-      monthProgress: { ...monthProgress, numerator: 200_000, recurringNumerator: 120_000, oneTimeNumerator: 80_000 },
-    })
-    expect(screen.queryByRole('button', { name: /^存下/ })).toBeNull()
-    rerender(
-      <ExpenseSummaryCard mode="month" activeMonth="2026-10" monthlySummaries={summaries}
-        monthProgress={{ ...monthProgress, hasIncome: false }} playKey={1} />,
-    )
-    expect(screen.queryByRole('group', { name: '收入去向' })).toBeNull()
-    rerender(
-      <ExpenseSummaryCard mode="cumulative" activeMonth="2026-10" monthlySummaries={summaries}
-        monthProgress={monthProgress} playKey={1} />,
-    )
+  it('has no legend under the tower', () => {
+    renderCard()
     expect(screen.queryByRole('group', { name: '收入去向' })).toBeNull()
   })
 })

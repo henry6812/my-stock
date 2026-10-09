@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
-  OVERSPEND_DEPTH_CAP,
   TOWER_ROWS,
   diffTowerChunks,
   formatTowerWan,
-  getRowRemovedFractions,
   getTowerLayout,
 } from './savingsTower'
 
+const removedTotal = (t) => t.chunks.reduce((sum, c) => sum + c.take, 0)
 const strip = (chunks) => chunks.map(({ rowIndex, offset, take, kind }) => [rowIndex, offset, take, kind])
 
 describe('getTowerLayout', () => {
@@ -26,7 +25,6 @@ describe('getTowerLayout', () => {
     expect(t.savedTwd).toBe(62_000)
     expect(t.savedRatio).toBeCloseTo(0.62)
     expect(t.overspendTwd).toBe(0)
-    expect(t.overspendDepthRatio).toBe(0)
   })
 
   it('keeps the whole tower when nothing is spent', () => {
@@ -38,20 +36,15 @@ describe('getTowerLayout', () => {
 
   it('empties the tower exactly when spending equals income', () => {
     const t = getTowerLayout({ incomeTwd: 100_000, recurringTwd: 40_000, oneTimeTwd: 60_000 })
-    const removed = getRowRemovedFractions(t.chunks, t.rows)
-    expect(removed.every((f) => f === 1)).toBe(true)
+    expect(removedTotal(t)).toBeCloseTo(t.rows, 9)
     expect(t.savedTwd).toBe(0)
     expect(t.overspendTwd).toBe(0)
   })
 
-  it('reports overspend with a capped pit depth', () => {
+  it('reports overspend and removes no more than the whole tower', () => {
     const big = getTowerLayout({ incomeTwd: 100_000, recurringTwd: 32_000, oneTimeTwd: 98_000 })
     expect(big.overspendTwd).toBe(30_000)
-    expect(big.overspendDepthRatio).toBe(OVERSPEND_DEPTH_CAP)
-    expect(getRowRemovedFractions(big.chunks, big.rows).every((f) => f === 1)).toBe(true)
-    const small = getTowerLayout({ incomeTwd: 100_000, recurringTwd: 50_000, oneTimeTwd: 55_000 })
-    expect(small.overspendTwd).toBe(5_000)
-    expect(small.overspendDepthRatio).toBeCloseTo(0.05)
+    expect(removedTotal(big)).toBeCloseTo(big.rows, 9)
   })
 
   it('has no tower without income', () => {
@@ -79,13 +72,6 @@ describe('getTowerLayout', () => {
       expect(c.take).toBeGreaterThan(0)
       expect(c.offset + c.take).toBeLessThanOrEqual(1 + 1e-9)
     })
-  })
-})
-
-describe('getRowRemovedFractions', () => {
-  it('sums the chunk takes per row', () => {
-    const t = getTowerLayout({ incomeTwd: 100_000, recurringTwd: 25_000, oneTimeTwd: 13_000 })
-    expect(getRowRemovedFractions(t.chunks, t.rows)).toEqual([0, 0, 0, 0, 0, 0, 0.8, 1, 1, 1])
   })
 })
 

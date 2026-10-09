@@ -1,9 +1,10 @@
 // Expense-tab growth tower (累計 mode): each month's surplus drops on top as
-// one layer of bricks; an overspent month chips the same amount off the top
-// and the pieces shatter. The current month is drawn dashed (not settled).
-// Layout maths lives in utils/savingsGrowthTower.js — this file draws +
-// animates.
-import { useEffect, useMemo, useRef, useState } from "react";
+// its own rounded teal block, with a small gap to its neighbours (no
+// background or outline); an overspent month knocks the same amount off the
+// top and it falls away in small pieces. The current month is pale (not
+// settled). Layout maths lives in utils/savingsGrowthTower.js — this file
+// draws + animates.
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { getGrowthTowerLayout, getStepDelay } from "../utils/savingsGrowthTower";
 import { prefersReducedMotion } from "../utils/motion";
 
@@ -11,37 +12,30 @@ const VIEW_W = 120;
 const VIEW_H = 180;
 const TOWER = { x: 22, w: 76, top: 14, base: 150 };
 const TOWER_HEIGHT = TOWER.base - TOWER.top;
-const BRICK_RX = 3;
+const BODY_RX = 14;
+const LAYER_RX = 6;
+const LAYER_GAP = 2;
+// Where each removed segment cracks: 3, 4 or 5 pieces of uneven width.
+const SHARD_CUTS = [
+  [0, 0.36, 0.68, 1],
+  [0, 0.24, 0.5, 0.77, 1],
+  [0, 0.18, 0.4, 0.62, 0.83, 1],
+];
 
-// Even months: two half bricks. Odd months: quarter / half / quarter.
-const layerBricks = (index) => {
-  const cuts =
-    index % 2 === 0
-      ? [0, TOWER.w / 2, TOWER.w]
-      : [0, TOWER.w / 4, (TOWER.w * 3) / 4, TOWER.w];
-  return cuts.slice(0, -1).map((start, i) => ({
-    x: TOWER.x + start + 1,
-    w: cuts[i + 1] - start - 2,
-  }));
-};
-
-// Four falling pieces per removed segment; deterministic spread.
+// Falling pieces per removed segment; deterministic spread.
 const makeShards = (segments, toY, firstId) => {
   let nextId = firstId;
+  const center = TOWER.x + TOWER.w / 2;
   const shards = segments.flatMap((segment) => {
+    const cuts = SHARD_CUTS[segment.index % SHARD_CUTS.length];
     const y = toY(segment.top);
     const h = Math.max(2, toY(segment.bottom) - y);
-    return [0, 1, 2, 3].map((piece) => {
-      const dx = (piece - 1.5) * 22;
-      return {
-        id: nextId++,
-        x: TOWER.x + (piece * TOWER.w) / 4 + 1,
-        y,
-        w: TOWER.w / 4 - 2,
-        h,
-        dx,
-        rot: dx * 2,
-      };
+    return cuts.slice(0, -1).map((start, piece) => {
+      const x = TOWER.x + start * TOWER.w + 0.5;
+      const w = (cuts[piece + 1] - start) * TOWER.w - 1;
+      const jitter = ((segment.index * 7 + piece * 13) % 11) - 5;
+      const dx = (x + w / 2 - center) * 0.9 + jitter;
+      return { id: nextId++, x, y, w, h, dx, rot: dx * 2 };
     });
   });
   return { shards, nextId };
@@ -62,6 +56,7 @@ export default function SavingsGrowthTower({
   onSelectMonth,
   onSetupIncome,
 }) {
+  const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const [reduced] = useState(prefersReducedMotion);
   const layout = useMemo(() => getGrowthTowerLayout(summaries ?? []), [summaries]);
   const animate = !reduced && layout.hasIncome;
@@ -123,7 +118,6 @@ export default function SavingsGrowthTower({
     ? layout.steps.length
     : Math.min(run.revealed, layout.steps.length);
   const stack = shown > 0 ? layout.steps[shown - 1].stack : [];
-  const ghosts = layout.steps.slice(0, shown).flatMap((step) => step.removed);
 
   const select = (month) => (event) => {
     event.stopPropagation();
@@ -137,62 +131,42 @@ export default function SavingsGrowthTower({
         aria-hidden="true"
         onClick={() => onSelectMonth?.(null)}
       >
-        <line
-          className="savings-tower-ground"
-          x1={TOWER.x - 14}
-          x2={TOWER.x + TOWER.w + 14}
-          y1={TOWER.base + 0.5}
-          y2={TOWER.base + 0.5}
-        />
-
-        {/* Where an overspent month chipped the tower; later layers cover it. */}
-        <g className="growth-tower-ghost">
-          {ghosts.map((segment, i) =>
-            layerBricks(segment.index).map((brick) => (
-              <rect
-                key={`${i}-${brick.x}`}
-                x={brick.x}
-                y={toY(segment.top) + 0.75}
-                width={brick.w}
-                height={Math.max(0.5, (segment.top - segment.bottom) * scale - 1.5)}
-                rx={BRICK_RX}
-              />
-            )),
-          )}
-        </g>
-
-        {stack.map((layer) => {
-          const y = toY(layer.top);
-          const h = (layer.top - layer.bottom) * scale;
-          const className = [
-            "growth-tower-layer",
-            layer.index % 2 ? "growth-tower-layer--alt" : "",
-            layer.isCurrent ? "growth-tower-layer--current" : "",
-            done ? "" : "growth-tower-layer--enter",
-            selectedMonth && selectedMonth !== layer.month ? "is-dim" : "",
-          ]
-            .filter(Boolean)
-            .join(" ");
-          return (
-            <g
-              key={layer.month}
-              className={className}
-              data-month={layer.month}
-              onClick={select(layer.month)}
-            >
-              {layerBricks(layer.index).map((brick) => (
+        <defs>
+          <clipPath id={`${id}-clip`}>
+            <rect x={TOWER.x} y={TOWER.top} width={TOWER.w} height={TOWER_HEIGHT} rx={BODY_RX} />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#${id}-clip)`}>
+          {stack.map((layer, i) => {
+            // Half the gap comes off each side shared with another month.
+            const top = toY(layer.top) + (i < stack.length - 1 ? LAYER_GAP / 2 : 0);
+            const bottom = toY(layer.bottom) - (i > 0 ? LAYER_GAP / 2 : 0);
+            const className = [
+              "growth-tower-layer",
+              layer.isCurrent ? "growth-tower-layer--current" : "",
+              done ? "" : "growth-tower-layer--enter",
+              selectedMonth && selectedMonth !== layer.month ? "is-dim" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            return (
+              <g
+                key={layer.month}
+                className={className}
+                data-month={layer.month}
+                onClick={select(layer.month)}
+              >
                 <rect
-                  key={brick.x}
-                  x={brick.x}
-                  y={y + 0.75}
-                  width={brick.w}
-                  height={Math.max(0.5, h - 1.5)}
-                  rx={Math.min(BRICK_RX, h / 2.5)}
+                  x={TOWER.x}
+                  y={top}
+                  width={TOWER.w}
+                  height={Math.max(0.5, bottom - top)}
+                  rx={LAYER_RX}
                 />
-              ))}
-            </g>
-          );
-        })}
+              </g>
+            );
+          })}
+        </g>
 
         {run.shards.map((shard) => (
           <rect
@@ -202,7 +176,7 @@ export default function SavingsGrowthTower({
             y={shard.y}
             width={shard.w}
             height={shard.h}
-            rx="2"
+            rx="1.5"
             style={{ "--dx": `${shard.dx}px`, "--rot": `${shard.rot}deg` }}
             onAnimationEnd={() =>
               setRun((s) => ({

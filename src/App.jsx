@@ -5844,7 +5844,6 @@ function App() {
                       mode={expenseTotalMode}
                       activeMonth={safeActiveExpenseMonth}
                       monthlySummaries={expenseMonthlySummaries}
-                      monthOptions={expenseMonthNavOptions}
                       monthProgress={incomeProgress?.month}
                       playKey={expensePlayKey}
                       onSelectMonth={(month) => {

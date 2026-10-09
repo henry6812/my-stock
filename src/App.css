@@ -414,17 +414,6 @@ button.asset-hero-jar {
   overflow: visible;
 }
 
-.savings-tower-ground {
-  stroke: var(--c-line-strong);
-  stroke-width: 1.5;
-}
-
-.savings-tower-ghost rect {
-  fill: none;
-  stroke: var(--c-line);
-  stroke-dasharray: 2 2;
-}
-
 /* Spent area keeps a pale teal tint so the recurring / one-time split stays visible. */
 .savings-tower-spent {
   animation: jar-fade-in 300ms ease-out both;
@@ -448,17 +437,26 @@ button.asset-hero-jar {
   opacity: 0.3;
 }
 
+/* The income caption only shows while a part of the tower is selected. */
 .savings-tower-income {
   font-size: var(--fs-caption);
   fill: var(--c-muted);
+  opacity: 0;
+  transition: opacity 180ms ease-out;
 }
 
-.savings-tower-brick {
+.savings-tower--revealed .savings-tower-income {
+  opacity: 1;
+}
+
+.savings-tower-saved {
   fill: var(--c-teal);
 }
 
-.savings-tower-build .savings-tower-brick {
-  animation: tower-brick-in 260ms ease-out both;
+.savings-tower-rise {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: tower-rise 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .savings-tower-shard {
@@ -475,12 +473,10 @@ button.asset-hero-jar {
   fill: var(--c-teal-tint);
 }
 
-.savings-tower-pit {
+/* Overspent: nothing saved, just a thin red line at the column's foot. */
+.savings-tower-overdrawn {
   fill: var(--c-down);
-  opacity: 0.18;
-  transform-box: fill-box;
-  transform-origin: top;
-  animation: tower-pit-grow 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: jar-fade-in 300ms ease-out both;
 }
 
 .savings-tower-setup {
@@ -496,19 +492,14 @@ button.asset-hero-jar {
   cursor: pointer;
 }
 
-@keyframes tower-brick-in {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes tower-rise {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
 }
 
 @keyframes tower-shard-fall {
   from { opacity: 1; transform: translate(0, 0) rotate(0deg); }
   to { opacity: 0; transform: translate(var(--dx), 150px) rotate(var(--rot)); }
-}
-
-@keyframes tower-pit-grow {
-  from { transform: scaleY(0); }
-  to { transform: scaleY(1); }
 }
 
 /* ===== Growth tower (components/SavingsGrowthTower.jsx) ===== */
@@ -534,26 +525,12 @@ button.asset-hero-jar {
   fill: var(--c-teal);
 }
 
-.growth-tower-layer--alt rect {
-  fill: var(--c-teal-hover);
-}
-
 .growth-tower-layer--current rect {
-  fill: var(--c-teal-soft);
-  stroke: var(--c-teal);
-  stroke-opacity: 0.55;
-  stroke-dasharray: 3 2;
+  fill: var(--c-teal-tint);
 }
 
 .growth-tower-layer--enter {
   animation: growth-layer-in 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.growth-tower-ghost rect {
-  fill: none;
-  stroke: var(--c-teal);
-  stroke-opacity: 0.35;
-  stroke-dasharray: 3 2;
 }
 
 .growth-tower-shard {
@@ -572,41 +549,57 @@ button.asset-hero-jar {
 .expense-month-bars {
   width: 100%;
   display: flex;
-  align-items: flex-end;
-  gap: var(--space-2);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
   margin-top: var(--space-6);
 }
 
-/* Columns touch (no gap) so every month's tap target is as wide as the
-   track allows; the visible bar is inset by the column's padding. */
+/* Twelve columns that touch (no gap) so every month's tap target is as wide
+   as the track allows; the visible bar is inset by the column's padding. */
 .expense-month-bars-track {
-  flex: 1;
-  min-width: 0;
   display: flex;
   align-items: stretch;
 }
 
 .expense-month-bar {
   flex: 1;
-  min-width: 24px;
-  height: 84px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: stretch;
-  gap: 4px;
-  padding: 0 2px;
+  gap: var(--space-2);
+  padding: 0 3px;
   border: 0;
   background: none;
   font: inherit;
   cursor: pointer;
 }
 
+/* Every month is the same height (its income); the saved part fills it
+   from the bottom, like the savings tower. */
 .expense-month-bar-fill {
+  position: relative;
   display: block;
+  overflow: hidden;
   border-radius: var(--radius-sm);
-  background: var(--c-teal-soft);
+  background: var(--c-track);
+}
+
+.expense-month-bar-saved {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: var(--radius-sm);
+  background: var(--c-teal-tint);
   transition: background 250ms ease;
+}
+
+/* Overspent: nothing saved, a thin red foot like the tower's. */
+.expense-month-bar.is-over .expense-month-bar-fill {
+  box-shadow: inset 0 -3px 0 var(--c-down);
 }
 
 .expense-month-bar-label {
@@ -621,7 +614,7 @@ button.asset-hero-jar {
   font-weight: 600;
 }
 
-.expense-month-bar.is-on .expense-month-bar-fill {
+.expense-month-bar.is-on .expense-month-bar-saved {
   background: var(--c-teal);
 }
 
@@ -630,40 +623,78 @@ button.asset-hero-jar {
   font-weight: 600;
 }
 
-.expense-month-bar--future .expense-month-bar-fill {
+/* Months still to come (or before the first record): an empty outline,
+   not tappable. `subtle` is fine here: it marks a disabled state. */
+.expense-month-bar--empty {
+  cursor: default;
+}
+
+.expense-month-bar--empty .expense-month-bar-fill {
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--c-line-strong);
+  box-shadow: inset 0 0 0 1px var(--c-line);
 }
 
-.expense-month-bar--future.is-on .expense-month-bar-fill {
-  background: var(--c-teal);
-  box-shadow: none;
+.expense-month-bar--empty .expense-month-bar-label {
+  color: var(--c-subtle);
 }
 
-/* More than 12 months: fixed-width columns in a sideways-scrolling track. */
-.expense-month-bars-track--scroll {
-  overflow-x: auto;
-  scrollbar-width: none;
+/* Under the bars: the 累計 toggle, and the year switch when there is more
+   than one year. */
+.expense-month-bars-foot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-4);
 }
 
-.expense-month-bars-track--scroll::-webkit-scrollbar {
-  display: none;
+.expense-month-bars-year {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-muted);
 }
 
-.expense-month-bars-track--scroll .expense-month-bar {
-  flex: 0 0 28px;
+.expense-month-bars-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--c-muted);
+  cursor: pointer;
+}
+
+/* 32px to look at, 44px to tap. */
+.expense-month-bars-step {
+  position: relative;
+}
+
+.expense-month-bars-step::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.expense-month-bars-step:disabled {
+  color: var(--c-subtle);
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* The pill reads small but its tap area is 44px tall. */
 .expense-month-bars-all {
   position: relative;
-  flex: none;
-  margin-bottom: 14px;
   font: inherit;
   font-size: var(--fs-caption);
   padding: 4px 12px;
   border-radius: var(--radius-pill);
-  border: 1.5px solid var(--c-line-strong);
+  border: 1px solid var(--c-line-strong);
   background: transparent;
   color: var(--c-muted);
   cursor: pointer;
@@ -676,17 +707,19 @@ button.asset-hero-jar {
 }
 
 .expense-month-bars-all.is-on {
-  background: var(--c-teal);
-  border-color: var(--c-teal);
+  background: var(--c-action);
+  border-color: var(--c-action);
   color: var(--c-surface);
 }
 
 /* ===== Expense summary card (components/ExpenseSummaryCard.jsx) ===== */
 .expense-card {
-  width: min(420px, 100%);
+  /* No side padding: on a phone the month bars run the full content width
+     (the page gutter already keeps them inside the safe area). */
+  width: min(560px, 100%);
   margin: 0 auto;
   box-sizing: border-box;
-  padding: var(--space-6) var(--space-4) var(--space-2);
+  padding: var(--space-6) 0 var(--space-2);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -726,10 +759,9 @@ button.asset-hero-jar {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--c-teal-ink);
+  color: var(--c-muted);
   font: inherit;
-  font-size: var(--fs-body);
-  font-weight: 600;
+  font-size: var(--fs-caption);
   font-variant-numeric: tabular-nums;
 }
 
@@ -744,62 +776,11 @@ button.expense-card-chip {
   color: var(--c-down);
 }
 
+/* The tower's SVG keeps ~30px under the column for falling shards; pull the
+   month bars up into that space so the gap below the tower stays even. */
 .expense-card-tower {
   margin-top: var(--space-5);
-}
-
-/* Legend under the tower: one swatch + word per part, each a toggle that
-   does what tapping the part does. */
-/* The tower's SVG keeps ~30px under its ground line for falling shards;
-   pull the legend up into that space so it reads as the tower's caption. */
-.expense-card-legend {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-  margin-top: -24px;
-}
-
-.expense-card-legend-item {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: none;
-  font: inherit;
-  font-size: var(--fs-caption);
-  color: var(--c-muted);
-  cursor: pointer;
-}
-
-.expense-card-legend-item.is-on {
-  color: var(--c-ink);
-  font-weight: 600;
-}
-
-/* 3px corners echo the tower's bricks (BRICK_RX in SavingsTower). */
-.expense-card-swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  flex: none;
-}
-
-.expense-card-swatch--saved {
-  background: var(--c-teal);
-}
-
-.expense-card-swatch--recurring {
-  background: var(--c-teal-tint);
-}
-
-.expense-card-swatch--oneTime {
-  background: var(--c-teal-soft);
-  box-shadow: inset 0 0 0 1px var(--c-teal-tint);
+  margin-bottom: calc(-1 * var(--space-6));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -851,6 +832,8 @@ button.expense-card-chip {
 
   .app-content {
     padding: 12px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
     padding-bottom: calc(78px + env(safe-area-inset-bottom));
   }
 

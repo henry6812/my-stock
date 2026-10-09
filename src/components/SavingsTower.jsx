@@ -1,60 +1,54 @@
-// Expense-tab savings tower (月份 mode): this month's income is a tower of
-// teal bricks; spending knocks bricks off the top (recurring first, then
-// one-time) and what is left is what was saved; overspending digs a red pit.
-// Each part is tappable (onSelectKind). Layout maths lives in
-// utils/savingsTower.js — this file draws + animates.
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  diffTowerChunks,
-  formatTowerWan,
-  getRowRemovedFractions,
-  getTowerLayout,
-} from "../utils/savingsTower";
+// Expense-tab savings tower (月份 mode): this month's income is one smooth
+// teal column (no background or outline); spending is knocked off the top
+// (recurring first, then one-time) as small falling pieces, leaving a pale
+// tint by kind. Each part is its own rounded block with a small gap between. What is left at the bottom is what was saved; overspending
+// empties the column and leaves a thin red line at its foot. Each part is
+// tappable (onSelectKind) and the income caption only shows while one is
+// selected. Layout maths lives in utils/savingsTower.js — this file draws +
+// animates.
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { diffTowerChunks, formatTowerWan, getTowerLayout } from "../utils/savingsTower";
 import { prefersReducedMotion } from "../utils/motion";
 
 const VIEW_W = 120;
 const VIEW_H = 180;
 const TOWER = { x: 22, w: 76, top: 14, base: 150 };
 const TOWER_HEIGHT = TOWER.base - TOWER.top;
+const BODY_RX = 14;
+// Saved / recurring / one-time are separate rounded blocks with a small gap
+// between them; the column's outer corners are rounder (BODY_RX).
+const SEGMENT_RX = 6;
+const SEGMENT_GAP = 2;
 // Kept short: until the chipping ends the tower shows more saved than there
-// is, so the whole entrance (build + pause + chips) stays around a second.
-const BUILD_STAGGER_MS = 28;
-const BUILD_PAUSE_MS = 250; // after the last row lands, before chipping starts
+// is, so the whole entrance (rise + pause + chips) stays around a second.
+const RISE_MS = 300;
+const BUILD_PAUSE_MS = 250; // after the column has risen, before chipping starts
 const SETTLE_MS = 200;
-const BRICK_RX = 3;
+const OVERDRAWN_H = 3;
 const SPENT_KINDS = ["recurring", "oneTime"];
+// Where each removed slice cracks: 3, 4 or 5 pieces of uneven width.
+const SHARD_CUTS = [
+  [0, 0.36, 0.68, 1],
+  [0, 0.24, 0.5, 0.77, 1],
+  [0, 0.18, 0.4, 0.62, 0.83, 1],
+];
 
-// Even rows: two half bricks. Odd rows: quarter / half / quarter (offset bond).
-const rowBricks = (rowIndex) => {
-  const cuts =
-    rowIndex % 2 === 0
-      ? [0, TOWER.w / 2, TOWER.w]
-      : [0, TOWER.w / 4, (TOWER.w * 3) / 4, TOWER.w];
-  return cuts.slice(0, -1).map((start, index) => ({
-    x: TOWER.x + start + 0.75,
-    w: cuts[index + 1] - start - 1.5,
-  }));
-};
+const chunkTop = (chunk, rows) =>
+  TOWER.top + (rows - 1 - chunk.rowIndex + chunk.offset) * (TOWER_HEIGHT / rows);
 
 // Falling pieces for one removed chunk. Spread is deterministic (no
 // Math.random) so rendering stays pure.
 const makeShards = (chunk, rows, firstId) => {
-  const rowH = TOWER_HEIGHT / rows;
-  const rowTop = TOWER.base - (chunk.rowIndex + 1) * rowH;
+  const cuts = SHARD_CUTS[chunk.rowIndex % SHARD_CUTS.length];
   const center = TOWER.x + TOWER.w / 2;
-  return rowBricks(chunk.rowIndex).map((brick, index) => {
+  const y = chunkTop(chunk, rows);
+  const h = Math.max(1, chunk.take * (TOWER_HEIGHT / rows) - 1);
+  return cuts.slice(0, -1).map((start, index) => {
+    const x = TOWER.x + start * TOWER.w + 0.5;
+    const w = (cuts[index + 1] - start) * TOWER.w - 1;
     const jitter = ((chunk.rowIndex * 7 + index * 13) % 11) - 5;
-    const dx = (brick.x + brick.w / 2 - center) * 0.9 + jitter;
-    return {
-      id: firstId + index,
-      x: brick.x,
-      y: rowTop + 0.75 + chunk.offset * (rowH - 1.5),
-      w: brick.w,
-      h: Math.max(1, chunk.take * (rowH - 1.5)),
-      kind: chunk.kind,
-      dx,
-      rot: dx * 3,
-    };
+    const dx = (x + w / 2 - center) * 0.9 + jitter;
+    return { id: firstId + index, x, y, w, h, kind: chunk.kind, dx, rot: dx * 3 };
   });
 };
 
@@ -78,6 +72,13 @@ const startRun = (runKey, layout, animate, nextId = 0) => ({
   nextId,
 });
 
+// Rows removed so far, per expense kind.
+const removedRows = (chunks) =>
+  chunks.reduce(
+    (sum, chunk) => ({ ...sum, [chunk.kind]: sum[chunk.kind] + chunk.take }),
+    { recurring: 0, oneTime: 0 },
+  );
+
 export default function SavingsTower({
   incomeTwd,
   recurringTwd,
@@ -88,6 +89,7 @@ export default function SavingsTower({
   selectedKind = null,
   onSelectKind,
 }) {
+  const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const [reduced] = useState(prefersReducedMotion);
   const layout = useMemo(
     () =>
@@ -153,20 +155,32 @@ export default function SavingsTower({
       );
       timer = setTimeout(chipNext, delay);
     };
-    timer = setTimeout(
-      chipNext,
-      layoutRef.current.rows * BUILD_STAGGER_MS + BUILD_PAUSE_MS,
-    );
+    timer = setTimeout(chipNext, RISE_MS + BUILD_PAUSE_MS);
     return () => clearTimeout(timer);
     // A new run (runKey) restarts the sequence; layout changes mid-run are
     // picked up through layoutRef.
   }, [run.runKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rowH = TOWER_HEIGHT / layout.rows;
-  const revealedChunks = layout.chunks.slice(0, run.revealed);
-  const removed = getRowRemovedFractions(revealedChunks, layout.rows);
+  const removed = removedRows(layout.chunks.slice(0, run.revealed));
+  const recurringH = removed.recurring * rowH;
+  const oneTimeH = removed.oneTime * rowH;
+  const savedTop = TOWER.top + recurringH + oneTimeH;
+  // Top to bottom; each block gives up half the gap on a side it shares with
+  // another block.
+  const blocks = [
+    { kind: "recurring", y: TOWER.top, h: recurringH },
+    { kind: "oneTime", y: TOWER.top + recurringH, h: oneTimeH },
+    { kind: "saved", y: savedTop, h: layout.hasIncome ? TOWER.base - savedTop : 0 },
+  ].filter((block) => block.h > 0);
+  const shape = Object.fromEntries(
+    blocks.map((block, index) => {
+      const top = block.y + (index > 0 ? SEGMENT_GAP / 2 : 0);
+      const bottom = block.y + block.h - (index < blocks.length - 1 ? SEGMENT_GAP / 2 : 0);
+      return [block.kind, { y: top, h: Math.max(0, bottom - top) }];
+    }),
+  );
   const done = run.phase === "done";
-  const pitDepth = layout.overspendDepthRatio * TOWER_HEIGHT;
 
   const select = (kind) => (event) => {
     event.stopPropagation();
@@ -174,38 +188,22 @@ export default function SavingsTower({
   };
   const partClass = (kind) =>
     `savings-tower-part${selectedKind && selectedKind !== kind ? " is-dim" : ""}`;
-  const chunkRects = (chunk, className) => {
-    const fullH = rowH - 1.5;
-    const y =
-      TOWER.base - (chunk.rowIndex + 1) * rowH + 0.75 + fullH * chunk.offset;
-    return rowBricks(chunk.rowIndex).map((brick) => (
-      <rect
-        key={`${chunk.kind}-${chunk.rowIndex}-${chunk.offset}-${brick.x}`}
-        className={className}
-        data-row={chunk.rowIndex}
-        x={brick.x}
-        y={y}
-        width={brick.w}
-        height={fullH * chunk.take}
-        rx={BRICK_RX}
-      />
-    ));
-  };
 
   return (
-    <div className="savings-tower" data-phase={run.phase}>
+    <div
+      className={`savings-tower${selectedKind ? " savings-tower--revealed" : ""}`}
+      data-phase={run.phase}
+    >
       <svg
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         aria-hidden="true"
         onClick={() => onSelectKind?.(null)}
       >
-        <line
-          className="savings-tower-ground"
-          x1={TOWER.x - 14}
-          x2={TOWER.x + TOWER.w + 14}
-          y1={TOWER.base + 0.5}
-          y2={TOWER.base + 0.5}
-        />
+        <defs>
+          <clipPath id={`${id}-clip`}>
+            <rect x={TOWER.x} y={TOWER.top} width={TOWER.w} height={TOWER_HEIGHT} rx={BODY_RX} />
+          </clipPath>
+        </defs>
         {layout.hasIncome && (
           <text
             className="savings-tower-income"
@@ -217,63 +215,49 @@ export default function SavingsTower({
           </text>
         )}
 
-        {/* Ghost outlines keep the original income height visible. */}
-        <g className="savings-tower-ghost">
-          {Array.from({ length: layout.rows }, (_, rowIndex) =>
-            rowBricks(rowIndex).map((brick) => (
+        <g clipPath={`url(#${id}-clip)`}>
+          {shape.saved && (
+            <g className={partClass("saved")} data-kind="saved" onClick={select("saved")}>
               <rect
-                key={`${rowIndex}-${brick.x}`}
-                x={brick.x}
-                y={TOWER.base - (rowIndex + 1) * rowH + 0.75}
-                width={brick.w}
-                height={rowH - 1.5}
-                rx={BRICK_RX}
+                key={run.runKey}
+                className={`savings-tower-saved${run.phase === "build" ? " savings-tower-rise" : ""}`}
+                x={TOWER.x}
+                y={shape.saved.y}
+                width={TOWER.w}
+                height={shape.saved.h}
+                rx={SEGMENT_RX}
               />
-            )),
+            </g>
+          )}
+
+          {/* Where spending removed income, a faint tint by kind shows the
+              recurring / one-time split. */}
+          {SPENT_KINDS.map(
+            (kind) =>
+              shape[kind] && (
+                <g key={kind} className={partClass(kind)} data-kind={kind} onClick={select(kind)}>
+                  <rect
+                    className={`savings-tower-spent savings-tower-spent--${kind}`}
+                    x={TOWER.x}
+                    y={shape[kind].y}
+                    width={TOWER.w}
+                    height={shape[kind].h}
+                    rx={SEGMENT_RX}
+                  />
+                </g>
+              ),
+          )}
+
+          {done && layout.overspendTwd > 0 && (
+            <rect
+              className="savings-tower-overdrawn"
+              x={TOWER.x}
+              y={TOWER.base - OVERDRAWN_H}
+              width={TOWER.w}
+              height={OVERDRAWN_H}
+            />
           )}
         </g>
-
-        {layout.hasIncome && (
-          <g className={partClass("saved")} data-kind="saved" onClick={select("saved")}>
-            <g
-              key={run.runKey}
-              className={run.phase === "build" ? "savings-tower-build" : undefined}
-            >
-              {Array.from({ length: layout.rows }, (_, rowIndex) => {
-                const left = 1 - removed[rowIndex];
-                if (left <= 0) return null;
-                const fullH = rowH - 1.5;
-                const y =
-                  TOWER.base - (rowIndex + 1) * rowH + 0.75 + fullH * removed[rowIndex];
-                return rowBricks(rowIndex).map((brick) => (
-                  <rect
-                    key={`${rowIndex}-${brick.x}`}
-                    className="savings-tower-brick"
-                    x={brick.x}
-                    y={y}
-                    width={brick.w}
-                    height={fullH * left}
-                    rx={BRICK_RX}
-                    style={{ animationDelay: `${rowIndex * BUILD_STAGGER_MS}ms` }}
-                  />
-                ));
-              })}
-            </g>
-          </g>
-        )}
-
-        {/* Where spending removed income, a faint tint by kind shows the
-            recurring / one-time split. */}
-        {SPENT_KINDS.map((kind) => (
-          <g key={kind} className={partClass(kind)} data-kind={kind} onClick={select(kind)}>
-            {revealedChunks
-              .filter((chunk) => chunk.kind === kind)
-              .flatMap((chunk) =>
-                chunkRects(chunk, `savings-tower-spent savings-tower-spent--${kind}`),
-              )}
-          </g>
-        ))}
-
 
         {run.shards.map((shard) => (
           <rect
@@ -283,7 +267,7 @@ export default function SavingsTower({
             y={shard.y}
             width={shard.w}
             height={shard.h}
-            rx="2"
+            rx="1.5"
             style={{ "--dx": `${shard.dx}px`, "--rot": `${shard.rot}deg` }}
             onAnimationEnd={() =>
               setRun((s) => ({
@@ -293,17 +277,6 @@ export default function SavingsTower({
             }
           />
         ))}
-
-        {done && layout.overspendTwd > 0 && (
-          <rect
-            className="savings-tower-pit"
-            x={TOWER.x}
-            y={TOWER.base + 1.5}
-            width={TOWER.w}
-            height={pitDepth}
-            rx={BRICK_RX}
-          />
-        )}
       </svg>
       {!layout.hasIncome && (
         <button type="button" className="savings-tower-setup" onClick={onSetupIncome}>
