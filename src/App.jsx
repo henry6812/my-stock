@@ -4112,6 +4112,21 @@ function App() {
       { key: "TW", label: "更新台股" },
       { key: "US", label: "更新美股" },
       { type: "divider" },
+      // The rate behind the US rows' TWD values: reference next to the
+      // price refresh rather than in the list header.
+      ...(usdTwdRate
+        ? [
+            {
+              key: "fxRateInfo",
+              disabled: true,
+              label: (
+                <span className="price-update-menu-meta">
+                  USD/TWD {usdTwdRate.toFixed(2)}
+                </span>
+              ),
+            },
+          ]
+        : []),
       {
         key: "lastUpdatedInfo",
         disabled: true,
@@ -4122,7 +4137,7 @@ function App() {
         ),
       },
     ],
-    [priceUpdatedRelativeText],
+    [priceUpdatedRelativeText, usdTwdRate],
   );
 
   const handleGoogleLogin = useCallback(async () => {
@@ -5448,6 +5463,8 @@ function App() {
     cloudSyncStatus !== "offline" &&
     cloudSyncStatus !== "error";
 
+  const pullOffset = isPullRefreshing ? PULL_REFRESH_TRIGGER : pullDistance;
+
   return (
     <AppErrorBoundary>
       <Layout className="app-layout">
@@ -5532,29 +5549,47 @@ function App() {
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
         >
+          {/* A fixed slot at the top of the content; the label inside rides
+              down with the page's top edge (transform, not height, so a pull
+              never re-lays out the page). */}
           <div
             className={`pull-refresh-indicator ${isPullRefreshing ? "is-refreshing" : ""}`}
+            style={{ height: PULL_REFRESH_TRIGGER }}
+            aria-hidden={pullOffset > 0 ? undefined : true}
+          >
+            <div
+              className="pull-refresh-indicator-inner"
+              style={{
+                transform: `translateY(${pullOffset - PULL_REFRESH_TRIGGER}px)`,
+              }}
+            >
+              <Text type="secondary" className="pull-refresh-label">
+                {isPullRefreshing ? (
+                  <LoadingOutlined aria-hidden />
+                ) : (
+                  <ArrowDown
+                    className={`pull-refresh-arrow${
+                      pullDistance >= PULL_REFRESH_TRIGGER ? " is-armed" : ""
+                    }`}
+                  />
+                )}
+                {isPullRefreshing
+                  ? "重新整理中..."
+                  : pullDistance >= PULL_REFRESH_TRIGGER
+                    ? "放開以重新整理"
+                    : "下拉重新整理"}
+              </Text>
+            </div>
+          </div>
+          {/* Everything that moves with the pull. The tab bar and FAB stay
+              outside: a transform here would re-anchor their position: fixed. */}
+          <div
+            className={`pull-refresh-track ${isPullRefreshing ? "is-refreshing" : ""}`}
             style={{
-              height: isPullRefreshing ? PULL_REFRESH_TRIGGER : pullDistance,
+              // `none` at rest, not translateY(0), for the same reason.
+              transform: pullOffset > 0 ? `translateY(${pullOffset}px)` : "none",
             }}
           >
-            <Text type="secondary" className="pull-refresh-label">
-              {isPullRefreshing ? (
-                <LoadingOutlined aria-hidden />
-              ) : (
-                <ArrowDown
-                  className={`pull-refresh-arrow${
-                    pullDistance >= PULL_REFRESH_TRIGGER ? " is-armed" : ""
-                  }`}
-                />
-              )}
-              {isPullRefreshing
-                ? "重新整理中..."
-                : pullDistance >= PULL_REFRESH_TRIGGER
-                  ? "放開以重新整理"
-                  : "下拉重新整理"}
-            </Text>
-          </div>
           {syncError && (
             <Alert
               type="error"
@@ -5636,11 +5671,6 @@ function App() {
                   <div className="mobile-list-section mobile-list-section--holdings">
                     <div className="mobile-list-header">
                       <span className="mobile-list-title">持股列表</span>
-                      {usdTwdRate ? (
-                        <span className="holdings-fx-rate">
-                          USD/TWD {usdTwdRate.toFixed(2)}
-                        </span>
-                      ) : null}
                       {/* Outlined, not primary: prices refresh on their own
                           once a day, and the FAB is this screen's one black
                           call to action. */}
@@ -5690,11 +5720,6 @@ function App() {
                     title="持股列表"
                     extra={
                       <div className="holdings-card-actions">
-                        {usdTwdRate ? (
-                          <span className="holdings-fx-rate">
-                            USD/TWD {usdTwdRate.toFixed(2)}
-                          </span>
-                        ) : null}
                         <Button
                           icon={<Download />}
                           onClick={handleExportHoldingsCsv}
@@ -6596,6 +6621,7 @@ function App() {
               )}
             </Row>
           )}
+          </div>
 
           {authUser &&
           ((isMobileViewport &&
@@ -6800,6 +6826,11 @@ function App() {
               </Button>
             </div>
             <div className="update-sheet-footer">
+              {usdTwdRate ? (
+                <div className="update-sheet-fx">
+                  USD/TWD {usdTwdRate.toFixed(2)}
+                </div>
+              ) : null}
               上次更新價格於 {priceUpdatedRelativeText}
             </div>
           </Drawer>

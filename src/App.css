@@ -176,22 +176,43 @@
 }
 
 .app-content {
+  position: relative; /* anchors the pull-to-refresh slot */
   padding: 20px;
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
 }
 
+/* A slot pinned to the top of the content and clipped to it, so the label
+   never draws over the header; the label slides down inside it with the
+   page (.pull-refresh-track) and its bottom edge stays on the page's top. */
 .pull-refresh-indicator {
-  height: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   overflow: hidden;
+  pointer-events: none;
+}
+
+.pull-refresh-indicator-inner {
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: height 180ms ease;
 }
 
-.pull-refresh-indicator.is-refreshing {
+.pull-refresh-indicator-inner,
+.pull-refresh-track {
+  transition: transform 180ms ease;
+}
+
+.pull-refresh-track {
+  position: relative;
+}
+
+.pull-refresh-indicator.is-refreshing .pull-refresh-indicator-inner,
+.pull-refresh-track.is-refreshing {
   transition: none;
 }
 
@@ -211,7 +232,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pull-refresh-arrow {
+  .pull-refresh-arrow,
+  .pull-refresh-indicator-inner,
+  .pull-refresh-track {
     transition: none;
   }
 }
@@ -334,13 +357,6 @@ button.asset-hero-jar {
   height: auto;
   padding-inline: var(--space-2);
   font-size: var(--fs-caption);
-}
-
-.holdings-fx-rate {
-  font-size: var(--fs-caption);
-  color: var(--c-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -925,6 +941,11 @@ button.expense-card-chip {
   min-height: 44px;
 }
 
+.update-sheet-fx {
+  margin-bottom: var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
 .update-sheet-footer {
   margin-top: var(--space-3);
   padding-top: var(--space-3);
@@ -944,9 +965,14 @@ button.expense-card-chip {
   max-height: none;
 }
 
+/* dvh, not vh: in Safari 90vh is measured without its toolbars, so the
+   sheet's bottom (keypad, footer) ran off the visible screen. vh stays as the
+   fallback for browsers without dynamic viewport units. */
 .form-bottom-sheet.ant-drawer-bottom .ant-drawer-content-wrapper {
   height: 90vh !important;
   max-height: 90vh !important;
+  height: 90dvh !important;
+  max-height: 90dvh !important;
 }
 
 .form-bottom-sheet .ant-drawer-header {
@@ -1799,6 +1825,14 @@ button.expense-card-chip {
   transition: background-color 0.2s;
 }
 
+.quick-expense-amount-head {
+  align-self: stretch;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
 .quick-expense-category-label {
   align-self: flex-start;
   color: var(--c-muted);
@@ -1806,6 +1840,8 @@ button.expense-card-chip {
 }
 
 .quick-expense-amount-value {
+  flex: 0 0 auto;
+  white-space: nowrap;
   font-size: var(--fs-hero);
   line-height: 1.1;
   font-weight: 600;
@@ -1819,20 +1855,39 @@ button.expense-card-chip {
   font-variant-numeric: tabular-nums;
 }
 
-.quick-expense-name {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--c-line-strong);
-  border-radius: var(--radius-md);
-  font-size: var(--fs-subhead); /* >= 16px keeps iOS from zooming on focus */
-  color: var(--c-ink);
-  background: var(--c-surface);
+/* Name on the left, amount on the right, sharing one baseline. */
+.quick-expense-ticket {
+  align-self: stretch;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
 }
 
-.quick-expense-name:focus {
+/* A written-on line rather than a boxed field: the underline says it can be
+   filled in; focus darkens and thickens it (inset, so nothing shifts). */
+.quick-expense-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid var(--c-line-strong);
+  border-radius: 0;
+  font-size: var(--fs-subhead); /* >= 16px keeps iOS from zooming on focus */
+  color: var(--c-ink);
+  background: transparent;
+  text-overflow: ellipsis;
+}
+
+.quick-expense-name::placeholder {
+  color: var(--c-muted);
+}
+
+.quick-expense-name:focus,
+.quick-expense-name:focus-visible {
   outline: none;
-  border-color: var(--c-action);
+  border-bottom-color: var(--c-action);
+  box-shadow: inset 0 -1px 0 var(--c-action);
 }
 
 .quick-expense-scroll {

@@ -303,7 +303,7 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 - **動作圖示：** 同一個動作全 App 用同一個圖示：重新抓取（更新價格、重試、PWA 立即更新）是 `Refresh`，匯出是 `Download`，新增是 `Plus`。同一列並排的按鈕要嘛都有圖示、要嘛都沒有。
 - **區塊標題（Section Title）：** 只用在設定頁這種靠掃讀找區塊的長頁：標題前 `--icon-md` 圖示、間距 `--space-2`、跟標題同色（`SectionTitle`）。收入 `Coins`、持有人 `Group`、類別 `Label`、常用支出 `Star`、預算 `Wallet`、資料匯出 `Download`。資產頁、支出頁的區塊標題不加。
 - **空狀態（Empty State）：** 不用 antd `Empty` 插圖，改用 `EmptyState`：`--icon-tile` 白底 + 1px `line` 內框的圓形 tile（同沒有分類的 Category Icon）放主題圖示（`muted`、`--icon-md`）→ 一行 `muted` 14px 說明 → 可選的動作按鈕。表格 `locale.emptyText` 的純文字不在此限。
-- **下拉重新整理：** 指示器是 `ArrowDown` + 文字；拉過門檻時箭頭 180ms 轉向朝上，放開後換成 `LoadingOutlined`。`prefers-reduced-motion` 下不轉場。
+- **下拉重新整理：** 指示器是 `ArrowDown` + 文字；拉過門檻時箭頭 180ms 轉向朝上，放開後換成 `LoadingOutlined`。拉動時整頁內容以 `transform: translateY` 往下滑（不改高度，避免每一幀重新排版），指示器固定在內容頂端的裁切槽裡、底邊跟著頁面頂端走；tab bar 與 FAB 不在滑動層內，以免 `transform` 改變它們的 fixed 定位。`prefers-reduced-motion` 下不轉場。
 - **無障礙：** 單獨傳達意義的圖示（例如名稱前的「定期支出」標記）加 `aria-hidden={false} role="img" aria-label`；純圖示按鈕把 `aria-label` 放在按鈕上。
 - **例外：** antd 元件內建的圖示（DatePicker、Select 箭頭、Modal ×）沿用 antd；載入中的轉圈仍用 antd `LoadingOutlined`。我們自己的 code 不再從 `@ant-design/icons` import 其他圖示。
 
@@ -327,7 +327,7 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 手機上持股列表的「更新價格」是外框按鈕而不是 `action` 實心：價格每天會自動更新一次，而右下的 FAB（新增持股）才是畫面上唯一的黑色主 CTA。
 
 ### Quick Expense Keypad（signature）
-Sheet 由上而下：金額 → 日期 chips（今天 / 昨天 / 前天 / 其他，不加標題，緊接在金額下）→ 常用支出 → 分類 → 支出人 → 預算 → 名稱 → 數字鍵盤。名稱是選填（預設為分類名），所以排在 chips 之後；聚焦名稱時 chips 與鍵盤收起、名稱移到金額正下方。群組之間 `--space-3`，大於群組標題到 chips 的距離。存好時在支援的裝置上給一下 10ms 震動（`navigator.vibrate`，iOS 不支援）。
+Sheet 由上而下：一行「分類（左）／算式（右）」→ 收據式的一行「名稱（左）／金額（右）」→ 日期 chips（今天 / 昨天 / 前天 / 其他，不加標題）→ 常用支出 → 分類 → 支出人 → 預算 → 數字鍵盤。名稱是無框的底線欄位（`line-strong` 1px 底線，聚焦時轉 `action` 並加粗為 2px，用 inset 不位移），placeholder 用 `muted`。**聚焦名稱時，名稱以上的東西一律不動**（點下去的元素若在手指底下移位，iOS 會丟掉焦點）：只有下方的 chips 換成歷史名稱建議，鍵盤收起讓位給系統鍵盤。所有 bottom sheet 高度用 `90dvh`（`90vh` 為後備），Safari 裡才不會被工具列切掉底部。存好時在支援的裝置上給一下 10ms 震動（`navigator.vibrate`，iOS 不支援）。
 
 記一筆支出的專屬輸入：4 欄格狀數字鍵盤，鍵與鍵之間 1px `line` 縫，每鍵最少 52px 高、20px 等寬數字。儲存鍵為 `action` 底白字、按壓時 `action-active`；不可用時變 `line-strong`；儲存中保持 `action` + spinner，其他鍵轉 `subtle` 表示鎖定。
 

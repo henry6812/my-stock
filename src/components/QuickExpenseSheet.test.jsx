@@ -417,20 +417,36 @@ describe('<QuickExpenseSheet />', () => {
     }
   })
 
-  it('puts the dates right under the amount and the name after the options', () => {
+  it('puts the name and amount on one line above the dates and options', () => {
     renderSheet()
     const order = [
+      screen.getByLabelText('名稱'),
       screen.getByLabelText('金額'),
       screen.getByRole('group', { name: '日期' }),
       screen.getByRole('group', { name: '常用' }),
       screen.getByRole('group', { name: '預算' }),
-      screen.getByLabelText('名稱'),
     ]
     for (let i = 1; i < order.length; i++) {
       expect(
         order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy()
     }
+    expect(screen.getByLabelText('名稱').parentElement).toBe(screen.getByLabelText('金額').parentElement)
+  })
+
+  // A tap that moves the field out from under the finger loses the focus on
+  // iOS, so nothing before the name may appear or disappear when it's focused.
+  it('keeps everything before the name in place while it is focused', async () => {
+    const { user } = renderSheet()
+    const input = screen.getByLabelText('名稱')
+    const before = () =>
+      [...document.querySelectorAll('.quick-expense-main *')].filter(
+        (el) => el.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).length
+    const count = before()
+    await user.click(input)
+    expect(input).toHaveFocus()
+    expect(before()).toBe(count)
   })
 
   it('folds the dates and options away while the name is focused', async () => {

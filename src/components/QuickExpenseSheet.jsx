@@ -438,76 +438,87 @@ function QuickExpenseSheet({
       ) : (
         <div className="quick-expense">
           <div className="quick-expense-main">
+            {/* One line, like a receipt: what it was on the left, what it cost
+                on the right. The name lives up here so focusing it never moves
+                it; only what is below gives way to the keyboard. */}
             <div
               className={`quick-expense-amount${
                 flashTarget === "amount" ? " is-flashing" : ""
               }`}
             >
-              <span className="quick-expense-category-label">
-                {categoryName || "未選分類"}
-              </span>
-              <output
-                aria-label="金額"
-                aria-invalid={isNegativeOrZero || undefined}
-                className={`quick-expense-amount-value${
-                  isNegativeOrZero ? " is-invalid" : ""
-                }`}
-              >
-                ${(amount ?? 0).toLocaleString("zh-TW")}
-              </output>
-              {/* Always rendered so the layout doesn't jump on the first + / −. */}
-              <span
-                aria-label={hasOperator(expr) ? "算式" : undefined}
-                className="quick-expense-expr"
-              >
-                {hasOperator(expr) ? expr : " "}
-              </span>
-            </div>
-            {!isNameFocused && renderDates()}
-            {!isNameFocused && renderSelectors()}
-            {/* The name is optional (it defaults to the category), so it sits
-                after the chips; focusing it folds them away and brings it up
-                under the amount. */}
-            <input
-              ref={nameInputRef}
-              className="quick-expense-name"
-              aria-label="名稱"
-              placeholder={categoryName ? `名稱（預設：${categoryName}）` : "名稱"}
-              value={name}
-              autoComplete="off"
-              enterKeyHint="done"
-              onChange={(event) => {
-                setName(event.target.value);
-                setIsNameAutoFilled(false);
-                setPickedTemplateId(null);
-              }}
-              onFocus={() => setIsNameFocused(true)}
-              onBlur={() => setIsNameFocused(false)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  event.currentTarget.blur();
-                }
-              }}
-            />
-            {isNameFocused && nameMatches.length > 0 && (
-              <div className="quick-expense-scroll">
-                {nameMatches.map((item) => (
-                  <button
-                    key={item.name}
-                    type="button"
-                    className="quick-expense-chip"
-                    onPointerDown={keepFocus}
-                    onMouseDown={keepFocus}
-                    onClick={() => {
-                      applyPick(item);
-                      nameInputRef.current?.blur();
-                    }}
-                  >
-                    {item.name}
-                  </button>
-                ))}
+              {/* Category on the left, the running sum on the right: the sum
+                  sits above the amount it adds up to without a line of its own. */}
+              <div className="quick-expense-amount-head">
+                <span className="quick-expense-category-label">
+                  {categoryName || "未選分類"}
+                </span>
+                {/* Always rendered so the layout doesn't jump on the first + / −. */}
+                <span
+                  aria-label={hasOperator(expr) ? "算式" : undefined}
+                  className="quick-expense-expr"
+                >
+                  {hasOperator(expr) ? expr : " "}
+                </span>
               </div>
+              <div className="quick-expense-ticket">
+                <input
+                  ref={nameInputRef}
+                  className="quick-expense-name"
+                  aria-label="名稱"
+                  placeholder={categoryName ? `名稱（預設：${categoryName}）` : "名稱"}
+                  value={name}
+                  autoComplete="off"
+                  enterKeyHint="done"
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setIsNameAutoFilled(false);
+                    setPickedTemplateId(null);
+                  }}
+                  onFocus={() => setIsNameFocused(true)}
+                  onBlur={() => setIsNameFocused(false)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                    }
+                  }}
+                />
+                <output
+                  aria-label="金額"
+                  aria-invalid={isNegativeOrZero || undefined}
+                  className={`quick-expense-amount-value${
+                    isNegativeOrZero ? " is-invalid" : ""
+                  }`}
+                >
+                  ${(amount ?? 0).toLocaleString("zh-TW")}
+                </output>
+              </div>
+            </div>
+            {isNameFocused ? (
+              nameMatches.length > 0 && (
+                <div className="quick-expense-scroll">
+                  {nameMatches.map((item) => (
+                    <button
+                      key={item.name}
+                      type="button"
+                      className="quick-expense-chip"
+                      onPointerDown={keepFocus}
+                      onMouseDown={keepFocus}
+                      onClick={() => {
+                        applyPick(item);
+                        nameInputRef.current?.blur();
+                      }}
+                    >
+                      {item.name}
+                    </button>
+                  ))}
+                </div>
+              )
+            ) : (
+              <>
+                {renderDates()}
+                {renderSelectors()}
+              </>
             )}
           </div>
           {!isNameFocused && renderKeypad()}
