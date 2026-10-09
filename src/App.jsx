@@ -43,26 +43,21 @@ import {
   Typography,
 } from "antd";
 import {
-  CloudSyncOutlined,
-  DownOutlined,
-  LeftOutlined,
-  RightOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
-  DollarOutlined,
-  EditOutlined,
-  ExpandOutlined,
-  FundProjectionScreenOutlined,
-  GoogleOutlined,
-  HomeOutlined,
-  LogoutOutlined,
-  MailOutlined,
-  MenuOutlined,
-  PlusOutlined,
-  SettingOutlined,
-  StopOutlined,
-  SyncOutlined,
-} from "@ant-design/icons";
+  CloudSync,
+  Download,
+  EditPencil,
+  Google,
+  HomeSimple,
+  LogOut,
+  Menu,
+  NavArrowDown,
+  NavArrowRight,
+  Plus,
+  Repeat,
+  Settings,
+  StatsReport,
+  Trash,
+} from "iconoir-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -287,7 +282,7 @@ function DragHandle({ disabled }) {
     <Button
       type="text"
       size="small"
-      icon={<MenuOutlined />}
+      icon={<Menu />}
       ref={setActivatorNodeRef}
       {...listeners}
       disabled={disabled}
@@ -375,7 +370,7 @@ const swipeEditAction = (name, onClick, text = "編輯") => ({
   key: "edit",
   label: `${text} ${name}`,
   text,
-  icon: <EditOutlined />,
+  icon: <EditPencil />,
   onClick,
 });
 
@@ -383,7 +378,7 @@ const swipeDeleteAction = (name, onClick, text = "刪除") => ({
   key: "delete",
   label: `${text} ${name}`,
   text,
-  icon: <DeleteOutlined />,
+  icon: <Trash />,
   danger: true,
   onClick,
 });
@@ -2344,7 +2339,7 @@ function App() {
                 disabled={isWriteDisabled || editingHoldingId !== null}
                 loading={rowLoading}
                 onClick={() => handleEditClick(record)}
-                icon={<EditOutlined />}
+                icon={<EditPencil />}
                 aria-label="編輯股數"
               ></Button>
               <Popconfirm
@@ -2365,7 +2360,7 @@ function App() {
                     editingHoldingId !== null ||
                     rowLoading
                   }
-                  icon={<DeleteOutlined />}
+                  icon={<Trash />}
                   aria-label="移除持股"
                 ></Button>
               </Popconfirm>
@@ -2679,7 +2674,7 @@ function App() {
                 loading={rowLoading}
                 disabled={isWriteDisabled || rowLoading}
                 onClick={() => handleCashEditClick(record)}
-                icon={<EditOutlined />}
+                icon={<EditPencil />}
                 aria-label="編輯現金餘額"
               />
               <Popconfirm
@@ -2696,7 +2691,7 @@ function App() {
                   className="row-action row-action--danger"
                   size="small"
                   disabled={isWriteDisabled || rowLoading}
-                  icon={<DeleteOutlined />}
+                  icon={<Trash />}
                   aria-label="移除銀行帳戶"
                 />
               </Popconfirm>
@@ -2844,7 +2839,7 @@ function App() {
     const renderRecurringTags = (record) =>
       record.isRecurringOccurrence ? (
         <span className="expense-recurring-tags">
-          <Tag variant="filled" className="expense-recurring-tag" icon={<SyncOutlined />}>
+          <Tag variant="filled" className="expense-recurring-tag" icon={<Repeat />}>
             固定
           </Tag>
           {record.isUpcoming && (
@@ -2862,7 +2857,7 @@ function App() {
           type="text"
           className="row-action"
           size="small"
-          icon={<EditOutlined />}
+          icon={<EditPencil />}
           disabled={isWriteDisabled}
           onClick={() => openRecurringEditForm(record)}
           aria-label={`編輯定期規則 ${record.name}`}
@@ -2942,7 +2937,7 @@ function App() {
                 type="text"
                 className="row-action"
                 size="small"
-                icon={<EditOutlined />}
+                icon={<EditPencil />}
                 disabled={isWriteDisabled}
                 onClick={() => openExpenseForm(record)}
                 aria-label="編輯支出"
@@ -2959,7 +2954,7 @@ function App() {
                   className="row-action row-action--danger"
                   size="small"
                   disabled={isWriteDisabled}
-                  icon={<DeleteOutlined />}
+                  icon={<Trash />}
                   aria-label="刪除支出"
                 />
               </Popconfirm>
@@ -3022,7 +3017,7 @@ function App() {
               type="text"
               className="row-action"
               size="small"
-              icon={<EditOutlined />}
+              icon={<EditPencil />}
               disabled={isWriteDisabled}
               onClick={() => openCategoryForm(record)}
             />
@@ -3038,7 +3033,7 @@ function App() {
                 className="row-action row-action--danger"
                 size="small"
                 disabled={isWriteDisabled}
-                icon={<DeleteOutlined />}
+                icon={<Trash />}
               />
             </Popconfirm>
           </Space>
@@ -3119,7 +3114,7 @@ function App() {
               type="text"
               className="row-action"
               size="small"
-              icon={<EditOutlined />}
+              icon={<EditPencil />}
               aria-label={`編輯 ${record.name}`}
               disabled={isWriteDisabled}
               onClick={() => openTemplateForm(record)}
@@ -3137,7 +3132,7 @@ function App() {
                 size="small"
                 aria-label={`刪除 ${record.name}`}
                 disabled={isWriteDisabled}
-                icon={<DeleteOutlined />}
+                icon={<Trash />}
               />
             </Popconfirm>
           </Space>
@@ -3235,7 +3230,7 @@ function App() {
           type="text"
           className="row-action"
           size="small"
-          icon={<EditOutlined />}
+          icon={<EditPencil />}
           disabled={isWriteDisabled}
           onClick={() => openBudgetForm(record)}
         />
@@ -3251,7 +3246,7 @@ function App() {
             className="row-action row-action--danger"
             size="small"
             disabled={isWriteDisabled}
-            icon={<DeleteOutlined />}
+            icon={<Trash />}
           />
         </Popconfirm>
       </Space>
@@ -3899,7 +3894,7 @@ function App() {
     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="這段期間沒有支出紀錄">
       <Button
         type="primary"
-        icon={<PlusOutlined />}
+        icon={<Plus />}
         onClick={() => openExpenseForm()}
         disabled={isWriteDisabled}
       >
@@ -3947,7 +3942,7 @@ function App() {
     >
       <Button
         type="primary"
-        icon={<PlusOutlined />}
+        icon={<Plus />}
         onClick={openAddHoldingForm}
         disabled={isWriteDisabled}
       >
@@ -4465,7 +4460,7 @@ function App() {
                     }}
                   />
                   <Button
-                    icon={<PlusOutlined />}
+                    icon={<Plus />}
                     loading={loadingInlineCategory}
                     disabled={!inlineCategoryName.trim()}
                     onClick={handleInlineAddCategory}
@@ -4552,7 +4547,7 @@ function App() {
       {!showExpenseMoreFields && (
         <Button
           type="link"
-          icon={<DownOutlined />}
+          icon={<NavArrowDown />}
           onClick={() => setShowExpenseMoreFields(true)}
           style={{ paddingInline: 0, marginBottom: 8 }}
         >
@@ -4850,7 +4845,7 @@ function App() {
         </Divider>
         <Button
           block
-          icon={<GoogleOutlined />}
+          icon={<Google />}
           loading={loadingAuthAction}
           disabled={loadingEmailLogin}
           onClick={handleGoogleLoginFromAuthDialog}
@@ -5430,17 +5425,17 @@ function App() {
                   {
                     label: "資產總覽",
                     value: "asset",
-                    icon: <HomeOutlined aria-hidden />,
+                    icon: <HomeSimple aria-hidden />,
                   },
                   {
                     label: "支出分析",
                     value: "expense",
-                    icon: <FundProjectionScreenOutlined aria-hidden />,
+                    icon: <StatsReport aria-hidden />,
                   },
                   {
                     label: "設定",
                     value: "settings",
-                    icon: <SettingOutlined aria-hidden />,
+                    icon: <Settings aria-hidden />,
                   },
                 ]}
               />
@@ -5458,7 +5453,7 @@ function App() {
                   <Text
                     type={cloudSyncStatus === "error" ? "danger" : "secondary"}
                   >
-                    <CloudSyncOutlined style={{ marginRight: 6 }} />
+                    <CloudSync style={{ marginRight: 6 }} />
                     {authReady ? cloudSyncText : "讀取登入狀態中..."}
                   </Text>
                 </div>
@@ -5466,7 +5461,7 @@ function App() {
                   <HoverTooltip title={authUser.email || "Google 帳號"}>
                     <Button
                       size="small"
-                      icon={<LogoutOutlined />}
+                      icon={<LogOut />}
                       onClick={handleGoogleLogout}
                       loading={loadingAuthAction}
                       aria-label="Google 登出"
@@ -5598,7 +5593,7 @@ function App() {
                             </Button>
                             <Button
                               type="primary"
-                              icon={<DownOutlined />}
+                              icon={<NavArrowDown />}
                               aria-label="選擇更新市場"
                               disabled={isWriteDisabled || loadingRefresh}
                               onClick={() => setIsUpdateSheetOpen(true)}
@@ -5637,7 +5632,7 @@ function App() {
                           </span>
                         ) : null}
                         <Button
-                          icon={<DownloadOutlined />}
+                          icon={<Download />}
                           onClick={handleExportHoldingsCsv}
                           disabled={loadingData || rows.length === 0}
                         >
@@ -5669,7 +5664,7 @@ function App() {
                             >
                               <Button
                                 type="primary"
-                                icon={<DownOutlined />}
+                                icon={<NavArrowDown />}
                                 aria-label="選擇更新市場"
                               />
                             </Dropdown>
@@ -5718,7 +5713,7 @@ function App() {
                             setIsAddCashSheetOpen(true);
                           }}
                           disabled={isWriteDisabled || loadingAddCashAccount}
-                          icon={<PlusOutlined />}
+                          icon={<Plus />}
                           aria-label="新增銀行帳戶"
                         />
                       </Space>
@@ -5757,7 +5752,7 @@ function App() {
                               setIsAddCashModalOpen(true);
                             }}
                             disabled={isWriteDisabled || loadingAddCashAccount}
-                            icon={<PlusOutlined />}
+                            icon={<Plus />}
                             aria-label="新增銀行帳戶"
                           />
                         </HoverTooltip>
@@ -5804,7 +5799,7 @@ function App() {
                               {chart.summary}
                             </span>
                           </span>
-                          <RightOutlined
+                          <NavArrowRight
                             className="analysis-item-chevron"
                             aria-hidden
                           />
@@ -5860,7 +5855,7 @@ function App() {
                           type="text"
                           size="small"
                           className="title-add-btn"
-                          icon={<PlusOutlined />}
+                          icon={<Plus />}
                           aria-label="新增預算"
                           disabled={isWriteDisabled}
                           onClick={() => openBudgetForm()}
@@ -5872,7 +5867,7 @@ function App() {
                           description="目前沒有生效中的預算"
                         >
                           <Button
-                            icon={<PlusOutlined />}
+                            icon={<Plus />}
                             disabled={isWriteDisabled}
                             onClick={() => openBudgetForm()}
                           >
@@ -6066,7 +6061,7 @@ function App() {
                                     "尚無資料"}
                                 </span>
                               </span>
-                              <RightOutlined
+                              <NavArrowRight
                                 className="analysis-item-chevron"
                                 aria-hidden
                               />
@@ -6165,7 +6160,7 @@ function App() {
                                   type="text"
                                   className="row-action row-action--danger"
                                   size="small"
-                                  icon={<DeleteOutlined />}
+                                  icon={<Trash />}
                                   loading={loadingIncomeSettings}
                                   disabled={isWriteDisabled}
                                   onClick={() =>
@@ -6220,7 +6215,7 @@ function App() {
                             />
                             <Button
                               className="row-action row-action--danger"
-                              icon={<DeleteOutlined />}
+                              icon={<Trash />}
                               aria-label="移除持有人"
                               disabled={
                                 isWriteDisabled ||
@@ -6233,7 +6228,7 @@ function App() {
                         ))}
                         <Space wrap>
                           <Button
-                            icon={<PlusOutlined />}
+                            icon={<Plus />}
                             onClick={handleAddHolderDraftRow}
                             disabled={isWriteDisabled || loadingHolderSettings}
                           >
@@ -6261,7 +6256,7 @@ function App() {
                               type="text"
                               size="small"
                               className="title-add-btn"
-                              icon={<PlusOutlined />}
+                              icon={<Plus />}
                               disabled={isWriteDisabled}
                               onClick={() => openCategoryForm()}
                             />
@@ -6289,7 +6284,7 @@ function App() {
                                 type="text"
                                 size="small"
                                 className="title-add-btn"
-                                icon={<PlusOutlined />}
+                                icon={<Plus />}
                                 disabled={isWriteDisabled}
                                 onClick={() => openCategoryForm()}
                               />
@@ -6317,7 +6312,7 @@ function App() {
                               type="text"
                               size="small"
                               className="title-add-btn"
-                              icon={<PlusOutlined />}
+                              icon={<Plus />}
                               aria-label="新增常用支出"
                               disabled={isWriteDisabled}
                               onClick={() => openTemplateForm()}
@@ -6338,7 +6333,7 @@ function App() {
                                 type="text"
                                 size="small"
                                 className="title-add-btn"
-                                icon={<PlusOutlined />}
+                                icon={<Plus />}
                                 aria-label="新增常用支出"
                                 disabled={isWriteDisabled}
                                 onClick={() => openTemplateForm()}
@@ -6361,7 +6356,7 @@ function App() {
                               type="text"
                               size="small"
                               className="title-add-btn"
-                              icon={<PlusOutlined />}
+                              icon={<Plus />}
                               disabled={isWriteDisabled}
                               onClick={() => openBudgetForm()}
                             />
@@ -6417,7 +6412,7 @@ function App() {
                                 type="text"
                                 size="small"
                                 className="title-add-btn"
-                                icon={<PlusOutlined />}
+                                icon={<Plus />}
                                 disabled={isWriteDisabled}
                                 onClick={() => openBudgetForm()}
                               />
@@ -6472,27 +6467,27 @@ function App() {
                         </Text>
                         <Space wrap>
                           <Button
-                            icon={<DownloadOutlined />}
+                            icon={<Download />}
                             onClick={handleExportHoldingsCsv}
                             disabled={rows.length === 0}
                           >
                             持股 CSV
                           </Button>
                           <Button
-                            icon={<DownloadOutlined />}
+                            icon={<Download />}
                             onClick={handleExportCashCsv}
                             disabled={cashRows.length === 0}
                           >
                             現金帳戶 CSV
                           </Button>
                           <Button
-                            icon={<DownloadOutlined />}
+                            icon={<Download />}
                             onClick={handleExportExpensesCsv}
                           >
                             支出 CSV（全部）
                           </Button>
                           <Button
-                            icon={<DownloadOutlined />}
+                            icon={<Download />}
                             onClick={handleExportBackupJson}
                           >
                             完整備份 JSON
@@ -6514,7 +6509,7 @@ function App() {
             <Button
               type="primary"
               shape="circle"
-              icon={<PlusOutlined />}
+              icon={<Plus />}
               aria-label={activeMainTab === "asset" ? "新增持股" : "新增支出"}
               className={`expense-fab ${
                 isMobileViewport
@@ -6552,14 +6547,14 @@ function App() {
                 onChange={switchMainTab}
                 options={[
                   // Icons are decoration: the tab's name is its text.
-                  { icon: <HomeOutlined aria-hidden />, text: "資產", value: "asset" },
+                  { icon: <HomeSimple aria-hidden />, text: "資產", value: "asset" },
                   {
-                    icon: <FundProjectionScreenOutlined aria-hidden />,
+                    icon: <StatsReport aria-hidden />,
                     text: "支出",
                     value: "expense",
                   },
                   {
-                    icon: <SettingOutlined aria-hidden />,
+                    icon: <Settings aria-hidden />,
                     text: "設定",
                     value: "settings",
                   },

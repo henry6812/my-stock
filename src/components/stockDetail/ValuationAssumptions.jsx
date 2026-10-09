@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Alert, Button, InputNumber, Tag, Typography } from "antd";
-import { DownOutlined, RightOutlined } from "@ant-design/icons";
+import { NavArrowDown, NavArrowRight } from "iconoir-react";
 import Collapsible from "../Collapsible";
 
 const { Text } = Typography;
@@ -79,7 +79,7 @@ function ValuationAssumptions({ model, market, settings, disabled, open, onToggl
   return (
     <section className="stock-detail-section valuation-assumptions" aria-label="估價假設">
       <button type="button" className="valuation-assumptions-toggle" onClick={onToggle} aria-expanded={open}>
-        {open ? <DownOutlined /> : <RightOutlined />}
+        {open ? <NavArrowDown /> : <NavArrowRight />}
         <span>估價假設</span>
       </button>
       <Collapsible open={open}>

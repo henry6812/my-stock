@@ -2,11 +2,11 @@ import { useState } from "react";
 import { Button, Empty, Tag, Typography } from "antd";
 import HoverTooltip from "./HoverTooltip";
 import {
-  DownOutlined,
-  EditOutlined,
-  PlusOutlined,
-  StopOutlined,
-} from "@ant-design/icons";
+  EditPencil,
+  NavArrowDown,
+  Plus,
+  Prohibition,
+} from "iconoir-react";
 import dayjs from "dayjs";
 import { formatDate, formatTwd } from "../utils/formatters";
 import { formatRecurringScheduleText } from "../utils/portfolioView";
@@ -89,14 +89,14 @@ function RecurringOverview({
               key: "edit",
               label: `編輯 ${item.name}`,
               text: "編輯",
-              icon: <EditOutlined />,
+              icon: <EditPencil />,
               onClick: () => onEdit?.(item),
             },
             {
               key: "stop",
               label: `停止 ${item.name}`,
               text: "停止",
-              icon: <StopOutlined />,
+              icon: <Prohibition />,
               tone: "warn",
               onClick: () => onStop?.(item),
             },
@@ -140,7 +140,7 @@ function RecurringOverview({
             <Button
               type="text"
               size="small"
-              icon={<EditOutlined />}
+              icon={<EditPencil />}
               aria-label={`編輯 ${item.name}`}
               disabled={disabled}
               onClick={() => onEdit?.(item)}
@@ -149,7 +149,7 @@ function RecurringOverview({
               <Button
                 type="text"
                 size="small"
-                icon={<StopOutlined />}
+                icon={<Prohibition />}
                 aria-label={`停止 ${item.name}`}
                 loading={Boolean(stoppingById[item.id])}
                 disabled={disabled}
@@ -170,7 +170,7 @@ function RecurringOverview({
         type="text"
         size="small"
         className="title-add-btn"
-        icon={<PlusOutlined />}
+        icon={<Plus />}
         aria-label="新增定期支出"
         disabled={disabled}
         onClick={onCreate}
@@ -197,7 +197,7 @@ function RecurringOverview({
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description="目前沒有定期支出（例如房租、訂閱）"
         >
-          <Button icon={<PlusOutlined />} disabled={disabled} onClick={onCreate}>
+          <Button icon={<Plus />} disabled={disabled} onClick={onCreate}>
             新增定期支出
           </Button>
         </Empty>
@@ -222,7 +222,7 @@ function RecurringOverview({
               onClick={() => setExpanded((value) => !value)}
             >
               {expanded ? "收合" : `看全部 ${rows.length} 筆`}
-              <DownOutlined className="recurring-overview-toggle-icon" aria-hidden />
+              <NavArrowDown className="recurring-overview-toggle-icon" aria-hidden />
             </Button>
           )}
         </>

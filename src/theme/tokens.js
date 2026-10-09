@@ -32,6 +32,20 @@ export const COLORS = {
   neutralFill: "#EEF2F1",
 };
 
+// Icons (iconoir-react, set once in main.jsx): 1em square so they size with
+// the surrounding font-size like antd icons did — set font-size to
+// --icon-sm / --icon-md in CSS. Decorative by default; an icon that carries
+// meaning on its own passes aria-hidden={false} role="img" aria-label.
+export const ICON_SIZES = { sm: 16, md: 20, tile: 36 };
+
+export const iconoirDefaults = {
+  width: "1em",
+  height: "1em",
+  strokeWidth: 1.5,
+  "aria-hidden": true,
+  "data-icon": "",
+};
+
 // Categorical order for charts: teal first, then hues that sit calmly next
 // to it (no antd rainbow). Neutral grey is reserved for "other/cash".
 export const CHART_PALETTE = [

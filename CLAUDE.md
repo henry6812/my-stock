@@ -94,13 +94,13 @@ FX (`fxProvider.js`) 打 open.er-api 取得 USD/TWD；不需要 API key。
 
 `src/App.jsx` 刻意維持為 monolithic（約 6.4k 行）— 包含 tabs (holdings、expenses、budgets、charts)、drawers、modals，以及大部分內嵌的 reducers。部分元件已抽出到 `src/components/`（表單、mobile sheet、圖表，以及支出頁摘要卡 `ExpenseSummaryCard` 與其 `SavingsTower` / `SavingsGrowthTower` / `ExpenseMonthBars`、資產頁 `NetWorthJar` 等）；塔與長條的純計算在 `src/utils/savingsTower.js`、`savingsGrowthTower.js`、`monthlySummaries.js`。新增 top-level state 之前，先在 `App.jsx` 中搜尋是否有可以延伸的既有 `useState`，而不是再開一個新 context。
 
-Stack：React 19、Ant Design 6、Recharts 3、`@dnd-kit` (用於可拖曳重排的 holdings)、`animejs` (數字 tweening)、`dayjs`（含 `utc` + `timezone` plugins）。
+Stack：React 19、Ant Design 6、`iconoir-react`（UI 圖示，規範見 `DESIGN.md` 的 Icons）、Recharts 3、`@dnd-kit` (用於可拖曳重排的 holdings)、`animejs` (數字 tweening)、`dayjs`（含 `utc` + `timezone` plugins）。
 
 ### Design system — 改 UI 前先讀 `DESIGN.md`
 
 任何介面修改（新增或調整元件、樣式、版面、文案層級）動手前，先讀根目錄的 `DESIGN.md`（視覺規範：token、元件、Do's and Don'ts）與 `PRODUCT.md`（產品脈絡：使用者、情境、產品原則），並遵守其中的規則：
 
-- 顏色、字級、圓角、間距只用 token：CSS 寫 `var(--c-*)`、`var(--fs-*)`、`var(--radius-*)`、`var(--space-*)`，JS 從 `src/theme/tokens.js` 取。不寫死 hex 或 px；需要新值時先問使用者，再同時更新 `src/index.css`、`src/theme/tokens.js` 與 `DESIGN.md` 的 frontmatter。
+- 顏色、字級、圓角、間距只用 token：CSS 寫 `var(--c-*)`、`var(--fs-*)`、`var(--radius-*)`、`var(--space-*)`、`var(--icon-*)`，JS 從 `src/theme/tokens.js` 取。不寫死 hex 或 px；需要新值時先問使用者，再同時更新 `src/index.css`、`src/theme/tokens.js` 與 `DESIGN.md` 的 frontmatter。
 - 間距以**支出頁為標準樣板**：區塊之間 `--space-section`、區塊標題到內容 `--space-section-head`、列表列 `--space-row-x` / `--space-row-y`。調整其他頁時照它對齊。
 - 小字的灰只用 `muted`（`subtle` 只給大字、停用狀態與非文字元素）；每頁只有一個會動的「存錢主角」與一個 display 級大數字。
 - 不用 lint disable 註解繞過規則。

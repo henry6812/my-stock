@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer } from "antd";
-import { CalendarOutlined, LoadingOutlined } from "@ant-design/icons";
+import { LoadingOutlined } from "@ant-design/icons";
+import { Calendar } from "iconoir-react";
 import dayjs from "dayjs";
 import {
   evaluateExpression,
@@ -338,7 +339,7 @@ function QuickExpenseSheet({
             </button>
           ))}
           <label className={`${chipClass(isCustomDate)} quick-expense-date-chip`}>
-            <CalendarOutlined aria-hidden />
+            <Calendar aria-hidden />
             {isCustomDate ? occurredAt.format("M/D") : "其他"}
             <input
               type="date"

@@ -49,6 +49,21 @@
   --fs-title: 20px;
   --fs-hero: 36px;
   --fs-display: 38px;
+
+  /* Icons (iconoir-react): inline 16, buttons / tab bar / tiles 20, and the
+     round tile behind a list row's icon (expense categories). */
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-tile: 36px;
+}
+
+/* Every iconoir icon (data-icon comes from IconoirProvider in main.jsx).
+   Default --icon-sm; :where() keeps it at zero specificity so any class that
+   sets font-size (--icon-md, caption-sized marks) wins. */
+:where(svg[data-icon]) {
+  flex: none;
+  font-size: var(--icon-sm);
+  vertical-align: -0.125em;
 }
 
 * {

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Typography } from "antd";
-import { RightOutlined, SyncOutlined } from "@ant-design/icons";
+import { NavArrowRight, Repeat } from "iconoir-react";
 import dayjs from "dayjs";
+import CategoryIcon from "./CategoryIcon";
 import Collapsible from "./Collapsible";
 import SwipeActions from "./SwipeActions";
 import { formatTwd } from "../utils/formatters";
@@ -16,7 +17,7 @@ const { Text } = Typography;
 // subtotal per day. Each day folds from its heading; only today starts open.
 // This month's upcoming recurring charges are shown apart by
 // UpcomingExpenseList (collapsed under 本月預計). Each row is two lines and
-// swipes for its actions.
+// swipes for its actions, with the category's icon tile in front.
 
 const isSet = (value) => Boolean(value) && value !== "未指定";
 
@@ -29,11 +30,13 @@ function ExpenseRow({ row, actions, disabled }) {
   return (
     <SwipeActions actions={actions} disabled={disabled}>
       <div className="mobile-swipe-row expense-day-row">
+        <CategoryIcon name={row.categoryName} />
         <div className="mobile-swipe-row-main">
           <div className="holding-main-text expense-day-row-name">
             {row.isRecurringOccurrence && (
-              <SyncOutlined
+              <Repeat
                 className="expense-day-row-recurring"
+                aria-hidden={false}
                 aria-label="定期支出"
                 role="img"
               />
@@ -84,7 +87,7 @@ export function UpcomingExpenseList({
         <span>
           {label} {upcoming.rows.length} 筆 · {formatTwd(upcoming.totalTwd)}
         </span>
-        <RightOutlined className="collapse-chevron" />
+        <NavArrowRight className="collapse-chevron" />
       </button>
       <Collapsible open={expanded}>
         <div className="expense-day-group">
@@ -128,7 +131,7 @@ function ExpenseDayList({
               <span>{formatDayHeading(day.date, today)}</span>
               <span className="expense-day-heading-end">
                 <span className="expense-day-total">{formatTwd(day.totalTwd)}</span>
-                <RightOutlined className="collapse-chevron" />
+                <NavArrowRight className="collapse-chevron" />
               </span>
             </button>
             <Collapsible open={expanded}>

@@ -68,6 +68,10 @@ spacing:
   section-head: "12px"
   row-x: "16px"
   row-y: "16px"
+iconSize:
+  sm: "16px"
+  md: "20px"
+  tile: "36px"
 components:
   button-primary:
     backgroundColor: "{colors.teal}"
@@ -284,6 +288,15 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 - **漲跌：** 方向只標一次。箭頭（▲ / ▼）加 `up` / `down` 色，不再加正負號；同一列左邊放 %、右邊放金額，不重複。
 - **類別 tag 只標非預設值**（ETF、債券）；預設的「個股」不顯示。
 
+### Icons
+圖示庫是 **`iconoir-react`**（線條、24 格線、圓角線頭），在 `main.jsx` 用 `IconoirProvider` 統一設定：1em 見方、線寬 1.5、預設 `aria-hidden`。
+- **尺寸：** 預設 `--icon-sm`（16px，行內、按鈕、chevron、左滑動作）；tab bar、FAB、分類圖示用 `--icon-md`（20px）。CSS 對 svg 設 `font-size` 調整，不另開尺寸。
+- **線寬：** 一律 1.5，不依位置加粗或變細。
+- **顏色：** 繼承文字色（`currentColor`），只用色彩 token；一般為 `muted`，可點的強調為 `teal`，左滑動作與 primary 按鈕上為白色。
+- **分類圖示（Category Icon）：** 支出列左側 36px（`--icon-tile`）圓形 tile，`teal-soft` 底 + `teal-ink` 圖示；沒有分類時為 `neutral-fill` 底 + `muted`。圖示依分類名稱的關鍵字自動對應（`src/utils/categoryIcons.js`），對不到時用通用的 `Label`。純裝飾：分類名稱仍寫在次行。
+- **無障礙：** 單獨傳達意義的圖示（例如名稱前的「定期支出」標記）加 `aria-hidden={false} role="img" aria-label`；純圖示按鈕把 `aria-label` 放在按鈕上。
+- **例外：** antd 元件內建的圖示（DatePicker、Select 箭頭、Modal ×）沿用 antd；載入中的轉圈仍用 antd `LoadingOutlined`。我們自己的 code 不再從 `@ant-design/icons` import 其他圖示。
+
 ### Analysis List
 支出頁的「支出分析」與資產頁的「資產分析」用同一個框線列表（`.analysis-*`）：每列一種分析，名稱 + 一句重點 + chevron，點開在 modal 顯示完整圖表；頁面上不放縮圖卡片。重點句不能和頁面上其他數字打架（例如走勢的區間起點不是昨收，就不寫一個和 hero「今日」不同的漲跌金額）。分配類圖表在 modal 裡是甜甜圈 + 附金額與占比的列表，不用彩色字當圓餅標籤。
 
@@ -331,6 +344,7 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 - **Do** 讓陰影只出現在 FAB、tab bar、overlay。
 - **Do** 為所有動畫提供 `prefers-reduced-motion` 關閉路徑。
 - **Do** 漲跌、超支、警示只用 `up` / `down` / `warn`。
+- **Do** 圖示只用 `iconoir-react`，尺寸只用 `--icon-sm` / `--icon-md`。
 
 ### Don't:
 - **Don't** 在按鈕、卡片、列表上加陰影。
@@ -338,3 +352,4 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 - **Don't** 新增刻度外的字級或間距（5、10、14、18px 這類）；需要新刻度先更新 token。
 - **Don't** 用 `subtle` 寫需要被讀的小字。
 - **Don't** 用回彈 / overshoot 的 easing。
+- **Don't** 在同一處混用 antd 與 iconoir 圖示，或為了裝飾到處加圖示；圖示要幫助辨識（分類、動作、導覽）。

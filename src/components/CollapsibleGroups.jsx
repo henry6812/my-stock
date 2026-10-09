@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RightOutlined } from "@ant-design/icons";
+import { NavArrowRight } from "iconoir-react";
 import Collapsible from "./Collapsible";
 
 // One framed list of groups, each folding from its heading (title on the
@@ -33,7 +33,7 @@ function CollapsibleGroups({
               <span>{group.title}</span>
               <span className="expense-day-heading-end">
                 <span className="expense-day-total">{group.total}</span>
-                <RightOutlined className="collapse-chevron" />
+                <NavArrowRight className="collapse-chevron" />
               </span>
             </button>
             <Collapsible open={expanded}>{group.rows.map(renderRow)}</Collapsible>

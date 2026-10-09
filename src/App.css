@@ -103,8 +103,8 @@
   min-width: 0;
 }
 
-.mobile-main-tabbar .ant-segmented-item .anticon {
-  font-size: 20px;
+.mobile-main-tabbar .ant-segmented-item svg[data-icon] {
+  font-size: var(--icon-md);
 }
 
 .mobile-tab-label {
@@ -148,6 +148,10 @@
   align-items: center;
   justify-content: center;
   box-shadow: var(--shadow-float);
+}
+
+.expense-fab.ant-btn svg[data-icon] {
+  font-size: var(--icon-md);
 }
 
 .expense-fab.ant-btn:hover,
@@ -2039,6 +2043,12 @@ button.expense-card-chip {
   line-height: 18px;
 }
 
+/* antd only spaces .anticon inside a Tag; give iconoir icons the same gap. */
+.ant-tag > svg[data-icon] {
+  font-size: var(--fs-caption);
+  margin-inline-end: var(--space-1);
+}
+
 .expense-recurring-tag.ant-tag {
   color: var(--c-teal-ink);
   background: var(--c-teal-soft);
@@ -2201,8 +2211,8 @@ button.expense-card-chip {
   cursor: pointer;
 }
 
-.swipe-action .anticon {
-  font-size: 16px;
+.swipe-action svg[data-icon] {
+  font-size: var(--icon-sm);
 }
 
 .swipe-action--danger {
@@ -2322,6 +2332,25 @@ button.expense-card-chip {
 .mobile-list-section--category .mobile-swipe-row {
   min-height: 72px;
   padding-block: var(--space-row-y);
+}
+
+/* Category icon tile (CategoryIcon) at the start of an expense row. */
+.category-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-tile);
+  height: var(--icon-tile);
+  border-radius: var(--radius-pill);
+  background: var(--c-teal-soft);
+  color: var(--c-teal-ink);
+  font-size: var(--icon-md);
+}
+
+.category-icon--none {
+  background: var(--c-neutral-fill);
+  color: var(--c-muted);
 }
 
 .expense-day-group .swipe-actions + .swipe-actions {
