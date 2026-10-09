@@ -4,7 +4,6 @@
 import { floorToTenThousand } from "./portfolioView";
 
 export const JAR_UNIT_TWD = 10_000_000;
-export const JAR_TICK_TWD = 2_000_000;
 
 const clamp01 = (value) => Math.min(1, Math.max(0, value));
 
@@ -20,11 +19,6 @@ export const getJarGeometry = ({ totalTwd, baselineTwd }) => {
   const hasBaseline = baseline > 0;
   const crossedMilestone = hasBaseline && baseline < floorTwd;
 
-  const ticks = [];
-  for (let twd = floorTwd + JAR_TICK_TWD; twd < capTwd; twd += JAR_TICK_TWD) {
-    ticks.push({ twd, ratio: toRatio(twd) });
-  }
-
   let direction = "flat";
   if (hasBaseline && total > baseline) direction = "up";
   if (hasBaseline && total < baseline) direction = "down";
@@ -39,7 +33,6 @@ export const getJarGeometry = ({ totalTwd, baselineTwd }) => {
     hasBaseline,
     crossedMilestone,
     direction,
-    ticks,
     gapToCapTwd: capTwd - total,
     isEmpty: total <= 0,
   };

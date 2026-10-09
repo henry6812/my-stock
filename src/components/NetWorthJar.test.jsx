@@ -39,6 +39,21 @@ describe('NetWorthJar (reduced motion → final state)', () => {
     expect(container.querySelector('.networth-jar-band--down')).not.toBeNull()
   })
 
+  it('draws the jar as a fill and hides the capacity until revealed', () => {
+    const { container, rerender } = render(<NetWorthJar totalTwd={6_384_200} baselineTwd={6_301_000} playKey={1} />)
+    const svg = container.querySelector('svg')
+    expect(svg).not.toHaveClass('networth-jar--revealed')
+    expect(container.querySelector('.networth-jar-body')).not.toBeNull()
+    expect(container.querySelector('.networth-jar-outline, .networth-jar-glass, .networth-jar-shine, .networth-jar-tick')).toBeNull()
+    rerender(<NetWorthJar totalTwd={6_384_200} baselineTwd={6_301_000} playKey={1} revealed />)
+    expect(svg).toHaveClass('networth-jar--revealed')
+  })
+
+  it('always shows the capacity for an empty jar', () => {
+    const { container } = render(<NetWorthJar totalTwd={0} baselineTwd={0} playKey={1} />)
+    expect(container.querySelector('svg')).toHaveClass('networth-jar--revealed')
+  })
+
   it('renders no water for an empty jar', () => {
     const { container } = render(<NetWorthJar totalTwd={0} baselineTwd={0} playKey={1} />)
     expect(container.querySelector('.networth-jar-water')).toBeNull()

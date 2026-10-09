@@ -1,8 +1,10 @@
 // Asset-tab net-worth jar: the total is the water level inside a jar that
-// holds one 千萬. Today's move since yesterday is a pale solid band on top of
-// the water (green up / red down); only the capacity is labelled — the hero
-// text carries the figures. Geometry lives in utils/netWorthJar.js — this
-// file only draws and animates it.
+// holds one 千萬. The jar is just a faint fill, no outline or glass; the water
+// is two moving wave layers, with today's move since yesterday as a pale
+// solid band on top (green up / red down). The capacity label stays hidden
+// until the hero is tapped (`revealed`); an empty jar always shows it, since
+// there is no water to look at. Geometry lives in utils/netWorthJar.js — this file only
+// draws and animates it.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { getJarGeometry } from "../utils/netWorthJar";
 import { formatNetWorthScaleLabel } from "../utils/portfolioView";
@@ -30,7 +32,7 @@ const buildWavePath = (levelY, phase, amp, offset) => {
   return `${d} L ${JAR.x + JAR.w + 4} ${bottom} Z`;
 };
 
-export default function NetWorthJar({ totalTwd, baselineTwd, playKey }) {
+export default function NetWorthJar({ totalTwd, baselineTwd, playKey, revealed = false }) {
   const [reduced] = useState(prefersReducedMotion);
   const geometry = useMemo(
     () => getJarGeometry({ totalTwd, baselineTwd }),
@@ -135,10 +137,11 @@ export default function NetWorthJar({ totalTwd, baselineTwd, playKey }) {
   const currentLabel = formatNetWorthScaleLabel(geometry.totalTwd);
   const levelY = yOf(geometry.levelRatio);
   const up = geometry.direction === "up" || geometry.crossedMilestone;
+  const showFrame = revealed || geometry.isEmpty;
 
   return (
     <svg
-      className={`networth-jar${celebrating ? " networth-jar--celebrate" : ""}`}
+      className={`networth-jar${showFrame ? " networth-jar--revealed" : ""}${celebrating ? " networth-jar--celebrate" : ""}`}
       viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
       role="img"
       aria-label={`總資產水位 ${currentLabel}，容量 ${capLabel}`}
@@ -149,7 +152,7 @@ export default function NetWorthJar({ totalTwd, baselineTwd, playKey }) {
         </clipPath>
       </defs>
 
-      <rect className="networth-jar-glass" x={JAR.x} y={JAR.y} width={JAR.w} height={JAR.h} rx={JAR.r} />
+      <rect className="networth-jar-body" x={JAR.x} y={JAR.y} width={JAR.w} height={JAR.h} rx={JAR.r} />
       <g clipPath={`url(#${id}-clip)`}>
         {!geometry.isEmpty && (
           <g className="networth-jar-water">
@@ -177,18 +180,6 @@ export default function NetWorthJar({ totalTwd, baselineTwd, playKey }) {
           ))}
       </g>
 
-      {geometry.ticks.map((tick) => (
-        <line
-          key={tick.twd}
-          className="networth-jar-tick"
-          x1={JAR.x + JAR.w - 10}
-          x2={JAR.x + JAR.w}
-          y1={yOf(tick.ratio)}
-          y2={yOf(tick.ratio)}
-        />
-      ))}
-      <rect className="networth-jar-outline" x={JAR.x} y={JAR.y} width={JAR.w} height={JAR.h} rx={JAR.r} />
-      <rect className="networth-jar-shine" x={JAR.x + 8} y={JAR.y + 14} width="4" height={JAR.h * 0.55} rx="2" />
       {celebrating && (
         <rect className="networth-jar-halo" x={JAR.x} y={JAR.y} width={JAR.w} height={JAR.h} rx={JAR.r} />
       )}

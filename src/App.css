@@ -341,33 +341,29 @@ button.asset-hero-jar {
   fill: rgba(207, 19, 34, 0.16);
 }
 
-.networth-jar-glass {
-  fill: var(--c-track);
-}
-
 .networth-jar-wave-back {
   fill: var(--c-teal-tint);
   opacity: 0.55;
 }
 
-.networth-jar-outline {
-  fill: none;
-  stroke: var(--c-line-strong);
-  stroke-width: 1.5;
-}
-
-.networth-jar-shine {
-  fill: rgba(255, 255, 255, 0.55);
-}
-
-.networth-jar-tick {
-  stroke: rgba(27, 43, 41, 0.25);
-  stroke-width: 1;
+/* The jar itself: a faint fill instead of an outline. */
+.networth-jar-body {
+  fill: var(--c-track);
 }
 
 .networth-jar-cap {
   font-size: var(--fs-caption);
   fill: var(--c-muted);
+}
+
+/* The capacity only shows while the hero is tapped (or the jar is empty). */
+.networth-jar-cap {
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.networth-jar--revealed .networth-jar-cap {
+  opacity: 1;
 }
 
 .networth-jar-bubble {

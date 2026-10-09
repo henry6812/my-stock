@@ -16,12 +16,6 @@ describe('getJarGeometry', () => {
     expect(g.isEmpty).toBe(false)
   })
 
-  it('places ticks every 200萬 strictly inside the jar', () => {
-    const g = getJarGeometry({ totalTwd: 6_384_200, baselineTwd: 6_301_000 })
-    expect(g.ticks.map((t) => t.twd)).toEqual([2_000_000, 4_000_000, 6_000_000, 8_000_000])
-    expect(g.ticks.map((t) => t.ratio)).toEqual([0.2, 0.4, 0.6, 0.8])
-  })
-
   it('reports a down day', () => {
     const g = getJarGeometry({ totalTwd: 6_218_500, baselineTwd: 6_301_000 })
     expect(g.direction).toBe('down')
@@ -42,7 +36,6 @@ describe('getJarGeometry', () => {
     expect(g.baselineRatio).toBeNull()
     expect(g.crossedMilestone).toBe(true)
     expect(g.direction).toBe('up')
-    expect(g.ticks[0].twd).toBe(12_000_000)
   })
 
   it('puts an exact 千萬 total at the bottom of the next jar', () => {

@@ -1,7 +1,8 @@
 // Asset-tab hero, same shape as the expense summary card: label → big number
 // → one line of secondary text → the net-worth jar. The label reads
 // 「時間・指標」. Tapping the jar swaps the figures for the next milestone and
-// the quote time; tapping anywhere else, or the jar again, goes back.
+// the quote time, and reveals the jar's capacity; tapping anywhere
+// else, or the jar again, goes back.
 import { useState } from "react";
 import dayjs from "dayjs";
 import NetWorthJar from "./NetWorthJar";
@@ -99,7 +100,12 @@ export default function AssetSummaryHero({
             setMilestone(!milestone);
           }}
         >
-          <NetWorthJar totalTwd={totalTwd} baselineTwd={baselineTwd} playKey={playKey} />
+          <NetWorthJar
+            totalTwd={totalTwd}
+            baselineTwd={baselineTwd}
+            playKey={playKey}
+            revealed={milestone}
+          />
         </button>
       )}
     </section>
