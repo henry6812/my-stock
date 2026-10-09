@@ -155,8 +155,9 @@ const formatStripAmount = (value) =>
 // Main mobile expense list: one day at a time. A strip of the month's days
 // on top — weekday, date and that day's total — picks the day (solid ink,
 // like a selected chip); it opens on today, scrolled to the end so the
-// latest days are in view. The picked day's rows follow with no heading:
-// its date and total are already in the strip.
+// latest days are in view. Strip and the picked day's rows share one
+// frame, the strip acting as the list's head; the rows need no heading of
+// their own since the date and total are already in the strip.
 export function ExpenseDayStrip({
   rows = [],
   month,
@@ -197,7 +198,7 @@ export function ExpenseDayStrip({
   const selected = strip.find((day) => day.date === pickedDate);
 
   return (
-    <div className="expense-day-strip">
+    <div className="expense-day-list expense-day-strip">
       <div
         ref={trackRef}
         className="expense-day-strip-track"
@@ -237,7 +238,7 @@ export function ExpenseDayStrip({
       </div>
       {selected && (
         <section
-          className="expense-day-list"
+          className="expense-day-strip-rows"
           aria-label={formatDayHeading(selected.date, today)}
         >
           {selected.rows.length > 0 ? (

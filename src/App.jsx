@@ -5945,6 +5945,13 @@ function App() {
                           <span className="mobile-list-title">支出列表</span>
                         </div>
                         <div className="mobile-list-body">
+                          {/* This month's upcoming recurring charges;
+                              independent of the category tabs. */}
+                          <UpcomingExpenseList
+                            rows={expenseRows}
+                            getActions={getExpenseSwipeActions}
+                            disabled={isWriteDisabled}
+                          />
                           {/* One day at a time (today first) so the list
                               stays short; the day strip finds the rest. */}
                           <ExpenseDayStrip
@@ -5954,13 +5961,6 @@ function App() {
                             getActions={getExpenseSwipeActions}
                             disabled={isWriteDisabled}
                             empty={expenseEmptyState}
-                          />
-                          {/* This month's upcoming recurring charges;
-                              independent of the category tabs. */}
-                          <UpcomingExpenseList
-                            rows={expenseRows}
-                            getActions={getExpenseSwipeActions}
-                            disabled={isWriteDisabled}
                           />
                         </div>
                       </div>
