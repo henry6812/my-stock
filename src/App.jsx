@@ -137,7 +137,8 @@ import { buildStockDetailHolding, isInteractiveTarget } from "./utils/stockDetai
 import { isFromPortal } from "./utils/portalEvent";
 import CategoryIcon from "./components/CategoryIcon";
 import CategoryIconPicker from "./components/CategoryIconPicker";
-import ExpenseDayList, {
+import {
+  ExpenseDayStrip,
   UpcomingExpenseList,
 } from "./components/ExpenseDayList";
 import {
@@ -2961,7 +2962,7 @@ function App() {
       },
     ];
 
-    // Mobile renders ExpenseDayList instead of this table.
+    // Mobile renders ExpenseDayStrip instead of this table.
     return columns;
   }, [
     handleRemoveExpense,
@@ -5935,6 +5936,55 @@ function App() {
                       onSetupIncome={goToIncomeSettings}
                     />
                   </Col>
+                  {/* The day's spending right under the summary, so today's
+                      rows show on opening the tab. */}
+                  <Col xs={24}>
+                    {isMobileViewport ? (
+                      <div className="mobile-list-section mobile-list-section--expense">
+                        <div className="mobile-list-header">
+                          <span className="mobile-list-title">支出列表</span>
+                        </div>
+                        <div className="mobile-list-body">
+                          {/* One day at a time (today first) so the list
+                              stays short; the day strip finds the rest. */}
+                          <ExpenseDayStrip
+                            rows={expenseListRows}
+                            month={safeActiveExpenseMonth}
+                            today={dayjs().format("YYYY-MM-DD")}
+                            getActions={getExpenseSwipeActions}
+                            disabled={isWriteDisabled}
+                            empty={expenseEmptyState}
+                          />
+                          {/* This month's upcoming recurring charges;
+                              independent of the category tabs. */}
+                          <UpcomingExpenseList
+                            rows={expenseRows}
+                            getActions={getExpenseSwipeActions}
+                            disabled={isWriteDisabled}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <Card title="支出列表">
+                        <Tabs
+                          className="expense-category-tabs"
+                          activeKey={activeExpenseCategoryTab}
+                          onChange={setActiveExpenseCategoryTab}
+                          items={expenseCategoryTabItems}
+                          style={{ marginBottom: 12 }}
+                        />
+                        <Table
+                          rowKey={(record) => `${record.id}-${record.occurredAt}`}
+                          rowClassName={expenseRowClassName}
+                          dataSource={filteredExpenseRowsByCategory}
+                          columns={expenseTableColumns}
+                          pagination={false}
+                          locale={{ emptyText: expenseEmptyState }}
+                          scroll={{ x: 860 }}
+                        />
+                      </Card>
+                    )}
+                  </Col>
                   <Col xs={24}>
                     <section className="active-budgets-section">
                       <Space size={8} className="active-budgets-title-wrap">
@@ -6062,53 +6112,6 @@ function App() {
                         </div>
                       )}
                     </section>
-                  </Col>
-                  <Col xs={24}>
-                    {isMobileViewport ? (
-                      <>
-                      <div className="mobile-list-section mobile-list-section--expense">
-                        <div className="mobile-list-header">
-                          <span className="mobile-list-title">支出列表</span>
-                        </div>
-                        <div className="mobile-list-body">
-                          {/* This month's upcoming recurring charges, right
-                              under the title so the list can't push them
-                              down; independent of the category tabs. */}
-                          <UpcomingExpenseList
-                            rows={expenseRows}
-                            getActions={getExpenseSwipeActions}
-                            disabled={isWriteDisabled}
-                          />
-                          <ExpenseDayList
-                            rows={expenseListRows}
-                            today={dayjs().format("YYYY-MM-DD")}
-                            getActions={getExpenseSwipeActions}
-                            disabled={isWriteDisabled}
-                            empty={expenseEmptyState}
-                          />
-                        </div>
-                      </div>
-                      </>
-                    ) : (
-                      <Card title="支出列表">
-                        <Tabs
-                          className="expense-category-tabs"
-                          activeKey={activeExpenseCategoryTab}
-                          onChange={setActiveExpenseCategoryTab}
-                          items={expenseCategoryTabItems}
-                          style={{ marginBottom: 12 }}
-                        />
-                        <Table
-                          rowKey={(record) => `${record.id}-${record.occurredAt}`}
-                          rowClassName={expenseRowClassName}
-                          dataSource={filteredExpenseRowsByCategory}
-                          columns={expenseTableColumns}
-                          pagination={false}
-                          locale={{ emptyText: expenseEmptyState }}
-                          scroll={{ x: 860 }}
-                        />
-                      </Card>
-                    )}
                   </Col>
                   <Col xs={24}>
                     <RecurringOverview

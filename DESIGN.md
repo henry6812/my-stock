@@ -244,7 +244,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 
 間距以 4px 為基數：`--space-1` 到 `--space-10`（4 / 8 / 12 / 16 / 20 / 24 / 32 / 40px）。版面用四個語意角色，**支出頁是這套間距的標準樣板**，其他頁面調整時照它對齊：
 
-- **`--space-section`（40px）**：頁面區塊之間（hero、預算、支出列表、定期支出、支出分析彼此的距離）。
+- **`--space-section`（40px）**：頁面區塊之間（hero、支出列表、預算、定期支出、支出分析彼此的距離）。
 - **`--space-section-head`（12px）**：區塊標題到它的內容。
 - **`--space-row-x` / `--space-row-y`（16px / 16px）**：列表列的左右與上下內距；一般列最少 72px 高。
 - **Hero 內部**：上 24px；數字 → 主角視覺 20px；主角視覺 → 月份長條 24px。
@@ -317,8 +317,11 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 - **無障礙：** 單獨傳達意義的圖示（例如名稱前的「定期支出」標記）加 `aria-hidden={false} role="img" aria-label`；純圖示按鈕把 `aria-label` 放在按鈕上。
 - **例外：** antd 元件內建的圖示（DatePicker、Select 箭頭、Modal ×）沿用 antd；載入中的轉圈仍用 antd `LoadingOutlined`。我們自己的 code 不再從 `@ant-design/icons` import 其他圖示。
 
+### Day Strip（支出列表）
+手機支出列表一次只顯示一天（`ExpenseDayStrip`）：標題下是一條可橫向捲動的日期條，當月 1 號到今天（過去月份到月底）每天一欄 — 上方小長條（高度＝當天支出，平方根比例，免得一筆房貸壓扁其他天；沒支出的天只留 2px `line` 底線）、下方日期（今天寫「今天」，600）與 12px `muted` 星期。長條用中性色 `line-strong`，**不用 teal**（這是花掉的錢，teal 只給存下的）；選中的那天欄底 `neutral-fill`、長條 `action`，像選中的 chip。預設選今天（不在範圍內則選最近有支出的一天），並捲到最右；下方是該天的分組列表（標題列不可摺疊），沒支出時顯示「今天還沒有支出」／「這天沒有支出」。預算明細等次要列表仍用逐日摺疊的 `ExpenseDayList`。
+
 ### Upcoming Card（本月預計）
-支出列表標題下的「本月預計」（`UpcomingExpenseList`，預算明細裡是「本期預計」）是一張無邊框、`--radius-sheet` 圓角、帶 Card 陰影的白卡，整個卡頭就是展開按鈕：左側 `--icon-tile` 的 `Clock`（無框、白底）→ 標題（16px `ink`）+ 筆數（14px `muted`）→ 下方一排重疊的 Category Icon（每個不同類別一個，最多 6 個，多的用 `+N` tile；相鄰 tile 重疊 `--space-2`，各帶 2px `surface` 外圈區隔；裝飾性、`aria-hidden`；只在收合時顯示，展開後由支出列取代）；右側合計（16px 粗體）+ 摺疊 chevron。展開後的支出列在卡頭下方，以 1px `line` 分隔，維持淡化（未發生）。
+支出列表當天列表下方的「本月預計」（`UpcomingExpenseList`，預算明細裡是「本期預計」）是一張無邊框、`--radius-sheet` 圓角、帶 Card 陰影的白卡，整個卡頭就是展開按鈕：左側 `--icon-tile` 的 `Clock`（無框、白底）→ 標題（16px `ink`）+ 筆數（14px `muted`）→ 下方一排重疊的 Category Icon（每個不同類別一個，最多 6 個，多的用 `+N` tile；相鄰 tile 重疊 `--space-2`，各帶 2px `surface` 外圈區隔；裝飾性、`aria-hidden`；只在收合時顯示，展開後由支出列取代）；右側合計（16px 粗體）+ 摺疊 chevron。展開後的支出列在卡頭下方，以 1px `line` 分隔，維持淡化（未發生）。
 
 ### Analysis List
 支出頁的「支出分析」與資產頁的「資產分析」用同一個框線列表（`.analysis-*`）：每列一種分析，左側 `--icon-md` `muted` 類型圖示 + 名稱 + 一句重點 + chevron（走勢 `GraphUp`、分配 `PercentageCircle`、台股 / 美股 `Globe`、家庭 / 個人 `HomeUser`、支出人 `Group`、家庭開銷平衡 `CoinsSwap`、類別 `Label`），點開在 modal 顯示完整圖表；頁面上不放縮圖卡片。重點句不能和頁面上其他數字打架（例如走勢的區間起點不是昨收，就不寫一個和 hero「今日」不同的漲跌金額）。分配類圖表在 modal 裡是甜甜圈 + 附金額與占比的列表，不用彩色字當圓餅標籤。
@@ -354,7 +357,7 @@ Sheet 由上而下：一行「分類（左）／算式（右）」→ 收據式�
 - 規格來源：`docs/superpowers/specs/2026-10-07-expense-summary-card-design.md`。
 
 ### Expense Tab Order
-支出頁由上而下：hero → 預算（最急的在前；桌面為自動換行的網格，不橫向捲動）→ 支出列表 → 定期支出 → 支出分析，區塊間距 `--space-section`。支出分析是參考資料，放在最後，樣式見 Analysis List。
+支出頁由上而下：hero → 支出列表（日期條＋當天，讓一進頁面就看到今天）→ 預算（最急的在前；桌面為自動換行的網格，不橫向捲動）→ 定期支出 → 支出分析，區塊間距 `--space-section`。支出分析是參考資料，放在最後，樣式見 Analysis List。
 
 ### Budget Bar
 8px pill 進度條：`track` 軌道；已花為實色，本期尚未扣款的定期支出為同色 35% 透明；一條 2px `ink`（60%）細線標示「本期已過多久」，超過細線代表花得比進度快。

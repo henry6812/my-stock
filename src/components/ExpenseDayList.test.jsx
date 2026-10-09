@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import ExpenseDayList, { UpcomingExpenseList } from './ExpenseDayList'
+import ExpenseDayList, { ExpenseDayStrip, UpcomingExpenseList } from './ExpenseDayList'
 
 const row = (id, occurredAt, amountTwd, extra = {}) => ({
   id,
@@ -182,5 +182,61 @@ describe('<ExpenseDayList expandAll />', () => {
     expect(
       screen.getAllByTestId('expense-day-heading').every((el) => el.getAttribute('aria-expanded') === 'true'),
     ).toBe(true)
+  })
+})
+
+describe('<ExpenseDayStrip />', () => {
+  const renderStrip = (props = {}) => {
+    render(
+      <ExpenseDayStrip
+        rows={rows}
+        month="2026-10"
+        today="2026-10-04"
+        getActions={() => []}
+        empty={<div>沒有支出</div>}
+        {...props}
+      />,
+    )
+    return userEvent.setup()
+  }
+
+  it('offers every day of the month up to today, opening on today', () => {
+    renderStrip()
+    const days = within(screen.getByRole('group', { name: '選擇日期' })).getAllByRole('button')
+    expect(days).toHaveLength(4)
+    expect(screen.getByRole('button', { name: '今天 · 10/04（日），$200' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '昨天 · 10/03（六），沒有支出' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('expense-day-heading')).toHaveTextContent('今天 · 10/04（日）$200')
+    expect(screen.getByText('午餐')).toBeInTheDocument()
+    expect(screen.queryByText('中華電信')).not.toBeInTheDocument()
+  })
+
+  it('switches the list to the picked day', async () => {
+    const user = renderStrip()
+    await user.click(screen.getByRole('button', { name: /^10\/02/ }))
+    expect(screen.getByTestId('expense-day-heading')).toHaveTextContent('10/02（五）$999')
+    expect(screen.getByText('中華電信')).toBeInTheDocument()
+    expect(screen.queryByText('午餐')).not.toBeInTheDocument()
+  })
+
+  it('says so when the picked day has no spending', async () => {
+    const user = renderStrip()
+    await user.click(screen.getByRole('button', { name: /10\/03/ }))
+    expect(screen.getByText('這天沒有支出')).toBeInTheDocument()
+  })
+
+  it('opens on an empty today with a prompt', () => {
+    renderStrip({ today: '2026-10-06' })
+    expect(screen.getByText('今天還沒有支出')).toBeInTheDocument()
+  })
+
+  it('leaves upcoming charges out', () => {
+    renderStrip()
+    expect(screen.queryByText('房租')).not.toBeInTheDocument()
+  })
+
+  it('shows the empty state when the month has no charged rows', () => {
+    renderStrip({ rows: rows.filter((item) => item.isUpcoming) })
+    expect(screen.getByText('沒有支出')).toBeInTheDocument()
   })
 })

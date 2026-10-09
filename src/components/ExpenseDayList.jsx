@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Typography } from "antd";
 import { Clock, NavArrowRight, Repeat } from "iconoir-react";
 import dayjs from "dayjs";
@@ -7,6 +7,8 @@ import Collapsible from "./Collapsible";
 import SwipeActions from "./SwipeActions";
 import { formatTwd } from "../utils/formatters";
 import {
+  buildExpenseDayStrip,
+  defaultStripDate,
   formatDayHeading,
   groupExpenseRowsByDay,
 } from "../utils/expenseGroups";
@@ -140,6 +142,128 @@ export function UpcomingExpenseList({
           {renderRows(upcoming.rows, getActions, disabled)}
         </div>
       </Collapsible>
+    </div>
+  );
+}
+
+const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
+// Matches .expense-day-strip-bar (--space-8); an empty day keeps a 2px stub.
+const STRIP_BAR_PX = 32;
+
+// Main mobile expense list: one day at a time. A strip of the month's days
+// on top — one bar per day, its height that day's spending (square-root
+// scale, so one rent day doesn't flatten the rest) — picks the day;
+// it opens on today, scrolled to the end so the latest days are in view.
+// Bars are neutral (spending), the picked day solid ink; teal stays for
+// what was saved.
+export function ExpenseDayStrip({
+  rows = [],
+  month,
+  today,
+  getActions,
+  disabled = false,
+  empty = null,
+}) {
+  const strip = buildExpenseDayStrip(rows, month, today);
+  const fallback = defaultStripDate(strip, today);
+  // The pick belongs to its month; switching months reopens on the default.
+  const [picked, setPicked] = useState({ month, date: null });
+  const pickedDate =
+    picked.month === month && strip.some((day) => day.date === picked.date)
+      ? picked.date
+      : fallback;
+  const trackRef = useRef(null);
+  const hasRows = strip.some((day) => day.rows.length > 0);
+  // The strip mounts once the month's rows arrive, so that is part of it.
+  const scrollKey = `${month}|${strip.length}|${hasRows}`;
+
+  // Bring the picked day into view (at the end) on open and month change,
+  // without scrolling the page.
+  useLayoutEffect(() => {
+    const track = trackRef.current;
+    const button = track?.querySelector('[aria-pressed="true"]');
+    if (!track || !button) return;
+    track.scrollLeft =
+      button === track.lastElementChild
+        ? track.scrollWidth
+        : // Half a day past it, so the strip visibly goes on.
+          button.offsetLeft + button.offsetWidth * 1.5 - track.clientWidth;
+    // Keyed on the month and its length: picking a day must not move it.
+  }, [scrollKey]);
+
+  if (!hasRows) return empty;
+
+  const maxTotal = Math.max(...strip.map((day) => day.totalTwd), 1);
+  const selected = strip.find((day) => day.date === pickedDate);
+
+  return (
+    <div className="expense-day-strip">
+      <div
+        ref={trackRef}
+        className="expense-day-strip-track"
+        role="group"
+        aria-label="選擇日期"
+      >
+        {strip.map((day) => {
+          const date = dayjs(day.date);
+          const isToday = day.date === today;
+          const on = day.date === pickedDate;
+          const height =
+            day.totalTwd > 0
+              ? Math.max(
+                  4,
+                  Math.round(Math.sqrt(day.totalTwd / maxTotal) * STRIP_BAR_PX),
+                )
+              : 2;
+          return (
+            <button
+              key={day.date}
+              type="button"
+              className={`expense-day-strip-day${on ? " is-on" : ""}${
+                day.rows.length === 0 ? " is-empty" : ""
+              }`}
+              data-today={isToday || undefined}
+              aria-pressed={on}
+              aria-label={`${formatDayHeading(day.date, today)}，${
+                day.rows.length > 0 ? formatTwd(day.totalTwd) : "沒有支出"
+              }`}
+              onClick={() => setPicked({ month, date: day.date })}
+            >
+              <span className="expense-day-strip-bar" aria-hidden="true">
+                <span
+                  className="expense-day-strip-fill"
+                  style={{ height: `${height}px` }}
+                />
+              </span>
+              <span className="expense-day-strip-date" aria-hidden="true">
+                {isToday ? "今天" : date.date()}
+              </span>
+              <span className="expense-day-strip-weekday" aria-hidden="true">
+                {WEEKDAYS[date.day()]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {selected && (
+        <section className="expense-day-list">
+          <div className="expense-day-heading" data-testid="expense-day-heading">
+            <span>{formatDayHeading(selected.date, today)}</span>
+            <span className="expense-day-total">
+              {formatTwd(selected.totalTwd)}
+            </span>
+          </div>
+          {selected.rows.length > 0 ? (
+            <div className="expense-day-group">
+              {renderRows(selected.rows, getActions, disabled)}
+            </div>
+          ) : (
+            <p className="expense-day-strip-none">
+              {selected.date === today ? "今天還沒有支出" : "這天沒有支出"}
+            </p>
+          )}
+        </section>
+      )}
     </div>
   );
 }

@@ -2218,7 +2218,7 @@ button.expense-card-chip {
   opacity: 0.55;
 }
 
-/* 本月預計 sits right under the 支出列表 title as a raised card (shadow,
+/* 本月預計 is a raised card (shadow,
    no frame) like a category budget: clock tile, label + count with the category tiles stacked below,
    total and fold chevron on the right. The whole head is the toggle. */
 .expense-day-list.expense-upcoming-group {
@@ -2582,6 +2582,110 @@ button.expense-card-chip {
 .expense-day-total {
   font-weight: 600;
   color: var(--c-ink);
+}
+
+/* Main list (ExpenseDayStrip): the month's days as a strip of bars above
+   one day's rows. Bars are neutral — this is spending; teal is for what
+   was saved — and the picked day is solid ink, like a selected chip. */
+/* position: relative makes the track the days' offsetParent, which the
+   scroll-to-picked-day measurement relies on. */
+.expense-day-strip-track {
+  position: relative;
+  display: flex;
+  gap: var(--space-1);
+  margin: 0 calc(-1 * var(--space-2)) var(--space-3);
+  padding: 0 var(--space-2);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.expense-day-strip-track::-webkit-scrollbar {
+  display: none;
+}
+
+/* Columns stretch while the month is short, then scroll. */
+.expense-day-strip-day {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: var(--space-10);
+  padding: var(--space-2) var(--space-1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--c-muted);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  scroll-snap-align: end;
+  cursor: pointer;
+}
+
+.expense-day-strip-day:focus-visible {
+  outline: 2px solid var(--c-action);
+  outline-offset: -2px;
+}
+
+.expense-day-strip-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: var(--space-8);
+}
+
+.expense-day-strip-fill {
+  display: block;
+  width: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--c-line-strong);
+}
+
+/* No spending: a short stub on the baseline so the day still reads. */
+.expense-day-strip-day.is-empty .expense-day-strip-fill {
+  background: var(--c-line);
+}
+
+.expense-day-strip-date {
+  font-size: var(--fs-body);
+  line-height: 1.2;
+  color: var(--c-ink);
+}
+
+.expense-day-strip-weekday {
+  font-size: var(--fs-caption);
+  line-height: 1;
+}
+
+.expense-day-strip-day[data-today="true"] .expense-day-strip-date {
+  font-weight: 600;
+}
+
+.expense-day-strip-day.is-on {
+  background: var(--c-neutral-fill);
+}
+
+.expense-day-strip-day.is-on .expense-day-strip-fill {
+  background: var(--c-action);
+}
+
+.expense-day-strip-day.is-on .expense-day-strip-date {
+  font-weight: 600;
+}
+
+.expense-day-strip-none {
+  margin: 0;
+  padding: var(--space-row-y) var(--space-row-x);
+  color: var(--c-muted);
+  font-size: var(--fs-body);
+}
+
+.expense-day-strip + .expense-upcoming-group {
+  margin-top: var(--space-4);
+  margin-bottom: 0;
 }
 
 /* Same height whether or not the row has a category · payer line. */
