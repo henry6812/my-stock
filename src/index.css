@@ -4,12 +4,12 @@
      every CTA. Teal is reserved for the savings visuals (jar, towers,
      month bars, net-worth trend). */
   --c-ink: #1c1f23;
-  --c-muted: #5e646b;
-  --c-subtle: #868c93;
-  --c-paper: #fafafb;
+  --c-muted: #636970;
+  --c-subtle: #8b9198;
+  --c-paper: #fbfbfc;
   --c-surface: #ffffff;
-  --c-line: #e3e5e8;
-  --c-line-strong: #cdd1d6;
+  --c-line: #ebedf0;
+  --c-line-strong: #dadde2;
   --c-action: #1f2328;
   --c-action-hover: #353b43;
   --c-action-active: #121417;
@@ -23,8 +23,8 @@
   --c-down: #cf1322;
   --c-warn: #d48806;
   --c-warn-ink: #a36100;
-  --c-neutral-fill: #eff1f3;
-  --c-track: #e8ebee;
+  --c-neutral-fill: #f3f4f6;
+  --c-track: #edeff2;
 
   /* Category tile tints: soft pastels, one per family of expense category,
      behind ink icons (≥12:1). Decoration that tells categories apart at a

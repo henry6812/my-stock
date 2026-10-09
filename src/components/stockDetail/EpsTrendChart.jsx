@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { COLORS } from "../../theme/tokens";
+import { CHART_NEUTRAL, COLORS } from "../../theme/tokens";
 import { buildEpsChartData } from "../../utils/stockDetail";
 
 const { Text } = Typography;
@@ -40,7 +40,7 @@ function EpsTrendChart({ fundamentals }) {
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.muted }} />
               <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
               <Tooltip formatter={formatTooltip} />
-              <Bar dataKey="lastYearEps" fill={COLORS.lineStrong} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="lastYearEps" fill={CHART_NEUTRAL} radius={[3, 3, 0, 0]} />
               <Bar dataKey="eps" fill={COLORS.action} radius={[3, 3, 0, 0]} />
               {hasEstimates && <Scatter dataKey="estimate" fill={COLORS.warn} />}
             </ComposedChart>

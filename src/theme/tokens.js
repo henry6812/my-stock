@@ -6,14 +6,14 @@
 export const COLORS = {
   ink: "#1C1F23",
   // Secondary text: ≥4.5:1 on paper, surface, neutral-fill and track.
-  muted: "#5E646B",
+  muted: "#636970",
   // Tertiary: ≥3:1 on paper / surface, so only for large text (the hero
   // currency sign) and non-text marks. Small text that must be read uses muted.
-  subtle: "#868C93",
-  paper: "#FAFAFB",
+  subtle: "#8B9198",
+  paper: "#FBFBFC",
   surface: "#FFFFFF",
-  line: "#E3E5E8",
-  lineStrong: "#CDD1D6",
+  line: "#EBEDF0",
+  lineStrong: "#DADDE2",
   // Every CTA, selected control, link and focus ring: charcoal, not pure
   // black (white text 15.8:1).
   action: "#1F2328",
@@ -33,8 +33,8 @@ export const COLORS = {
   warn: "#D48806",
   // Warn as text: the fill colour is too light to read on white.
   warnInk: "#A36100",
-  neutralFill: "#EFF1F3",
-  track: "#E8EBEE",
+  neutralFill: "#F3F4F6",
+  track: "#EDEFF2",
 };
 
 // Category tile tints (CategoryIcon), mirrored as --c-cat-* in index.css and
@@ -78,7 +78,7 @@ export const CHART_PALETTE = [
   "#6E7C99",
 ];
 
-export const CHART_NEUTRAL = "#A9AFB6";
+export const CHART_NEUTRAL = "#B4BAC0";
 
 // Holders are the one tag type that keeps colour — telling Po from Wei at a
 // glance is the point. Assigned by the holder's position in the settings list

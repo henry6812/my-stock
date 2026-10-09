@@ -12,14 +12,14 @@ colors:
   teal-tint: "#A9D3CB"
   teal-ink: "#1E5E56"
   ink: "#1C1F23"
-  muted: "#5E646B"
-  subtle: "#868C93"
-  paper: "#FAFAFB"
+  muted: "#636970"
+  subtle: "#8B9198"
+  paper: "#FBFBFC"
   surface: "#FFFFFF"
-  line: "#E3E5E8"
-  line-strong: "#CDD1D6"
-  neutral-fill: "#EFF1F3"
-  track: "#E8EBEE"
+  line: "#EBEDF0"
+  line-strong: "#DADDE2"
+  neutral-fill: "#F3F4F6"
+  track: "#EDEFF2"
   up: "#237804"
   down: "#CF1322"
   warn: "#D48806"
@@ -161,7 +161,7 @@ components:
 密度偏手機單手：主要觸控目標 44px 以上，表單在底部 sheet 中完成，主導覽是浮在左下的膠囊 tab bar，記一筆支出的 FAB 在右下。桌面使用同一套元件，只是內容區最寬 1200px。
 
 **Key Characteristics:**
-- 中性冷灰撐起整個介面，所有 CTA 是炭黑（不是純黑）；teal 只留給存錢視覺，所以一出現就知道是「存下來的錢」。
+- 中性冷灰撐起整個介面，結構灰（線、框、底色）刻意壓得很淡，像紙上的印線而不是線稿；所有 CTA 是炭黑（不是純黑）；teal 只留給存錢視覺，所以一出現就知道是「存下來的錢」。
 - 大數字置中、粗體、等寬數字，是每個主頁的視覺錨點。
 - 表面全平；只有浮在內容上方的東西（FAB、tab bar、overlay）有陰影。
 - 每頁至多一個「存錢罐」級的主角視覺，擁有實體感與動畫。
@@ -191,7 +191,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 
 ### Neutral
 - **Ink** (`ink`)：主要文字與大數字。中性略冷，不用純黑。
-- **Muted** (`muted`)：次要文字、表頭、未選中的 tab、hero 標籤、匯率、時間戳。在 paper、surface、neutral-fill、track 上都 ≥5:1。
+- **Muted** (`muted`)：次要文字、表頭、未選中的 tab、hero 標籤、匯率、時間戳。在 surface、paper、neutral-fill 上 ≥5:1，track 上 ≥4.8:1。
 - **Subtle** (`subtle`)：只在 ≥3:1 就夠的地方：大字（hero 幣別符號）、停用狀態、非文字標記。需要被讀的小字一律用 `muted`。
 - **Paper** (`paper`)：App 背景。
 - **Surface** (`surface`)：卡片、列表、sheet、tab bar 的底。
@@ -209,7 +209,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 
 ### Data & Identity Palettes
 不屬於 UI 色，但同樣是 token，定義在 `src/theme/tokens.js`：
-- **`CHART_PALETTE`**：圖表類別色，石板灰為第一色，其餘是沉穩的色相（藍、赭、梅、苔綠⋯），不含 teal；`CHART_NEUTRAL` 保留給「其他 / 現金」。個股的 EPS / 本益比圖用 `action`。預算條平時為 `muted`，接近上限 `warn`、超支 `down`。
+- **`CHART_PALETTE`**：圖表類別色，石板灰為第一色，其餘是沉穩的色相（藍、赭、梅、苔綠⋯），不含 teal；`CHART_NEUTRAL` 保留給「其他 / 現金」與 EPS 圖的去年對照柱。個股的 EPS / 本益比圖用 `action`。預算條平時為 `muted`，接近上限 `warn`、超支 `down`。
 - **`CATEGORY_TONES`**（CSS `--c-cat-*`）：分類圖示 tile 的八個淡底色：peach、butter、sky、periwinkle、lavender、mint、rose、sand，不含 teal。依分類性質分組（外食 / 咖啡 peach；買菜 / 日用 butter；水電 / 通訊 sky；交通 / 旅遊 periwinkle；房屋 / 學習 / 保險 lavender；運動 / 健康 mint；衣服 / 禮物 / 寶寶 rose；娛樂 sand；其他維持 `neutral-fill`），對應寫在 `App.css` 的 `.category-icon[data-category-icon]`。底上一律放 `ink` 圖示（≥12:1）。純粹讓分類一眼可分，不帶狀態語意。
 - **`HOLDER_TONES`**：holder tag 的五組字色 + 底色，依 holder 在設定中的順序分配，保證兩人不撞色；teal 那組排在最後，避免 teal 出現在存錢視覺以外。holder tag 是唯一保留彩色的 tag，因為一眼分出是誰的資產就是它的用途。
 
