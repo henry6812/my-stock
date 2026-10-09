@@ -7,7 +7,6 @@ colors:
   action-active: "#121417"
   teal: "#2B7F74"
   teal-hover: "#33907F"
-  teal-active: "#22675E"
   teal-bright: "#44A194"
   teal-soft: "#E4F1EE"
   teal-tint: "#A9D3CB"
@@ -71,10 +70,6 @@ spacing:
   section-head: "12px"
   row-x: "16px"
   row-y: "16px"
-iconSize:
-  sm: "16px"
-  md: "20px"
-  tile: "36px"
 components:
   button-primary:
     backgroundColor: "{colors.action}"
@@ -299,7 +294,7 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 
 ### Icons
 圖示庫是 **`iconoir-react`**（線條、24 格線、圓角線頭），在 `main.jsx` 用 `IconoirProvider` 統一設定：1em 見方、線寬 1.5、預設 `aria-hidden`。
-- **尺寸：** 預設 `--icon-sm`（16px，行內、按鈕、chevron、左滑動作）；tab bar、FAB、分類圖示用 `--icon-md`（20px）。CSS 對 svg 本身設 `font-size` 調整（預設值寫在 svg 上，只設父層不會生效），不另開尺寸。
+- **尺寸：** 三個尺寸 token 定義在 `src/index.css`（`--icon-sm` / `--icon-md` / `--icon-tile`）與 `tokens.js` 的 `ICON_SIZES`。預設 `--icon-sm`（16px，行內、按鈕、chevron、左滑動作）；tab bar、FAB、分類圖示用 `--icon-md`（20px）；分類圖示的圓底為 `--icon-tile`（36px）。CSS 對 svg 本身設 `font-size` 調整（預設值寫在 svg 上，只設父層不會生效），不另開尺寸。
 - **線寬：** 一律 1.5，不依位置加粗或變細。
 - **顏色：** 繼承文字色（`currentColor`），只用色彩 token；一般為 `muted`，可點的強調為 `ink`，左滑動作與 primary 按鈕上為白色。
 - **分類圖示（Category Icon）：** 支出列左側 36px（`--icon-tile`）圓形 tile，`neutral-fill` 底 + `ink` 圖示；沒有分類時為白底、1px `line` 內框 + `muted`。分類可在表單裡自選 18 個圖示之一（存在分類的 `icon` 欄位）；沒選時依名稱的關鍵字自動對應（`src/utils/categoryIcons.js`），對不到用通用的 `Label`。支出列與設定頁的類別列表都顯示這個 tile。純裝飾：分類名稱仍寫在列上。

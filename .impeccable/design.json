@@ -1,307 +1,352 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-08T16:12:07.614Z",
+  "generatedAt": "2026-10-09T05:45:24.000Z",
   "title": "Design System: 我的資產",
   "extensions": {
     "colorMeta": {
+      "action": {
+        "role": "action",
+        "displayName": "炭黑（Charcoal）",
+        "canonical": "oklch(25.4% 0.011 254.0)",
+        "tonalRamp": [
+          "oklch(15.0% 0.011 254.0)",
+          "oklch(26.4% 0.011 254.0)",
+          "oklch(37.9% 0.011 254.0)",
+          "oklch(49.3% 0.011 254.0)",
+          "oklch(60.7% 0.011 254.0)",
+          "oklch(72.1% 0.011 254.0)",
+          "oklch(83.6% 0.011 254.0)",
+          "oklch(95.0% 0.011 254.0)"
+        ],
+        "purpose": "所有 CTA、選中狀態、focus、連結。"
+      },
+      "action-hover": {
+        "role": "action",
+        "displayName": "炭黑 hover",
+        "canonical": "oklch(35.0% 0.016 255.6)",
+        "tonalRamp": [
+          "oklch(15.0% 0.016 255.6)",
+          "oklch(26.4% 0.016 255.6)",
+          "oklch(37.9% 0.016 255.6)",
+          "oklch(49.3% 0.016 255.6)",
+          "oklch(60.7% 0.016 255.6)",
+          "oklch(72.1% 0.016 255.6)",
+          "oklch(83.6% 0.016 255.6)",
+          "oklch(95.0% 0.016 255.6)"
+        ]
+      },
+      "action-active": {
+        "role": "action",
+        "displayName": "炭黑 active",
+        "canonical": "oklch(19.0% 0.007 258.4)",
+        "tonalRamp": [
+          "oklch(15.0% 0.007 258.4)",
+          "oklch(26.4% 0.007 258.4)",
+          "oklch(37.9% 0.007 258.4)",
+          "oklch(49.3% 0.007 258.4)",
+          "oklch(60.7% 0.007 258.4)",
+          "oklch(72.1% 0.007 258.4)",
+          "oklch(83.6% 0.007 258.4)",
+          "oklch(95.0% 0.007 258.4)"
+        ]
+      },
       "teal": {
-        "role": "primary",
-        "displayName": "Teal",
+        "role": "savings",
+        "displayName": "存錢青（Savings Teal）",
         "canonical": "oklch(54.3% 0.081 183.0)",
         "tonalRamp": [
-          "#000F0C",
-          "#012B26",
-          "#014B43",
-          "#0F6C62",
-          "#3F9085",
-          "#65B6A9",
-          "#8CDCCF",
-          "#B9FFF3"
-        ]
+          "oklch(15.0% 0.081 183.0)",
+          "oklch(26.4% 0.081 183.0)",
+          "oklch(37.9% 0.081 183.0)",
+          "oklch(49.3% 0.081 183.0)",
+          "oklch(60.7% 0.081 183.0)",
+          "oklch(72.1% 0.081 183.0)",
+          "oklch(83.6% 0.081 183.0)",
+          "oklch(95.0% 0.081 183.0)"
+        ],
+        "purpose": "只給存錢視覺：塔、罐的水、選中的月份長條。"
       },
       "teal-hover": {
-        "role": "primary",
-        "displayName": "Teal Hover",
+        "role": "savings",
+        "displayName": "存錢青・交錯層",
         "canonical": "oklch(59.4% 0.091 178.6)",
         "tonalRamp": [
-          "#000F0B",
-          "#012B24",
-          "#024B40",
-          "#056D5E",
-          "#359281",
-          "#5EB7A5",
-          "#85DECB",
-          "#BBFFEF"
-        ]
-      },
-      "teal-active": {
-        "role": "primary",
-        "displayName": "Teal Active",
-        "canonical": "oklch(46.8% 0.070 183.1)",
-        "tonalRamp": [
-          "#000F0C",
-          "#012B26",
-          "#004B43",
-          "#266A61",
-          "#4C8E84",
-          "#71B3A9",
-          "#97DACF",
-          "#BAFFF3"
+          "oklch(15.0% 0.091 178.6)",
+          "oklch(26.4% 0.091 178.6)",
+          "oklch(37.9% 0.091 178.6)",
+          "oklch(49.3% 0.091 178.6)",
+          "oklch(60.7% 0.091 178.6)",
+          "oklch(72.1% 0.091 178.6)",
+          "oklch(83.6% 0.091 178.6)",
+          "oklch(95.0% 0.091 178.6)"
         ]
       },
       "teal-bright": {
-        "role": "primary",
-        "displayName": "Bright Teal",
+        "role": "savings",
+        "displayName": "亮存錢青",
         "canonical": "oklch(65.0% 0.090 182.9)",
         "tonalRamp": [
-          "#000F0C",
-          "#002B26",
-          "#044B43",
-          "#056D62",
-          "#329285",
-          "#5CB7AA",
-          "#83DED0",
-          "#BAFFF3"
-        ]
+          "oklch(15.0% 0.090 182.9)",
+          "oklch(26.4% 0.090 182.9)",
+          "oklch(37.9% 0.090 182.9)",
+          "oklch(49.3% 0.090 182.9)",
+          "oklch(60.7% 0.090 182.9)",
+          "oklch(72.1% 0.090 182.9)",
+          "oklch(83.6% 0.090 182.9)",
+          "oklch(95.0% 0.090 182.9)"
+        ],
+        "purpose": "淨資產走勢線、千萬光暈。"
       },
       "teal-soft": {
-        "role": "primary",
-        "displayName": "Teal Soft",
+        "role": "savings",
+        "displayName": "淡存錢青",
         "canonical": "oklch(94.8% 0.014 180.7)",
         "tonalRamp": [
-          "#050D0B",
-          "#1D2624",
-          "#384240",
-          "#55605E",
-          "#778380",
-          "#9BA8A5",
-          "#C1CECB",
-          "#E5F2EF"
-        ]
+          "oklch(15.0% 0.014 180.7)",
+          "oklch(26.4% 0.014 180.7)",
+          "oklch(37.9% 0.014 180.7)",
+          "oklch(49.3% 0.014 180.7)",
+          "oklch(60.7% 0.014 180.7)",
+          "oklch(72.1% 0.014 180.7)",
+          "oklch(83.6% 0.014 180.7)",
+          "oklch(95.0% 0.014 180.7)"
+        ],
+        "purpose": "月份長條預設、存錢塔單筆。"
       },
       "teal-tint": {
-        "role": "primary",
-        "displayName": "Teal Tint",
+        "role": "savings",
+        "displayName": "存錢青中間色",
         "canonical": "oklch(83.5% 0.046 182.3)",
         "tonalRamp": [
-          "#000F0C",
-          "#012B26",
-          "#214842",
-          "#3F6660",
-          "#628982",
-          "#85AEA7",
-          "#ABD5CD",
-          "#CEF9F1"
-        ]
+          "oklch(15.0% 0.046 182.3)",
+          "oklch(26.4% 0.046 182.3)",
+          "oklch(37.9% 0.046 182.3)",
+          "oklch(49.3% 0.046 182.3)",
+          "oklch(60.7% 0.046 182.3)",
+          "oklch(72.1% 0.046 182.3)",
+          "oklch(83.6% 0.046 182.3)",
+          "oklch(95.0% 0.046 182.3)"
+        ],
+        "purpose": "存錢塔定期、罐的後層水。"
       },
       "teal-ink": {
-        "role": "primary",
-        "displayName": "Teal Ink",
+        "role": "savings",
+        "displayName": "深存錢青",
         "canonical": "oklch(43.9% 0.065 183.6)",
         "tonalRamp": [
-          "#000F0C",
-          "#012B26",
-          "#014B43",
-          "#2B6A61",
-          "#508D84",
-          "#75B2A9",
-          "#9AD9CF",
-          "#BEFEF3"
-        ]
+          "oklch(15.0% 0.065 183.6)",
+          "oklch(26.4% 0.065 183.6)",
+          "oklch(37.9% 0.065 183.6)",
+          "oklch(49.3% 0.065 183.6)",
+          "oklch(60.7% 0.065 183.6)",
+          "oklch(72.1% 0.065 183.6)",
+          "oklch(83.6% 0.065 183.6)",
+          "oklch(95.0% 0.065 183.6)"
+        ],
+        "purpose": "存錢視覺旁的文字。"
       },
       "ink": {
         "role": "neutral",
-        "displayName": "Ink",
-        "canonical": "oklch(27.4% 0.022 186.3)",
+        "displayName": "墨（Ink）",
+        "canonical": "oklch(23.8% 0.009 255.6)",
         "tonalRamp": [
-          "#020E0D",
-          "#182826",
-          "#334441",
-          "#50625F",
-          "#728582",
-          "#96A9A7",
-          "#BCCFCD",
-          "#DFF4F1"
-        ]
+          "oklch(15.0% 0.009 255.6)",
+          "oklch(26.4% 0.009 255.6)",
+          "oklch(37.9% 0.009 255.6)",
+          "oklch(49.3% 0.009 255.6)",
+          "oklch(60.7% 0.009 255.6)",
+          "oklch(72.1% 0.009 255.6)",
+          "oklch(83.6% 0.009 255.6)",
+          "oklch(95.0% 0.009 255.6)"
+        ],
+        "purpose": "主要文字與大數字。"
       },
       "muted": {
         "role": "neutral",
-        "displayName": "Muted",
-        "canonical": "oklch(52.4% 0.020 169.5)",
+        "displayName": "石灰（Muted）",
+        "canonical": "oklch(50.0% 0.013 252.2)",
         "tonalRamp": [
-          "#030E0A",
-          "#1A2722",
-          "#35433E",
-          "#53625C",
-          "#75847E",
-          "#99A9A2",
-          "#BECFC8",
-          "#E2F3EC"
-        ]
+          "oklch(15.0% 0.013 252.2)",
+          "oklch(26.4% 0.013 252.2)",
+          "oklch(37.9% 0.013 252.2)",
+          "oklch(49.3% 0.013 252.2)",
+          "oklch(60.7% 0.013 252.2)",
+          "oklch(72.1% 0.013 252.2)",
+          "oklch(83.6% 0.013 252.2)",
+          "oklch(95.0% 0.013 252.2)"
+        ],
+        "purpose": "次要文字。"
       },
       "subtle": {
         "role": "neutral",
-        "displayName": "Subtle",
-        "canonical": "oklch(63.7% 0.014 172.1)",
+        "displayName": "淡灰（Subtle）",
+        "canonical": "oklch(63.7% 0.013 252.1)",
         "tonalRamp": [
-          "#060D0A",
-          "#1D2623",
-          "#39423F",
-          "#56605D",
-          "#78837F",
-          "#9CA8A3",
-          "#C2CEC9",
-          "#E6F2ED"
-        ]
+          "oklch(15.0% 0.013 252.1)",
+          "oklch(26.4% 0.013 252.1)",
+          "oklch(37.9% 0.013 252.1)",
+          "oklch(49.3% 0.013 252.1)",
+          "oklch(60.7% 0.013 252.1)",
+          "oklch(72.1% 0.013 252.1)",
+          "oklch(83.6% 0.013 252.1)",
+          "oklch(95.0% 0.013 252.1)"
+        ],
+        "purpose": "大字與非文字標記。"
       },
       "paper": {
         "role": "neutral",
-        "displayName": "Paper",
-        "canonical": "oklch(97.1% 0.002 165.1)",
+        "displayName": "冷紙（Paper）",
+        "canonical": "oklch(97.3% 0.002 247.8)",
         "tonalRamp": [
-          "#0A0B0B",
-          "#232424",
-          "#3F403F",
-          "#5C5E5D",
-          "#7F8180",
-          "#A3A5A4",
-          "#C9CBCA",
-          "#EDEFEE"
-        ]
+          "oklch(15.0% 0.002 247.8)",
+          "oklch(26.4% 0.002 247.8)",
+          "oklch(37.9% 0.002 247.8)",
+          "oklch(49.3% 0.002 247.8)",
+          "oklch(60.7% 0.002 247.8)",
+          "oklch(72.1% 0.002 247.8)",
+          "oklch(83.6% 0.002 247.8)",
+          "oklch(95.0% 0.002 247.8)"
+        ],
+        "purpose": "App 背景。"
       },
       "surface": {
         "role": "neutral",
-        "displayName": "Surface",
+        "displayName": "白（Surface）",
         "canonical": "oklch(100.0% 0.000 89.9)",
         "tonalRamp": [
-          "#0B0B0B",
-          "#242424",
-          "#404040",
-          "#5D5D5D",
-          "#808080",
-          "#A4A4A4",
-          "#CACACA",
-          "#EEEEEE"
-        ]
+          "oklch(15.0% 0.000 89.9)",
+          "oklch(26.4% 0.000 89.9)",
+          "oklch(37.9% 0.000 89.9)",
+          "oklch(49.3% 0.000 89.9)",
+          "oklch(60.7% 0.000 89.9)",
+          "oklch(72.1% 0.000 89.9)",
+          "oklch(83.6% 0.000 89.9)",
+          "oklch(95.0% 0.000 89.9)"
+        ],
+        "purpose": "卡片、列表、sheet。"
       },
       "line": {
         "role": "neutral",
-        "displayName": "Line",
-        "canonical": "oklch(92.4% 0.006 170.4)",
+        "displayName": "細線（Line）",
+        "canonical": "oklch(92.1% 0.005 258.3)",
         "tonalRamp": [
-          "#090C0B",
-          "#212524",
-          "#3D413F",
-          "#5A5F5D",
-          "#7D8180",
-          "#A1A6A4",
-          "#C7CCCA",
-          "#EBF0EE"
-        ]
+          "oklch(15.0% 0.005 258.3)",
+          "oklch(26.4% 0.005 258.3)",
+          "oklch(37.9% 0.005 258.3)",
+          "oklch(49.3% 0.005 258.3)",
+          "oklch(60.7% 0.005 258.3)",
+          "oklch(72.1% 0.005 258.3)",
+          "oklch(83.6% 0.005 258.3)",
+          "oklch(95.0% 0.005 258.3)"
+        ],
+        "purpose": "分隔線。"
       },
       "line-strong": {
         "role": "neutral",
-        "displayName": "Line Strong",
-        "canonical": "oklch(86.0% 0.010 171.8)",
+        "displayName": "粗線（Line Strong）",
+        "canonical": "oklch(85.9% 0.008 253.9)",
         "tonalRamp": [
-          "#070D0B",
-          "#202623",
-          "#3B413F",
-          "#585F5D",
-          "#7B827F",
-          "#9FA7A4",
-          "#C5CDCA",
-          "#E8F1EE"
-        ]
+          "oklch(15.0% 0.008 253.9)",
+          "oklch(26.4% 0.008 253.9)",
+          "oklch(37.9% 0.008 253.9)",
+          "oklch(49.3% 0.008 253.9)",
+          "oklch(60.7% 0.008 253.9)",
+          "oklch(72.1% 0.008 253.9)",
+          "oklch(83.6% 0.008 253.9)",
+          "oklch(95.0% 0.008 253.9)"
+        ],
+        "purpose": "chip 與輸入框邊框。"
       },
       "neutral-fill": {
         "role": "neutral",
-        "displayName": "Neutral Fill",
-        "canonical": "oklch(95.8% 0.004 179.7)",
+        "displayName": "灰底（Neutral Fill）",
+        "canonical": "oklch(95.7% 0.003 247.9)",
         "tonalRamp": [
-          "#090C0B",
-          "#222524",
-          "#3D4040",
-          "#5B5E5E",
-          "#7D8180",
-          "#A2A5A4",
-          "#C8CBCA",
-          "#EBEFEE"
-        ]
+          "oklch(15.0% 0.003 247.9)",
+          "oklch(26.4% 0.003 247.9)",
+          "oklch(37.9% 0.003 247.9)",
+          "oklch(49.3% 0.003 247.9)",
+          "oklch(60.7% 0.003 247.9)",
+          "oklch(72.1% 0.003 247.9)",
+          "oklch(83.6% 0.003 247.9)",
+          "oklch(95.0% 0.003 247.9)"
+        ],
+        "purpose": "分組標題、tag、分類 tile。"
       },
       "track": {
         "role": "neutral",
-        "displayName": "Track",
-        "canonical": "oklch(94.5% 0.006 170.4)",
+        "displayName": "軌道（Track）",
+        "canonical": "oklch(93.9% 0.005 247.9)",
         "tonalRamp": [
-          "#090C0B",
-          "#212524",
-          "#3D413F",
-          "#5A5F5D",
-          "#7D8180",
-          "#A1A6A4",
-          "#C7CCCA",
-          "#EBF0EE"
-        ]
+          "oklch(15.0% 0.005 247.9)",
+          "oklch(26.4% 0.005 247.9)",
+          "oklch(37.9% 0.005 247.9)",
+          "oklch(49.3% 0.005 247.9)",
+          "oklch(60.7% 0.005 247.9)",
+          "oklch(72.1% 0.005 247.9)",
+          "oklch(83.6% 0.005 247.9)",
+          "oklch(95.0% 0.005 247.9)"
+        ],
+        "purpose": "進度條、Segmented、tab 選中。"
       },
       "up": {
         "role": "semantic",
-        "displayName": "Up",
+        "displayName": "漲（Up）",
         "canonical": "oklch(50.2% 0.160 140.0)",
         "tonalRamp": [
-          "#011000",
-          "#072D00",
-          "#134D02",
-          "#1F7102",
-          "#449630",
-          "#69BC57",
-          "#8FE47D",
-          "#CEFFC3"
+          "oklch(15.0% 0.160 140.0)",
+          "oklch(26.4% 0.160 140.0)",
+          "oklch(37.9% 0.160 140.0)",
+          "oklch(49.3% 0.160 140.0)",
+          "oklch(60.7% 0.160 140.0)",
+          "oklch(72.1% 0.160 140.0)",
+          "oklch(83.6% 0.160 140.0)",
+          "oklch(95.0% 0.160 140.0)"
         ]
       },
       "down": {
         "role": "semantic",
-        "displayName": "Down",
+        "displayName": "跌（Down）",
         "canonical": "oklch(54.3% 0.213 25.9)",
         "tonalRamp": [
-          "#1F0001",
-          "#4B0005",
-          "#7C020D",
-          "#B20017",
-          "#E43234",
-          "#FF7269",
-          "#FFB5AD",
-          "#FEE9E6"
+          "oklch(15.0% 0.213 25.9)",
+          "oklch(26.4% 0.213 25.9)",
+          "oklch(37.9% 0.213 25.9)",
+          "oklch(49.3% 0.213 25.9)",
+          "oklch(60.7% 0.213 25.9)",
+          "oklch(72.1% 0.213 25.9)",
+          "oklch(83.6% 0.213 25.9)",
+          "oklch(95.0% 0.213 25.9)"
         ]
       },
       "warn": {
         "role": "semantic",
-        "displayName": "Warn",
+        "displayName": "警示（Warn）",
         "canonical": "oklch(68.9% 0.148 70.1)",
         "tonalRamp": [
-          "#140800",
-          "#351E00",
-          "#5A3700",
-          "#825100",
-          "#B07000",
-          "#DE921F",
-          "#FFBC69",
-          "#FFEBD5"
+          "oklch(15.0% 0.148 70.1)",
+          "oklch(26.4% 0.148 70.1)",
+          "oklch(37.9% 0.148 70.1)",
+          "oklch(49.3% 0.148 70.1)",
+          "oklch(60.7% 0.148 70.1)",
+          "oklch(72.1% 0.148 70.1)",
+          "oklch(83.6% 0.148 70.1)",
+          "oklch(95.0% 0.148 70.1)"
         ]
       },
       "warn-ink": {
         "role": "semantic",
-        "displayName": "Warn Ink",
+        "displayName": "警示字（Warn Ink）",
         "canonical": "oklch(55.4% 0.124 65.4)",
         "tonalRamp": [
-          "#150800",
-          "#371D00",
-          "#5D3501",
-          "#854F03",
-          "#B26F1C",
-          "#D99348",
-          "#FFBB76",
-          "#FEEBD9"
+          "oklch(15.0% 0.124 65.4)",
+          "oklch(26.4% 0.124 65.4)",
+          "oklch(37.9% 0.124 65.4)",
+          "oklch(49.3% 0.124 65.4)",
+          "oklch(60.7% 0.124 65.4)",
+          "oklch(72.1% 0.124 65.4)",
+          "oklch(83.6% 0.124 65.4)",
+          "oklch(95.0% 0.124 65.4)"
         ]
       }
     },
@@ -330,12 +375,12 @@
     "shadows": [
       {
         "name": "float",
-        "value": "0 8px 24px rgba(27, 43, 41, 0.14)",
+        "value": "0 8px 24px rgba(28, 31, 35, 0.14)",
         "purpose": "FAB、底部 tab bar、overlay；唯一允許陰影的元件。"
       },
       {
         "name": "float-hover",
-        "value": "0 10px 28px rgba(27, 43, 41, 0.2)",
+        "value": "0 10px 28px rgba(28, 31, 35, 0.2)",
         "purpose": "FAB 的 hover / focus。"
       }
     ],
@@ -373,9 +418,9 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "主要動作；平面、無陰影，hover 只換底色。",
+      "description": "炭黑底白字的主要按鈕；所有 CTA 都用它。",
       "html": "<button class=\"ds-btn-primary\">儲存</button>",
-      "css": ".ds-btn-primary{background:var(--c-teal,#2B7F74);color:#fff;border:1px solid var(--c-teal,#2B7F74);border-radius:8px;min-height:44px;padding:0 18px;font:500 14px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer;transition:background .2s,border-color .2s}.ds-btn-primary:hover{background:#33907F;border-color:#33907F}.ds-btn-primary:active{background:#22675E;border-color:#22675E}.ds-btn-primary:focus-visible{outline:2px solid #2B7F74;outline-offset:2px}"
+      "css": ".ds-btn-primary{background:var(--c-action,#1F2328);color:#fff;border:1px solid var(--c-action,#1F2328);border-radius:8px;min-height:44px;padding:0 18px;font:500 14px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer;transition:background .2s,border-color .2s}.ds-btn-primary:hover{background:var(--c-action-hover,#353B43);border-color:var(--c-action-hover,#353B43)}.ds-btn-primary:active{background:var(--c-action-active,#121417);border-color:var(--c-action-active,#121417)}.ds-btn-primary:focus-visible{outline:2px solid var(--c-action,#1F2328);outline-offset:2px}"
     },
     {
       "name": "Icon Ghost Button",
@@ -383,7 +428,7 @@
       "refersTo": "button-icon-ghost",
       "description": "列表列動作與標題旁新增鈕；hover 時 teal-soft 底。",
       "html": "<button class=\"ds-btn-icon\" aria-label=\"新增\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><path d=\"M8 3v10M3 8h10\"/></svg></button>",
-      "css": ".ds-btn-icon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:transparent;color:var(--c-teal,#2B7F74);cursor:pointer;transition:background .2s}.ds-btn-icon:hover,.ds-btn-icon:focus-visible{background:var(--c-teal-soft,#E4F1EE)}.ds-btn-icon:focus-visible{outline:2px solid #2B7F74;outline-offset:2px}"
+      "css": ".ds-btn-icon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:transparent;color:var(--c-ink,#1C1F23);cursor:pointer;transition:background .2s}.ds-btn-icon:hover,.ds-btn-icon:focus-visible{background:var(--c-neutral-fill,#EFF1F3)}.ds-btn-icon:focus-visible{outline:2px solid var(--c-action,#1F2328);outline-offset:2px}"
     },
     {
       "name": "Chip",
@@ -391,7 +436,7 @@
       "refersTo": "chip",
       "description": "快速選日期、類別、名稱；選中為 teal 實心。",
       "html": "<div class=\"ds-chips\"><button class=\"ds-chip is-active\">今天</button><button class=\"ds-chip\">昨天</button><button class=\"ds-chip\">餐飲</button></div>",
-      "css": ".ds-chips{display:flex;gap:6px;flex-wrap:wrap}.ds-chip{min-height:36px;padding:0 14px;border:1px solid var(--c-line-strong,#CBD3D0);border-radius:999px;background:#fff;color:var(--c-ink,#1B2B29);font:400 14px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer}.ds-chip:hover{border-color:#2B7F74}.ds-chip.is-active{background:#2B7F74;border-color:#2B7F74;color:#fff}.ds-chip:focus-visible{outline:2px solid #2B7F74;outline-offset:2px}"
+      "css": ".ds-chips{display:flex;gap:6px;flex-wrap:wrap}.ds-chip{min-height:36px;padding:0 14px;border:1px solid var(--c-line-strong,#CDD1D6);border-radius:999px;background:#fff;color:var(--c-ink,#1C1F23);font:400 14px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer}.ds-chip:hover{border-color:var(--c-action,#1F2328)}.ds-chip.is-active{background:var(--c-action,#1F2328);border-color:var(--c-action,#1F2328);color:#fff}.ds-chip:focus-visible{outline:2px solid var(--c-action,#1F2328);outline-offset:2px}"
     },
     {
       "name": "Mobile Tab Bar",
@@ -399,7 +444,7 @@
       "refersTo": "tabbar",
       "description": "浮在左下的膠囊導覽；Float 陰影。",
       "html": "<nav class=\"ds-tabbar\"><button class=\"ds-tab is-on\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><path d=\"M3 9l7-6 7 6v8H3z\"/></svg><span>資產總覽</span></button><button class=\"ds-tab\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><path d=\"M4 16V9M10 16V4M16 16v-5\"/></svg><span>支出分析</span></button><button class=\"ds-tab\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><circle cx=\"10\" cy=\"10\" r=\"3\"/><path d=\"M10 2v3M10 15v3M2 10h3M15 10h3\"/></svg><span>設定</span></button></nav>",
-      "css": ".ds-tabbar{display:inline-flex;gap:6px;padding:8px 10px;border-radius:999px;background:rgba(255,255,255,.94);border:1px solid var(--c-line,#E2E7E5);box-shadow:0 8px 24px rgba(27,43,41,.14);backdrop-filter:blur(8px)}.ds-tab{min-height:44px;padding:0 12px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:0;border-radius:999px;background:transparent;color:var(--c-muted,#5F6E68);font:400 12px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer}.ds-tab.is-on{background:#E9EEEC;color:var(--c-ink,#1B2B29)}.ds-tab:focus-visible{outline:2px solid #2B7F74;outline-offset:2px}"
+      "css": ".ds-tabbar{display:inline-flex;gap:6px;padding:8px 10px;border-radius:999px;background:rgba(255,255,255,.94);border:1px solid var(--c-line,#E3E5E8);box-shadow:0 8px 24px rgba(28,31,35,.14);backdrop-filter:blur(8px)}.ds-tab{min-height:44px;padding:0 12px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:0;border-radius:999px;background:transparent;color:var(--c-muted,#5E646B);font:400 12px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer}.ds-tab.is-on{background:var(--c-track,#E8EBEE);color:var(--c-ink,#1C1F23)}.ds-tab:focus-visible{outline:2px solid var(--c-action,#1F2328);outline-offset:2px}"
     },
     {
       "name": "Expense FAB",
@@ -407,38 +452,38 @@
       "refersTo": "fab",
       "description": "右下記一筆支出；唯一圓形浮動按鈕。",
       "html": "<button class=\"ds-fab\" aria-label=\"記一筆\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 22 22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M11 4v14M4 11h14\"/></svg></button>",
-      "css": ".ds-fab{width:52px;height:52px;border:0;border-radius:999px;background:#2B7F74;color:#fff;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(27,43,41,.14);cursor:pointer;transition:box-shadow .2s,background .2s}.ds-fab:hover,.ds-fab:focus-visible{background:#33907F;box-shadow:0 10px 28px rgba(27,43,41,.2)}.ds-fab:focus-visible{outline:2px solid #2B7F74;outline-offset:2px}"
+      "css": ".ds-fab{width:52px;height:52px;border:0;border-radius:999px;background:var(--c-action,#1F2328);color:#fff;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(28,31,35,.14);cursor:pointer;transition:box-shadow .2s,background .2s}.ds-fab:hover,.ds-fab:focus-visible{background:var(--c-action-hover,#353B43);box-shadow:0 10px 28px rgba(28,31,35,.2)}.ds-fab:focus-visible{outline:2px solid var(--c-action,#1F2328);outline-offset:2px}"
     },
     {
       "name": "Grouped List",
       "kind": "card",
       "refersTo": "list-group",
-      "description": "依日分組的支出列表；白色圓角容器、細線分隔、灰底分組標題。",
-      "html": "<div class=\"ds-list\"><div class=\"ds-list-head\"><span>10/08 週四</span><b>NT$ 1,280</b></div><div class=\"ds-list-row\"><div><div class=\"ds-list-name\">午餐</div><div class=\"ds-list-meta\">餐飲 · Po</div></div><div class=\"ds-list-amt\">NT$ 180</div></div><div class=\"ds-list-row\"><div><div class=\"ds-list-name\">電費</div><div class=\"ds-list-meta\">居家 · 共同帳戶</div></div><div class=\"ds-list-amt\">NT$ 1,100</div></div></div>",
-      "css": ".ds-list{width:340px;border:1px solid var(--c-line,#E2E7E5);border-radius:12px;background:#fff;overflow:hidden;font:400 14px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums;color:var(--c-ink,#1B2B29)}.ds-list-head{display:flex;justify-content:space-between;padding:6px 12px;background:var(--c-neutral-fill,#EEF2F1);color:var(--c-muted,#5F6E68);font-size:12px}.ds-list-head b{color:var(--c-ink,#1B2B29);font-weight:600}.ds-list-row{display:flex;justify-content:space-between;align-items:center;min-height:64px;padding:12px;border-top:1px solid var(--c-line,#E2E7E5)}.ds-list-meta{margin-top:2px;font-size:12px;color:var(--c-muted,#5F6E68)}.ds-list-amt{font-weight:600}"
+      "description": "依日分組的支出列表：灰底分組標題、72px 列、左側分類圖示 tile。",
+      "html": "<div class=\"ds-list\"><div class=\"ds-list-head\"><span>10/08 週四</span><b>$1,280</b></div><div class=\"ds-list-row\"><span class=\"ds-tile\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 3v6a3 3 0 0 0 6 0V3M8 3v18M17 21V3c-2 1-3 4-3 7s1 4 3 4\"/></svg></span><div class=\"ds-list-main\"><div class=\"ds-list-name\">午餐</div><div class=\"ds-list-meta\">外食 · Po</div></div><div class=\"ds-list-amt\">$180</div></div><div class=\"ds-list-row\"><span class=\"ds-tile\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 17h14M6 17l1.5-6h9L18 17M7 17v2M17 17v2M8 14h.01M16 14h.01\"/></svg></span><div class=\"ds-list-main\"><div class=\"ds-list-name\">加油</div><div class=\"ds-list-meta\">交通費 · Wei</div></div><div class=\"ds-list-amt\">$1,100</div></div></div>",
+      "css": ".ds-list{width:340px;border:1px solid var(--c-line,#E3E5E8);border-radius:12px;background:#fff;overflow:hidden;font:400 14px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums;color:var(--c-ink,#1C1F23)}.ds-list-head{display:flex;justify-content:space-between;padding:8px 16px;background:var(--c-neutral-fill,#EFF1F3);color:var(--c-muted,#5E646B);font-size:12px}.ds-list-head b{color:var(--c-ink,#1C1F23);font-weight:600}.ds-list-row{display:flex;align-items:center;gap:12px;min-height:72px;padding:16px;border-top:1px solid var(--c-line,#E3E5E8)}.ds-tile{flex:none;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;background:var(--c-neutral-fill,#EFF1F3);color:var(--c-ink,#1C1F23)}.ds-list-main{flex:1;min-width:0}.ds-list-meta{margin-top:2px;font-size:12px;color:var(--c-muted,#5E646B)}.ds-list-amt{font-weight:600}"
     },
     {
       "name": "Budget Bar",
       "kind": "custom",
       "refersTo": "progress-track",
-      "description": "預算進度：實色已花、淡色待扣、細線標示期間進度。",
+      "description": "預算條：平時中灰，接近上限 warn、超支 down；直線標示今天應花到的位置。",
       "html": "<div class=\"ds-budget\"><div class=\"ds-budget-top\"><span>餐飲</span><b>剩 NT$ 3,200</b></div><div class=\"ds-bar\"><i class=\"ds-bar-c\" style=\"width:48%\"></i><i class=\"ds-bar-u\" style=\"left:48%;width:12%\"></i><i class=\"ds-bar-p\" style=\"left:55%\"></i></div><div class=\"ds-budget-meta\">已花 NT$ 4,800 / 8,000</div></div>",
-      "css": ".ds-budget{width:320px;display:flex;flex-direction:column;gap:8px;font:400 14px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums;color:var(--c-ink,#1B2B29)}.ds-budget-top{display:flex;justify-content:space-between;align-items:baseline}.ds-budget-top b{font-size:16px;font-weight:600}.ds-bar{position:relative;height:8px;border-radius:999px;background:var(--c-track,#E9EEEC)}.ds-bar i{position:absolute;top:0;bottom:0}.ds-bar-c{left:0;background:#44A194;border-radius:999px 0 0 999px}.ds-bar-u{background:#44A194;opacity:.35}.ds-bar-p{top:-2px!important;bottom:-2px!important;width:2px;margin-left:-1px;background:#1B2B29;opacity:.6}.ds-budget-meta{font-size:12px;color:var(--c-muted,#5F6E68)}"
+      "css": ".ds-budget{width:320px;display:flex;flex-direction:column;gap:8px;font:400 14px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums;color:var(--c-ink,#1C1F23)}.ds-budget-top{display:flex;justify-content:space-between;align-items:baseline}.ds-budget-top b{font-size:16px;font-weight:600}.ds-bar{position:relative;height:8px;border-radius:999px;background:var(--c-track,#E8EBEE)}.ds-bar i{position:absolute;top:0;bottom:0}.ds-bar-c{left:0;background:var(--c-muted,#5E646B);border-radius:999px 0 0 999px}.ds-bar-u{background:var(--c-muted,#5E646B);opacity:.35}.ds-bar-p{top:-2px!important;bottom:-2px!important;width:2px;margin-left:-1px;background:var(--c-ink,#1C1F23);opacity:.6}.ds-budget-meta{font-size:12px;color:var(--c-muted,#5E646B)}"
     },
     {
       "name": "Savings Hero",
       "kind": "custom",
       "refersTo": null,
-      "description": "每頁唯一的大數字：標籤 → display 數字 → 一行次要資訊（主角視覺接在下方）。",
-      "html": "<div class=\"ds-hero\"><div class=\"ds-hero-label\">本月結餘</div><div class=\"ds-hero-num\"><span class=\"ds-hero-cur\">$</span>48,427</div><div class=\"ds-hero-sub\">存下 73.1%</div></div>",
-      "css": ".ds-hero{display:flex;flex-direction:column;align-items:center;text-align:center;font-family:'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums}.ds-hero-label{font-size:14px;color:var(--c-muted,#5F6E68)}.ds-hero-num{margin-top:4px;font-size:38px;font-weight:700;letter-spacing:-.8px;line-height:1.15;color:var(--c-ink,#1B2B29)}.ds-hero-cur{color:var(--c-subtle,#838E8A)}.ds-hero-sub{margin-top:6px;font-size:14px;font-weight:600;color:var(--c-up,#237804)}"
+      "description": "主頁 hero：標籤 → display 大數字 → 一行「存下 N%」（teal-ink，存錢色）→ 主角視覺。",
+      "html": "<div class=\"ds-hero\"><div class=\"ds-hero-label\">2026 年 10 月・總支出</div><div class=\"ds-hero-num\"><span class=\"ds-hero-cur\">$</span>48,712</div><div class=\"ds-hero-sub\">存下 72.9%</div></div>",
+      "css": ".ds-hero{display:flex;flex-direction:column;align-items:center;text-align:center;font-family:'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums}.ds-hero-label{font-size:14px;color:var(--c-muted,#5E646B)}.ds-hero-num{margin-top:4px;font-size:38px;font-weight:700;letter-spacing:-.8px;line-height:1.15;color:var(--c-ink,#1C1F23)}.ds-hero-cur{color:var(--c-subtle,#868C93)}.ds-hero-sub{margin-top:6px;font-size:14px;font-weight:600;color:var(--c-teal-ink,#1E5E56)}"
     }
   ],
   "narrative": {
     "northStar": "安靜的帳本，會動的存錢罐",
-    "overview": "介面的預設狀態是一本安靜的家用帳本：灰白紙色的底、墨綠一個主色、細線分隔、平面的控制項，畫面上唯一大聲的東西是置中的大數字。打開 App 的人要在幾秒內讀到「全家有多少錢、這個月花了多少」，所以外框退後，數字向前。\n\n帳本裡只住一種有生命的東西：存錢的主角。資產頁的淨資產罐（水波、氣泡、漲跌色帶）、支出頁的存錢塔與累計成長塔（磚塊堆疊、超支時碎裂掉落）、可點的月份長條。它們是 App 情緒的核心，有實體感、會動、可互動；其餘一切都保持安靜。\n\n密度偏手機單手：主要觸控目標 44px 以上，表單在底部 sheet 中完成，主導覽是浮在左下的膠囊 tab bar，記一筆支出的 FAB 在右下。桌面使用同一套元件，只是內容區最寬 1200px。",
+    "overview": "介面的預設狀態是一本安靜的家用帳本：冷灰紙色的底、炭黑的控制項、細線分隔、平面的元件，畫面上唯一大聲的東西是置中的大數字。打開 App 的人要在幾秒內讀到「全家有多少錢、這個月花了多少」，所以外框退後，數字向前。\n\n帳本裡只住一種有生命的東西：存錢的主角。資產頁的淨資產罐（淡底色的罐身，前後兩層水波、漲跌色帶、突破千萬的氣泡）、支出頁的存錢塔與累計成長塔（磚塊堆疊、超支時碎裂掉落）、可點的月份長條。它們是 App 情緒的核心，有實體感、會動、可互動；其餘一切都保持安靜。\n\n密度偏手機單手：主要觸控目標 44px 以上，表單在底部 sheet 中完成，主導覽是浮在左下的膠囊 tab bar，記一筆支出的 FAB 在右下。桌面使用同一套元件，只是內容區最寬 1200px。",
     "keyCharacteristics": [
-      "單一 teal 主色系 + 帶綠調的中性色；沒有第二個品牌色。",
+      "中性冷灰撐起整個介面，所有 CTA 是炭黑（不是純黑）；teal 只留給存錢視覺，所以一出現就知道是「存下來的錢」。",
       "大數字置中、粗體、等寬數字，是每個主頁的視覺錨點。",
       "表面全平；只有浮在內容上方的東西（FAB、tab bar、overlay）有陰影。",
       "每頁至多一個「存錢罐」級的主角視覺，擁有實體感與動畫。",
@@ -447,56 +492,60 @@
     "rules": [
       {
         "name": "The One Living Thing Rule",
-        "section": "overview",
-        "body": "每個頁面最多一個有實體感、會動的主角，而且它必須在表現「錢存下來、錢累積」。其他元素一律安靜、平面、靜止。判斷新設計時問：「這是帳本，還是存錢罐？」答不出是存錢罐，就照帳本做。"
+        "body": "每個頁面最多一個有實體感、會動的主角，而且它必須在表現「錢存下來、錢累積」。其他元素一律安靜、平面、靜止。判斷新設計時問：「這是帳本，還是存錢罐？」答不出是存錢罐，就照帳本做。",
+        "section": "overview"
       },
       {
         "name": "The Loud Number Rule",
-        "section": "overview",
-        "body": "一個畫面只有一個 display 級的數字。次要數字降為 subhead 或 body，用顏色（漲跌）而不是字級表達差異。"
+        "body": "一個畫面只有一個 display 級的數字。次要數字降為 subhead 或 body，用顏色（漲跌）而不是字級表達差異。",
+        "section": "overview"
       },
       {
-        "name": "The One Accent Rule",
-        "section": "colors",
-        "body": "Teal 是唯一的品牌色。需要「強調」時用 teal 或字重，不要引入新色相。"
+        "name": "The Saved-Money Color Rule",
+        "body": "Teal 只代表「存下來的錢」。可操作的強調用炭黑 `action` 或字重，不要用 teal，也不要引入新色相。",
+        "section": "colors"
       },
       {
         "name": "The Semantic-Only Rule",
-        "section": "colors",
-        "body": "`up` / `down` / `warn` 只表達財務或動作的語意（漲跌、超支、危險），不當裝飾色使用。"
+        "body": "`up` / `down` / `warn` 只表達財務或動作的語意（漲跌、超支、危險），不當裝飾色使用。",
+        "section": "colors"
       },
       {
         "name": "The Readable-Grey Rule",
-        "section": "colors",
-        "body": "小字（≤16px）的灰只用 `muted`。`subtle` 對比只有 3:1，只留給大字、停用狀態與非文字元素。"
+        "body": "小字（≤16px）的灰只用 `muted`。`subtle` 對比只有 3:1，只留給大字、停用狀態與非文字元素。",
+        "section": "colors"
       },
       {
         "name": "The Weight-Not-Size Rule",
-        "section": "typography",
-        "body": "在 body 與 subhead 之間，用 600 字重而不是新字級拉出層級。hero 的次要行用 body 600，不另開 13px。"
+        "body": "在 body 與 subhead 之間，用 600 字重而不是新字級拉出層級。hero 的次要行用 body 600，不另開 13px。",
+        "section": "typography"
       },
       {
         "name": "The Only-Floating-Things-Cast-Shadows Rule",
-        "section": "elevation",
-        "body": "按鈕、卡片、列表、輸入框在任何狀態下都沒有陰影（antd 的 button shadow 已在 theme 關掉）。會有陰影的只有真的浮在內容上方的元件。"
+        "body": "按鈕、卡片、列表、輸入框在任何狀態下都沒有陰影（antd 的 button shadow 已在 theme 關掉）。會有陰影的只有真的浮在內容上方的元件。",
+        "section": "elevation"
       }
     ],
     "dos": [
-      "Do 只使用 frontmatter / `src/theme/tokens.js` 中的 token；CSS 中以 `var(--c-*)`、`var(--fs-*)`、`var(--radius-*)`、`var(--space-*)` 取用。",
-      "Do 區塊之間用 `--space-section`，區塊標題到內容用 `--space-section-head`，列表列用 `--space-row-*`。",
-      "Do 每頁只放一個 display 級大數字，並置中於 hero。",
-      "Do 所有金額使用 tabular-nums。",
-      "Do 手機上可點目標至少 44px，表單放在 bottom sheet。",
-      "Do 讓陰影只出現在 FAB、tab bar、overlay。",
-      "Do 為所有動畫提供 `prefers-reduced-motion` 關閉路徑。",
-      "Do 漲跌、超支、警示只用 `up` / `down` / `warn`。"
+      "**Do** 只使用 frontmatter / `src/theme/tokens.js` 中的 token；CSS 中以 `var(--c-*)`、`var(--fs-*)`、`var(--radius-*)`、`var(--space-*)` 取用。",
+      "**Do** 區塊之間用 `--space-section`，區塊標題到內容用 `--space-section-head`，列表列用 `--space-row-*`。",
+      "**Do** 每頁只放一個 display 級大數字，並置中於 hero。",
+      "**Do** 所有金額使用 tabular-nums。",
+      "**Do** 手機上可點目標至少 44px，表單放在 bottom sheet。",
+      "**Do** 讓陰影只出現在 FAB、tab bar、overlay。",
+      "**Do** 為所有動畫提供 `prefers-reduced-motion` 關閉路徑。",
+      "**Do** 漲跌、超支、警示只用 `up` / `down` / `warn`。",
+      "**Do** 圖示只用 `iconoir-react`，尺寸只用 `--icon-sm` / `--icon-md`。",
+      "**Do** 所有 CTA、選中狀態、focus 用炭黑 `action`；teal 只用在存錢視覺。"
     ],
     "donts": [
-      "Don't 在按鈕、卡片、列表上加陰影。",
-      "Don't 在同一頁放第二個會動的主角視覺（The One Living Thing Rule）。",
-      "Don't 新增刻度外的字級或間距（5、10、14、18px 這類）；需要新刻度先更新 token。",
-      "Don't 用 `subtle` 寫需要被讀的小字。",
-      "Don't 用回彈 / overshoot 的 easing。"
+      "**Don't** 在按鈕、卡片、列表上加陰影。",
+      "**Don't** 在同一頁放第二個會動的主角視覺（The One Living Thing Rule）。",
+      "**Don't** 新增刻度外的字級或間距（5、10、14、18px 這類）；需要新刻度先更新 token。",
+      "**Don't** 用 `subtle` 寫需要被讀的小字。",
+      "**Don't** 用回彈 / overshoot 的 easing。",
+      "**Don't** 把 teal 用在按鈕、chip、連結、tag、圖示等非存錢的元素上；也不要用純黑 `#000`。",
+      "**Don't** 在同一處混用 antd 與 iconoir 圖示，或為了裝飾到處加圖示；圖示要幫助辨識（分類、動作、導覽）。"
     ]
   }
 }

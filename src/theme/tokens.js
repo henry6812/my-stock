@@ -23,7 +23,6 @@ export const COLORS = {
   // the month bars and the net-worth trend.
   teal: "#2B7F74",
   tealHover: "#33907F",
-  tealActive: "#22675E",
   tealBright: "#44A194",
   tealSoft: "#E4F1EE",
   // Mid tint between soft and bright: the savings tower's recurring part.
