@@ -297,13 +297,18 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 - **尺寸：** 三個尺寸 token 定義在 `src/index.css`（`--icon-sm` / `--icon-md` / `--icon-tile`）與 `tokens.js` 的 `ICON_SIZES`。預設 `--icon-sm`（16px，行內、按鈕、chevron、左滑動作）；tab bar、FAB、分類圖示用 `--icon-md`（20px）；分類圖示的圓底為 `--icon-tile`（36px）。CSS 對 svg 本身設 `font-size` 調整（預設值寫在 svg 上，只設父層不會生效），不另開尺寸。
 - **線寬：** 一律 1.5，不依位置加粗或變細。
 - **顏色：** 繼承文字色（`currentColor`），只用色彩 token；一般為 `muted`，可點的強調為 `ink`，左滑動作與 primary 按鈕上為白色。
-- **分類圖示（Category Icon）：** 支出列左側 36px（`--icon-tile`）圓形 tile，`neutral-fill` 底 + `ink` 圖示；沒有分類時為白底、1px `line` 內框 + `muted`。分類可在表單裡自選 18 個圖示之一（存在分類的 `icon` 欄位）；沒選時依名稱的關鍵字自動對應（`src/utils/categoryIcons.js`），對不到用通用的 `Label`。支出列與設定頁的類別列表都顯示這個 tile。純裝飾：分類名稱仍寫在列上。
+- **分類圖示（Category Icon）：** 支出列左側 36px（`--icon-tile`）圓形 tile，`neutral-fill` 底 + `ink` 圖示；沒有分類時為白底、1px `line` 內框 + `muted`。分類可在表單裡自選 18 個圖示之一（存在分類的 `icon` 欄位）；沒選時依名稱的關鍵字自動對應（`src/utils/categoryIcons.js`），對不到用通用的 `Label`。支出列、定期支出列與設定頁的類別列表都顯示這個 tile。純裝飾：分類名稱仍寫在列上。
 - **圖示選擇器（Category Icon Picker）：** 分類表單中 6 欄的 44px 圓形按鈕（`aria-pressed`），平時白底 `line` 邊 + `muted` 圖示，選中為 `neutral-fill` 底、`action` 邊、`ink` 圖示。沒自選時標示依名稱對應的那個，下方以 `muted` 12px 註明「依名稱自動選擇」；自選後換成「改回依名稱自動選擇」連結。
+- **狀態圖示：** 狀態不只靠顏色表達。預算「接近上限」在金額前加 `WarningCircle`、「超支」加 `WarningTriangle`（跟著 `warn` / `down` 色，`BudgetRemaining`）；header 同步狀態依狀態換圖示：正常 `CloudCheck`、連線中 `CloudSync`、離線 `WifiOff`、失敗 `CloudXmark`。支出列的「固定」tag 帶 `Repeat`、「預計」tag 帶 `Clock`。
+- **動作圖示：** 同一個動作全 App 用同一個圖示：重新抓取（更新價格、重試、PWA 立即更新）是 `Refresh`，匯出是 `Download`，新增是 `Plus`。同一列並排的按鈕要嘛都有圖示、要嘛都沒有。
+- **區塊標題（Section Title）：** 只用在設定頁這種靠掃讀找區塊的長頁：標題前 `--icon-md` 圖示、間距 `--space-2`、跟標題同色（`SectionTitle`）。收入 `Coins`、持有人 `Group`、類別 `Label`、常用支出 `Star`、預算 `Wallet`、資料匯出 `Download`。資產頁、支出頁的區塊標題不加。
+- **空狀態（Empty State）：** 不用 antd `Empty` 插圖，改用 `EmptyState`：`--icon-tile` 白底 + 1px `line` 內框的圓形 tile（同沒有分類的 Category Icon）放主題圖示（`muted`、`--icon-md`）→ 一行 `muted` 14px 說明 → 可選的動作按鈕。表格 `locale.emptyText` 的純文字不在此限。
+- **下拉重新整理：** 指示器是 `ArrowDown` + 文字；拉過門檻時箭頭 180ms 轉向朝上，放開後換成 `LoadingOutlined`。`prefers-reduced-motion` 下不轉場。
 - **無障礙：** 單獨傳達意義的圖示（例如名稱前的「定期支出」標記）加 `aria-hidden={false} role="img" aria-label`；純圖示按鈕把 `aria-label` 放在按鈕上。
 - **例外：** antd 元件內建的圖示（DatePicker、Select 箭頭、Modal ×）沿用 antd；載入中的轉圈仍用 antd `LoadingOutlined`。我們自己的 code 不再從 `@ant-design/icons` import 其他圖示。
 
 ### Analysis List
-支出頁的「支出分析」與資產頁的「資產分析」用同一個框線列表（`.analysis-*`）：每列一種分析，名稱 + 一句重點 + chevron，點開在 modal 顯示完整圖表；頁面上不放縮圖卡片。重點句不能和頁面上其他數字打架（例如走勢的區間起點不是昨收，就不寫一個和 hero「今日」不同的漲跌金額）。分配類圖表在 modal 裡是甜甜圈 + 附金額與占比的列表，不用彩色字當圓餅標籤。
+支出頁的「支出分析」與資產頁的「資產分析」用同一個框線列表（`.analysis-*`）：每列一種分析，左側 `--icon-md` `muted` 類型圖示 + 名稱 + 一句重點 + chevron（走勢 `GraphUp`、分配 `PercentageCircle`、台股 / 美股 `Globe`、家庭 / 個人 `HomeUser`、支出人 `Group`、家庭開銷平衡 `CoinsSwap`、類別 `Label`），點開在 modal 顯示完整圖表；頁面上不放縮圖卡片。重點句不能和頁面上其他數字打架（例如走勢的區間起點不是昨收，就不寫一個和 hero「今日」不同的漲跌金額）。分配類圖表在 modal 裡是甜甜圈 + 附金額與占比的列表，不用彩色字當圓餅標籤。
 
 ### Inputs / Fields
 - **Style:** antd 預設外框，邊框 `line-strong`、8px 圓角；手機 sheet 中最小高度 44px。
