@@ -1,23 +1,27 @@
 import { useState } from "react";
-import { Button, Empty, Tag, Typography } from "antd";
+import { Button, Tag, Typography } from "antd";
 import HoverTooltip from "./HoverTooltip";
 import {
   EditPencil,
   NavArrowDown,
   Plus,
   Prohibition,
+  Repeat,
 } from "iconoir-react";
 import dayjs from "dayjs";
 import { formatDate, formatTwd } from "../utils/formatters";
 import { formatRecurringScheduleText } from "../utils/portfolioView";
+import CategoryIcon from "./CategoryIcon";
 import Collapsible from "./Collapsible";
+import EmptyState from "./EmptyState";
 import SwipeActions from "./SwipeActions";
 
 const { Text } = Typography;
 
 // 定期支出總覽: the active recurring rules, soonest charge first (the service
 // sorts them), with a monthly-equivalent total. Rows past the first few fold
-// away behind a centred 看全部 / 收合 toggle.
+// away behind a centred 看全部 / 收合 toggle. Each row leads with its
+// category's icon tile, as in the expense list.
 
 const COLLAPSED_COUNT = 4;
 
@@ -47,6 +51,8 @@ function RecurringOverview({
   rows = [],
   summary = { count: 0, monthlyEquivalentTwd: 0 },
   categoryNames = new Map(),
+  // category id → the icon the category picked (null: chosen from its name).
+  categoryIcons = new Map(),
   today,
   onEdit,
   onStop,
@@ -102,6 +108,10 @@ function RecurringOverview({
             },
           ]}
         >
+        <CategoryIcon
+          name={categoryNames.get(item.categoryId)}
+          icon={categoryIcons.get(item.categoryId) ?? null}
+        />
         <div className="recurring-overview-main">
           <div className="recurring-overview-name">
             <span>{item.name}</span>
@@ -193,14 +203,14 @@ function RecurringOverview({
       </div>
 
       {rows.length === 0 ? (
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        <EmptyState
+          icon={Repeat}
           description="目前沒有定期支出（例如房租、訂閱）"
         >
           <Button icon={<Plus />} disabled={disabled} onClick={onCreate}>
             新增定期支出
           </Button>
-        </Empty>
+        </EmptyState>
       ) : (
         <>
           <div className="recurring-overview-list">

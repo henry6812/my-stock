@@ -1,4 +1,7 @@
-import { Drawer, Empty, Typography } from "antd";
+import { Drawer, Typography } from "antd";
+import { Journal } from "iconoir-react";
+import BudgetRemaining from "./BudgetRemaining";
+import EmptyState from "./EmptyState";
 import ExpenseDayList, { UpcomingExpenseList } from "./ExpenseDayList";
 import { formatDate, formatTwd } from "../utils/formatters";
 import { getBudgetStatus } from "../utils/budgetStatus";
@@ -40,11 +43,7 @@ function BudgetDetailSheet({ open, budget, today, onClose, getActions, disabled 
       className="form-bottom-sheet budget-detail-sheet"
     >
       <div className="budget-detail-summary" data-testid="budget-detail-summary">
-        <div className={`budget-row-remaining budget-row-remaining--${status.level}`}>
-          {status.level === "over"
-            ? `超支 ${formatTwd(status.overTwd)}`
-            : `剩餘 ${formatTwd(status.remainingTwd)}`}
-        </div>
+        <BudgetRemaining status={status} as="div" />
         <Text type="secondary" className="budget-detail-meta">
           {summary.join(" · ")}
         </Text>
@@ -62,7 +61,7 @@ function BudgetDetailSheet({ open, budget, today, onClose, getActions, disabled 
         disabled={disabled}
         expandAll
         empty={
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="本期還沒有支出" />
+          <EmptyState icon={Journal} description="本期還沒有支出" />
         }
       />
     </Drawer>

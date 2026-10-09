@@ -1,5 +1,6 @@
 import { Tag } from "antd";
 import SwipeActions from "./SwipeActions";
+import BudgetRemaining from "./BudgetRemaining";
 import { formatTwd } from "../utils/formatters";
 import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "../utils/budgetStatus";
 import {
@@ -46,11 +47,7 @@ function BudgetRow({ budget, today, onOpen }) {
             </Tag>
           )}
         </span>
-        <span className={`budget-row-remaining budget-row-remaining--${status.level}`}>
-          {status.level === "over"
-            ? `超支 ${formatTwd(status.overTwd)}`
-            : `剩餘 ${formatTwd(status.remainingTwd)}`}
-        </span>
+        <BudgetRemaining status={status} />
       </div>
       <div className="budget-bar" aria-hidden="true">
         <div

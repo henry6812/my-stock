@@ -1,4 +1,6 @@
-import { Segmented, Empty } from 'antd'
+import { Segmented } from 'antd'
+import { GraphUp } from 'iconoir-react'
+import EmptyState from './EmptyState'
 import dayjs from 'dayjs'
 import {
   CartesianGrid,
@@ -46,7 +48,7 @@ function TrendChart({ range, onRangeChange, data, height = 320 }) {
       />
       <div style={{ flex: 1, minHeight: 0 }}>
         {chartData.length === 0 ? (
-          <Empty description="尚無走勢資料，請先按更新" />
+          <EmptyState icon={GraphUp} description="尚無走勢資料，請先按更新" />
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>

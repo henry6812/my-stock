@@ -1,15 +1,16 @@
 // Asset allocation in the 資產分析 modal: a donut for the shape, then the
 // same slices as a framed list with share and TWD amount, so the numbers
 // don't depend on reading coloured pie labels.
-import { Empty } from "antd";
+import { PercentageCircle } from "iconoir-react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
+import EmptyState from "./EmptyState";
 import { formatTwd } from "../utils/formatters";
 import { allocationShares } from "../utils/allocation";
 
 export default function AllocationBreakdown({ items = [], emptyText }) {
   const slices = allocationShares(items);
   if (slices.length === 0) {
-    return <Empty description={emptyText} />;
+    return <EmptyState icon={PercentageCircle} description={emptyText} />;
   }
   return (
     <div className="allocation-breakdown">

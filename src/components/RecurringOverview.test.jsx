@@ -64,6 +64,17 @@ const swipeOpen = (el) => {
 }
 
 describe('<RecurringOverview />', () => {
+  it("leads each row with its category's icon tile", () => {
+    renderOverview({
+      rows: [row({ id: 1 }), row({ id: 2, name: '雜項', categoryId: null })],
+      categoryNames: new Map([[10, '電信']]),
+      categoryIcons: new Map([[10, 'housing']]),
+    })
+    const [picked, none] = listItems()
+    expect(picked.querySelector('[data-category-icon]')).toHaveAttribute('data-category-icon', 'housing')
+    expect(none.querySelector('[data-category-icon]')).toHaveAttribute('data-category-icon', 'none')
+  })
+
   it('shows the count and monthly equivalent total', () => {
     renderOverview()
     expect(screen.getByText(/共 5 筆/)).toHaveTextContent('共 5 筆 · 每月約 $22,490')

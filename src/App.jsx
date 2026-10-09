@@ -20,7 +20,6 @@ import {
   Divider,
   Drawer,
   Dropdown,
-  Empty,
   Form,
   Input,
   InputNumber,
@@ -43,20 +42,39 @@ import {
   Typography,
 } from "antd";
 import {
+  ArrowDown,
+  Bank,
+  CandlestickChart,
+  Clock,
+  CloudCheck,
   CloudSync,
+  CloudXmark,
+  Coins,
+  CoinsSwap,
   Download,
   EditPencil,
+  Globe,
   Google,
+  GraphUp,
+  Group,
   HomeSimple,
+  HomeUser,
+  Journal,
+  Label,
   LogOut,
   Menu,
   NavArrowDown,
   NavArrowRight,
+  PercentageCircle,
   Plus,
+  Refresh,
   Repeat,
   Settings,
+  Star,
   StatsReport,
   Trash,
+  Wallet,
+  WifiOff,
 } from "iconoir-react";
 import {
   DndContext,
@@ -74,6 +92,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { LoadingOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import anime from "animejs/lib/anime.es.js";
 import { flushSync } from "react-dom";
@@ -99,6 +118,8 @@ import TrendChart from "./components/TrendChart";
 import QuickExpenseSheet from "./components/QuickExpenseSheet";
 import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
 import RecurringOverview from "./components/RecurringOverview";
+import EmptyState from "./components/EmptyState";
+import SectionTitle from "./components/SectionTitle";
 import SwipeActions from "./components/SwipeActions";
 import HoverTooltip from "./components/HoverTooltip";
 import AllocationBreakdown from "./components/AllocationBreakdown";
@@ -276,6 +297,19 @@ const RowContext = createContext({
   listeners: undefined,
   setActivatorNodeRef: undefined,
 });
+
+// Header sync status: the icon carries the state too, since the text next to
+// it is cut short on narrow screens.
+const SYNC_STATUS_ICONS = {
+  syncing: CloudSync,
+  offline: WifiOff,
+  error: CloudXmark,
+};
+
+function SyncStatusIcon({ status, ...props }) {
+  const Icon = SYNC_STATUS_ICONS[status] ?? CloudCheck;
+  return <Icon {...props} />;
+}
 
 function DragHandle({ disabled }) {
   const { listeners, setActivatorNodeRef } = useContext(RowContext);
@@ -1295,6 +1329,11 @@ function App() {
     [expenseCategoryRows],
   );
 
+  const expenseCategoryIconById = useMemo(
+    () => new Map(expenseCategoryRows.map((item) => [item.id, item.icon ?? null])),
+    [expenseCategoryRows],
+  );
+
   const usableExpenseTemplates = useMemo(
     () => sanitizeSuggestions(expenseTemplateRows, expenseOptionLookups),
     [expenseOptionLookups, expenseTemplateRows],
@@ -2083,15 +2122,17 @@ function App() {
         ? "總資產在 24 小時、一週、一個月內的變化"
         : "尚無走勢資料";
     return [
-      { key: "trend", title: "現值走勢", summary: trendSummary },
+      { key: "trend", title: "現值走勢", icon: GraphUp, summary: trendSummary },
       {
         key: "assetType",
         title: "資產類型",
+        icon: PercentageCircle,
         summary: describeAllocation(assetTypeAllocation) || "尚無資料",
       },
       {
         key: "market",
         title: "台股 / 美股",
+        icon: Globe,
         summary: describeAllocation(marketAllocation) || "尚無資料",
       },
     ];
@@ -2847,7 +2888,7 @@ function App() {
             固定
           </Tag>
           {record.isUpcoming && (
-            <Tag variant="filled" className="expense-upcoming-tag">
+            <Tag variant="filled" className="expense-upcoming-tag" icon={<Clock />}>
               預計
             </Tag>
           )}
@@ -3640,7 +3681,12 @@ function App() {
           duration: 0,
           placement: "bottom",
           actions: (
-            <Button type="primary" size="small" onClick={applyPwaUpdate}>
+            <Button
+              type="primary"
+              size="small"
+              icon={<Refresh />}
+              onClick={applyPwaUpdate}
+            >
               立即更新
             </Button>
           ),
@@ -3904,7 +3950,7 @@ function App() {
   }, [budgetForm, editingBudget, isBudgetModalOpen, isBudgetSheetOpen]);
 
   const expenseEmptyState = (
-    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="這段期間沒有支出紀錄">
+    <EmptyState icon={Journal} description="這段期間沒有支出紀錄">
       <Button
         type="primary"
         icon={<Plus />}
@@ -3913,7 +3959,7 @@ function App() {
       >
         記一筆支出
       </Button>
-    </Empty>
+    </EmptyState>
   );
 
   const goToIncomeSettings = () => {
@@ -3947,8 +3993,8 @@ function App() {
   };
 
   const holdingsEmptyState = (
-    <Empty
-      image={Empty.PRESENTED_IMAGE_SIMPLE}
+    <EmptyState
+      icon={CandlestickChart}
       description={
         activeHoldingTab === HOLDER_TAB_ALL ? "還沒有持股" : "這位持有人還沒有持股"
       }
@@ -3961,7 +4007,7 @@ function App() {
       >
         新增第一檔持股
       </Button>
-    </Empty>
+    </EmptyState>
   );
 
   const handleAddHolding = async (values) => {
@@ -5251,10 +5297,10 @@ function App() {
 
   const expenseChartCards = useMemo(
     () => [
-      { key: "kind", title: "家庭/個人比例" },
-      { key: "ranking", title: "支出人排行" },
-      { key: "family_balance", title: "家庭開銷平衡" },
-      { key: "category", title: "類別分析" },
+      { key: "kind", title: "家庭/個人比例", icon: HomeUser },
+      { key: "ranking", title: "支出人排行", icon: Group },
+      { key: "family_balance", title: "家庭開銷平衡", icon: CoinsSwap },
+      { key: "category", title: "類別分析", icon: Label },
     ],
     [],
   );
@@ -5267,7 +5313,7 @@ function App() {
     (chartKey) => {
       if (chartKey === "trend") {
         if (trendMonths.length === 0)
-          return <Empty description="尚無支出資料" />;
+          return <EmptyState icon={StatsReport} description="尚無支出資料" />;
         return (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
@@ -5307,7 +5353,7 @@ function App() {
       }
       if (chartKey === "kind") {
         if (kindAnalysisData.length === 0)
-          return <Empty description="尚無支出資料" />;
+          return <EmptyState icon={StatsReport} description="尚無支出資料" />;
         return (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -5335,7 +5381,7 @@ function App() {
       }
       if (chartKey === "ranking") {
         const hasValue = payerRankingData.some((item) => item.value > 0);
-        if (!hasValue) return <Empty description="尚無支出資料" />;
+        if (!hasValue) return <EmptyState icon={StatsReport} description="尚無支出資料" />;
         return (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -5359,7 +5405,7 @@ function App() {
       }
       if (chartKey === "family_balance") {
         if (familyBalanceData.length === 0)
-          return <Empty description="尚無家庭開銷資料" />;
+          return <EmptyState icon={StatsReport} description="尚無家庭開銷資料" />;
         return (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -5386,7 +5432,7 @@ function App() {
         );
       }
       if (categoryAnalysisData.length === 0)
-        return <Empty description="尚無分類資料" />;
+        return <EmptyState icon={StatsReport} description="尚無分類資料" />;
       return (
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -5469,7 +5515,10 @@ function App() {
                   <Text
                     type={cloudSyncStatus === "error" ? "danger" : "secondary"}
                   >
-                    <CloudSync style={{ marginRight: 6 }} />
+                    <SyncStatusIcon
+                      status={cloudSyncStatus}
+                      style={{ marginRight: 6 }}
+                    />
                     {authReady ? cloudSyncText : "讀取登入狀態中..."}
                   </Text>
                 </div>
@@ -5502,7 +5551,16 @@ function App() {
               height: isPullRefreshing ? PULL_REFRESH_TRIGGER : pullDistance,
             }}
           >
-            <Text type="secondary">
+            <Text type="secondary" className="pull-refresh-label">
+              {isPullRefreshing ? (
+                <LoadingOutlined aria-hidden />
+              ) : (
+                <ArrowDown
+                  className={`pull-refresh-arrow${
+                    pullDistance >= PULL_REFRESH_TRIGGER ? " is-armed" : ""
+                  }`}
+                />
+              )}
               {isPullRefreshing
                 ? "重新整理中..."
                 : pullDistance >= PULL_REFRESH_TRIGGER
@@ -5574,6 +5632,7 @@ function App() {
                         type="link"
                         size="small"
                         className="asset-hero-retry"
+                        icon={<Refresh />}
                         onClick={() => handleRefreshPrices("ALL")}
                         loading={loadingRefresh}
                         disabled={isWriteDisabled}
@@ -5600,6 +5659,7 @@ function App() {
                           <Space.Compact>
                             <Button
                               type="primary"
+                              icon={<Refresh />}
                               onClick={() => handleRefreshPrices("ALL")}
                               loading={loadingRefresh}
                               disabled={isWriteDisabled}
@@ -5658,6 +5718,7 @@ function App() {
                           <Space.Compact>
                             <Button
                               type="primary"
+                              icon={<Refresh />}
                               onClick={() => handleRefreshPrices("ALL")}
                               loading={loadingRefresh}
                               disabled={isWriteDisabled}
@@ -5746,8 +5807,8 @@ function App() {
                           </Fragment>
                         )}
                         empty={
-                          <Empty
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          <EmptyState
+                            icon={Bank}
                             description="尚未新增銀行現金帳戶"
                           />
                         }
@@ -5807,6 +5868,7 @@ function App() {
                           className="analysis-item"
                           onClick={() => setActiveAssetChartKey(chart.key)}
                         >
+                          <chart.icon className="analysis-item-icon" />
                           <span className="analysis-item-main">
                             <span className="analysis-item-name">
                               {chart.title}
@@ -5877,8 +5939,8 @@ function App() {
                         />
                       </Space>
                       {activeBudgetCards.length === 0 ? (
-                        <Empty
-                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        <EmptyState
+                          icon={Wallet}
                           description="目前沒有生效中的預算"
                         >
                           <Button
@@ -5888,7 +5950,7 @@ function App() {
                           >
                             新增預算
                           </Button>
-                        </Empty>
+                        </EmptyState>
                       ) : isMobileViewport ? (
                         <BudgetOverview
                           budgets={activeBudgetCards}
@@ -6040,6 +6102,7 @@ function App() {
                       rows={recurringExpenseRows}
                       summary={recurringSummary}
                       categoryNames={expenseCategoryNameById}
+                      categoryIcons={expenseCategoryIconById}
                       today={dayjs().format("YYYY-MM-DD")}
                       onEdit={openRecurringEditForm}
                       onStop={openStopRecurringModal}
@@ -6067,6 +6130,7 @@ function App() {
                                 setIsExpenseChartModalOpen(true);
                               }}
                             >
+                              <chart.icon className="analysis-item-icon" />
                               <span className="analysis-item-main">
                                 <span className="analysis-item-name">
                                   {chart.title}
@@ -6091,7 +6155,10 @@ function App() {
               {activeMainTab === "settings" && (
                 <>
                   <Col xs={24}>
-                    <Card title="收入設定" id="income-settings">
+                    <Card
+                      title={<SectionTitle icon={Coins}>收入設定</SectionTitle>}
+                      id="income-settings"
+                    >
                       <Space
                         direction="vertical"
                         size={12}
@@ -6200,7 +6267,7 @@ function App() {
                     </Card>
                   </Col>
                   <Col xs={24}>
-                    <Card title="持有人設定">
+                    <Card title={<SectionTitle icon={Group}>持有人設定</SectionTitle>}>
                       <Space
                         direction="vertical"
                         size={12}
@@ -6266,7 +6333,9 @@ function App() {
                       <div className="mobile-list-section mobile-list-section--category">
                         <div className="mobile-list-header">
                           <Space size={8}>
-                            <span className="mobile-list-title">類別列表</span>
+                            <span className="mobile-list-title">
+                              <SectionTitle icon={Label}>類別列表</SectionTitle>
+                            </span>
                             <Button
                               type="text"
                               size="small"
@@ -6293,7 +6362,7 @@ function App() {
                       <Card
                         title={
                           <Space size={8}>
-                            <span>類別列表</span>
+                            <SectionTitle icon={Label}>類別列表</SectionTitle>
                             <HoverTooltip title="新增類別">
                               <Button
                                 type="text"
@@ -6322,7 +6391,9 @@ function App() {
                       <div className="mobile-list-section mobile-list-section--template">
                         <div className="mobile-list-header">
                           <Space size={8}>
-                            <span className="mobile-list-title">常用支出</span>
+                            <span className="mobile-list-title">
+                              <SectionTitle icon={Star}>常用支出</SectionTitle>
+                            </span>
                             <Button
                               type="text"
                               size="small"
@@ -6342,7 +6413,7 @@ function App() {
                       <Card
                         title={
                           <Space size={8}>
-                            <span>常用支出</span>
+                            <SectionTitle icon={Star}>常用支出</SectionTitle>
                             <HoverTooltip title="新增常用支出">
                               <Button
                                 type="text"
@@ -6366,7 +6437,9 @@ function App() {
                       <div className="mobile-list-section mobile-list-section--budget">
                         <div className="mobile-list-header">
                           <Space size={8}>
-                            <span className="mobile-list-title">預算列表</span>
+                            <span className="mobile-list-title">
+                              <SectionTitle icon={Wallet}>預算列表</SectionTitle>
+                            </span>
                             <Button
                               type="text"
                               size="small"
@@ -6421,7 +6494,7 @@ function App() {
                       <Card
                         title={
                           <Space size={8}>
-                            <span>預算列表</span>
+                            <SectionTitle icon={Wallet}>預算列表</SectionTitle>
                             <HoverTooltip title="新增預算">
                               <Button
                                 type="text"
@@ -6474,7 +6547,7 @@ function App() {
                     )}
                   </Col>
                   <Col xs={24}>
-                    <Card title="資料匯出">
+                    <Card title={<SectionTitle icon={Download}>資料匯出</SectionTitle>}>
                       <Space direction="vertical" size={12} style={{ width: "100%" }}>
                         <Text type="secondary">
                           匯出你輸入的資料（不含每日股價紀錄）。CSV 可用

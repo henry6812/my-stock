@@ -191,6 +191,27 @@
   transition: none;
 }
 
+.pull-refresh-label.ant-typography {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Points down while pulling; turns up once a release would refresh. */
+.pull-refresh-arrow {
+  transition: transform 180ms ease;
+}
+
+.pull-refresh-arrow.is-armed {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pull-refresh-arrow {
+    transition: none;
+  }
+}
+
 @media (hover: none) and (pointer: coarse) {
   .ant-btn,
   .ant-segmented-item {
@@ -1074,6 +1095,54 @@ button.expense-card-chip {
   padding: 0;
 }
 
+/* 設定 section titles: icon in front, in the title's colour. */
+.section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.section-title-icon {
+  font-size: var(--icon-md);
+}
+
+/* Empty list / chart: icon tile (as a row without a category), one muted
+   line, then the action. */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-row-x);
+  text-align: center;
+}
+
+.empty-state-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-tile);
+  height: var(--icon-tile);
+  border-radius: var(--radius-pill);
+  background: var(--c-surface);
+  box-shadow: inset 0 0 0 1px var(--c-line);
+  color: var(--c-muted);
+}
+
+.empty-state-icon svg[data-icon] {
+  font-size: var(--icon-md);
+}
+
+.empty-state-text {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--c-muted);
+}
+
+.empty-state-action {
+  margin-top: var(--space-1);
+}
+
 .mobile-list-section .ant-table-wrapper {
   background: transparent;
 }
@@ -1208,6 +1277,11 @@ button.expense-card-chip {
   font-size: var(--fs-caption);
   color: var(--c-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.analysis-item-icon {
+  font-size: var(--icon-md);
+  color: var(--c-muted);
 }
 
 .analysis-item-chevron {
@@ -1917,6 +1991,7 @@ button.expense-card-chip {
 .recurring-overview-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: var(--space-3);
   padding: var(--space-row-y) var(--space-row-x);
 }
@@ -1926,6 +2001,7 @@ button.expense-card-chip {
 }
 
 .recurring-overview-main {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2523,6 +2599,10 @@ button.expense-card-chip {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--c-ink);
+}
+
+.budget-row-remaining-icon {
+  margin-inline-end: var(--space-1);
 }
 
 .budget-row-remaining--warn {
