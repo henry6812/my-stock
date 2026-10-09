@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-09T05:45:24.000Z",
+  "generatedAt": "2026-10-09T06:42:23.000Z",
   "title": "Design System: 我的資產",
   "extensions": {
     "colorMeta": {
@@ -64,11 +64,11 @@
           "oklch(83.6% 0.081 183.0)",
           "oklch(95.0% 0.081 183.0)"
         ],
-        "purpose": "只給存錢視覺：塔、罐的水、選中的月份長條。"
+        "purpose": "只給存錢視覺：塔裡存下的部分、累計塔各月、罐的前層水、選中月份的存下比例。"
       },
       "teal-hover": {
         "role": "savings",
-        "displayName": "存錢青・交錯層",
+        "displayName": "存錢青 hover（目前未使用）",
         "canonical": "oklch(59.4% 0.091 178.6)",
         "tonalRamp": [
           "oklch(15.0% 0.091 178.6)",
@@ -79,7 +79,8 @@
           "oklch(72.1% 0.091 178.6)",
           "oklch(83.6% 0.091 178.6)",
           "oklch(95.0% 0.091 178.6)"
-        ]
+        ],
+        "purpose": "目前沒有使用；累計成長塔已不再深淺交替。"
       },
       "teal-bright": {
         "role": "savings",
@@ -111,7 +112,7 @@
           "oklch(83.6% 0.014 180.7)",
           "oklch(95.0% 0.014 180.7)"
         ],
-        "purpose": "月份長條預設、存錢塔單筆。"
+        "purpose": "存錢塔的單筆部分。"
       },
       "teal-tint": {
         "role": "savings",
@@ -127,7 +128,7 @@
           "oklch(83.6% 0.046 182.3)",
           "oklch(95.0% 0.046 182.3)"
         ],
-        "purpose": "存錢塔定期、罐的後層水。"
+        "purpose": "存錢塔定期與碎片、累計塔當月、月份長條的存下比例、罐的後層水。"
       },
       "teal-ink": {
         "role": "savings",
@@ -143,7 +144,7 @@
           "oklch(83.6% 0.065 183.6)",
           "oklch(95.0% 0.065 183.6)"
         ],
-        "purpose": "存錢視覺旁的文字。"
+        "purpose": "存錢視覺旁的深色字（選中的月份縮寫）。"
       },
       "ink": {
         "role": "neutral",
@@ -196,16 +197,16 @@
       "paper": {
         "role": "neutral",
         "displayName": "冷紙（Paper）",
-        "canonical": "oklch(97.3% 0.002 247.8)",
+        "canonical": "oklch(98.5% 0.001 286.4)",
         "tonalRamp": [
-          "oklch(15.0% 0.002 247.8)",
-          "oklch(26.4% 0.002 247.8)",
-          "oklch(37.9% 0.002 247.8)",
-          "oklch(49.3% 0.002 247.8)",
-          "oklch(60.7% 0.002 247.8)",
-          "oklch(72.1% 0.002 247.8)",
-          "oklch(83.6% 0.002 247.8)",
-          "oklch(95.0% 0.002 247.8)"
+          "oklch(15.0% 0.001 286.4)",
+          "oklch(26.4% 0.001 286.4)",
+          "oklch(37.9% 0.001 286.4)",
+          "oklch(49.3% 0.001 286.4)",
+          "oklch(60.7% 0.001 286.4)",
+          "oklch(72.1% 0.001 286.4)",
+          "oklch(83.6% 0.001 286.4)",
+          "oklch(95.0% 0.001 286.4)"
         ],
         "purpose": "App 背景。"
       },
@@ -287,7 +288,7 @@
           "oklch(83.6% 0.005 247.9)",
           "oklch(95.0% 0.005 247.9)"
         ],
-        "purpose": "進度條、Segmented、tab 選中。"
+        "purpose": "進度條、Segmented、月份長條的軌道、tab 選中。"
       },
       "up": {
         "role": "semantic",
@@ -398,7 +399,7 @@
       {
         "name": "ease-out-expo",
         "value": "cubic-bezier(0.16, 1, 0.3, 1)",
-        "purpose": "進場與超支坑；不回彈。"
+        "purpose": "存錢塔長高等進場；不回彈。"
       },
       {
         "name": "collapse",
@@ -426,7 +427,7 @@
       "name": "Icon Ghost Button",
       "kind": "button",
       "refersTo": "button-icon-ghost",
-      "description": "列表列動作與標題旁新增鈕；hover 時 teal-soft 底。",
+      "description": "列表列動作與標題旁新增鈕；hover 時 neutral-fill 底。",
       "html": "<button class=\"ds-btn-icon\" aria-label=\"新增\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"><path d=\"M8 3v10M3 8h10\"/></svg></button>",
       "css": ".ds-btn-icon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:transparent;color:var(--c-ink,#1C1F23);cursor:pointer;transition:background .2s}.ds-btn-icon:hover,.ds-btn-icon:focus-visible{background:var(--c-neutral-fill,#EFF1F3)}.ds-btn-icon:focus-visible{outline:2px solid var(--c-action,#1F2328);outline-offset:2px}"
     },
@@ -434,7 +435,7 @@
       "name": "Chip",
       "kind": "chip",
       "refersTo": "chip",
-      "description": "快速選日期、類別、名稱；選中為 teal 實心。",
+      "description": "快速選日期、類別、名稱；選中為炭黑 action 實心。",
       "html": "<div class=\"ds-chips\"><button class=\"ds-chip is-active\">今天</button><button class=\"ds-chip\">昨天</button><button class=\"ds-chip\">餐飲</button></div>",
       "css": ".ds-chips{display:flex;gap:6px;flex-wrap:wrap}.ds-chip{min-height:36px;padding:0 14px;border:1px solid var(--c-line-strong,#CDD1D6);border-radius:999px;background:#fff;color:var(--c-ink,#1C1F23);font:400 14px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer}.ds-chip:hover{border-color:var(--c-action,#1F2328)}.ds-chip.is-active{background:var(--c-action,#1F2328);border-color:var(--c-action,#1F2328);color:#fff}.ds-chip:focus-visible{outline:2px solid var(--c-action,#1F2328);outline-offset:2px}"
     },
@@ -474,14 +475,30 @@
       "name": "Savings Hero",
       "kind": "custom",
       "refersTo": null,
-      "description": "主頁 hero：標籤 → display 大數字 → 一行「存下 N%」（teal-ink，存錢色）→ 主角視覺。",
+      "description": "主頁 hero：標籤 → display 大數字 → 一行 muted 次要說明「存下 N%」→ 主角視覺。",
       "html": "<div class=\"ds-hero\"><div class=\"ds-hero-label\">2026 年 10 月・總支出</div><div class=\"ds-hero-num\"><span class=\"ds-hero-cur\">$</span>48,712</div><div class=\"ds-hero-sub\">存下 72.9%</div></div>",
-      "css": ".ds-hero{display:flex;flex-direction:column;align-items:center;text-align:center;font-family:'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums}.ds-hero-label{font-size:14px;color:var(--c-muted,#5E646B)}.ds-hero-num{margin-top:4px;font-size:38px;font-weight:700;letter-spacing:-.8px;line-height:1.15;color:var(--c-ink,#1C1F23)}.ds-hero-cur{color:var(--c-subtle,#868C93)}.ds-hero-sub{margin-top:6px;font-size:14px;font-weight:600;color:var(--c-teal-ink,#1E5E56)}"
+      "css": ".ds-hero{display:flex;flex-direction:column;align-items:center;text-align:center;font-family:'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums}.ds-hero-label{font-size:14px;color:var(--c-muted,#5E646B)}.ds-hero-num{margin-top:4px;font-size:38px;font-weight:700;letter-spacing:-.8px;line-height:1.15;color:var(--c-ink,#1C1F23)}.ds-hero-cur{color:var(--c-subtle,#868C93)}.ds-hero-sub{margin-top:8px;font-size:12px;font-weight:400;color:var(--c-muted,#5E646B)}"
+    },
+    {
+      "name": "Savings Tower",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "支出頁主角：沒有底色的圓角色塊，由上而下為定期（teal-tint）、單筆（teal-soft）、存下（teal）；塊與塊之間 2 的縫、內側圓角 6、外側圓角 14。花掉的部分進場時碎成小塊掉落。",
+      "html": "<svg class=\"ds-tower\" viewBox=\"0 0 120 150\" role=\"img\" aria-label=\"存錢塔：定期 25%、單筆 13%、存下 62%\"><defs><clipPath id=\"ds-tower-clip\"><rect x=\"22\" y=\"14\" width=\"76\" height=\"136\" rx=\"14\"/></clipPath></defs><g clip-path=\"url(#ds-tower-clip)\"><rect class=\"ds-tower-recurring\" x=\"22\" y=\"14\" width=\"76\" height=\"33\" rx=\"6\"/><rect class=\"ds-tower-onetime\" x=\"22\" y=\"49\" width=\"76\" height=\"15.7\" rx=\"6\"/><rect class=\"ds-tower-saved\" x=\"22\" y=\"66.7\" width=\"76\" height=\"83.3\" rx=\"6\"/></g></svg>",
+      "css": ".ds-tower{width:120px;height:150px}.ds-tower rect{transition:opacity .2s}.ds-tower-recurring{fill:var(--c-teal-tint,#A9D3CB)}.ds-tower-onetime{fill:var(--c-teal-soft,#E4F1EE)}.ds-tower-saved{fill:var(--c-teal,#2B7F74)}.ds-tower:hover .ds-tower-recurring,.ds-tower:hover .ds-tower-onetime{opacity:.3}"
+    },
+    {
+      "name": "Month Bars",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "支出頁月份選擇：固定 Jan–Dec，每月一樣高（track 底），從下往上的 teal-tint 是存下比例，選中轉 teal；未到的月份停用。下方置中「累計」膠囊，開啟時炭黑。",
+      "html": "<div class=\"ds-months\"><div class=\"ds-months-track\"><button class=\"ds-month\"><span class=\"ds-month-bar\"><i style=\"height:94%\"></i></span><span class=\"ds-month-label\">Jan</span></button><button class=\"ds-month\"><span class=\"ds-month-bar\"><i style=\"height:54%\"></i></span><span class=\"ds-month-label\">Feb</span></button><button class=\"ds-month\"><span class=\"ds-month-bar\"><i style=\"height:24%\"></i></span><span class=\"ds-month-label\">Mar</span></button><button class=\"ds-month\"><span class=\"ds-month-bar\"><i style=\"height:70%\"></i></span><span class=\"ds-month-label\">Apr</span></button><button class=\"ds-month\"><span class=\"ds-month-bar\"><i style=\"height:72%\"></i></span><span class=\"ds-month-label\">May</span></button><button class=\"ds-month\"><span class=\"ds-month-bar\"><i style=\"height:72%\"></i></span><span class=\"ds-month-label\">Jun</span></button><button class=\"ds-month\"><span class=\"ds-month-bar\"><i style=\"height:74%\"></i></span><span class=\"ds-month-label\">Jul</span></button><button class=\"ds-month\"><span class=\"ds-month-bar\"><i style=\"height:74%\"></i></span><span class=\"ds-month-label\">Aug</span></button><button class=\"ds-month\"><span class=\"ds-month-bar\"><i style=\"height:66%\"></i></span><span class=\"ds-month-label\">Sep</span></button><button class=\"ds-month is-on is-current\"><span class=\"ds-month-bar\"><i style=\"height:73%\"></i></span><span class=\"ds-month-label\">Oct</span></button><button class=\"ds-month is-empty\" disabled><span class=\"ds-month-bar\"></span><span class=\"ds-month-label\">Nov</span></button><button class=\"ds-month is-empty\" disabled><span class=\"ds-month-bar\"></span><span class=\"ds-month-label\">Dec</span></button></div><button class=\"ds-months-all\">累計</button></div>",
+      "css": ".ds-months{width:340px;display:flex;flex-direction:column;align-items:stretch;gap:12px;font:400 12px 'PingFang TC','Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums}.ds-months-track{display:flex}.ds-month{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;padding:0 3px;border:0;background:none;font:inherit;cursor:pointer}.ds-month-bar{position:relative;display:block;height:40px;border-radius:6px;overflow:hidden;background:var(--c-track,#E8EBEE)}.ds-month-bar i{position:absolute;left:0;right:0;bottom:0;border-radius:6px;background:var(--c-teal-tint,#A9D3CB);transition:background .25s}.ds-month-label{line-height:1;color:var(--c-muted,#5E646B)}.ds-month.is-current .ds-month-label{color:var(--c-ink,#1C1F23);font-weight:600}.ds-month.is-on .ds-month-bar i{background:var(--c-teal,#2B7F74)}.ds-month.is-on .ds-month-label{color:var(--c-teal-ink,#1E5E56)}.ds-month:hover .ds-month-bar i{background:var(--c-teal,#2B7F74)}.ds-month.is-empty{cursor:default}.ds-month.is-empty .ds-month-bar{background:transparent;box-shadow:inset 0 0 0 1px var(--c-line,#E3E5E8)}.ds-month.is-empty .ds-month-label{color:var(--c-subtle,#868C93)}.ds-month:focus-visible,.ds-months-all:focus-visible{outline:2px solid var(--c-action,#1F2328);outline-offset:2px}.ds-months-all{align-self:center;padding:4px 12px;border:1px solid var(--c-line-strong,#CDD1D6);border-radius:999px;background:transparent;color:var(--c-muted,#5E646B);font:inherit;cursor:pointer}.ds-months-all:hover,.ds-months-all.is-on{background:var(--c-action,#1F2328);border-color:var(--c-action,#1F2328);color:#fff}"
     }
   ],
   "narrative": {
     "northStar": "安靜的帳本，會動的存錢罐",
-    "overview": "介面的預設狀態是一本安靜的家用帳本：冷灰紙色的底、炭黑的控制項、細線分隔、平面的元件，畫面上唯一大聲的東西是置中的大數字。打開 App 的人要在幾秒內讀到「全家有多少錢、這個月花了多少」，所以外框退後，數字向前。\n\n帳本裡只住一種有生命的東西：存錢的主角。資產頁的淨資產罐（淡底色的罐身，前後兩層水波、漲跌色帶、突破千萬的氣泡）、支出頁的存錢塔與累計成長塔（磚塊堆疊、超支時碎裂掉落）、可點的月份長條。它們是 App 情緒的核心，有實體感、會動、可互動；其餘一切都保持安靜。\n\n密度偏手機單手：主要觸控目標 44px 以上，表單在底部 sheet 中完成，主導覽是浮在左下的膠囊 tab bar，記一筆支出的 FAB 在右下。桌面使用同一套元件，只是內容區最寬 1200px。",
+    "overview": "介面的預設狀態是一本安靜的家用帳本：冷灰紙色的底、炭黑的控制項、細線分隔、平面的元件，畫面上唯一大聲的東西是置中的大數字。打開 App 的人要在幾秒內讀到「全家有多少錢、這個月花了多少」，所以外框退後，數字向前。\n\n帳本裡只住一種有生命的東西：存錢的主角。資產頁的淨資產罐（淡底色的罐身，前後兩層水波、漲跌色帶、突破千萬的氣泡）、支出頁的存錢塔與累計成長塔（沒有底色的圓角色塊，花掉的部分碎成小塊掉落）、可點的月份長條。它們是 App 情緒的核心，有實體感、會動、可互動；其餘一切都保持安靜。\n\n密度偏手機單手：主要觸控目標 44px 以上，表單在底部 sheet 中完成，主導覽是浮在左下的膠囊 tab bar，記一筆支出的 FAB 在右下。桌面使用同一套元件，只是內容區最寬 1200px。",
     "keyCharacteristics": [
       "中性冷灰撐起整個介面，所有 CTA 是炭黑（不是純黑）；teal 只留給存錢視覺，所以一出現就知道是「存下來的錢」。",
       "大數字置中、粗體、等寬數字，是每個主頁的視覺錨點。",
@@ -517,7 +534,7 @@
       },
       {
         "name": "The Weight-Not-Size Rule",
-        "body": "在 body 與 subhead 之間，用 600 字重而不是新字級拉出層級。hero 的次要行用 body 600，不另開 13px。",
+        "body": "在 body 與 subhead 之間，用 600 字重而不是新字級拉出層級，不另開 13px。hero 的次要行：資產頁的漲跌用 body 600；支出頁的「存下 N%」退成 `muted` label，讓數字與塔領頭。",
         "section": "typography"
       },
       {

@@ -14,7 +14,7 @@ colors:
   ink: "#1C1F23"
   muted: "#5E646B"
   subtle: "#868C93"
-  paper: "#F5F6F7"
+  paper: "#FAFAFB"
   surface: "#FFFFFF"
   line: "#E3E5E8"
   line-strong: "#CDD1D6"
@@ -177,8 +177,8 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 - **Teal** (`teal`)：塔裡存下的部分與累計塔的各月層、罐的前層水、選中的月份長條。
 - **Bright Teal** (`teal-bright`)：淨資產走勢線、突破千萬的光暈。
 - **Teal Hover** (`teal-hover`)：目前沒有使用（累計成長塔已不再深淺交替）。
-- **Teal Soft** (`teal-soft`)：月份長條的預設填色、存錢塔的「單筆」部分。
-- **Teal Tint** (`teal-tint`)：存錢塔的「定期」部分與碎片、累計成長塔當月層、罐的後層水。
+- **Teal Soft** (`teal-soft`)：存錢塔的「單筆」部分。
+- **Teal Tint** (`teal-tint`)：存錢塔的「定期」部分與碎片、累計成長塔當月層、月份長條裡未選中月份的存下比例、罐的後層水。
 - **Teal Ink** (`teal-ink`)：存錢視覺旁的深色字（選中的月份縮寫）。
 
 ### Neutral
@@ -189,7 +189,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 - **Surface** (`surface`)：卡片、列表、sheet、tab bar 的底。
 - **Line / Line Strong** (`line`, `line-strong`)：分隔線與元件邊框；`line-strong` 用在可點的 chip 與輸入框邊框。
 - **Neutral Fill** (`neutral-fill`)：列表分組標題底、預設 tag 底、info 提示底、圖示按鈕 hover 底、分類圖示 tile、按鍵按壓。
-- **Track** (`track`)：進度條與 Segmented 的軌道、tab bar 選中項、記帳時的閃爍回饋。
+- **Track** (`track`)：進度條、Segmented 與月份長條的軌道、tab bar 選中項、記帳時的閃爍回饋。
 
 ### Semantic
 - **Up** (`up`)：漲、收入、盈餘為正。
@@ -225,7 +225,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 - **Label**（400–600，12px）：時間戳、分組標題、tab bar 文字、tag、次要 meta。
 
 ### Named Rules
-**The Weight-Not-Size Rule.** 在 body 與 subhead 之間，用 600 字重而不是新字級拉出層級。hero 的次要行用 body 600，不另開 13px。
+**The Weight-Not-Size Rule.** 在 body 與 subhead 之間，用 600 字重而不是新字級拉出層級，不另開 13px。hero 的次要行：資產頁的漲跌用 body 600；支出頁的「存下 N%」退成 `muted` label，讓數字與塔領頭。
 
 ## Layout
 
