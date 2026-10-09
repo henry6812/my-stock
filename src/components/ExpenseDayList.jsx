@@ -147,15 +147,16 @@ export function UpcomingExpenseList({
 }
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
-// Matches .expense-day-strip-bar (--space-8); an empty day keeps a 2px stub.
-const STRIP_BAR_PX = 32;
+// The strip's amounts drop the "$": every cell is money, and it keeps the
+// columns narrow.
+const formatStripAmount = (value) =>
+  Math.round(value).toLocaleString("zh-TW");
 
 // Main mobile expense list: one day at a time. A strip of the month's days
-// on top — one bar per day, its height that day's spending (square-root
-// scale, so one rent day doesn't flatten the rest) — picks the day;
-// it opens on today, scrolled to the end so the latest days are in view.
-// Bars are neutral (spending), the picked day solid ink; teal stays for
-// what was saved.
+// on top — weekday, date and that day's total — picks the day (solid ink,
+// like a selected chip); it opens on today, scrolled to the end so the
+// latest days are in view. The picked day's rows follow with no heading:
+// its date and total are already in the strip.
 export function ExpenseDayStrip({
   rows = [],
   month,
@@ -193,7 +194,6 @@ export function ExpenseDayStrip({
 
   if (!hasRows) return empty;
 
-  const maxTotal = Math.max(...strip.map((day) => day.totalTwd), 1);
   const selected = strip.find((day) => day.date === pickedDate);
 
   return (
@@ -208,13 +208,6 @@ export function ExpenseDayStrip({
           const date = dayjs(day.date);
           const isToday = day.date === today;
           const on = day.date === pickedDate;
-          const height =
-            day.totalTwd > 0
-              ? Math.max(
-                  4,
-                  Math.round(Math.sqrt(day.totalTwd / maxTotal) * STRIP_BAR_PX),
-                )
-              : 2;
           return (
             <button
               key={day.date}
@@ -229,30 +222,24 @@ export function ExpenseDayStrip({
               }`}
               onClick={() => setPicked({ month, date: day.date })}
             >
-              <span className="expense-day-strip-bar" aria-hidden="true">
-                <span
-                  className="expense-day-strip-fill"
-                  style={{ height: `${height}px` }}
-                />
+              <span className="expense-day-strip-weekday" aria-hidden="true">
+                {WEEKDAYS[date.day()]}
               </span>
               <span className="expense-day-strip-date" aria-hidden="true">
                 {isToday ? "今天" : date.date()}
               </span>
-              <span className="expense-day-strip-weekday" aria-hidden="true">
-                {WEEKDAYS[date.day()]}
+              <span className="expense-day-strip-amount" aria-hidden="true">
+                {formatStripAmount(day.totalTwd)}
               </span>
             </button>
           );
         })}
       </div>
       {selected && (
-        <section className="expense-day-list">
-          <div className="expense-day-heading" data-testid="expense-day-heading">
-            <span>{formatDayHeading(selected.date, today)}</span>
-            <span className="expense-day-total">
-              {formatTwd(selected.totalTwd)}
-            </span>
-          </div>
+        <section
+          className="expense-day-list"
+          aria-label={formatDayHeading(selected.date, today)}
+        >
           {selected.rows.length > 0 ? (
             <div className="expense-day-group">
               {renderRows(selected.rows, getActions, disabled)}

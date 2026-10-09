@@ -2584,9 +2584,9 @@ button.expense-card-chip {
   color: var(--c-ink);
 }
 
-/* Main list (ExpenseDayStrip): the month's days as a strip of bars above
-   one day's rows. Bars are neutral — this is spending; teal is for what
-   was saved — and the picked day is solid ink, like a selected chip. */
+/* Main list (ExpenseDayStrip): the month's days as a strip of cells —
+   weekday, date, that day's total — above one day's rows. The picked day
+   is solid ink like a selected chip; days without spending go muted. */
 /* position: relative makes the track the days' offsetParent, which the
    scroll-to-picked-day measurement relies on. */
 .expense-day-strip-track {
@@ -2613,67 +2613,55 @@ button.expense-card-chip {
   align-items: center;
   gap: var(--space-1);
   min-width: var(--space-10);
-  padding: var(--space-2) var(--space-1);
+  padding: var(--space-2);
   border: 0;
   border-radius: var(--radius-md);
   background: none;
   color: var(--c-muted);
   font: inherit;
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
   scroll-snap-align: end;
   cursor: pointer;
 }
 
 .expense-day-strip-day:focus-visible {
   outline: 2px solid var(--c-action);
-  outline-offset: -2px;
-}
-
-.expense-day-strip-bar {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  width: 100%;
-  height: var(--space-8);
-}
-
-.expense-day-strip-fill {
-  display: block;
-  width: var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--c-line-strong);
-}
-
-/* No spending: a short stub on the baseline so the day still reads. */
-.expense-day-strip-day.is-empty .expense-day-strip-fill {
-  background: var(--c-line);
-}
-
-.expense-day-strip-date {
-  font-size: var(--fs-body);
-  line-height: 1.2;
-  color: var(--c-ink);
+  outline-offset: 2px;
 }
 
 .expense-day-strip-weekday {
   font-size: var(--fs-caption);
-  line-height: 1;
+}
+
+.expense-day-strip-date {
+  font-size: var(--fs-body);
+  color: var(--c-ink);
+}
+
+.expense-day-strip-amount {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--c-ink);
 }
 
 .expense-day-strip-day[data-today="true"] .expense-day-strip-date {
   font-weight: 600;
 }
 
-.expense-day-strip-day.is-on {
-  background: var(--c-neutral-fill);
+.expense-day-strip-day.is-empty .expense-day-strip-amount {
+  font-weight: 400;
+  color: var(--c-muted);
 }
 
-.expense-day-strip-day.is-on .expense-day-strip-fill {
+.expense-day-strip-day.is-on {
   background: var(--c-action);
 }
 
-.expense-day-strip-day.is-on .expense-day-strip-date {
-  font-weight: 600;
+.expense-day-strip-day.is-on,
+.expense-day-strip-day.is-on .expense-day-strip-date,
+.expense-day-strip-day.is-on .expense-day-strip-amount {
+  color: var(--c-surface);
 }
 
 .expense-day-strip-none {
