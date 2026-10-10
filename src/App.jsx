@@ -114,6 +114,7 @@ import {
 import HoldingForm from "./components/HoldingForm";
 import CashAccountForm from "./components/CashAccountForm";
 import MobileFormSheetLayout from "./components/MobileFormSheetLayout";
+import PriceRefreshFooter from "./components/PriceRefreshFooter";
 import TrendChart from "./components/TrendChart";
 import QuickExpenseSheet from "./components/QuickExpenseSheet";
 import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
@@ -237,7 +238,7 @@ import {
 } from "./utils/expenseSuggestions";
 import { applyTemplateToFormValues } from "./utils/expenseTemplates";
 import { describeRecurrenceStart } from "./utils/recurrence";
-import { groupHoldingsByHolder } from "./utils/holdingGroups";
+import { groupHoldingsByHolder, sumGroupChangeTwd } from "./utils/holdingGroups";
 import useBodyScrollLock from "./hooks/useBodyScrollLock";
 import { applyPwaUpdate, onPwaNeedRefresh } from "./pwaUpdate";
 import {
@@ -1936,17 +1937,37 @@ function App() {
     return items;
   }, [holderOptions, rows]);
 
-  // Mobile: holdings grouped by holder (replacing the holder tabs), each
-  // with its count and total value.
+  // Mobile: holdings grouped by holder (replacing the holder tabs). The
+  // groups start folded, so each heading is the holder's summary: count,
+  // total value and today's change.
   const holdingGroups = useMemo(
     () =>
-      groupHoldingsByHolder(rows, holderOptions).map((group) => ({
-        key: group.key,
-        title: `${group.label} · ${group.count} 檔`,
-        total: formatTwd(group.totalTwd),
-        rows: group.rows,
-      })),
-    [holderOptions, rows],
+      groupHoldingsByHolder(rows, holderOptions).map((group) => {
+        const changeTwd = priceDataStale ? null : sumGroupChangeTwd(group.rows);
+        return {
+          key: group.key,
+          title: `${group.label} · ${group.count} 檔`,
+          total: (
+            <>
+              {formatTwd(group.totalTwd)}
+              {changeTwd === null ? (
+                <span className="cell-delta cell-delta--flat">--</span>
+              ) : changeTwd === 0 ? (
+                <span className="cell-delta cell-delta--flat">$0</span>
+              ) : (
+                <span
+                  className={`cell-delta cell-delta--${changeTwd > 0 ? "up" : "down"}`}
+                >
+                  {changeTwd > 0 ? "▲ " : "▼ "}
+                  {formatTwd(Math.abs(changeTwd))}
+                </span>
+              )}
+            </>
+          ),
+          rows: group.rows,
+        };
+      }),
+    [holderOptions, priceDataStale, rows],
   );
 
   // Mobile: cash accounts grouped by holder (replacing the holder tabs),
@@ -5672,30 +5693,6 @@ function App() {
                   <div className="mobile-list-section mobile-list-section--holdings">
                     <div className="mobile-list-header">
                       <span className="mobile-list-title">持股列表</span>
-                      {/* Outlined, not primary: prices refresh on their own
-                          once a day, and the FAB is this screen's one black
-                          call to action. */}
-                      <div className="price-update-extra">
-                        <Space>
-                          <Space.Compact>
-                            <Button
-                              icon={<Refresh />}
-                              onClick={() => handleRefreshPrices("ALL")}
-                              loading={loadingRefresh}
-                              disabled={isWriteDisabled}
-                              aria-label="更新價格（全部）"
-                            >
-                              更新價格
-                            </Button>
-                            <Button
-                              icon={<NavArrowDown />}
-                              aria-label="選擇更新市場"
-                              disabled={isWriteDisabled || loadingRefresh}
-                              onClick={() => setIsUpdateSheetOpen(true)}
-                            />
-                          </Space.Compact>
-                        </Space>
-                      </div>
                     </div>
                     <div className="mobile-list-body">
                       {/* Grouped by holder, each foldable with its total;
@@ -5705,6 +5702,8 @@ function App() {
                         <CollapsibleGroups
                           className="holding-groups"
                           groups={holdingGroups}
+                          defaultExpanded={false}
+                          storageKey="my-stock:holding-groups-open"
                           renderRow={(record) => (
                             <Fragment key={record.id}>
                               {tableColumns[0].render(null, record)}
@@ -5713,6 +5712,16 @@ function App() {
                           empty={holdingsEmptyState}
                         />
                       </Spin>
+                      {/* Quiet, after the list: prices refresh on their own
+                          once a day, and the FAB is this screen's one black
+                          call to action. 立即更新 opens the market sheet. */}
+                      <PriceRefreshFooter
+                        updatedText={priceUpdatedRelativeText}
+                        usdTwdRate={usdTwdRate}
+                        loading={loadingRefresh}
+                        disabled={isWriteDisabled}
+                        onRefresh={() => setIsUpdateSheetOpen(true)}
+                      />
                     </div>
                   </div>
                 ) : (
@@ -6790,6 +6799,7 @@ function App() {
             </Space>
           </Modal>
 
+
           <Drawer
             placement="bottom"
             open={isMobileViewport && isUpdateSheetOpen}
@@ -6802,6 +6812,18 @@ function App() {
             styles={{ body: { padding: 16 } }}
           >
             <div className="update-sheet-actions">
+              <Button
+                block
+                type="primary"
+                onClick={() => {
+                  setIsUpdateSheetOpen(false);
+                  handleRefreshPrices("ALL");
+                }}
+                disabled={isWriteDisabled || loadingRefresh}
+                loading={loadingRefresh}
+              >
+                更新全部
+              </Button>
               <Button
                 block
                 onClick={() => {

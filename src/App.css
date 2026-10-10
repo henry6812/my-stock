@@ -2531,13 +2531,116 @@ button.expense-card-chip {
   font-variant-numeric: tabular-nums;
 }
 
-/* 更新價格 in the holdings header: a 44px thumb target. */
-.mobile-list-section--holdings .price-update-extra .ant-btn {
-  height: 44px;
+/* Holder groups (holdings, cash): headings on line-strong grey, so they
+   stand off the paper page even when every group is folded, and stick to
+   the top while their rows scroll by. clip, not hidden, so the frame does
+   not become the sticky headings' scroller. */
+.expense-day-list.holding-groups,
+.expense-day-list.cash-groups {
+  overflow: clip;
 }
 
-.mobile-list-section--holdings .price-update-extra .ant-btn-icon-only {
-  width: 44px;
+.holding-groups .expense-day-heading,
+.cash-groups .expense-day-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--c-line-strong);
+}
+
+.holding-groups .expense-day-title,
+.cash-groups .expense-day-title {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+/* Holdings start folded, so a heading is the holder's summary row: body
+   size, total over today's change. */
+.holding-groups .expense-day-heading {
+  padding-block: var(--space-3);
+  font-size: var(--fs-body);
+}
+
+.holding-groups .expense-day-total {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.holding-groups .expense-day-total .cell-delta {
+  font-size: var(--fs-caption);
+  font-weight: 400;
+}
+
+/* Last line of the holdings list: when prices were updated + 立即更新. */
+.price-refresh-footer {
+  margin-top: var(--space-2);
+  text-align: center;
+  color: var(--c-muted);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.price-refresh-status {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.price-refresh-icon {
+  font-size: var(--icon-sm);
+}
+
+.price-refresh-icon.is-spinning {
+  animation: price-refresh-spin 1s linear infinite;
+}
+
+@keyframes price-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .price-refresh-icon.is-spinning {
+    animation: none;
+  }
+}
+
+.price-refresh-sep {
+  color: var(--c-subtle);
+}
+
+.price-refresh-link {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--c-action);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.price-refresh-link:disabled {
+  color: var(--c-subtle);
+  text-decoration: none;
+  cursor: default;
+}
+
+.price-refresh-link:focus-visible {
+  outline: 2px solid var(--c-action);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.price-refresh-fx {
+  margin: 0;
+  font-size: var(--fs-caption);
 }
 
 .mobile-swipe-row--editing {

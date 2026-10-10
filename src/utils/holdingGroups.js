@@ -33,3 +33,14 @@ export const groupHoldingsByHolder = (
       };
     });
 };
+
+// A holder group's change today: the sum of its rows' valueChangeTwd, over
+// rows that have a previous snapshot to compare with. null when no row does,
+// so the heading shows -- rather than a misleading 0.
+export const sumGroupChangeTwd = (rows) => {
+  const changes = (rows || [])
+    .filter((row) => row.hasPreviousSnapshot)
+    .map((row) => row.valueChangeTwd)
+    .filter((value) => typeof value === "number" && Number.isFinite(value));
+  return changes.length ? changes.reduce((sum, value) => sum + value, 0) : null;
+};

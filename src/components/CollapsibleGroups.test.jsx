@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CollapsibleGroups from './CollapsibleGroups'
@@ -44,5 +44,26 @@ describe('<CollapsibleGroups />', () => {
   it('shows the empty state without groups', () => {
     renderGroups({ groups: [] })
     expect(screen.getByText('沒有資料')).toBeInTheDocument()
+  })
+
+  describe('with defaultExpanded false and a storageKey', () => {
+    beforeEach(() => window.localStorage.clear())
+
+    it('starts folded and remembers what the user opened', async () => {
+      const user = renderGroups({ defaultExpanded: false, storageKey: 'test-groups' })
+      const po = screen.getByRole('button', { name: /Po · 2 檔/ })
+      expect(po).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText('合庫金')).not.toBeInTheDocument()
+      await user.click(po)
+      expect(JSON.parse(window.localStorage.getItem('test-groups'))).toEqual({ Po: true })
+    })
+
+    it('restores the remembered groups on the next visit', () => {
+      window.localStorage.setItem('test-groups', JSON.stringify({ Wei: true }))
+      renderGroups({ defaultExpanded: false, storageKey: 'test-groups' })
+      expect(screen.getByRole('button', { name: /Wei · 1 檔/ })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText('DIA')).toBeInTheDocument()
+      expect(screen.queryByText('合庫金')).not.toBeInTheDocument()
+    })
   })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { groupHoldingsByHolder } from './holdingGroups'
+import { groupHoldingsByHolder, sumGroupChangeTwd } from './holdingGroups'
 
 const holding = (id, holder, latestValueTwd) => ({ id, holder, latestValueTwd })
 
@@ -40,5 +40,23 @@ describe('groupHoldingsByHolder', () => {
       { valueKey: 'balanceTwd' },
     )
     expect(groups.map((group) => [group.label, group.count, group.totalTwd])).toEqual([['Po', 2, 500]])
+  })
+})
+
+describe('sumGroupChangeTwd', () => {
+  it('sums today\'s change over rows with a previous snapshot', () => {
+    expect(
+      sumGroupChangeTwd([
+        { hasPreviousSnapshot: true, valueChangeTwd: 120 },
+        { hasPreviousSnapshot: true, valueChangeTwd: -20 },
+        { hasPreviousSnapshot: false, valueChangeTwd: 999 },
+        { hasPreviousSnapshot: true, valueChangeTwd: undefined },
+      ]),
+    ).toBe(100)
+  })
+
+  it('is null when no row can be compared', () => {
+    expect(sumGroupChangeTwd([{ hasPreviousSnapshot: false, valueChangeTwd: 5 }])).toBeNull()
+    expect(sumGroupChangeTwd([])).toBeNull()
   })
 })

@@ -4,16 +4,38 @@ import Collapsible from "./Collapsible";
 
 // One framed list of groups, each folding from its heading (title on the
 // left, total + chevron on the right). Shares the expense day list's styles.
+// With storageKey, the groups the user opened / closed are remembered in
+// localStorage (a per-device convenience; failures fall back to defaults).
+
+const readToggled = (storageKey) => {
+  if (!storageKey) return {};
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeToggled = (storageKey, toggled) => {
+  if (!storageKey) return;
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(toggled));
+  } catch {
+    // Storage unavailable (private mode, quota): keep it for this session.
+  }
+};
 
 function CollapsibleGroups({
   groups = [],
   renderRow,
   defaultExpanded = true,
+  storageKey,
   empty = null,
   className = "",
 }) {
   // Groups the user opened / closed; others follow defaultExpanded.
-  const [toggled, setToggled] = useState({});
+  const [toggled, setToggled] = useState(() => readToggled(storageKey));
   if (groups.length === 0) return empty;
 
   return (
@@ -27,10 +49,14 @@ function CollapsibleGroups({
               className="expense-day-heading expense-day-toggle"
               aria-expanded={expanded}
               onClick={() =>
-                setToggled((current) => ({ ...current, [group.key]: !expanded }))
+                setToggled((current) => {
+                  const next = { ...current, [group.key]: !expanded };
+                  writeToggled(storageKey, next);
+                  return next;
+                })
               }
             >
-              <span>{group.title}</span>
+              <span className="expense-day-title">{group.title}</span>
               <span className="expense-day-heading-end">
                 <span className="expense-day-total">{group.total}</span>
                 <NavArrowRight className="collapse-chevron" />
