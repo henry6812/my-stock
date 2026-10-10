@@ -102,6 +102,22 @@ body,
   min-height: 100%;
 }
 
+/* A paper strip pinned along the top edge. iOS Safari tints the status bar
+   from a fixed / sticky element touching the top, and kept the white of a
+   stuck holder heading after it left; this strip is always the one it sees.
+   Under the safe area when there is one, 1px otherwise. */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  height: max(1px, env(safe-area-inset-top));
+  background: var(--c-paper);
+  pointer-events: none;
+}
+
 body {
   font-family:
     "PingFang TC",

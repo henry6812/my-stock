@@ -5717,6 +5717,7 @@ function App() {
                           groups={holdingGroups}
                           defaultExpanded={false}
                           storageKey="my-stock:holding-groups-open"
+                          stickyHeadings
                           renderRow={(record) => (
                             <Fragment key={record.id}>
                               {tableColumns[0].render(null, record)}
@@ -5838,6 +5839,7 @@ function App() {
                         groups={cashGroups}
                         defaultExpanded={false}
                         storageKey="my-stock:cash-groups-open"
+                        stickyHeadings
                         renderRow={(record) => (
                           <Fragment key={record.id}>
                             {cashTableColumns[0].render(null, record)}

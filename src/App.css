@@ -2568,19 +2568,51 @@ button.expense-card-chip {
 
 /* Holder groups (holdings, cash): both start folded. Headings sit on
    --c-group-heading, get a line under them while open, and stick to the
-   top while their rows scroll by. clip, not hidden, so the frame does
-   not become the sticky headings' scroller. */
+   top while their rows scroll by; a stuck heading stretches to the full
+   screen width (data-stuck + --bleed-*, from useStuckHeadings). The frame
+   cannot clip (that would clip the stretched heading and, as hidden, break
+   sticky), so its rounded corners are drawn by the first heading and by
+   the last group's heading or rows instead. */
 .expense-day-list.holding-groups,
 .expense-day-list.cash-groups {
-  overflow: clip;
+  overflow: visible;
+  --frame-inner-radius: calc(var(--radius-lg) - 1px);
 }
 
 .holding-groups .expense-day-heading,
 .cash-groups .expense-day-heading {
   position: sticky;
-  top: 0;
+  top: env(safe-area-inset-top);
   z-index: 2;
   background: var(--c-group-heading);
+}
+
+.holding-groups .expense-day-group:first-child .expense-day-heading,
+.cash-groups .expense-day-group:first-child .expense-day-heading {
+  border-top-left-radius: var(--frame-inner-radius);
+  border-top-right-radius: var(--frame-inner-radius);
+}
+
+.holding-groups .expense-day-group:last-child .expense-day-heading[aria-expanded="false"],
+.cash-groups .expense-day-group:last-child .expense-day-heading[aria-expanded="false"],
+.holding-groups .expense-day-group:last-child > .collapsible,
+.cash-groups .expense-day-group:last-child > .collapsible {
+  border-bottom-left-radius: var(--frame-inner-radius);
+  border-bottom-right-radius: var(--frame-inner-radius);
+}
+
+.holding-groups .expense-day-group:last-child > .collapsible,
+.cash-groups .expense-day-group:last-child > .collapsible {
+  overflow: clip;
+}
+
+.holding-groups .expense-day-heading[data-stuck="true"],
+.cash-groups .expense-day-heading[data-stuck="true"] {
+  width: calc(100% + var(--bleed-left) + var(--bleed-right));
+  margin-left: calc(-1 * var(--bleed-left));
+  padding-left: calc(var(--space-row-x) + var(--bleed-left));
+  padding-right: calc(var(--space-row-x) + var(--bleed-right));
+  border-radius: 0;
 }
 
 /* Inset shadow, not a border: no 1px jump on open, and it stays with the

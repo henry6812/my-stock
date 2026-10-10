@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NavArrowRight } from "iconoir-react";
 import Collapsible from "./Collapsible";
+import useStuckHeadings from "../hooks/useStuckHeadings";
 
 // One framed list of groups, each folding from its heading (title on the
 // left, total + chevron on the right). Shares the expense day list's styles.
 // With storageKey, the groups the user opened / closed are remembered in
 // localStorage (a per-device convenience; failures fall back to defaults).
 // A group's optional `leading` node (e.g. a holder avatar) sits before its
-// title.
+// title. With stickyHeadings, stuck headings are marked for full-width CSS.
 
 const readToggled = (storageKey) => {
   if (!storageKey) return {};
@@ -33,15 +34,18 @@ function CollapsibleGroups({
   renderRow,
   defaultExpanded = true,
   storageKey,
+  stickyHeadings = false,
   empty = null,
   className = "",
 }) {
   // Groups the user opened / closed; others follow defaultExpanded.
   const [toggled, setToggled] = useState(() => readToggled(storageKey));
+  const listRef = useRef(null);
+  useStuckHeadings(listRef, stickyHeadings && groups.length > 0);
   if (groups.length === 0) return empty;
 
   return (
-    <div className={`expense-day-list ${className}`.trim()}>
+    <div ref={listRef} className={`expense-day-list ${className}`.trim()}>
       {groups.map((group) => {
         const expanded = toggled[group.key] ?? defaultExpanded;
         return (
