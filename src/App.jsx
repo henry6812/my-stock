@@ -134,6 +134,9 @@ import { describeAllocation } from "./utils/allocation";
 import CollapsibleGroups from "./components/CollapsibleGroups";
 import BudgetOverview from "./components/BudgetOverview";
 import BudgetDetailSheet from "./components/BudgetDetailSheet";
+import SavingsGoalList from "./components/SavingsGoalList";
+import SavingsGoalDetailSheet from "./components/SavingsGoalDetailSheet";
+import SavingsGoalForm from "./components/SavingsGoalForm";
 import StockDetailSheet from "./components/StockDetailSheet";
 import { buildStockDetailHolding, isInteractiveTarget } from "./utils/stockDetail";
 import { isFromPortal } from "./utils/portalEvent";
@@ -181,6 +184,9 @@ import {
   setExpenseCategoryQuickPick,
   upsertBudget,
   removeBudget,
+  upsertSavingsGoal,
+  setSavingsGoalArchived,
+  removeSavingsGoal,
   repairNumericFields,
 } from "./services/portfolioService";
 import {
@@ -229,6 +235,7 @@ import { getAssetAnimationPlan } from "./utils/netWorthJar";
 import AssetSummaryHero from "./components/AssetSummaryHero";
 import ExpenseSummaryCard from "./components/ExpenseSummaryCard";
 import { toUserMessage } from "./utils/userMessage";
+import { averageMonthlyExpense } from "./utils/savingsGoals";
 import { CHART_NEUTRAL, CHART_PALETTE, COLORS } from "./theme/tokens";
 import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "./utils/budgetStatus";
 import { sortBudgetsByUrgency } from "./utils/budgetView";
@@ -278,6 +285,7 @@ const getNumberAnimationDuration = () =>
 // category used. Not synced — storage can be missing or throw, so fail soft.
 const LAST_EXPENSE_DEFAULTS_KEY = "my-stock:last-expense-defaults";
 const TEMPLATE_FORM_ID = "expense-template-form";
+const GOAL_FORM_ID = "savings-goal-form";
 
 const readLastExpenseDefaults = () => {
   try {
@@ -486,6 +494,13 @@ function App() {
   const [isQuickExpenseOpen, setIsQuickExpenseOpen] = useState(false);
   // Mobile: the budget whose current-cycle detail sheet is open.
   const [budgetDetailId, setBudgetDetailId] = useState(null);
+  const [savingsGoals, setSavingsGoals] = useState([]);
+  const [savingsGoalAccountOptions, setSavingsGoalAccountOptions] = useState([]);
+  const [savingsGoalDetailId, setSavingsGoalDetailId] = useState(null);
+  const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState(null);
+  const [goalFormKey, setGoalFormKey] = useState(0);
+  const [loadingGoalAction, setLoadingGoalAction] = useState(false);
   const [stockDetailId, setStockDetailId] = useState(null);
   // Bumped on every open so QuickExpenseSheet remounts with fresh state.
   const [quickExpenseKey, setQuickExpenseKey] = useState(0);
@@ -1005,6 +1020,8 @@ function App() {
         setActiveExpenseMonth(resolvedMonth);
       }
       setExpenseMonthlySummaries(view.monthlySummaries ?? []);
+      setSavingsGoals(view.savingsGoals ?? []);
+      setSavingsGoalAccountOptions(view.savingsGoalAccountOptions ?? []);
       setExpenseCategoryRows(view.categoryRows ?? []);
       setExpenseNameSuggestions(view.expenseNameSuggestions ?? []);
       setExpenseTemplateRows(view.expenseTemplates ?? []);
@@ -1800,6 +1817,73 @@ function App() {
       }
     },
     [message, refreshExpenseDataInBackground],
+  );
+
+  const openGoalForm = useCallback((goal = null) => {
+    setEditingGoal(goal);
+    setGoalFormKey((key) => key + 1);
+    setIsGoalFormOpen(true);
+  }, []);
+
+  const closeGoalForm = useCallback(() => {
+    setIsGoalFormOpen(false);
+    setEditingGoal(null);
+  }, []);
+
+  const handleSubmitGoal = useCallback(
+    async (values) => {
+      try {
+        setLoadingGoalAction(true);
+        await upsertSavingsGoal({ id: editingGoal?.id, ...values });
+        // Saved: close now so a failing refresh can't invite a second save.
+        setIsGoalFormOpen(false);
+        setEditingGoal(null);
+        message.success(editingGoal ? "儲蓄目標已更新" : "已新增儲蓄目標");
+        refreshExpenseDataInBackground();
+      } catch (error) {
+        message.error(toUserMessage(error, "儲存儲蓄目標失敗"));
+      } finally {
+        setLoadingGoalAction(false);
+      }
+    },
+    [editingGoal, message, refreshExpenseDataInBackground],
+  );
+
+  const handleToggleGoalArchive = useCallback(
+    async (goal) => {
+      try {
+        setLoadingGoalAction(true);
+        await setSavingsGoalArchived({ id: goal.id, archived: !goal.isArchived });
+        setSavingsGoalDetailId(null);
+        message.success(goal.isArchived ? "已取消封存" : "已封存");
+        refreshExpenseDataInBackground();
+      } catch (error) {
+        message.error(toUserMessage(error, "更新儲蓄目標失敗"));
+      } finally {
+        setLoadingGoalAction(false);
+      }
+    },
+    [message, refreshExpenseDataInBackground],
+  );
+
+  const handleRemoveGoal = useCallback(
+    (goal) => {
+      confirmDestructive({
+        title: `刪除「${goal.name}」？`,
+        content: "刪除後無法復原；計入的銀行帳戶不受影響。",
+        onOk: async () => {
+          try {
+            await removeSavingsGoal({ id: goal.id });
+            setSavingsGoalDetailId(null);
+            message.success("儲蓄目標已刪除");
+            refreshExpenseDataInBackground();
+          } catch (error) {
+            message.error(toUserMessage(error, "刪除儲蓄目標失敗"));
+          }
+        },
+      });
+    },
+    [confirmDestructive, message, refreshExpenseDataInBackground],
   );
 
   const templateDragDisabled = isWriteDisabled || loadingTemplateReorder;
@@ -4705,6 +4789,26 @@ function App() {
     />
   );
 
+  // Every ongoing goal uses the same average; the form previews from it.
+  const averageMonthlyExpenseTwd = useMemo(
+    () => averageMonthlyExpense(expenseMonthlySummaries).averageTwd,
+    [expenseMonthlySummaries],
+  );
+
+  const savingsGoalFormNode = (
+    <SavingsGoalForm
+      key={goalFormKey}
+      formId={GOAL_FORM_ID}
+      onSubmit={handleSubmitGoal}
+      initialValues={editingGoal}
+      accountOptions={savingsGoalAccountOptions}
+      averageMonthlyExpenseTwd={averageMonthlyExpenseTwd}
+      today={dayjs().format("YYYY-MM-DD")}
+      popupContainer={getSheetPopupContainer}
+      disabled={isWriteDisabled}
+    />
+  );
+
   const categoryFormNode = (
     <Form
       form={categoryForm}
@@ -4952,6 +5056,11 @@ function App() {
   const budgetDetail = useMemo(
     () => activeBudgetCards.find((budget) => budget.id === budgetDetailId) ?? null,
     [activeBudgetCards, budgetDetailId],
+  );
+
+  const savingsGoalDetail = useMemo(
+    () => savingsGoals.find((goal) => goal.id === savingsGoalDetailId) ?? null,
+    [savingsGoals, savingsGoalDetailId],
   );
 
   const getBudgetSwipeActions = useCallback(
@@ -6139,6 +6248,14 @@ function App() {
                     </section>
                   </Col>
                   <Col xs={24}>
+                    <SavingsGoalList
+                      goals={savingsGoals}
+                      onOpen={(goal) => setSavingsGoalDetailId(goal.id)}
+                      onCreate={() => openGoalForm()}
+                      disabled={isWriteDisabled}
+                    />
+                  </Col>
+                  <Col xs={24}>
                     <RecurringOverview
                       rows={recurringExpenseRows}
                       summary={recurringSummary}
@@ -7018,6 +7135,47 @@ function App() {
               disabled={isWriteDisabled}
             />
           )}
+
+          <SavingsGoalDetailSheet
+            open={Boolean(savingsGoalDetail) && !isGoalFormOpen}
+            goal={savingsGoalDetail}
+            isMobile={isMobileViewport}
+            onClose={() => setSavingsGoalDetailId(null)}
+            onEdit={(goal) => openGoalForm(goal)}
+            onToggleArchive={handleToggleGoalArchive}
+            onDelete={handleRemoveGoal}
+            disabled={isWriteDisabled || loadingGoalAction}
+          />
+
+          <MobileFormSheetLayout
+            title={editingGoal ? "編輯儲蓄目標" : "新增儲蓄目標"}
+            open={isMobileViewport && isGoalFormOpen}
+            onClose={closeGoalForm}
+            loading={loadingGoalAction}
+            submitDisabled={isWriteDisabled}
+            submitText="儲存"
+            submitFormId={GOAL_FORM_ID}
+          >
+            {isMobileViewport && savingsGoalFormNode}
+          </MobileFormSheetLayout>
+
+          <Modal
+            title={editingGoal ? "編輯儲蓄目標" : "新增儲蓄目標"}
+            open={!isMobileViewport && isGoalFormOpen}
+            onCancel={() => {
+              if (!loadingGoalAction) closeGoalForm();
+            }}
+            confirmLoading={loadingGoalAction}
+            okButtonProps={{
+              disabled: isWriteDisabled,
+              htmlType: "submit",
+              form: GOAL_FORM_ID,
+            }}
+            okText="儲存"
+            destroyOnHidden
+          >
+            {!isMobileViewport && savingsGoalFormNode}
+          </Modal>
 
           <StockDetailSheet
             key={stockDetail ? `${stockDetail.market}_${stockDetail.symbol}` : "none"}

@@ -27,6 +27,8 @@ colors:
   down: "#CF1322"
   warn: "#D48806"
   warn-ink: "#A36100"
+  warn-soft: "#F6EBD3"
+  down-soft: "#F7DEDF"
   cat-peach: "#F7E2D2"
   cat-butter: "#F4EBC9"
   cat-sky: "#DDE9F6"
@@ -210,6 +212,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 - **Down** (`down`)：跌、超支、刪除動作。
 - **Warn** (`warn`)：接近預算上限的填色、需要注意的動作（例如停用）。
 - **Warn Ink** (`warn-ink`)：warn 當文字時用這個；`warn` 本身在白底上只有 2.9:1。
+- **Warn Soft / Down Soft** (`warn-soft`, `down-soft`)：warn / down 狀態的淡底，目前只用在儲蓄目標的狀態膠囊與容器圖填色；上面的字用 `warn-ink` / `down`。
 
 狀態提示（Alert）的淺底與邊框另外在 `src/theme/tokens.js` 的 `antdTheme` 指定，因為 antd 從深色品牌色自動推導的底色會發濁。
 
@@ -316,6 +319,7 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 - **線寬：** 一律 1.5，不依位置加粗或變細。
 - **顏色：** 繼承文字色（`currentColor`），只用色彩 token；一般為 `muted`，可點的強調為 `ink`，左滑動作與 primary 按鈕上為白色。
 - **分類圖示（Category Icon）：** 支出列左側 36px（`--icon-tile`）圓形 tile，依分類用 `CATEGORY_TONES` 的淡底色（「其他」為 `neutral-fill`）+ `ink` 圖示；沒有分類時為白底、1px `line` 內框 + `muted`。分類可在表單裡自選 18 個圖示之一（存在分類的 `icon` 欄位）；沒選時依名稱的關鍵字自動對應（`src/utils/categoryIcons.js`），對不到用通用的 `Label`。支出列、定期支出列與設定頁的類別列表都顯示這個 tile。純裝飾：分類名稱仍寫在列上。
+- **目標圖示（Goal Icon）：** 儲蓄目標用 10 個專用圖示（`src/components/goalIconComponents.js`：存錢 `PiggyBank`、緊急預備金 `Umbrella`、買車 `Car`、旅遊 `Airplane`、手機 `SmartphoneDevice`、買房 `Home`、結婚 `Rings`、教育 `GraduationCap`、電腦 `Laptop`、醫療 `Healthcare`），選圖沿用 `CategoryIconPicker`；沒選時依名稱關鍵字對應（`src/utils/savingsGoals.js`），對不到用 `PiggyBank`。
 - **圖示選擇器（Category Icon Picker）：** 分類表單中 6 欄的 44px 圓形按鈕（`aria-pressed`），平時白底 `line` 邊 + `muted` 圖示，選中為 `neutral-fill` 底、`action` 邊、`ink` 圖示。沒自選時標示依名稱對應的那個，下方以 `muted` 12px 註明「依名稱自動選擇」；自選後換成「改回依名稱自動選擇」連結。
 - **狀態圖示：** 狀態不只靠顏色表達。預算「接近上限」在金額前加 `WarningCircle`、「超支」加 `WarningTriangle`（跟著 `warn` / `down` 色，`BudgetRemaining`）；header 同步狀態依狀態換圖示：正常 `CloudCheck`、連線中 `CloudSync`、離線 `WifiOff`、失敗 `CloudXmark`。支出列的「固定」tag 帶 `Repeat`、「預計」tag 帶 `Clock`。
 - **動作圖示：** 同一個動作全 App 用同一個圖示：重新抓取（更新價格、重試、PWA 立即更新）是 `Refresh`，匯出是 `Download`，新增是 `Plus`。同一列並排的按鈕要嘛都有圖示、要嘛都沒有。
@@ -365,10 +369,18 @@ Sheet 由上而下：一行「分類（左）／算式（右）」→ 收據式�
 - 規格來源：`docs/superpowers/specs/2026-10-07-expense-summary-card-design.md`。
 
 ### Expense Tab Order
-支出頁由上而下：hero → 支出列表（本月預計 → 日期條＋當天，讓一進頁面就看到今天）→ 預算（最急的在前；桌面為自動換行的網格，不橫向捲動）→ 定期支出 → 支出分析，區塊間距 `--space-section`。支出分析是參考資料，放在最後，樣式見 Analysis List。
+支出頁由上而下：hero → 支出列表（本月預計 → 日期條＋當天，讓一進頁面就看到今天）→ 預算（最急的在前；桌面為自動換行的網格，不橫向捲動）→ 儲蓄目標 → 定期支出 → 支出分析，區塊間距 `--space-section`。支出分析是參考資料，放在最後，樣式見 Analysis List。
 
 ### Budget Bar
 6px pill 進度條：`track` 軌道；已花為實色，本期尚未扣款的定期支出為同色 35% 透明；一條 2px `ink`（60%）細線標示「本期已過多久」，超過細線代表花得比進度快。列表列裡的「剩餘 / 超支」金額與預算名稱同字級、同字重（500）；詳情 sheet 內的才放大。
+
+### Savings Goal Card（儲蓄目標）
+- 全寬卡片垂直堆疊（間距 `--space-3`），外框同預算列表：1px `line`、`radius-lg`、`surface` 底、列內距 `--space-row-y` / `--space-row-x`。手機與桌面同一套。
+- 左側：目標圖示 tile（`GoalIcon`：`neutral-fill` 圓底 + `ink` 圖示，10 個目標專用圖示，與支出分類圖示分開）→ 名稱（`muted` 14px）→ 目前金額（title 20px 600，不是 display：支出頁的 display 只給總支出）→「目標 $X」與一行補充（`muted` caption）。
+- 右側：狀態膠囊（淡底 + 同色系字：teal 系 `teal-soft` / `teal-ink`、warn 系 `warn-soft` / `warn-ink`、down 系 `down-soft` / `down`、資料不足 `neutral-fill` / `muted`）在上，容器圖在下：2px 狀態色外框、上小下大圓角（`radius-sm` / `radius-lg`），由下往上填該狀態的淡色。**容器圖是靜態的**，遵守 The One Living Thing Rule（支出頁會動的只有存錢塔）。
+- 已封存的目標收在區塊底部「已封存（N）」，展開後金額改 `muted`、不顯示膠囊、容器為 `line-strong` 框 + `track` 填色。
+- 詳細頁：手機 bottom sheet、桌面右側 drawer；金額用 hero 字級（sheet 內的大數字）。
+- 規格來源：`docs/superpowers/specs/2026-10-10-savings-goals-design.md`。
 
 ## Do's and Don'ts
 
