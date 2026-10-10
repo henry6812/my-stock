@@ -23,8 +23,8 @@ export default defineConfig({
         short_name: '我的資產',
         description: '個人資產管理：台股、美股、銀行現金、支出與預算，可跨裝置同步',
         lang: 'zh-Hant-TW',
-        theme_color: '#F5F6F7',
-        background_color: '#F5F6F7',
+        theme_color: '#F2F3F5',
+        background_color: '#F2F3F5',
         display: 'standalone',
         start_url: '.',
         icons: [

@@ -14,7 +14,7 @@ colors:
   ink: "#1C1F23"
   muted: "#636970"
   subtle: "#8B9198"
-  paper: "#FBFBFC"
+  paper: "#F2F3F5"
   surface: "#FFFFFF"
   line: "#EBEDF0"
   line-strong: "#DADDE2"
