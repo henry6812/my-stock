@@ -9,7 +9,7 @@ vi.mock('./firebase/cloudSyncService', async (importOriginal) => ({
 
 import { db } from '../db/database'
 import { deleteCollectionDoc } from './firebase/cloudSyncService'
-import { pruneEarlierSnapshotsSameDay } from './portfolioService'
+import { getCashAccountsView, pruneEarlierSnapshotsSameDay } from './portfolioService'
 
 const snapshot = (holdingId, capturedAt, extra = {}) => ({
   holdingId,
@@ -101,5 +101,40 @@ describe('pruneEarlierSnapshotsSameDay failures', () => {
 
     expect(await capturedTimes(1)).toHaveLength(2)
     warn.mockRestore()
+  })
+})
+
+// The stale-balance hint keys off when the balance was last saved, so an
+// alias or holder edit (which bumps updatedAt) doesn't hide it.
+describe('getCashAccountsView balanceUpdatedAt', () => {
+  beforeEach(async () => {
+    await db.cash_accounts.clear()
+    await db.cash_balance_snapshots.clear()
+  })
+
+  const addAccount = (accountAlias, updatedAt) =>
+    db.cash_accounts.add({
+      bankName: '台新',
+      accountAlias,
+      holder: null,
+      balanceTwd: 1000,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt,
+      deletedAt: null,
+    })
+
+  it('uses the newest balance snapshot, not the account edit time', async () => {
+    const id = await addAccount('日常', '2026-10-09T00:00:00.000Z')
+    for (const capturedAt of ['2026-08-01T00:00:00.000Z', '2026-08-20T00:00:00.000Z']) {
+      await db.cash_balance_snapshots.add({ cashAccountId: id, bankName: '台新', accountAlias: '日常', holder: null, balanceTwd: 1000, capturedAt, deletedAt: null })
+    }
+    const { rows } = await getCashAccountsView()
+    expect(rows[0].balanceUpdatedAt).toBe('2026-08-20T00:00:00.000Z')
+  })
+
+  it('falls back to updatedAt for an account without snapshots', async () => {
+    await addAccount('備用', '2026-07-01T00:00:00.000Z')
+    const { rows } = await getCashAccountsView()
+    expect(rows[0].balanceUpdatedAt).toBe('2026-07-01T00:00:00.000Z')
   })
 })

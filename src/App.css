@@ -3274,6 +3274,19 @@ button.expense-card-chip {
   gap: var(--space-3);
 }
 
+/* StaleBalanceIcon: after the account name when its balance is over a
+   month old. Quiet on purpose: muted, icon-sized, no tint or badge. */
+.stale-balance-icon {
+  display: inline-flex;
+  margin-left: var(--space-1);
+  vertical-align: -0.125em;
+  color: var(--c-muted);
+}
+
+.stale-balance-icon svg {
+  font-size: var(--icon-sm);
+}
+
 /* Bank account edit sheet (CashAccountEditForm): the bank is read-only, and
    the goals counting the account reuse the goal sheet's framed list. */
 .cash-edit-bank {

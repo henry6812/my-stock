@@ -1686,6 +1686,17 @@ export const getCashAccountsView = async () => {
     return a.updatedAt > b.updatedAt ? -1 : 1;
   });
 
+  // When each balance was last saved: the newest snapshot, since updatedAt
+  // also moves on alias / holder edits.
+  const lastBalanceAtById = new Map();
+  for (const snapshot of await db.cash_balance_snapshots.toArray()) {
+    if (isDeleted(snapshot) || !snapshot.capturedAt) continue;
+    const previous = lastBalanceAtById.get(snapshot.cashAccountId);
+    if (!previous || snapshot.capturedAt > previous) {
+      lastBalanceAtById.set(snapshot.cashAccountId, snapshot.capturedAt);
+    }
+  }
+
   let totalCashTwd = 0;
   const rows = cashAccounts.map((item) => {
     const balanceTwd = parseNumericLike(item.balanceTwd, {
@@ -1705,6 +1716,7 @@ export const getCashAccountsView = async () => {
         normalizeConfiguredHolder(item.holder, holderOptions) || "未設定",
       balanceTwd,
       updatedAt: item.updatedAt,
+      balanceUpdatedAt: lastBalanceAtById.get(item.id) ?? item.updatedAt,
     };
   });
 

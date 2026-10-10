@@ -139,6 +139,7 @@ import BudgetDetailSheet from "./components/BudgetDetailSheet";
 import SavingsGoalList from "./components/SavingsGoalList";
 import SavingsGoalDetailSheet from "./components/SavingsGoalDetailSheet";
 import SavingsGoalForm from "./components/SavingsGoalForm";
+import StaleBalanceIcon from "./components/StaleBalanceIcon";
 import StockDetailSheet from "./components/StockDetailSheet";
 import { buildStockDetailHolding, isInteractiveTarget } from "./utils/stockDetail";
 import { isFromPortal } from "./utils/portalEvent";
@@ -2684,6 +2685,7 @@ function App() {
               {record.bankCode
                 ? `${record.bankName} (${record.bankCode})`
                 : record.bankName}
+              <StaleBalanceIcon balanceUpdatedAt={record.balanceUpdatedAt} />
             </div>
             <Text type="secondary" className="holding-subline">
               {record.accountAlias}
@@ -2719,9 +2721,9 @@ function App() {
         },
       },
       {
-        title: "更新時間",
-        dataIndex: "updatedAt",
-        key: "updatedAt",
+        title: "餘額更新",
+        dataIndex: "balanceUpdatedAt",
+        key: "balanceUpdatedAt",
         width: "20%",
         render: (value) => formatDateTime(value),
       },
@@ -2793,6 +2795,7 @@ function App() {
             <div>
               <div className="holding-main-text">
                 {meta.length > 0 ? meta.join(" · ") : bankText}
+                <StaleBalanceIcon balanceUpdatedAt={record.balanceUpdatedAt} />
               </div>
               {meta.length > 0 && (
                 <Text type="secondary" className="holding-subline">
