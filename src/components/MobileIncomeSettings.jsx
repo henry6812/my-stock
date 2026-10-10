@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import MobileFormSheetLayout from "./MobileFormSheetLayout";
 import MobileSwipeRow from "./MobileSwipeRow";
 import SectionTitle from "./SectionTitle";
+import { makeRoomForPicker } from "../utils/sheetPicker";
 import { swipeDeleteAction, swipeEditAction } from "./swipeActionItems";
 import { formatTwd } from "../utils/formatters";
 
@@ -161,6 +162,7 @@ function MobileIncomeSettings({
           {sheet?.kind === "override" && (
             <Form.Item label="月份">
               <DatePicker
+                onOpenChange={makeRoomForPicker}
                 picker="month"
                 inputReadOnly
                 allowClear={false}

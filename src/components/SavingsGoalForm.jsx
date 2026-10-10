@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import CategoryIconPicker from "./CategoryIconPicker";
 import { GOAL_ICON_COMPONENTS } from "./goalIconComponents";
 import { formatTwd } from "../utils/formatters";
+import { makeRoomForPicker } from "../utils/sheetPicker";
 import {
   GOAL_ICON_OPTIONS,
   GOAL_KIND,
@@ -147,6 +148,7 @@ export default function SavingsGoalForm({
           ]}
         >
           <DatePicker
+            onOpenChange={makeRoomForPicker}
             style={{ width: "100%" }}
             inputReadOnly
             getPopupContainer={popupContainer}
