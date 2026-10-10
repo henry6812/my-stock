@@ -196,7 +196,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 - **Ink** (`ink`)：主要文字與大數字。中性略冷，不用純黑。
 - **Muted** (`muted`)：次要文字、表頭、未選中的 tab、hero 標籤、匯率、時間戳。在 surface、paper、neutral-fill 上 ≥5:1，track 上 ≥4.8:1。
 - **Subtle** (`subtle`)：只在 ≥3:1 就夠的地方：大字（hero 幣別符號）、停用狀態、非文字標記。需要被讀的小字一律用 `muted`。
-- **Paper** (`paper`)：App 背景。
+- **Paper** (`paper`)：App 背景。唯一的來源是 `src/theme/tokens.js` 的 `COLORS.paper`：`vite.config.js` 在 dev / build 時把它填進 `src/index.css` 的 `--c-paper`（`APP_PAPER` 佔位）、`index.html` 的 `theme-color`（`%APP_PAPER%`）與 PWA manifest 的 `theme_color` / `background_color`。
 - **Surface** (`surface`)：卡片、列表、sheet、tab bar 的底。
 - **Line / Line Strong** (`line`, `line-strong`)：分隔線與元件邊框；`line-strong` 用在可點的 chip 與輸入框邊框。
 - **Neutral Fill** (`neutral-fill`)：列表分組標題底、預設 tag 底、info 提示底、圖示按鈕 hover 底、分類圖示 tile、按鍵按壓。
@@ -302,7 +302,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 App 的主體是分組列表（支出依日分組、預算、定期支出、持股）。
 - 白色圓角容器，組與組之間 1px `line`。
 - 分組標題：`neutral-fill` 底、`muted` 12px 字，右側顯示該組小計（`ink`、600）。
-- 資產頁的持有人分組（持股、現金帳戶）例外：標題底改用 `group-heading`（白，與列同色）、標題字 `ink` 600，展開時標題下方一條 1px `line`（inset shadow）加 Heading 陰影與持股列分隔；外框和「本月預計」一樣無邊框、帶 Card 陰影；標題 `position: sticky` 貼頂（`top: env(safe-area-inset-top)`），貼頂時橫向延伸到整個螢幕寬、去掉圓角、維持白色（`useStuckHeadings` 標記 `data-stuck` 並算出 `--bleed-left/right`）。因此外框不裁切（`overflow: visible`），圓角改由第一個標題與最後一組的標題或列自己畫。標題本身的 `background` 保持透明，顏色畫在絕對定位的 `::before` 上：iOS 26 Safari 會拿頂端 sticky / fixed 元素的 `background-color` 染 status bar（而且標題離開後不會變回來），但不取絕對定位子元素的顏色。之後任何 sticky / fixed 元素都照這個做法。展開後該組的列改用 `group-rows` 淡青底（比白色標題低一階），列間分隔線改 `line-strong` 才看得到。持股與現金分組都**預設收合**、展開狀態記在 `localStorage`（各自一個 key）。兩邊的標題同高（`min-height` 64px、上下 `--space-3`），標題前是 36px（`--icon-tile`）圓形持有人頭像：照片設定在 `src/utils/holderAvatars.js`，沒有照片時為 `neutral-fill` 底 + `ink` 600 的名字首字，「未設定」為 `muted` 的 `User` 圖示。持股標題就是該持有人的摘要列：字級與現金分組標題相同（12px），右側為現值（`ink` 600）疊在今日漲跌（12px，`up` / `down`，報價過期時 `--`）之上。
+- 資產頁的持有人分組（持股、現金帳戶）例外：標題底改用 `group-heading`（白，與列同色）、標題字 `ink` 600，展開時標題下方只有 Heading 陰影與持股列分隔（不加分隔線）；外框和「本月預計」一樣無邊框、帶 Card 陰影；標題 `position: sticky` 貼頂（`top: env(safe-area-inset-top)`），貼頂時橫向延伸到整個螢幕寬、去掉圓角、維持白色（`useStuckHeadings` 標記 `data-stuck` 並算出 `--bleed-left/right`）。因此外框不裁切（`overflow: visible`），圓角改由第一個標題與最後一組的標題或列自己畫。標題本身的 `background` 保持透明，顏色畫在絕對定位的 `::before` 上：iOS 26 Safari 會拿頂端 sticky / fixed 元素的 `background-color` 染 status bar（而且標題離開後不會變回來），但不取絕對定位子元素的顏色。之後任何 sticky / fixed 元素都照這個做法。展開後該組的列改用 `group-rows` 淡青底（比白色標題低一階），列間分隔線改 `line-strong` 才看得到。持股與現金分組都**預設收合**、展開狀態記在 `localStorage`（各自一個 key）。兩邊的標題同高（`min-height` 64px、上下 `--space-3`），標題前是 36px（`--icon-tile`）圓形持有人頭像：照片設定在 `src/utils/holderAvatars.js`，沒有照片時為 `neutral-fill` 底 + `ink` 600 的名字首字，「未設定」為 `muted` 的 `User` 圖示。持股標題就是該持有人的摘要列：字級與現金分組標題相同（12px），右側為現值（`ink` 600）疊在今日漲跌（12px，`up` / `down`，報價過期時 `--`）之上。
 - 列高最少 72px、內距 16px，左側名稱 + 次行 meta，右側金額（`ink` 600，持股與現金同一級）。
 - 主名稱用家人自己的叫法：現金帳戶以別名（薪轉戶、房貸）為主、銀行全名為次行。
 - 可點的列給一個精簡的 `aria-label`（例如「瑞鼎，市值 $X，今日跌 0.21%，查看個股」），不讓螢幕閱讀器念出整列。

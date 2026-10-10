@@ -10,7 +10,9 @@ export const COLORS = {
   // Tertiary: ≥3:1 on paper / surface, so only for large text (the hero
   // currency sign) and non-text marks. Small text that must be read uses muted.
   subtle: "#8B9198",
-  paper: "#F2F3F5",
+  // The page colour: the one place to change it. vite.config.js fills it into
+  // --c-paper (index.css), the theme-color meta and the PWA manifest.
+  paper: "#fdfdfd",
   surface: "#FFFFFF",
   line: "#EBEDF0",
   lineStrong: "#DADDE2",

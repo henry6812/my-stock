@@ -1,8 +1,23 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { COLORS } from './src/theme/tokens.js'
 
 const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1]
+
+// The page colour lives in one place, COLORS.paper in src/theme/tokens.js.
+// This fills it in for the APP_PAPER placeholder in src/index.css (so the
+// value ships inside the CSS bundle) and in index.html's theme-color meta;
+// the PWA manifest below reads it directly.
+const appPaperColor = () => ({
+  name: 'app-paper-color',
+  enforce: 'pre',
+  transform(code, id) {
+    if (!id.split('?')[0].endsWith('/src/index.css')) return null
+    return { code: code.replaceAll('APP_PAPER', COLORS.paper.toLowerCase()), map: null }
+  },
+  transformIndexHtml: (html) => html.replaceAll('%APP_PAPER%', COLORS.paper),
+})
 
 export default defineConfig({
   base: process.env.NODE_ENV === 'production' && repoName ? `/${repoName}/` : '/',
@@ -12,6 +27,7 @@ export default defineConfig({
   // code-splitting, verify the built bundle in a browser (npm run preview),
   // and keep React + its dependents together.
   plugins: [
+    appPaperColor(),
     react(),
     VitePWA({
       // 'prompt' so a new deploy never reloads the page under an open form;
@@ -23,8 +39,8 @@ export default defineConfig({
         short_name: '我的資產',
         description: '個人資產管理：台股、美股、銀行現金、支出與預算，可跨裝置同步',
         lang: 'zh-Hant-TW',
-        theme_color: '#F2F3F5',
-        background_color: '#F2F3F5',
+        theme_color: COLORS.paper,
+        background_color: COLORS.paper,
         display: 'standalone',
         start_url: '.',
         icons: [

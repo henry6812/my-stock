@@ -6,7 +6,9 @@
   --c-ink: #1c1f23;
   --c-muted: #636970;
   --c-subtle: #8b9198;
-  --c-paper: #f2f3f5;
+  /* The page colour. APP_PAPER is filled in at build / dev time from
+     COLORS.paper in src/theme/tokens.js (vite.config.js); change it there. */
+  --c-paper: APP_PAPER;
   --c-surface: #ffffff;
   --c-line: #ebedf0;
   --c-line-strong: #dadde2;
@@ -30,7 +32,7 @@
   --c-group-heading: #ffffff;
   /* Rows of an open holder group (holdings, cash): a faint tint below the
      white heading. */
-  --c-group-rows: #ddf0f0;
+  --c-group-rows: #ededed;
   /* The net-worth jar's body on the asset tab (NetWorthJar). */
   --c-jar-body: #e5ebeb;
 
