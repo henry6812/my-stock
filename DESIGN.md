@@ -8,7 +8,7 @@ colors:
   teal: "#2B7F74"
   teal-hover: "#33907F"
   teal-bright: "#44A194"
-  teal-soft: "#E4F1EE"
+  teal-soft: "#D1DFDC"
   teal-tint: "#A9D3CB"
   teal-ink: "#1E5E56"
   ink: "#1C1F23"

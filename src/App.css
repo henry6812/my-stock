@@ -172,7 +172,9 @@
   transform: none;
   /* Centred on the 66px tab bar beside it: (66 - 52) / 2 ≈ 8px above its
      bottom edge. */
-  bottom: calc(max(var(--space-3), env(safe-area-inset-bottom)) + var(--space-2));
+  bottom: calc(
+    max(var(--space-3), env(safe-area-inset-bottom)) + var(--space-2)
+  );
 }
 
 .app-content {
@@ -393,7 +395,7 @@ button.asset-hero-jar {
 
 /* The jar itself: a faint fill instead of an outline. */
 .networth-jar-body {
-  fill: var(--c-track);
+  fill: #e5ebeb;
 }
 
 .networth-jar-cap {
@@ -427,18 +429,34 @@ button.asset-hero-jar {
 }
 
 @keyframes jar-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes jar-bubble-rise {
-  from { opacity: 0.9; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(-70px); }
+  from {
+    opacity: 0.9;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-70px);
+  }
 }
 
 @keyframes jar-halo {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(1.12); }
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.12);
+  }
 }
 
 /* ===== Savings tower (components/SavingsTower.jsx) ===== */
@@ -534,13 +552,23 @@ button.asset-hero-jar {
 }
 
 @keyframes tower-rise {
-  from { transform: scaleY(0); }
-  to { transform: scaleY(1); }
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }
 
 @keyframes tower-shard-fall {
-  from { opacity: 1; transform: translate(0, 0) rotate(0deg); }
-  to { opacity: 0; transform: translate(var(--dx), 150px) rotate(var(--rot)); }
+  from {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg);
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--dx), 150px) rotate(var(--rot));
+  }
 }
 
 /* ===== Growth tower (components/SavingsGrowthTower.jsx) ===== */
@@ -582,8 +610,14 @@ button.asset-hero-jar {
 }
 
 @keyframes growth-layer-in {
-  from { opacity: 0; transform: translateY(-40px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ===== Expense month bars (components/ExpenseMonthBars.jsx) ===== */
@@ -899,7 +933,6 @@ button.expense-card-chip {
     padding-right: max(12px, env(safe-area-inset-right));
     padding-bottom: calc(78px + env(safe-area-inset-bottom));
   }
-
 }
 
 .holdings-card-actions {
@@ -2004,7 +2037,8 @@ button.expense-card-chip {
   cursor: progress;
 }
 
-.quick-expense-keypad.is-saving .quick-expense-key:not(.quick-expense-key--save) {
+.quick-expense-keypad.is-saving
+  .quick-expense-key:not(.quick-expense-key--save) {
   color: var(--c-subtle);
   transition: color 0.15s ease;
 }
@@ -2179,7 +2213,8 @@ button.expense-card-chip {
   transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.recurring-overview-toggle[aria-expanded="true"] .recurring-overview-toggle-icon {
+.recurring-overview-toggle[aria-expanded="true"]
+  .recurring-overview-toggle-icon {
   transform: rotate(180deg);
 }
 

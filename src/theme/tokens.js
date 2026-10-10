@@ -24,7 +24,7 @@ export const COLORS = {
   teal: "#2B7F74",
   tealHover: "#33907F",
   tealBright: "#44A194",
-  tealSoft: "#E4F1EE",
+  tealSoft: "#D1DFDC",
   // Mid tint between soft and bright: the savings tower's recurring part.
   tealTint: "#A9D3CB",
   tealInk: "#1E5E56",
