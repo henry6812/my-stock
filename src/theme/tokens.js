@@ -36,6 +36,8 @@ export const COLORS = {
   neutralFill: "#F3F4F6",
   // Holder group headings on the asset tab (CSS --c-group-heading).
   groupHeading: "#FFFFFF",
+  // Rows of an open holder group (CSS --c-group-rows).
+  groupRows: "#DDF0F0",
   // The net-worth jar's body (CSS --c-jar-body).
   jarBody: "#E5EBEB",
   track: "#EDEFF2",

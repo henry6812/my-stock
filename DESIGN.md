@@ -21,6 +21,7 @@ colors:
   neutral-fill: "#F3F4F6"
   track: "#EDEFF2"
   group-heading: "#FFFFFF"
+  group-rows: "#DDF0F0"
   jar-body: "#E5EBEB"
   up: "#237804"
   down: "#CF1322"
@@ -200,6 +201,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 - **Line / Line Strong** (`line`, `line-strong`)：分隔線與元件邊框；`line-strong` 用在可點的 chip 與輸入框邊框。
 - **Neutral Fill** (`neutral-fill`)：列表分組標題底、預設 tag 底、info 提示底、圖示按鈕 hover 底、分類圖示 tile、按鍵按壓。
 - **Group Heading** (`group-heading`)：資產頁持有人分組（持股、現金帳戶）的標題底，目前為白色。
+- **Group Rows** (`group-rows`)：資產頁持有人分組展開後的列底（淡青）。
 - **Jar Body** (`jar-body`)：資產頁淨資產罐的罐身底色。
 - **Track** (`track`)：進度條、Segmented 與月份長條的軌道、tab bar 選中項、記帳時的閃爍回饋。
 
@@ -264,10 +266,11 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 ### Shadow Vocabulary
 - **Float**（`box-shadow: 0 8px 24px rgba(27, 43, 41, 0.14)`）：浮在內容之上的東西：FAB、底部 tab bar、dropdown / modal 等 overlay。
 - **Float hover**（`box-shadow: 0 10px 28px rgba(27, 43, 41, 0.2)`）：只用於 FAB 的 hover / focus。
-- **Card**（`--shadow-card`：`0 4px 20px rgba(28, 31, 35, 0.07)`）：只用於支出頁的「本月預計」卡（見 Upcoming Card），無邊框、`--radius-sheet` 圓角。
+- **Card**（`--shadow-card`：`0 4px 20px rgba(28, 31, 35, 0.07)`）：支出頁的「本月預計」卡（見 Upcoming Card，無邊框、`--radius-sheet` 圓角），以及資產頁的持股列表與銀行現金列表（無邊框、`--radius-lg`）。
+- **Heading**（`--shadow-heading`：`0 6px 10px -6px rgba(28, 31, 35, 0.14)`）：資產頁持有人分組展開時，標題落在下方列上的短陰影（負 spread，只往下不往兩側），表示標題高一層。
 
 ### Named Rules
-**The Only-Floating-Things-Cast-Shadows Rule.** 按鈕、卡片、列表、輸入框在任何狀態下都沒有陰影（antd 的 button shadow 已在 theme 關掉）。會有陰影的只有真的浮在內容上方的元件；唯一例外是「本月預計」卡的 Card 陰影。
+**The Only-Floating-Things-Cast-Shadows Rule.** 按鈕、卡片、列表、輸入框在任何狀態下都沒有陰影（antd 的 button shadow 已在 theme 關掉）。會有陰影的只有真的浮在內容上方的元件；例外是「本月預計」卡與資產頁兩個持有人列表的 Card 陰影，以及持有人標題展開時的 Heading 陰影。
 
 ## Shapes
 
@@ -299,7 +302,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 App 的主體是分組列表（支出依日分組、預算、定期支出、持股）。
 - 白色圓角容器，組與組之間 1px `line`。
 - 分組標題：`neutral-fill` 底、`muted` 12px 字，右側顯示該組小計（`ink`、600）。
-- 資產頁的持有人分組（持股、現金帳戶）例外：標題底改用 `group-heading`（白，與列同色）、標題字 `ink` 600，展開時標題下方一條 1px `line`（inset shadow）與持股列分隔；標題 `position: sticky` 貼頂（`top: env(safe-area-inset-top)`），貼頂時橫向延伸到整個螢幕寬、去掉圓角（`useStuckHeadings` 標記 `data-stuck` 並算出 `--bleed-left/right`）。因此外框不裁切（`overflow: visible`），圓角改由第一個標題與最後一組的標題或列自己畫。標題本身的 `background` 保持透明，顏色畫在絕對定位的 `::before` 上：iOS 26 Safari 會拿頂端 sticky / fixed 元素的 `background-color` 染 status bar（而且標題離開後不會變回來），但不取絕對定位子元素的顏色。之後任何 sticky / fixed 元素都照這個做法。展開後該組的列改用 `neutral-fill` 淡灰底（比白色標題低一階），列間分隔線改 `line-strong` 才看得到。持股與現金分組都**預設收合**、展開狀態記在 `localStorage`（各自一個 key）。兩邊的標題同高（`min-height` 64px、上下 `--space-3`），標題前是 36px（`--icon-tile`）圓形持有人頭像：照片設定在 `src/utils/holderAvatars.js`，沒有照片時為 `neutral-fill` 底 + `ink` 600 的名字首字，「未設定」為 `muted` 的 `User` 圖示。持股標題就是該持有人的摘要列：字級與現金分組標題相同（12px），右側為現值（`ink` 600）疊在今日漲跌（12px，`up` / `down`，報價過期時 `--`）之上。
+- 資產頁的持有人分組（持股、現金帳戶）例外：標題底改用 `group-heading`（白，與列同色）、標題字 `ink` 600，展開時標題下方一條 1px `line`（inset shadow）加 Heading 陰影與持股列分隔；外框和「本月預計」一樣無邊框、帶 Card 陰影；標題 `position: sticky` 貼頂（`top: env(safe-area-inset-top)`），貼頂時橫向延伸到整個螢幕寬、去掉圓角、維持白色（`useStuckHeadings` 標記 `data-stuck` 並算出 `--bleed-left/right`）。因此外框不裁切（`overflow: visible`），圓角改由第一個標題與最後一組的標題或列自己畫。標題本身的 `background` 保持透明，顏色畫在絕對定位的 `::before` 上：iOS 26 Safari 會拿頂端 sticky / fixed 元素的 `background-color` 染 status bar（而且標題離開後不會變回來），但不取絕對定位子元素的顏色。之後任何 sticky / fixed 元素都照這個做法。展開後該組的列改用 `group-rows` 淡青底（比白色標題低一階），列間分隔線改 `line-strong` 才看得到。持股與現金分組都**預設收合**、展開狀態記在 `localStorage`（各自一個 key）。兩邊的標題同高（`min-height` 64px、上下 `--space-3`），標題前是 36px（`--icon-tile`）圓形持有人頭像：照片設定在 `src/utils/holderAvatars.js`，沒有照片時為 `neutral-fill` 底 + `ink` 600 的名字首字，「未設定」為 `muted` 的 `User` 圖示。持股標題就是該持有人的摘要列：字級與現金分組標題相同（12px），右側為現值（`ink` 600）疊在今日漲跌（12px，`up` / `down`，報價過期時 `--`）之上。
 - 列高最少 72px、內距 16px，左側名稱 + 次行 meta，右側金額（`ink` 600，持股與現金同一級）。
 - 主名稱用家人自己的叫法：現金帳戶以別名（薪轉戶、房貸）為主、銀行全名為次行。
 - 可點的列給一個精簡的 `aria-label`（例如「瑞鼎，市值 $X，今日跌 0.21%，查看個股」），不讓螢幕閱讀器念出整列。
