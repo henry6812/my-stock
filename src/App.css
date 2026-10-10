@@ -1567,7 +1567,7 @@ button.expense-card-chip {
 }
 
 .active-budget-progress.ant-progress .ant-progress-inner {
-  height: 8px;
+  height: 6px;
 }
 
 .active-budget-carry {
@@ -2935,6 +2935,11 @@ button.expense-card-chip {
   color: var(--c-ink);
 }
 
+.budget-row .budget-row-remaining {
+  font-size: inherit;
+  font-weight: 500;
+}
+
 .budget-row-remaining-icon {
   margin-inline-end: var(--space-1);
 }
@@ -2949,7 +2954,7 @@ button.expense-card-chip {
 
 .budget-bar {
   position: relative;
-  height: 8px;
+  height: 6px;
   border-radius: var(--radius-pill);
   background: var(--c-track);
   overflow: hidden;
