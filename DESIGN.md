@@ -381,6 +381,7 @@ Sheet 由上而下：一行「分類（左）／算式（右）」→ 收據式�
 - 右側：狀態膠囊（淡底 + 同色系字：teal 系 `teal-soft` / `teal-ink`、warn 系 `warn-soft` / `warn-ink`、down 系 `down-soft` / `down`、資料不足 `neutral-fill` / `muted`）在上，容器圖在下：2px 狀態色外框、上小下大圓角（`radius-sm` / `radius-lg`），由下往上填該狀態的淡色。**容器圖是靜態的**，遵守 The One Living Thing Rule（支出頁會動的只有存錢塔）。
 - 已封存的目標收在區塊底部「已封存（N）」，展開後金額改 `muted`、不顯示膠囊、容器為 `line-strong` 框 + `track` 填色。
 - 詳細頁：手機 bottom sheet、桌面右側 drawer；金額用 hero 字級（sheet 內的大數字）。
+- 銀行帳戶的編輯（`CashAccountEditForm`，手機 bottom sheet、桌面 modal）是目標詳細頁的鏡像：欄位（銀行唯讀、別名、持有人、餘額）下方是「儲蓄目標」，用同一個框線列表列出計入這個帳戶的目標（`GoalIcon` + 名稱 + 目前金額，次行「目標 $X」，已封存的排最後並標「已封存」）；沒有時一行 `muted` 說明。資產頁的現金列不再行內編輯。
 - 規格來源：`docs/superpowers/specs/2026-10-10-savings-goals-design.md`。
 
 ## Do's and Don'ts

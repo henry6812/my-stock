@@ -314,6 +314,19 @@ export const buildSavingsGoalRows = ({
     });
 };
 
+// Goal rows (from buildSavingsGoalRows) that count the account with this
+// cloud key: open goals first, archived after, each in list order.
+export const getGoalsUsingCashAccount = (goalRows = [], cashAccountKey) => {
+  if (!cashAccountKey) return [];
+  const linked = goalRows.filter((goal) =>
+    (goal.cashAccountKeys || []).includes(cashAccountKey),
+  );
+  return [
+    ...linked.filter((goal) => !goal.isArchived),
+    ...linked.filter((goal) => goal.isArchived),
+  ];
+};
+
 export const getGoalTargetLabel = (goal) => {
   if (goal.kind === GOAL_KIND.ONGOING) {
     return goal.targetTwd === null

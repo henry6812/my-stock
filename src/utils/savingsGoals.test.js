@@ -13,6 +13,7 @@ import {
   normalizeSavingsGoalInput,
   planGoalAccountRelink,
   resolveGoalIcon,
+  getGoalsUsingCashAccount,
 } from './savingsGoals'
 
 const TODAY = '2026-10-10'
@@ -405,5 +406,23 @@ describe('goal text', () => {
     expect(getGoalFacts({ ...base, kind: 'ongoing', status: 'insufficient-data', targetTwd: null, targetMonths: 6 })).toEqual([
       { label: '計算方式', value: '還沒有完整月份的支出資料' },
     ])
+  })
+})
+
+describe('getGoalsUsingCashAccount', () => {
+  const rows = [
+    { id: 1, name: '舊目標', cashAccountKeys: ['a'], isArchived: true },
+    { id: 2, name: '旅遊', cashAccountKeys: ['b'], isArchived: false },
+    { id: 3, name: '緊急', cashAccountKeys: ['b', 'a'], isArchived: false },
+  ]
+
+  it('lists open goals counting the account, then archived ones', () => {
+    expect(getGoalsUsingCashAccount(rows, 'a').map((goal) => goal.id)).toEqual([3, 1])
+    expect(getGoalsUsingCashAccount(rows, 'b').map((goal) => goal.id)).toEqual([2, 3])
+  })
+
+  it('returns nothing without a key or a match', () => {
+    expect(getGoalsUsingCashAccount(rows, 'z')).toEqual([])
+    expect(getGoalsUsingCashAccount(rows, undefined)).toEqual([])
   })
 })

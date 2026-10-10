@@ -16,6 +16,7 @@ import {
   removeSavingsGoal,
   setSavingsGoalArchived,
   saveHolderOptions,
+  updateCashAccountAlias,
   updateCashAccountHolder,
   upsertCashAccount,
   upsertSavingsGoal,
@@ -163,6 +164,29 @@ describe('cash account key changes', () => {
     const newKey = buildCashAccountKey({ ...(await db.cash_accounts.get(a.id)) })
     expect(newKey).not.toBe(a.key)
     expect((await db.savings_goals.get(id)).cashAccountKeys).toEqual([newKey, 'other'])
+  })
+
+  it('keeps tracking an account after its alias changes', async () => {
+    const a = await addCash('日常', 30000)
+    const { id } = await upsertSavingsGoal({ name: '存錢', kind: 'open', targetTwd: 100000, cashAccountKeys: [a.key] })
+    tick()
+    await updateCashAccountAlias({ id: a.id, accountAlias: ' 薪轉戶 ' })
+    const account = await db.cash_accounts.get(a.id)
+    expect(account.accountAlias).toBe('薪轉戶')
+    expect((await db.savings_goals.get(id)).cashAccountKeys).toEqual([buildCashAccountKey(account)])
+    const view = await getExpenseDashboardView({})
+    expect(view.savingsGoalAccountOptions).toEqual([
+      expect.objectContaining({ key: buildCashAccountKey(account), accountAlias: '薪轉戶' }),
+    ])
+    expect(view.savingsGoals[0]).toMatchObject({ currentTwd: 30000, missingAccountCount: 0 })
+  })
+
+  it('refuses an empty alias or one another account already uses', async () => {
+    const a = await addCash('日常', 30000)
+    await addCash('旅遊', 5000)
+    await expect(updateCashAccountAlias({ id: a.id, accountAlias: '  ' })).rejects.toThrow('Account alias is required')
+    await expect(updateCashAccountAlias({ id: a.id, accountAlias: '旅遊' })).rejects.toThrow('同持有人的該銀行帳戶已存在')
+    expect((await db.cash_accounts.get(a.id)).accountAlias).toBe('日常')
   })
 })
 

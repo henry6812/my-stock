@@ -1564,6 +1564,47 @@ export const updateCashAccountHolder = async ({ id, holder }) => {
   });
 };
 
+export const updateCashAccountAlias = async ({ id, accountAlias }) => {
+  ensureCloudWritable();
+  const parsedId = Number(id);
+  const normalizedAlias = String(accountAlias ?? "").trim();
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error("Cash account not found");
+  }
+  if (!normalizedAlias) {
+    throw new Error("Account alias is required");
+  }
+
+  const existing = await db.cash_accounts.get(parsedId);
+  if (!existing || isDeleted(existing)) {
+    throw new Error("Cash account not found");
+  }
+  if (existing.accountAlias === normalizedAlias) {
+    return;
+  }
+
+  const conflict = await db.cash_accounts
+    .where("[bankName+accountAlias+holder]")
+    .equals([existing.bankName, normalizedAlias, existing.holder ?? null])
+    .and((item) => item.id !== parsedId && !isDeleted(item))
+    .first();
+  if (conflict) {
+    throw new Error("同持有人的該銀行帳戶已存在");
+  }
+
+  const nextCashAccount = {
+    ...existing,
+    accountAlias: normalizedAlias,
+    updatedAt: getNowIso(),
+    syncState: SYNC_PENDING,
+  };
+  await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, nextCashAccount);
+  await migrateCashAccountCloudKeyIfNeeded({
+    previousCashAccount: existing,
+    nextCashAccount,
+  });
+};
+
 export const updateCashAccountBalance = async ({ id, balanceTwd }) => {
   ensureCloudWritable();
   const parsedId = Number(id);
@@ -1654,6 +1695,8 @@ export const getCashAccountsView = async () => {
     totalCashTwd += balanceTwd;
     return {
       id: item.id,
+      // Goals link accounts by this key (see buildSavingsGoalRows).
+      cloudKey: buildCashAccountKey(item),
       bankCode: item.bankCode || undefined,
       bankName: item.bankName,
       accountAlias: item.accountAlias,

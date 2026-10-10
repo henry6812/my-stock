@@ -112,6 +112,7 @@ import {
   YAxis,
 } from "recharts";
 import HoldingForm from "./components/HoldingForm";
+import CashAccountEditForm from "./components/CashAccountEditForm";
 import CashAccountForm from "./components/CashAccountForm";
 import MobileFormSheetLayout from "./components/MobileFormSheetLayout";
 import PriceRefreshFooter from "./components/PriceRefreshFooter";
@@ -131,6 +132,7 @@ import {
 import HoverTooltip from "./components/HoverTooltip";
 import AllocationBreakdown from "./components/AllocationBreakdown";
 import { describeAllocation } from "./utils/allocation";
+import { getGoalsUsingCashAccount } from "./utils/savingsGoals";
 import CollapsibleGroups from "./components/CollapsibleGroups";
 import BudgetOverview from "./components/BudgetOverview";
 import BudgetDetailSheet from "./components/BudgetDetailSheet";
@@ -160,6 +162,7 @@ import {
   syncNow as syncNowPortfolio,
   removeCashAccount,
   getCloudSyncRuntime,
+  updateCashAccountAlias,
   updateCashAccountBalance,
   updateCashAccountHolder,
   updateHoldingTag,
@@ -286,6 +289,7 @@ const getNumberAnimationDuration = () =>
 const LAST_EXPENSE_DEFAULTS_KEY = "my-stock:last-expense-defaults";
 const TEMPLATE_FORM_ID = "expense-template-form";
 const GOAL_FORM_ID = "savings-goal-form";
+const CASH_EDIT_FORM_ID = "cash-account-edit-form";
 
 const readLastExpenseDefaults = () => {
   try {
@@ -553,8 +557,6 @@ function App() {
   const [editingHoldingHolder, setEditingHoldingHolder] = useState(null);
   const [loadingActionById, setLoadingActionById] = useState({});
   const [editingCashAccountId, setEditingCashAccountId] = useState(null);
-  const [editingCashBalance, setEditingCashBalance] = useState(null);
-  const [editingCashHolder, setEditingCashHolder] = useState(null);
   const [loadingCashActionById, setLoadingCashActionById] = useState({});
   const [expenseRows, setExpenseRows] = useState([]);
   const [showExpenseMoreFields, setShowExpenseMoreFields] = useState(false);
@@ -1426,14 +1428,6 @@ function App() {
 
   const handleCashEditClick = useCallback((record) => {
     setEditingCashAccountId(record.id);
-    setEditingCashBalance(record.balanceTwd);
-    setEditingCashHolder(record.holder ?? null);
-  }, []);
-
-  const handleCashCancelEdit = useCallback(() => {
-    setEditingCashAccountId(null);
-    setEditingCashBalance(null);
-    setEditingCashHolder(null);
   }, []);
 
   const handleSaveShares = useCallback(
@@ -1506,41 +1500,49 @@ function App() {
     [editingHoldingId, loadAllData, message, performCloudSync, setRowLoading],
   );
 
-  const handleSaveCashBalance = useCallback(
-    async (record) => {
-      const parsedBalance = Number(editingCashBalance);
-      if (!Number.isFinite(parsedBalance) || parsedBalance < 0) {
-        message.error("餘額不可為負數");
-        return;
-      }
+  const editingCashAccount = useMemo(
+    () => cashRows.find((item) => item.id === editingCashAccountId) ?? null,
+    [cashRows, editingCashAccountId],
+  );
+  const editingCashAccountGoals = useMemo(
+    () => getGoalsUsingCashAccount(savingsGoals, editingCashAccount?.cloudKey),
+    [editingCashAccount, savingsGoals],
+  );
 
+  const handleSaveCashAccount = useCallback(
+    async (values) => {
+      const record = editingCashAccount;
+      if (!record) return;
       try {
         setCashRowLoading(record.id, true);
-        if ((editingCashHolder ?? null) !== (record.holder ?? null)) {
+        if (values.accountAlias !== record.accountAlias) {
+          await updateCashAccountAlias({
+            id: record.id,
+            accountAlias: values.accountAlias,
+          });
+        }
+        if ((values.holder ?? null) !== (record.holder ?? null)) {
           await updateCashAccountHolder({
             id: record.id,
-            holder: editingCashHolder ?? null,
+            holder: values.holder ?? null,
           });
         }
         await updateCashAccountBalance({
           id: record.id,
-          balanceTwd: parsedBalance,
+          balanceTwd: values.balanceTwd,
         });
         await loadAllData();
         await performCloudSync();
         setEditingCashAccountId(null);
-        setEditingCashBalance(null);
-        setEditingCashHolder(null);
         message.success("銀行帳戶已更新");
       } catch (error) {
-        message.error(toUserMessage(error, "更新餘額失敗"));
+        message.error(toUserMessage(error, "更新銀行帳戶失敗"));
       } finally {
         setCashRowLoading(record.id, false);
       }
     },
     [
-      editingCashBalance,
-      editingCashHolder,
+      editingCashAccount,
       loadAllData,
       message,
       performCloudSync,
@@ -1557,8 +1559,6 @@ function App() {
         await performCloudSync();
         if (editingCashAccountId === record.id) {
           setEditingCashAccountId(null);
-          setEditingCashBalance(null);
-          setEditingCashHolder(null);
         }
         message.success("銀行帳戶已移除");
       } catch (error) {
@@ -2697,42 +2697,14 @@ function App() {
         key: "balanceTwd",
         width: "25%",
         align: "right",
-        render: (value, record) => {
-          if (editingCashAccountId !== record.id) {
-            return formatTwd(value);
-          }
-          return (
-            <InputNumber
-              inputMode="numeric"
-              min={0}
-              step={1000}
-              precision={0}
-              value={editingCashBalance ?? value}
-              onChange={(next) => setEditingCashBalance(next)}
-              style={{ width: 160, maxWidth: "100%" }}
-            />
-          );
-        },
+        render: (value) => formatTwd(value),
       },
       {
         title: "持有人",
         dataIndex: "holder",
         key: "holder",
         width: "18%",
-        render: (value, record) => {
-          if (editingCashAccountId === record.id) {
-            return (
-              <Select
-                size="small"
-                value={editingCashHolder ?? value ?? undefined}
-                options={holderSelectOptions}
-                allowClear
-                placeholder="未設定"
-                onChange={(next) => setEditingCashHolder(next ?? null)}
-                style={{ width: 110 }}
-              />
-            );
-          }
+        render: (_, record) => {
           const holderName = record.holderName || "未設定";
           return (
             <Tag
@@ -2759,31 +2731,6 @@ function App() {
         width: "22%",
         render: (_, record) => {
           const rowLoading = Boolean(loadingCashActionById[record.id]);
-          const isEditing = editingCashAccountId === record.id;
-
-          if (isEditing) {
-            return (
-              <Space>
-                <Button
-                  type="primary"
-                  size="small"
-                  loading={rowLoading}
-                  disabled={isWriteDisabled}
-                  onClick={() => handleSaveCashBalance(record)}
-                >
-                  儲存
-                </Button>
-                <Button
-                  size="small"
-                  disabled={rowLoading || isWriteDisabled}
-                  onClick={handleCashCancelEdit}
-                >
-                  取消
-                </Button>
-              </Space>
-            );
-          }
-
           return (
             <Space>
               <Button
@@ -2794,7 +2741,7 @@ function App() {
                 disabled={isWriteDisabled || rowLoading}
                 onClick={() => handleCashEditClick(record)}
                 icon={<EditPencil />}
-                aria-label="編輯現金餘額"
+                aria-label="編輯銀行帳戶"
               />
               <Popconfirm
                 title="移除此銀行帳戶？"
@@ -2824,8 +2771,8 @@ function App() {
       return columns;
     }
 
-    // Mobile: one column; the row slides to reveal 編輯 / 移除. While editing,
-    // the inline editor (holder, balance, 儲存 / 取消) replaces the row.
+    // Mobile: one column; the row slides to reveal 編輯 (opens the edit
+    // sheet) / 移除.
     const byKey = Object.fromEntries(
       columns.map((column) => [column.key, column]),
     );
@@ -2834,22 +2781,6 @@ function App() {
         key: "row",
         render: (_, record) => {
           const balance = byKey.balanceTwd.render(record.balanceTwd, record);
-          if (editingCashAccountId === record.id) {
-            return (
-              <div className="mobile-swipe-row mobile-swipe-row--editing">
-                <div>
-                  {byKey.account.render(null, record)}
-                  <div className="holding-mobile-tags">
-                    {byKey.holder.render(record.holder, record)}
-                  </div>
-                </div>
-                {balance}
-                <div className="holding-mobile-editor-actions">
-                  {byKey.actions.render(null, record)}
-                </div>
-              </div>
-            );
-          }
           const name = record.accountAlias || record.bankName || "帳戶";
           // Just the memo: rows are already grouped under their holder.
           const meta = [record.accountAlias].filter(Boolean);
@@ -2899,14 +2830,8 @@ function App() {
   }, [
       confirmDestructive,
       getHolderTagStyle,
-      editingCashAccountId,
-      editingCashBalance,
-      editingCashHolder,
-      handleCashCancelEdit,
       handleCashEditClick,
       handleRemoveCashAccount,
-      handleSaveCashBalance,
-      holderSelectOptions,
       isMobileViewport,
       isWriteDisabled,
       loadingCashActionById,
@@ -4793,6 +4718,19 @@ function App() {
     />
   );
 
+  const cashAccountEditFormNode = editingCashAccount ? (
+    <CashAccountEditForm
+      key={editingCashAccount.id}
+      formId={CASH_EDIT_FORM_ID}
+      account={editingCashAccount}
+      linkedGoals={editingCashAccountGoals}
+      holderOptions={holderSelectOptions}
+      onSubmit={handleSaveCashAccount}
+      popupContainer={getSheetPopupContainer}
+      disabled={isWriteDisabled}
+    />
+  ) : null;
+
   const savingsGoalFormNode = (
     <SavingsGoalForm
       key={goalFormKey}
@@ -5258,7 +5196,6 @@ function App() {
       setEditingHoldingId(null);
       setEditingCashAccountId(null);
       setEditingHoldingHolder(null);
-      setEditingCashHolder(null);
       await Promise.all([
         loadHolderOptionSettings(),
         loadAllData(),
@@ -7126,6 +7063,39 @@ function App() {
               disabled={isWriteDisabled}
               holderOptions={holderSelectOptions}
             />
+          </Modal>
+
+          <MobileFormSheetLayout
+            title="編輯銀行帳戶"
+            open={isMobileViewport && Boolean(editingCashAccount)}
+            onClose={() => setEditingCashAccountId(null)}
+            loading={Boolean(loadingCashActionById[editingCashAccountId])}
+            submitDisabled={isWriteDisabled}
+            submitText="儲存"
+            submitFormId={CASH_EDIT_FORM_ID}
+            className="cash-sheet"
+          >
+            {isMobileViewport && cashAccountEditFormNode}
+          </MobileFormSheetLayout>
+
+          <Modal
+            title="編輯銀行帳戶"
+            open={!isMobileViewport && Boolean(editingCashAccount)}
+            onCancel={() => {
+              if (!loadingCashActionById[editingCashAccountId]) {
+                setEditingCashAccountId(null);
+              }
+            }}
+            confirmLoading={Boolean(loadingCashActionById[editingCashAccountId])}
+            okButtonProps={{
+              disabled: isWriteDisabled,
+              htmlType: "submit",
+              form: CASH_EDIT_FORM_ID,
+            }}
+            okText="儲存"
+            destroyOnHidden
+          >
+            {!isMobileViewport && cashAccountEditFormNode}
           </Modal>
 
           {isMobileViewport && (

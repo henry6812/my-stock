@@ -1081,43 +1081,15 @@ button.expense-card-chip {
 .form-bottom-sheet .ant-input-affix-wrapper,
 .form-bottom-sheet .ant-input-number,
 .form-bottom-sheet .ant-picker,
-.form-bottom-sheet .ant-select-selector,
 .form-bottom-sheet .ant-input-number-input-wrap input {
   min-height: 44px;
 }
 
-.form-bottom-sheet .ant-select-single .ant-select-selector {
-  height: 44px;
-  display: flex;
-  align-items: center;
-  padding: 0 11px;
-}
-
-.form-bottom-sheet .ant-select-single .ant-select-selection-item,
-.form-bottom-sheet .ant-select-single .ant-select-selection-placeholder {
-  line-height: 42px;
-}
-
-.form-bottom-sheet .ant-select-single .ant-select-selection-search,
-.form-bottom-sheet .ant-select-single .ant-select-selection-search-input {
-  height: 42px;
-}
-
-.form-bottom-sheet
-  .cash-bank-autocomplete.ant-select-single
-  .ant-select-selector {
-  height: 44px;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  padding: 0 11px;
-}
-
-.form-bottom-sheet
-  .cash-bank-autocomplete.ant-select-single
-  .ant-select-selection-search-input {
-  height: 42px;
-  line-height: 42px;
+/* antd 6's Select / AutoComplete has no inner .ant-select-selector: the
+   root takes its height from this variable and centers the value and the
+   search input from it. Doubled class to outrank antd's hashed selector. */
+.form-bottom-sheet .ant-select.ant-select {
+  --ant-select-height: 44px;
 }
 
 @media (max-width: 768px) {
@@ -1678,7 +1650,6 @@ button.expense-card-chip {
 @media (hover: none) and (pointer: coarse) {
   input,
   textarea,
-  .ant-select-selection-search-input,
   .ant-input,
   .ant-input-number-input,
   .ant-picker-input > input {
@@ -3301,6 +3272,32 @@ button.expense-card-chip {
 .savings-goal-detail-actions {
   display: flex;
   gap: var(--space-3);
+}
+
+/* Bank account edit sheet (CashAccountEditForm): the bank is read-only, and
+   the goals counting the account reuse the goal sheet's framed list. */
+.cash-edit-bank {
+  font-size: var(--fs-body);
+  color: var(--c-ink);
+}
+
+.cash-edit-goal {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-row-y) var(--space-row-x);
+}
+
+.cash-edit-goal + .cash-edit-goal {
+  border-top: 1px solid var(--c-line);
+}
+
+.cash-edit-goal-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
 /* SavingsGoalForm account checklist: one account per line. */
