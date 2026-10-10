@@ -42,7 +42,8 @@
 
 | 欄位 | 型別 | 說明 |
 |---|---|---|
-| `id` | string | 主鍵 |
+| `id` | number | 本地主鍵（各裝置不同） |
+| `remoteKey` | string | 雲端 doc id（`goal_<時間>_<亂數>`），跨裝置識別用 |
 | `name` | string | 名稱，必填，trim 後非空 |
 | `icon` | string \| null | 目標圖示 key（見「圖示」）；null 時依名稱自動對應 |
 | `kind` | `'deadline' \| 'open' \| 'ongoing'` | 類型 |
@@ -51,7 +52,7 @@
 | `deadline` | `YYYY-MM-DD` \| null | `deadline` 必填且晚於 `startDate`；其他為 null |
 | `startTwd` | number | 建立當下綁定帳戶的餘額加總 |
 | `startDate` | `YYYY-MM-DD` | 建立日期 |
-| `cashAccountIds` | string[] | 綁定的現金帳戶 id，可為空，可與其他目標重複 |
+| `cashAccountKeys` | string[] | 綁定的現金帳戶 cloud key（`buildCashAccountKey`），可為空，可與其他目標重複。不存本地 id：本地 id 各裝置不同 |
 | `sortOrder` | number | 顯示順序，新目標 = 目前最大值 + 1 |
 | `archivedAt` | ISO string \| null | 封存時間 |
 | `createdAt` / `updatedAt` / `deletedAt` | ISO string | 同其他表；刪除為軟刪除 |
@@ -64,7 +65,7 @@
 
 ### 目前金額
 
-`currentTwd` = `cashAccountIds` 中仍存在（未刪除）帳戶的 `balanceTwd` 加總。找不到或已刪除的帳戶略過，並回報 `missingAccountCount`。
+`currentTwd` = `cashAccountKeys` 中仍存在（未刪除）帳戶的 `balanceTwd` 加總。找不到或已刪除的帳戶略過，並回報 `missingAccountCount`。
 
 ### 平均月支出（`ongoing` 用）
 
@@ -129,7 +130,7 @@
   - `open`：「還差 $X」／不顯示（已達成）
   - `ongoing`：「還差 $X」（低於目標時）
   - 沒綁帳戶：「尚未選擇帳戶」
-- 右上：狀態膠囊（淡底 + 對應色文字）。
+- 右上：狀態膠囊（淡底 + 對應色文字）：teal 系 `teal-soft` 底 + `teal-ink` 字；warn 系 `warn-soft` 底 + `warn-ink` 字；down 系 `down-soft` 底 + `down` 字；muted 系 `neutral-fill` 底 + `muted` 字。新 token `warn-soft` / `down-soft` 經使用者同意（2026-10-10）。
 - 右側：**靜態**容器圖（圓角底的杯形），填充高度 = `progressRatio`，填充色依狀態色的淡色；`insufficient-data` 時只畫空容器。
 - 整張可點 → 開詳細頁。
 
@@ -141,7 +142,7 @@
 
 ### 詳細頁（`SavingsGoalDetailSheet`）
 
-底部 sheet，沿用 `BudgetDetailSheet` 的模式。
+手機為底部 sheet（沿用 `BudgetDetailSheet` 的模式），桌面為右側 drawer。
 
 1. 頂部：圖示、名稱、狀態膠囊、目前金額、「目標 $X」、較大的容器圖。右上「編輯」。
 2. 說明列（依類型）：
@@ -179,15 +180,17 @@
 | `src/services/firebase/firestoreMappers.js` | 新 mapper |
 | `src/services/portfolioConstants.js` | 新 collection 名稱 |
 | `src/services/cloudSyncService.js` | 訂閱與套用新 collection |
-| `src/services/portfolioService.js` | `createSavingsGoal`、`updateSavingsGoal`、`archiveSavingsGoal`、`unarchiveSavingsGoal`、`deleteSavingsGoal`；讀取時一併回傳目標 |
+| `src/services/portfolioService.js` | `upsertSavingsGoal`、`setSavingsGoalArchived`、`removeSavingsGoal`；cash key 改變時 relink；`getExpenseDashboardView` 一併回傳 `savingsGoals` 與 `savingsGoalAccountOptions` |
 | `src/App.jsx` | 只加：目標資料、開啟中的詳細頁／表單 state，把現金帳戶與 `expenseMonthlySummaries` 傳給列表 |
-| `DESIGN.md` | 新增「儲蓄目標卡」與目標圖示規範 |
+| `DESIGN.md` | 新增「儲蓄目標卡」與目標圖示規範、`warn-soft` / `down-soft` token |
+| `src/index.css`、`src/theme/tokens.js` | 新 token `warn-soft` `#F6EBD3`、`down-soft` `#F7DEDF` |
 
 寫入遵循現有 pattern：需登入，先寫 Firestore 再寫本地（`PRODUCT.md`：不做離線寫入）。
 
 ## 邊界情況
 
-- 綁定帳戶被刪除：略過並提示，不自動修改目標的 `cashAccountIds`。
+- 綁定帳戶被刪除：略過並提示，不自動修改目標的 `cashAccountKeys`。
+- 帳戶的 cloud key 改變（改持有人、持有人改名）：在同一次寫入中把引用舊 key 的目標改指向新 key。
 - 沒綁帳戶：目前金額 $0，卡片提示「尚未選擇帳戶」，狀態仍照規則計算。
 - 帳戶重複計入多個目標：允許，詳細頁標示「也計入」。
 - `ongoing` 沒有完整月支出資料：「支出資料不足」，不顯示進度。
