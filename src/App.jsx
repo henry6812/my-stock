@@ -5717,7 +5717,6 @@ function App() {
                           call to action. 立即更新 opens the market sheet. */}
                       <PriceRefreshFooter
                         updatedText={priceUpdatedRelativeText}
-                        usdTwdRate={usdTwdRate}
                         loading={loadingRefresh}
                         disabled={isWriteDisabled}
                         onRefresh={() => setIsUpdateSheetOpen(true)}

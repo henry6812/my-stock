@@ -341,7 +341,7 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 ### Bottom Sheet
 手機上所有表單都在從底部升起的 sheet 中完成：頂角 20px、高 90vh、標題下 1px 分隔線；內容區可捲動，底部動作列固定，以 `line` 分隔並避開 safe area。設定頁也照這個做：收入設定在手機上是列表（「每月收入」一列，下面是有自己收入的月份，新的在前），點列開 sheet 編輯，月份可左滑刪除（`MobileIncomeSettings`），不在頁面上放行內欄位或表格。
 
-手機上持股列表的「更新價格」不放在標題列，而是列表最後一行置中的狀態列（`PriceRefreshFooter`）：`Refresh` 圖示 + 「N 小時前更新」（14px `muted`）+ `subtle` 的「|」+ 底線連結「立即更新」（`action`；更新中圖示旋轉、文字為「更新中…」），下一行 12px `muted` 的 USD/TWD 匯率。「立即更新」打開更新價格 bottom sheet（更新全部 / 台股 / 美股）。價格每天會自動更新一次，右下的 FAB（新增持股）才是畫面上唯一的黑色主 CTA。
+手機上持股列表的「更新價格」不放在標題列，而是列表最後一行置中的狀態列（`PriceRefreshFooter`）：`Refresh` 圖示 + 「N 小時前更新」（12px `muted`）+ `subtle` 的「|」+ 底線連結「立即更新」（`action`；更新中圖示旋轉、文字為「更新中…」）。USD/TWD 匯率只在 sheet 裡顯示。「立即更新」打開更新價格 bottom sheet（更新全部 / 台股 / 美股）。價格每天會自動更新一次，右下的 FAB（新增持股）才是畫面上唯一的黑色主 CTA。
 
 ### Quick Expense Keypad（signature）
 Sheet 由上而下：一行「分類（左）／算式（右）」→ 收據式的一行「名稱（左）／金額（右）」→ 日期 chips（今天 / 昨天 / 前天 / 其他，不加標題）→ 常用支出 → 分類 → 支出人 → 預算 → 數字鍵盤。名稱是無框的底線欄位（`line-strong` 1px 底線，聚焦時轉 `action` 並加粗為 2px，用 inset 不位移），placeholder 用 `muted`。**聚焦名稱時，名稱以上的東西一律不動**（點下去的元素若在手指底下移位，iOS 會丟掉焦點）：只有下方的 chips 換成歷史名稱建議，鍵盤收起讓位給系統鍵盤。所有 bottom sheet 高度用 `90dvh`（`90vh` 為後備），Safari 裡才不會被工具列切掉底部。存好時在支援的裝置上給一下 10ms 震動（`navigator.vibrate`，iOS 不支援）。

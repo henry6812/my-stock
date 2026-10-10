@@ -1,14 +1,12 @@
 import { Refresh } from "iconoir-react";
 
 // One quiet line under the mobile holdings list: when prices were last
-// updated, and a link to update them now (all markets). The USD/TWD rate
-// behind the US rows' TWD values sits under it.
+// updated, and a link to update them now.
 
 const NEVER = "尚未更新";
 
 function PriceRefreshFooter({
   updatedText = NEVER,
-  usdTwdRate,
   loading = false,
   disabled = false,
   onRefresh,
@@ -39,9 +37,6 @@ function PriceRefreshFooter({
           立即更新
         </button>
       </p>
-      {usdTwdRate ? (
-        <p className="price-refresh-fx">USD/TWD {usdTwdRate.toFixed(2)}</p>
-      ) : null}
     </div>
   );
 }

@@ -2578,7 +2578,7 @@ button.expense-card-chip {
   margin-top: var(--space-2);
   text-align: center;
   color: var(--c-muted);
-  font-size: var(--fs-body);
+  font-size: var(--fs-caption);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2636,11 +2636,6 @@ button.expense-card-chip {
   outline: 2px solid var(--c-action);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
-}
-
-.price-refresh-fx {
-  margin: 0;
-  font-size: var(--fs-caption);
 }
 
 .mobile-swipe-row--editing {
