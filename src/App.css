@@ -2531,9 +2531,9 @@ button.expense-card-chip {
   font-variant-numeric: tabular-nums;
 }
 
-/* Holder groups (holdings, cash): headings on line-strong grey, so they
-   stand off the paper page even when every group is folded, and stick to
-   the top while their rows scroll by. clip, not hidden, so the frame does
+/* Holder groups (holdings, cash): both start folded. Headings sit on
+   --c-group-heading, get a line under them while open, and stick to the
+   top while their rows scroll by. clip, not hidden, so the frame does
    not become the sticky headings' scroller. */
 .expense-day-list.holding-groups,
 .expense-day-list.cash-groups {
@@ -2545,22 +2545,64 @@ button.expense-card-chip {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--c-line-strong);
+  background: var(--c-group-heading);
+}
+
+/* Inset shadow, not a border: no 1px jump on open, and it stays with the
+   heading while it is stuck. */
+.holding-groups .expense-day-heading[aria-expanded="true"],
+.cash-groups .expense-day-heading[aria-expanded="true"] {
+  box-shadow: inset 0 -1px 0 var(--c-line);
 }
 
 .holding-groups .expense-day-title,
 .cash-groups .expense-day-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
   font-weight: 600;
   color: var(--c-ink);
 }
 
-/* Holdings start folded, so a heading is the holder's summary row: body
-   size, total over today's change. */
-.holding-groups .expense-day-heading {
+/* Folded holder headings are the asset tab's summary rows: one height for
+   both lists, tall enough for the avatar and holdings' two-line figures. */
+.holding-groups .expense-day-heading,
+.cash-groups .expense-day-heading {
+  min-height: 64px;
   padding-block: var(--space-3);
-  font-size: var(--fs-body);
 }
 
+/* Holder avatar: the category tile's size and shape. Until a photo is set
+   (src/utils/holderAvatars.js), the holder's first character. */
+.holder-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-tile);
+  height: var(--icon-tile);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--c-neutral-fill);
+  color: var(--c-ink);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.holder-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.holder-avatar svg {
+  font-size: var(--icon-md);
+  color: var(--c-muted);
+}
+
+/* Holdings start folded, so a heading is the holder's summary row: total
+   over today's change, at the cash headings' size. */
 .holding-groups .expense-day-total {
   display: inline-flex;
   flex-direction: column;

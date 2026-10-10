@@ -115,6 +115,7 @@ import HoldingForm from "./components/HoldingForm";
 import CashAccountForm from "./components/CashAccountForm";
 import MobileFormSheetLayout from "./components/MobileFormSheetLayout";
 import PriceRefreshFooter from "./components/PriceRefreshFooter";
+import HolderAvatar from "./components/HolderAvatar";
 import TrendChart from "./components/TrendChart";
 import QuickExpenseSheet from "./components/QuickExpenseSheet";
 import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
@@ -1946,6 +1947,12 @@ function App() {
         const changeTwd = priceDataStale ? null : sumGroupChangeTwd(group.rows);
         return {
           key: group.key,
+          leading: (
+            <HolderAvatar
+              holder={group.label}
+              unset={!holderOptions.includes(group.key)}
+            />
+          ),
           title: `${group.label} · ${group.count} 檔`,
           total: (
             <>
@@ -1978,6 +1985,12 @@ function App() {
         valueKey: "balanceTwd",
       }).map((group) => ({
         key: group.key,
+        leading: (
+          <HolderAvatar
+            holder={group.label}
+            unset={!holderOptions.includes(group.key)}
+          />
+        ),
         title: `${group.label} · ${group.count} 個帳戶`,
         total: formatTwd(group.totalTwd),
         rows: group.rows,
@@ -5823,6 +5836,8 @@ function App() {
                       <CollapsibleGroups
                         className="cash-groups"
                         groups={cashGroups}
+                        defaultExpanded={false}
+                        storageKey="my-stock:cash-groups-open"
                         renderRow={(record) => (
                           <Fragment key={record.id}>
                             {cashTableColumns[0].render(null, record)}

@@ -25,6 +25,9 @@
   --c-warn-ink: #a36100;
   --c-neutral-fill: #f3f4f6;
   --c-track: #edeff2;
+  /* Holder group headings on the asset tab (holdings, cash): white like
+     the rows; a line under an open heading separates it from its rows. */
+  --c-group-heading: #ffffff;
 
   /* Category tile tints: soft pastels, one per family of expense category,
      behind ink icons (≥12:1). Decoration that tells categories apart at a
@@ -98,7 +101,13 @@ body,
 }
 
 body {
-  font-family: 'PingFang TC', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    "PingFang TC",
+    "Noto Sans TC",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   color: var(--c-ink);
   background: var(--c-paper);
   /* Money is most of what this app shows: keep digits the same width so

@@ -6,6 +6,8 @@ import Collapsible from "./Collapsible";
 // left, total + chevron on the right). Shares the expense day list's styles.
 // With storageKey, the groups the user opened / closed are remembered in
 // localStorage (a per-device convenience; failures fall back to defaults).
+// A group's optional `leading` node (e.g. a holder avatar) sits before its
+// title.
 
 const readToggled = (storageKey) => {
   if (!storageKey) return {};
@@ -56,7 +58,10 @@ function CollapsibleGroups({
                 })
               }
             >
-              <span className="expense-day-title">{group.title}</span>
+              <span className="expense-day-title">
+                {group.leading}
+                <span>{group.title}</span>
+              </span>
               <span className="expense-day-heading-end">
                 <span className="expense-day-total">{group.total}</span>
                 <NavArrowRight className="collapse-chevron" />

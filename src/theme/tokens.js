@@ -34,6 +34,8 @@ export const COLORS = {
   // Warn as text: the fill colour is too light to read on white.
   warnInk: "#A36100",
   neutralFill: "#F3F4F6",
+  // Holder group headings on the asset tab (CSS --c-group-heading).
+  groupHeading: "#FFFFFF",
   track: "#EDEFF2",
 };
 
