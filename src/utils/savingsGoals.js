@@ -328,9 +328,11 @@ const isPacing = (status) => status === "on-track" || status === "behind";
 export const getGoalNote = (goal) => {
   if (!goal.cashAccountKeys?.length) return "尚未選擇帳戶";
   if (goal.kind === GOAL_KIND.DEADLINE) {
+    // The total still to save, not the monthly figure: on its own that one
+    // read as the total (detail sheet has 每月需再存).
     const due = `${dayjs(goal.deadline).format("YYYY/MM")} 前`;
-    return isPacing(goal.status)
-      ? `${due}・每月需再存 ${formatTwd(goal.monthlyNeededTwd)}`
+    return goal.shortfallTwd > 0
+      ? `還差 ${formatTwd(goal.shortfallTwd)}・${due}`
       : due;
   }
   if (goal.status === "in-progress" || goal.status === "below") {
@@ -344,8 +346,13 @@ export const getGoalFacts = (goal) => {
   if (goal.kind === GOAL_KIND.DEADLINE) {
     facts.push({ label: "到期日", value: dayjs(goal.deadline).format("YYYY/MM/DD") });
     if (isPacing(goal.status)) {
+      facts.push({ label: "剩餘", value: `${goal.daysLeft} 天` });
+    }
+    if (goal.shortfallTwd > 0) {
+      facts.push({ label: "還差", value: formatTwd(goal.shortfallTwd) });
+    }
+    if (isPacing(goal.status)) {
       facts.push(
-        { label: "剩餘", value: `${goal.daysLeft} 天` },
         { label: "應有進度", value: formatTwd(goal.expectedTwd) },
         { label: "每月需再存", value: formatTwd(goal.monthlyNeededTwd) },
       );

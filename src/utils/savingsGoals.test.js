@@ -370,8 +370,11 @@ describe('goal text', () => {
   })
 
   it('writes the card note per kind and status', () => {
-    expect(getGoalNote(base)).toBe('2027/03 前・每月需再存 $12,800')
-    expect(getGoalNote({ ...base, status: 'achieved' })).toBe('2027/03 前')
+    // The card shows what is left in total; the monthly figure is in the
+    // detail (on its own it read as the total still to save).
+    expect(getGoalNote(base)).toBe('還差 $64,000・2027/03 前')
+    expect(getGoalNote({ ...base, status: 'overdue' })).toBe('還差 $64,000・2027/03 前')
+    expect(getGoalNote({ ...base, status: 'achieved', shortfallTwd: 0 })).toBe('2027/03 前')
     expect(getGoalNote({ ...base, kind: 'open', status: 'in-progress', shortfallTwd: 3000 })).toBe('還差 $3,000')
     expect(getGoalNote({ ...base, kind: 'open', status: 'achieved' })).toBeNull()
     expect(getGoalNote({ ...base, kind: 'ongoing', status: 'below', shortfallTwd: 5000 })).toBe('還差 $5,000')
@@ -382,10 +385,15 @@ describe('goal text', () => {
     expect(getGoalFacts(base)).toEqual([
       { label: '到期日', value: '2027/03/31' },
       { label: '剩餘', value: '172 天' },
+      { label: '還差', value: '$64,000' },
       { label: '應有進度', value: '$90,000' },
       { label: '每月需再存', value: '$12,800' },
     ])
-    expect(getGoalFacts({ ...base, status: 'overdue' })).toEqual([{ label: '到期日', value: '2027/03/31' }])
+    expect(getGoalFacts({ ...base, status: 'overdue' })).toEqual([
+      { label: '到期日', value: '2027/03/31' },
+      { label: '還差', value: '$64,000' },
+    ])
+    expect(getGoalFacts({ ...base, status: 'achieved', shortfallTwd: 0 })).toEqual([{ label: '到期日', value: '2027/03/31' }])
     expect(getGoalFacts({ ...base, kind: 'open', status: 'in-progress', shortfallTwd: 3000 })).toEqual([{ label: '還差', value: '$3,000' }])
     expect(
       getGoalFacts({ ...base, kind: 'ongoing', status: 'below', targetTwd: 300000, targetMonths: 6, averageMonthlyExpenseTwd: 50000, monthsUsed: 2, shortfallTwd: 10 }),

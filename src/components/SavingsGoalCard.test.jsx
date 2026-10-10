@@ -25,7 +25,7 @@ describe('<SavingsGoalCard />', () => {
     expect(screen.getByText('日本旅遊')).toBeInTheDocument()
     expect(screen.getByText('$86,000')).toBeInTheDocument()
     expect(screen.getByText('目標 $150,000')).toBeInTheDocument()
-    expect(screen.getByText('2027/03 前・每月需再存 $12,800')).toBeInTheDocument()
+    expect(screen.getByText('還差 $64,000・2027/03 前')).toBeInTheDocument()
     expect(screen.getByText('落後')).toHaveClass('goal-status--warn')
     expect(container.querySelector('.goal-cup-fill')).toHaveStyle({ height: '57%' })
   })
