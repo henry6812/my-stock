@@ -2579,11 +2579,25 @@ button.expense-card-chip {
   --frame-inner-radius: calc(var(--radius-lg) - 1px);
 }
 
+/* The heading's own background stays transparent and its colour sits on
+   an absolute ::before: iOS 26 Safari tints the status bar from the
+   background-color of a sticky element at the top edge (and kept that
+   white after the heading left), but ignores absolute children. */
 .holding-groups .expense-day-heading,
 .cash-groups .expense-day-heading {
   position: sticky;
   top: env(safe-area-inset-top);
   z-index: 2;
+  background: transparent;
+}
+
+.holding-groups .expense-day-heading::before,
+.cash-groups .expense-day-heading::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
   background: var(--c-group-heading);
 }
 
@@ -2616,10 +2630,23 @@ button.expense-card-chip {
 }
 
 /* Inset shadow, not a border: no 1px jump on open, and it stays with the
-   heading while it is stuck. */
-.holding-groups .expense-day-heading[aria-expanded="true"],
-.cash-groups .expense-day-heading[aria-expanded="true"] {
+   heading while it is stuck. On the ::before, above the heading's own
+   (transparent) box. */
+.holding-groups .expense-day-heading[aria-expanded="true"]::before,
+.cash-groups .expense-day-heading[aria-expanded="true"]::before {
   box-shadow: inset 0 -1px 0 var(--c-line);
+}
+
+/* An open group's rows sit on a faint grey, a step below their white
+   heading; dividers go up to line-strong to stay visible on it. */
+.holding-groups .collapsible .swipe-actions-content,
+.cash-groups .collapsible .swipe-actions-content {
+  background: var(--c-neutral-fill);
+}
+
+.holding-groups .expense-day-group .swipe-actions + .swipe-actions,
+.cash-groups .expense-day-group .swipe-actions + .swipe-actions {
+  border-top-color: var(--c-line-strong);
 }
 
 .holding-groups .expense-day-title,
