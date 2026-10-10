@@ -3295,6 +3295,19 @@ button.expense-card-chip {
   gap: var(--space-3);
 }
 
+/* SavingsGoalForm account checklist: one account per line. */
+.savings-goal-account-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.savings-goal-account-option {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 /* Settings 類別列表: icon tile + name. */
 .category-list-name {
   display: inline-flex;
