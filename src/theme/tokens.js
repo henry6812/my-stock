@@ -35,6 +35,9 @@ export const COLORS = {
   warn: "#D48806",
   // Warn as text: the fill colour is too light to read on white.
   warnInk: "#A36100",
+  // Soft fills behind warn / down text: the savings goal status pill and cup.
+  warnSoft: "#F6EBD3",
+  downSoft: "#F7DEDF",
   neutralFill: "#F3F4F6",
   // Holder group headings on the asset tab (CSS --c-group-heading).
   groupHeading: "#FFFFFF",

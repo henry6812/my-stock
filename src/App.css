@@ -3015,6 +3015,144 @@ button.expense-card-chip {
   height: calc(var(--icon-tile) + var(--space-3));
 }
 
+/* Savings goal card (SavingsGoalCard): framed like the budget list. */
+.savings-goal-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-row-y) var(--space-row-x);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.savings-goal-card-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.savings-goal-card-info .goal-icon {
+  margin-bottom: var(--space-2);
+}
+
+.savings-goal-card-name {
+  font-size: var(--fs-body);
+  color: var(--c-muted);
+}
+
+.savings-goal-card-amount {
+  font-size: var(--fs-title);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+
+.savings-goal-card-meta {
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-muted);
+}
+
+.savings-goal-card--archived .savings-goal-card-amount {
+  color: var(--c-muted);
+}
+
+.savings-goal-card-side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* Status pill: soft fill + matching ink. */
+.goal-status {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.goal-status--teal {
+  background: var(--c-teal-soft);
+  color: var(--c-teal-ink);
+}
+
+.goal-status--warn {
+  background: var(--c-warn-soft);
+  color: var(--c-warn-ink);
+}
+
+.goal-status--down {
+  background: var(--c-down-soft);
+  color: var(--c-down);
+}
+
+.goal-status--muted {
+  background: var(--c-neutral-fill);
+  color: var(--c-muted);
+}
+
+/* Cup: outlined in the status colour, filled from the bottom with its soft
+   tint. Static on purpose. */
+.goal-cup {
+  position: relative;
+  width: var(--space-10);
+  height: calc(var(--space-10) * 1.5);
+  border: 2px solid var(--c-teal);
+  border-radius: var(--radius-sm) var(--radius-sm) var(--radius-lg) var(--radius-lg);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+
+.goal-cup--lg {
+  width: calc(var(--space-10) * 2);
+  height: calc(var(--space-10) * 2.5);
+}
+
+.goal-cup--warn {
+  border-color: var(--c-warn);
+}
+
+.goal-cup--down {
+  border-color: var(--c-down);
+}
+
+.goal-cup--muted {
+  border-color: var(--c-line-strong);
+}
+
+.goal-cup-fill {
+  position: absolute;
+  inset: auto 0 0;
+  background: var(--c-teal-soft);
+}
+
+.goal-cup-fill--warn {
+  background: var(--c-warn-soft);
+}
+
+.goal-cup-fill--down {
+  background: var(--c-down-soft);
+}
+
+.goal-cup-fill--muted {
+  background: var(--c-track);
+}
+
 /* Settings 類別列表: icon tile + name. */
 .category-list-name {
   display: inline-flex;

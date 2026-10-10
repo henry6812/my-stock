@@ -25,6 +25,8 @@
   --c-down: #cf1322;
   --c-warn: #d48806;
   --c-warn-ink: #a36100;
+  --c-warn-soft: #f6ebd3;
+  --c-down-soft: #f7dedf;
   --c-neutral-fill: #f3f4f6;
   --c-track: #edeff2;
   /* Holder group headings on the asset tab (holdings, cash): white like
