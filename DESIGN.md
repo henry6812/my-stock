@@ -339,6 +339,7 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 支出頁的「支出分析」與資產頁的「資產分析」用同一個框線列表（`.analysis-*`）：每列一種分析，左側 `--icon-md` `muted` 類型圖示 + 名稱 + 一句重點 + chevron（走勢 `GraphUp`、分配 `PercentageCircle`、台股 / 美股 `Globe`、家庭 / 個人 `HomeUser`、支出人 `Group`、家庭開銷平衡 `CoinsSwap`、類別 `Label`），點開在 modal 顯示完整圖表；頁面上不放縮圖卡片。重點句不能和頁面上其他數字打架（例如走勢的區間起點不是昨收，就不寫一個和 hero「今日」不同的漲跌金額）。分配類圖表在 modal 裡是甜甜圈 + 附金額與占比的列表，不用彩色字當圓餅標籤。
 
 ### Inputs / Fields
+- 全 App 以 zh-TW 為介面語系（`main.jsx`：antd `ConfigProvider locale` + `dayjs.locale("zh-tw")`），日期選擇器的星期、月份、「今天」與 placeholder 都是中文。月份長條的英文縮寫是元件內寫死的，不受影響。
 - **Style:** antd 預設外框，邊框 `line-strong`、8px 圓角；手機 sheet 中最小高度 44px。
 - **Focus:** antd `action` 邊框。
 - iOS 上會觸發輸入的元素字級至少 16px，避免自動放大。
@@ -375,7 +376,7 @@ Sheet 由上而下：一行「分類（左）／算式（右）」→ 收據式�
 6px pill 進度條：`track` 軌道；已花為實色，本期尚未扣款的定期支出為同色 35% 透明；一條 2px `ink`（60%）細線標示「本期已過多久」，超過細線代表花得比進度快。列表列裡的「剩餘 / 超支」金額與預算名稱同字級、同字重（500）；詳情 sheet 內的才放大。
 
 ### Savings Goal Card（儲蓄目標）
-- 全寬卡片垂直堆疊（間距 `--space-3`），外框同預算列表：1px `line`、`radius-lg`、`surface` 底、列內距 `--space-row-y` / `--space-row-x`。手機與桌面同一套。
+- 手機為全寬卡片垂直堆疊（間距 `--space-3`）；桌面為自動換行的網格（每欄至少 `--space-10` × 8，間距 `--space-4`），和預算一樣不讓單張卡拉滿整頁、容器圖離數字太遠。外框同預算列表：1px `line`、`radius-lg`、`surface` 底、列內距 `--space-row-y` / `--space-row-x`。
 - 左側：目標圖示 tile（`GoalIcon`：`neutral-fill` 圓底 + `ink` 圖示，10 個目標專用圖示，與支出分類圖示分開）→ 名稱（`muted` 14px）→ 目前金額（title 20px 600，不是 display：支出頁的 display 只給總支出）→「目標 $X」與一行補充（`muted` caption）。
 - 右側：狀態膠囊（淡底 + 同色系字：teal 系 `teal-soft` / `teal-ink`、warn 系 `warn-soft` / `warn-ink`、down 系 `down-soft` / `down`、資料不足 `neutral-fill` / `muted`）在上，容器圖在下：2px 狀態色外框、上小下大圓角（`radius-sm` / `radius-lg`），由下往上填該狀態的淡色。**容器圖是靜態的**，遵守 The One Living Thing Rule（支出頁會動的只有存錢塔）。
 - 已封存的目標收在區塊底部「已封存（N）」，展開後金額改 `muted`、不顯示膠囊、容器為 `line-strong` 框 + `track` 填色。

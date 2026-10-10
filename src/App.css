@@ -3168,6 +3168,14 @@ button.expense-card-chip {
   gap: var(--space-3);
 }
 
+/* Desktop: a wrapping grid like the budgets, so a card isn't stretched
+   across the whole page with its cup far from its numbers. */
+.savings-goal-list--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--space-10) * 8), 1fr));
+  gap: var(--space-4);
+}
+
 .savings-goals-archived {
   margin-top: var(--space-4);
 }

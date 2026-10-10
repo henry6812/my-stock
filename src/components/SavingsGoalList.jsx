@@ -7,10 +7,18 @@ import SavingsGoalCard from "./SavingsGoalCard";
 
 const { Text } = Typography;
 
-// 支出頁「儲蓄目標」: open goals stacked full width (rows arrive sorted by
-// sortOrder); archived ones fold away at the bottom.
+// 支出頁「儲蓄目標」: open goals stacked full width on mobile, a wrapping grid
+// on desktop (rows arrive sorted by sortOrder); archived ones fold away at
+// the bottom.
 
-export default function SavingsGoalList({ goals = [], onOpen, onCreate, disabled = false }) {
+export default function SavingsGoalList({
+  goals = [],
+  onOpen,
+  onCreate,
+  disabled = false,
+  grid = false,
+}) {
+  const listClass = `savings-goal-list${grid ? " savings-goal-list--grid" : ""}`;
   const [showArchived, setShowArchived] = useState(false);
   const open = goals.filter((goal) => !goal.isArchived);
   const archived = goals.filter((goal) => goal.isArchived);
@@ -38,7 +46,7 @@ export default function SavingsGoalList({ goals = [], onOpen, onCreate, disabled
           </Button>
         </EmptyState>
       ) : (
-        <div className="savings-goal-list">
+        <div className={listClass}>
           {open.map((goal) => (
             <SavingsGoalCard key={goal.id} goal={goal} onOpen={onOpen} />
           ))}
@@ -56,7 +64,7 @@ export default function SavingsGoalList({ goals = [], onOpen, onCreate, disabled
             <span>{`已封存（${archived.length}）`}</span>
           </button>
           <Collapsible open={showArchived}>
-            <div className="savings-goal-list">
+            <div className={listClass}>
               {archived.map((goal) => (
                 <SavingsGoalCard key={goal.id} goal={goal} onOpen={onOpen} />
               ))}

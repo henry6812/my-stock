@@ -54,4 +54,11 @@ describe('<SavingsGoalList />', () => {
     render(<SavingsGoalList goals={[]} onOpen={vi.fn()} onCreate={vi.fn()} disabled />)
     expect(screen.getByRole('button', { name: '新增儲蓄目標' })).toBeDisabled()
   })
+
+  it('lays cards out in a grid on desktop', () => {
+    const { container, rerender } = render(<SavingsGoalList goals={[row(1, '買車')]} onOpen={vi.fn()} onCreate={vi.fn()} />)
+    expect(container.querySelector('.savings-goal-list')).not.toHaveClass('savings-goal-list--grid')
+    rerender(<SavingsGoalList goals={[row(1, '買車')]} onOpen={vi.fn()} onCreate={vi.fn()} grid />)
+    expect(container.querySelector('.savings-goal-list')).toHaveClass('savings-goal-list--grid')
+  })
 })

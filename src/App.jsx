@@ -1781,9 +1781,10 @@ function App() {
     [usableExpenseTemplates],
   );
 
+  // The record being edited is kept after closing (open*Form always sets it),
+  // so the title doesn't flip to 新增 while the sheet slides away.
   const closeTemplateForm = useCallback(() => {
     setIsTemplateFormOpen(false);
-    setEditingTemplate(null);
   }, []);
 
   const handleSubmitTemplate = useCallback(
@@ -1793,7 +1794,6 @@ function App() {
         await upsertExpenseTemplate({ id: editingTemplate?.id, ...values });
         // Saved: close now so a failing refresh can't invite a second save.
         setIsTemplateFormOpen(false);
-        setEditingTemplate(null);
         message.success(editingTemplate ? "常用支出已更新" : "已新增常用支出");
         refreshExpenseDataInBackground();
       } catch (error) {
@@ -1821,6 +1821,8 @@ function App() {
     [message, refreshExpenseDataInBackground],
   );
 
+  // The record being edited is kept after closing (open*Form always sets it),
+  // so the title doesn't flip to 新增 while the sheet slides away.
   const openGoalForm = useCallback((goal = null) => {
     setEditingGoal(goal);
     setGoalFormKey((key) => key + 1);
@@ -1829,7 +1831,6 @@ function App() {
 
   const closeGoalForm = useCallback(() => {
     setIsGoalFormOpen(false);
-    setEditingGoal(null);
   }, []);
 
   const handleSubmitGoal = useCallback(
@@ -1839,7 +1840,6 @@ function App() {
         await upsertSavingsGoal({ id: editingGoal?.id, ...values });
         // Saved: close now so a failing refresh can't invite a second save.
         setIsGoalFormOpen(false);
-        setEditingGoal(null);
         message.success(editingGoal ? "儲蓄目標已更新" : "已新增儲蓄目標");
         refreshExpenseDataInBackground();
       } catch (error) {
@@ -6249,6 +6249,7 @@ function App() {
                       onOpen={(goal) => setSavingsGoalDetailId(goal.id)}
                       onCreate={() => openGoalForm()}
                       disabled={isWriteDisabled}
+                      grid={!isMobileViewport}
                     />
                   </Col>
                   <Col xs={24}>
