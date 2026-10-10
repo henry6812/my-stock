@@ -70,11 +70,21 @@ export const GOAL_STATUS_META = {
   "insufficient-data": { label: "支出資料不足", tone: "muted" },
 };
 
-// Latest 12 complete months (the current month is still running); a month
-// with no expenses counts as 0. `monthlySummaries` is buildMonthlySummaries'
-// output: ascending, ending at the current month.
-export const averageMonthlyExpense = (monthlySummaries = []) => {
-  const complete = monthlySummaries.filter((row) => !row.isCurrent).slice(-12);
+// Latest 12 complete months (the current month is still running, and so
+// was the first month if recording began after the 1st); a month with no
+// expenses counts as 0. `monthlySummaries` is buildMonthlySummaries' output:
+// ascending, ending at the current month.
+export const averageMonthlyExpense = (
+  monthlySummaries = [],
+  { firstExpenseDate = null } = {},
+) => {
+  const partialMonth =
+    firstExpenseDate && !String(firstExpenseDate).endsWith("-01")
+      ? String(firstExpenseDate).slice(0, 7)
+      : null;
+  const complete = monthlySummaries
+    .filter((row) => !row.isCurrent && row.month !== partialMonth)
+    .slice(-12);
   if (complete.length === 0) {
     return { averageTwd: null, monthsUsed: 0 };
   }
@@ -236,9 +246,10 @@ export const buildSavingsGoalRows = ({
   goals = [],
   cashAccounts = [],
   monthlySummaries = [],
+  firstExpenseDate = null,
   today,
 }) => {
-  const average = averageMonthlyExpense(monthlySummaries);
+  const average = averageMonthlyExpense(monthlySummaries, { firstExpenseDate });
   const liveGoals = goals.filter((goal) => !goal.deletedAt);
   const accountByKey = new Map(
     cashAccounts

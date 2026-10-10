@@ -55,6 +55,7 @@ import { listBudgetCycleExpenses } from "../utils/budgetView";
 import { buildMonthlySummaries } from "../utils/monthlySummaries";
 import {
   GOAL_KIND,
+  averageMonthlyExpense,
   buildSavingsGoalRows,
   getNextGoalSortOrder,
   normalizeSavingsGoalInput,
@@ -1480,6 +1481,11 @@ export const upsertCashAccount = async ({
       syncState: SYNC_PENDING,
     };
     await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, nextCash);
+    // A bank code filled in later changes the account's cloud key.
+    await migrateCashAccountCloudKeyIfNeeded({
+      previousCashAccount: existing,
+      nextCashAccount: nextCash,
+    });
     await recordCashBalanceSnapshot({
       cashAccount: nextCash,
       balanceTwd: parsedBalance,
@@ -3910,8 +3916,13 @@ export const getExpenseDashboardView = async (input = {}) => {
       goals: await db.savings_goals.toArray(),
       cashAccounts: goalCashAccounts,
       monthlySummaries,
+      firstExpenseDate,
       today,
     }),
+    savingsGoalAverageMonthlyExpenseTwd: averageMonthlyExpense(
+      monthlySummaries,
+      { firstExpenseDate },
+    ).averageTwd,
     savingsGoalAccountOptions: goalCashAccounts
       .filter((item) => !item.deletedAt)
       .map(({ deletedAt, ...item }) => {

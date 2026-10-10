@@ -15,7 +15,8 @@ import {
 
 // Add / edit one savings goal. Owns its antd Form; the parent submits it
 // through `formId` (sheet footer or modal OK) and remounts it per open.
-// Links the parent no longer lists (a deleted account) are kept on save.
+// Links the parent no longer lists (a deleted account) are kept on save
+// unless 已刪除的帳戶 is unticked.
 
 const KIND_OPTIONS = [
   { label: "有期限", value: GOAL_KIND.DEADLINE },
@@ -58,7 +59,10 @@ export default function SavingsGoalForm({
           values.kind === GOAL_KIND.DEADLINE && values.deadline
             ? values.deadline.format("YYYY-MM-DD")
             : null,
-        cashAccountKeys: [...(values.cashAccountKeys ?? []), ...unlistedKeys],
+        cashAccountKeys: [
+          ...(values.cashAccountKeys ?? []),
+          ...(values.keepUnlistedKeys ? unlistedKeys : []),
+        ],
       });
     } finally {
       submittingRef.current = false;
@@ -86,6 +90,7 @@ export default function SavingsGoalForm({
         targetMonths: initialValues?.targetMonths ?? ONGOING_MONTHS_DEFAULT,
         deadline: initialValues?.deadline ? dayjs(initialValues.deadline) : undefined,
         cashAccountKeys: (initialValues?.cashAccountKeys ?? []).filter((key) => listedKeys.has(key)),
+        keepUnlistedKeys: true,
       }}
       onFinish={handleFinish}
     >
@@ -183,6 +188,15 @@ export default function SavingsGoalForm({
           ))}
         </Checkbox.Group>
       </Form.Item>
+      {unlistedKeys.length > 0 && (
+        <Form.Item
+          name="keepUnlistedKeys"
+          valuePropName="checked"
+          extra="同銀行、同別名、同持有人的帳戶重新建立後會自動接回；取消勾選就移除這些連結"
+        >
+          <Checkbox>{`已刪除的帳戶（${unlistedKeys.length}）`}</Checkbox>
+        </Form.Item>
+      )}
     </Form>
   );
 }

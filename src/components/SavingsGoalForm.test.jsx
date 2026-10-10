@@ -90,4 +90,22 @@ describe('<SavingsGoalForm />', () => {
       name: '舊目標', icon: 'travel', kind: 'deadline', deadline: '2026-05-01', cashAccountKeys: ['k2', 'gone'],
     })
   })
+
+  it('keeps links to deleted accounts until they are unticked', async () => {
+    const user = userEvent.setup()
+    const initialValues = {
+      id: 1, name: '存錢', icon: null, kind: 'open', targetTwd: 1000, targetMonths: null,
+      deadline: null, cashAccountKeys: ['k1', 'gone'],
+    }
+    const onSubmit = renderForm({ initialValues })
+    const deleted = screen.getByRole('checkbox', { name: /已刪除的帳戶（1）/ })
+    expect(deleted).toBeChecked()
+    await user.click(screen.getByRole('button', { name: '送出' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0].cashAccountKeys).toEqual(['k1', 'gone'])
+    await user.click(deleted)
+    await user.click(screen.getByRole('button', { name: '送出' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2))
+    expect(onSubmit.mock.calls[1][0].cashAccountKeys).toEqual(['k1'])
+  })
 })

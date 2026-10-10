@@ -61,6 +61,13 @@ describe('averageMonthlyExpense', () => {
     expect(averageMonthlyExpense([month('2026-08', 20000), month('2026-09', 0)])).toEqual({ averageTwd: 10000, monthsUsed: 2 })
   })
 
+  it('leaves out a first month that started mid-month', () => {
+    const rows = [month('2026-07', 5000), month('2026-08', 30000), month('2026-09', 50000), month('2026-10', 1, true)]
+    expect(averageMonthlyExpense(rows, { firstExpenseDate: '2026-07-25' })).toEqual({ averageTwd: 40000, monthsUsed: 2 })
+    expect(averageMonthlyExpense(rows, { firstExpenseDate: '2026-07-01' })).toEqual({ averageTwd: 28333, monthsUsed: 3 })
+    expect(averageMonthlyExpense([month('2026-09', 500), month('2026-10', 1, true)], { firstExpenseDate: '2026-09-20' })).toEqual({ averageTwd: null, monthsUsed: 0 })
+  })
+
   it('reports no average without a complete month', () => {
     expect(averageMonthlyExpense([month('2026-10', 5000, true)])).toEqual({ averageTwd: null, monthsUsed: 0 })
     expect(averageMonthlyExpense([])).toEqual({ averageTwd: null, monthsUsed: 0 })
@@ -306,6 +313,17 @@ describe('buildSavingsGoalRows', () => {
       status: 'below',
       shortfallTwd: 50000,
     })
+  })
+
+  it('sizes an ongoing goal from complete months only', () => {
+    const [row] = buildSavingsGoalRows({
+      goals: [goal(1, { kind: 'ongoing', targetTwd: null, targetMonths: 6 })],
+      cashAccounts: [],
+      monthlySummaries: summaries,
+      firstExpenseDate: '2026-08-15',
+      today: TODAY,
+    })
+    expect(row).toMatchObject({ targetTwd: 360000, averageMonthlyExpenseTwd: 60000, monthsUsed: 1 })
   })
 
   it('has no ongoing target without spending history', () => {

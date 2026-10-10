@@ -15,7 +15,9 @@ import {
   getExpenseDashboardView,
   removeSavingsGoal,
   setSavingsGoalArchived,
+  saveHolderOptions,
   updateCashAccountHolder,
+  upsertCashAccount,
   upsertSavingsGoal,
 } from './portfolioService'
 
@@ -121,6 +123,37 @@ describe('archive and remove', () => {
 })
 
 describe('cash account key changes', () => {
+  it('keeps tracking an account whose bank code is filled in later', async () => {
+    const legacy = {
+      bankCode: null,
+      bankName: '台新',
+      accountAlias: '日常',
+      holder: 'Po',
+      balanceTwd: 30000,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      deletedAt: null,
+    }
+    const cashId = await db.cash_accounts.add(legacy)
+    const oldKey = buildCashAccountKey(legacy)
+    const { id } = await upsertSavingsGoal({ name: '存錢', kind: 'open', targetTwd: 100000, cashAccountKeys: [oldKey] })
+    tick()
+    await upsertCashAccount({ bankCode: '812', bankName: '台新', accountAlias: '日常', balanceTwd: 30000, holder: 'Po' })
+    const newKey = buildCashAccountKey(await db.cash_accounts.get(cashId))
+    expect(newKey).not.toBe(oldKey)
+    expect((await db.savings_goals.get(id)).cashAccountKeys).toEqual([newKey])
+  })
+
+  it('keeps tracking accounts after a holder is renamed', async () => {
+    const a = await addCash('日常', 30000, 'Po')
+    const { id } = await upsertSavingsGoal({ name: '存錢', kind: 'open', targetTwd: 100000, cashAccountKeys: [a.key] })
+    tick()
+    await saveHolderOptions({ options: ['Paul', 'Wei'], renameMap: { Po: 'Paul' } })
+    const newKey = buildCashAccountKey(await db.cash_accounts.get(a.id))
+    expect(newKey).toContain('Paul')
+    expect((await db.savings_goals.get(id)).cashAccountKeys).toEqual([newKey])
+  })
+
   it('keeps tracking an account after its holder changes', async () => {
     // No holder_options config → the defaults (Po, Wei) apply.
     const a = await addCash('日常', 30000, 'Po')

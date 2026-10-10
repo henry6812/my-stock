@@ -235,7 +235,6 @@ import { getAssetAnimationPlan } from "./utils/netWorthJar";
 import AssetSummaryHero from "./components/AssetSummaryHero";
 import ExpenseSummaryCard from "./components/ExpenseSummaryCard";
 import { toUserMessage } from "./utils/userMessage";
-import { averageMonthlyExpense } from "./utils/savingsGoals";
 import { CHART_NEUTRAL, CHART_PALETTE, COLORS } from "./theme/tokens";
 import { BUDGET_LEVEL_COLORS, getBudgetStatus } from "./utils/budgetStatus";
 import { sortBudgetsByUrgency } from "./utils/budgetView";
@@ -496,6 +495,8 @@ function App() {
   const [budgetDetailId, setBudgetDetailId] = useState(null);
   const [savingsGoals, setSavingsGoals] = useState([]);
   const [savingsGoalAccountOptions, setSavingsGoalAccountOptions] = useState([]);
+  // Every ongoing goal uses the same average; the form previews from it.
+  const [averageMonthlyExpenseTwd, setAverageMonthlyExpenseTwd] = useState(null);
   const [savingsGoalDetailId, setSavingsGoalDetailId] = useState(null);
   const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
@@ -1022,6 +1023,7 @@ function App() {
       setExpenseMonthlySummaries(view.monthlySummaries ?? []);
       setSavingsGoals(view.savingsGoals ?? []);
       setSavingsGoalAccountOptions(view.savingsGoalAccountOptions ?? []);
+      setAverageMonthlyExpenseTwd(view.savingsGoalAverageMonthlyExpenseTwd ?? null);
       setExpenseCategoryRows(view.categoryRows ?? []);
       setExpenseNameSuggestions(view.expenseNameSuggestions ?? []);
       setExpenseTemplateRows(view.expenseTemplates ?? []);
@@ -4787,12 +4789,6 @@ function App() {
       popupContainer={getSheetPopupContainer}
       disabled={isWriteDisabled}
     />
-  );
-
-  // Every ongoing goal uses the same average; the form previews from it.
-  const averageMonthlyExpenseTwd = useMemo(
-    () => averageMonthlyExpense(expenseMonthlySummaries).averageTwd,
-    [expenseMonthlySummaries],
   );
 
   const savingsGoalFormNode = (
