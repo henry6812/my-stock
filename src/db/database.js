@@ -12,6 +12,7 @@ const TABLE_STORAGE_KEYS = {
   expenseCategories: 'my-stock:expense_categories',
   budgets: 'my-stock:budgets',
   expenseTemplates: 'my-stock:expense_templates',
+  savingsGoals: 'my-stock:savings_goals',
 }
 
 export const DB_MIN_KEY = MIN_SENTINEL
@@ -464,6 +465,11 @@ class StockDatabase {
       primaryKey: 'id',
       autoIncrement: true,
       storageKey: TABLE_STORAGE_KEYS.expenseTemplates,
+    })
+    this.savings_goals = new PersistedInMemoryTable({
+      primaryKey: 'id',
+      autoIncrement: true,
+      storageKey: TABLE_STORAGE_KEYS.savingsGoals,
     })
   }
 

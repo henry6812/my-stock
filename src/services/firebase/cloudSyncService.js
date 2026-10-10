@@ -14,6 +14,7 @@ import {
   buildCashAccountKey,
   buildBudgetKey,
   buildExpenseTemplateKey,
+  buildSavingsGoalKey,
   buildAppConfigKey,
   buildExpenseCategoryKey,
   buildExpenseEntryKey,
@@ -21,6 +22,7 @@ import {
   buildSnapshotKey,
   budgetToRemote,
   expenseTemplateToRemote,
+  savingsGoalToRemote,
   appConfigToRemote,
   cashBalanceSnapshotToRemote,
   cashAccountToRemote,
@@ -31,6 +33,7 @@ import {
   isRemoteNewer,
   remoteToBudget,
   remoteToExpenseTemplate,
+  remoteToSavingsGoal,
   remoteToAppConfig,
   remoteToCashBalanceSnapshot,
   remoteToCashAccount,
@@ -61,6 +64,7 @@ const COLLECTIONS = {
   EXPENSE_CATEGORIES: 'expense_categories',
   BUDGETS: 'budgets',
   EXPENSE_TEMPLATES: 'expense_templates',
+  SAVINGS_GOALS: 'savings_goals',
   APP_CONFIG: 'app_config',
 }
 
@@ -239,6 +243,7 @@ const clearLocalCloudBackedData = async () => {
     db.expense_categories,
     db.budgets,
     db.expense_templates,
+    db.savings_goals,
     db.app_config,
     async () => {
       await db.holdings.clear()
@@ -251,6 +256,7 @@ const clearLocalCloudBackedData = async () => {
       await db.expense_categories.clear()
       await db.budgets.clear()
       await db.expense_templates.clear()
+      await db.savings_goals.clear()
       await db.app_config.clear()
     },
   )
@@ -286,6 +292,9 @@ const buildMutationPayload = ({ collectionName, record }) => {
   }
   if (collectionName === COLLECTIONS.EXPENSE_TEMPLATES) {
     return { docId: buildExpenseTemplateKey(record), payload: expenseTemplateToRemote(record) }
+  }
+  if (collectionName === COLLECTIONS.SAVINGS_GOALS) {
+    return { docId: buildSavingsGoalKey(record), payload: savingsGoalToRemote(record) }
   }
   if (collectionName === COLLECTIONS.APP_CONFIG) {
     return { docId: buildAppConfigKey(record), payload: appConfigToRemote(record) }
@@ -738,6 +747,30 @@ const applyRemoteExpenseTemplate = async (remote) => {
   })
 }
 
+const applyRemoteSavingsGoal = async (remote) => {
+  if (!remote.remoteKey || !remote.name) return
+  const local = await db.savings_goals.where('remoteKey').equals(remote.remoteKey).first()
+  const nowIso = getNowIso()
+  const { remoteKey, createdAt, updatedAt, ...fields } = remote
+  if (!local) {
+    await db.savings_goals.add({
+      remoteKey,
+      ...fields,
+      createdAt: createdAt || nowIso,
+      updatedAt: updatedAt || nowIso,
+      syncState: SYNC_SYNCED,
+    })
+    return
+  }
+  if (!isRemoteNewer(local.updatedAt, updatedAt)) return
+  await db.savings_goals.update(local.id, {
+    ...fields,
+    createdAt: createdAt || local.createdAt,
+    updatedAt: updatedAt || local.updatedAt,
+    syncState: SYNC_SYNCED,
+  })
+}
+
 const applyRemoteBudget = async (remote) => {
   if (!remote.remoteKey || !remote.name) return
   const local = await db.budgets.where('remoteKey').equals(remote.remoteKey).first()
@@ -837,6 +870,8 @@ export const applyCollectionRecordLocally = async ({
     await applyRemoteBudget(remoteToBudget(payload))
   } else if (collectionName === COLLECTIONS.EXPENSE_TEMPLATES) {
     await applyRemoteExpenseTemplate(remoteToExpenseTemplate(payload))
+  } else if (collectionName === COLLECTIONS.SAVINGS_GOALS) {
+    await applyRemoteSavingsGoal(remoteToSavingsGoal(payload))
   } else if (collectionName === COLLECTIONS.APP_CONFIG) {
     await applyRemoteAppConfig(remoteToAppConfig(payload))
   } else {
@@ -933,6 +968,13 @@ export const removeCollectionDocLocally = async ({ collectionName, docId, snapsh
     if (template) {
       await db.expense_templates.delete(template.id)
     }
+  } else if (collectionName === COLLECTIONS.SAVINGS_GOALS) {
+    const remoteKey = snapshotData ? remoteToSavingsGoal(snapshotData).remoteKey : docId
+    if (!remoteKey) return
+    const goal = await db.savings_goals.where('remoteKey').equals(remoteKey).first()
+    if (goal) {
+      await db.savings_goals.delete(goal.id)
+    }
   } else if (collectionName === COLLECTIONS.APP_CONFIG) {
     const key = snapshotData ? remoteToAppConfig(snapshotData).key : docId
     if (key) {
@@ -992,6 +1034,10 @@ const applyRealtimeSnapshot = async (collectionName, snapshot) => {
     }
     if (collectionName === COLLECTIONS.EXPENSE_TEMPLATES) {
       await applyRemoteExpenseTemplate(remoteToExpenseTemplate(data))
+      continue
+    }
+    if (collectionName === COLLECTIONS.SAVINGS_GOALS) {
+      await applyRemoteSavingsGoal(remoteToSavingsGoal(data))
       continue
     }
     if (collectionName === COLLECTIONS.APP_CONFIG) {
@@ -1116,6 +1162,7 @@ export const startRealtimeSync = async (uid) => {
       COLLECTIONS.EXPENSE_CATEGORIES,
       COLLECTIONS.BUDGETS,
       COLLECTIONS.EXPENSE_TEMPLATES,
+      COLLECTIONS.SAVINGS_GOALS,
       COLLECTIONS.APP_CONFIG,
     ]),
     waiters: [],
@@ -1136,6 +1183,7 @@ export const startRealtimeSync = async (uid) => {
     subscribeCollection(COLLECTIONS.EXPENSE_CATEGORIES),
     subscribeCollection(COLLECTIONS.BUDGETS),
     subscribeCollection(COLLECTIONS.EXPENSE_TEMPLATES),
+    subscribeCollection(COLLECTIONS.SAVINGS_GOALS),
     subscribeCollection(COLLECTIONS.APP_CONFIG),
   ])
 

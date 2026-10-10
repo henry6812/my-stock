@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildExpenseTemplateKey,
+  buildSavingsGoalKey,
+  savingsGoalToRemote,
+  remoteToSavingsGoal,
   expenseTemplateToRemote,
   remoteToExpenseTemplate,
   appConfigToRemote,
@@ -130,5 +133,54 @@ describe('expense category icon', () => {
     expect(expenseCategoryToRemote({ ...category, icon: undefined }).icon).toBeNull()
     expect(remoteToExpenseCategory({ ...category, icon: 'rocket' }).icon).toBeNull()
     expect(remoteToExpenseCategory({ name: '舊分類' }).icon).toBeNull()
+  })
+})
+
+const baseGoal = {
+  id: 7,
+  remoteKey: 'goal_abc',
+  name: '日本旅遊',
+  icon: 'travel',
+  kind: 'deadline',
+  targetTwd: 150000,
+  targetMonths: null,
+  deadline: '2027-03-31',
+  startTwd: 20000,
+  startDate: '2026-10-10',
+  cashAccountKeys: ['812_台新_日常_Po'],
+  sortOrder: 2,
+  archivedAt: null,
+  createdAt: '2026-10-10T00:00:00.000Z',
+  updatedAt: '2026-10-10T00:00:00.000Z',
+  deletedAt: null,
+}
+
+describe('savings goal mappers', () => {
+  it('keys the doc by remote key, falling back to the local id', () => {
+    expect(buildSavingsGoalKey(baseGoal)).toBe('goal_abc')
+    expect(buildSavingsGoalKey({ id: 3 })).toBe('goal_3')
+  })
+
+  it('round-trips the remote shape without the local id', () => {
+    const remote = savingsGoalToRemote(baseGoal)
+    expect(remote).not.toHaveProperty('id')
+    expect(remote.clientUpdatedAt).toBe(baseGoal.updatedAt)
+    const { id, ...rest } = baseGoal
+    void id
+    expect(remoteToSavingsGoal(remote)).toEqual(rest)
+  })
+
+  it('normalizes missing or invalid fields', () => {
+    expect(remoteToSavingsGoal({ remoteKey: 'goal_x', name: 'x', kind: 'weird', icon: 'nope', cashAccountKeys: ['a', 3, ''], targetTwd: '12' })).toMatchObject({
+      kind: 'open',
+      icon: null,
+      cashAccountKeys: ['a'],
+      targetTwd: 12,
+      targetMonths: null,
+      startTwd: 0,
+      sortOrder: 0,
+      archivedAt: null,
+      deletedAt: null,
+    })
   })
 })

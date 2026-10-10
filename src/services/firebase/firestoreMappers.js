@@ -1,5 +1,6 @@
 import { parseNumericLike } from '../../utils/number'
 import { normalizeCategoryIcon } from '../../utils/categoryIcons'
+import { GOAL_KINDS, normalizeGoalIcon } from '../../utils/savingsGoals'
 
 const toIso = (value) => {
   if (!value) return null
@@ -41,6 +42,10 @@ export const buildBudgetKey = (budget) => (
 
 export const buildExpenseTemplateKey = (template) => (
   template.remoteKey || `template_${template.id}`
+)
+
+export const buildSavingsGoalKey = (goal) => (
+  goal.remoteKey || `goal_${goal.id}`
 )
 
 export const buildAppConfigKey = (config) => String(config?.key || '')
@@ -194,6 +199,31 @@ export const budgetToRemote = (budget) => ({
   updatedAt: budget.updatedAt,
   deletedAt: budget.deletedAt ?? null,
   clientUpdatedAt: budget.updatedAt,
+})
+
+const toStringList = (value) => (
+  Array.isArray(value) ? value.filter((item) => typeof item === 'string' && item) : []
+)
+
+// Cash accounts are linked by their cloud key (buildCashAccountKey): local
+// ids differ per device.
+export const savingsGoalToRemote = (goal) => ({
+  remoteKey: goal.remoteKey || null,
+  name: goal.name,
+  icon: goal.icon ?? null,
+  kind: goal.kind,
+  targetTwd: toPositiveAmountOrNull(goal.targetTwd),
+  targetMonths: toPositiveAmountOrNull(goal.targetMonths),
+  deadline: goal.deadline ?? null,
+  startTwd: Number(goal.startTwd) || 0,
+  startDate: goal.startDate ?? null,
+  cashAccountKeys: toStringList(goal.cashAccountKeys),
+  sortOrder: Number(goal.sortOrder) || 0,
+  archivedAt: goal.archivedAt ?? null,
+  createdAt: goal.createdAt ?? null,
+  updatedAt: goal.updatedAt,
+  deletedAt: goal.deletedAt ?? null,
+  clientUpdatedAt: goal.updatedAt,
 })
 
 export const appConfigToRemote = (config) => ({
@@ -378,6 +408,24 @@ export const remoteToBudget = (data) => ({
       : null,
   specialStartDate: data.specialStartDate ?? null,
   specialEndDate: data.specialEndDate ?? null,
+  createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
+  updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
+  deletedAt: toIso(data.deletedAt),
+})
+
+export const remoteToSavingsGoal = (data) => ({
+  remoteKey: data.remoteKey ?? null,
+  name: data.name,
+  icon: normalizeGoalIcon(data.icon),
+  kind: GOAL_KINDS.includes(data.kind) ? data.kind : 'open',
+  targetTwd: toPositiveAmountOrNull(data.targetTwd),
+  targetMonths: toPositiveAmountOrNull(data.targetMonths),
+  deadline: data.deadline ?? null,
+  startTwd: Number(data.startTwd) || 0,
+  startDate: data.startDate ?? null,
+  cashAccountKeys: toStringList(data.cashAccountKeys),
+  sortOrder: Number(data.sortOrder) || 0,
+  archivedAt: toIso(data.archivedAt),
   createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),

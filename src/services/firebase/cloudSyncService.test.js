@@ -219,3 +219,55 @@ describe('applyCollectionRecordLocally (holdings, another holder owns the stock)
     ])
   })
 })
+
+describe('applyCollectionRecordLocally (savings_goals)', () => {
+  const goal = {
+    remoteKey: 'goal_abc',
+    name: '日本旅遊',
+    icon: 'travel',
+    kind: 'open',
+    targetTwd: 150000,
+    targetMonths: null,
+    deadline: null,
+    startTwd: 0,
+    startDate: '2026-10-10',
+    cashAccountKeys: ['k1', 'k2'],
+    sortOrder: 1,
+    archivedAt: null,
+    createdAt: '2026-10-10T00:00:00.000Z',
+    updatedAt: '2026-10-10T00:00:00.000Z',
+    deletedAt: null,
+  }
+
+  beforeEach(async () => {
+    await db.savings_goals.clear()
+  })
+
+  it('adds a goal with its account keys', async () => {
+    await applyCollectionRecordLocally({ collectionName: 'savings_goals', record: goal })
+    const [row] = await db.savings_goals.toArray()
+    expect(row).toMatchObject({ ...goal, syncState: 'synced' })
+    expect(Number.isInteger(row.id)).toBe(true)
+  })
+
+  it('updates only when the remote copy is newer', async () => {
+    await applyCollectionRecordLocally({ collectionName: 'savings_goals', record: goal })
+    await applyCollectionRecordLocally({
+      collectionName: 'savings_goals',
+      record: { ...goal, name: '舊的', updatedAt: '2026-10-09T00:00:00.000Z' },
+    })
+    await applyCollectionRecordLocally({
+      collectionName: 'savings_goals',
+      record: { ...goal, archivedAt: '2026-10-11T00:00:00.000Z', updatedAt: '2026-10-11T00:00:00.000Z' },
+    })
+    const rows = await db.savings_goals.toArray()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ name: '日本旅遊', archivedAt: '2026-10-11T00:00:00.000Z' })
+  })
+
+  it('removes the local row when the remote doc is deleted', async () => {
+    await applyCollectionRecordLocally({ collectionName: 'savings_goals', record: goal })
+    await removeCollectionDocLocally({ collectionName: 'savings_goals', docId: 'goal_abc', snapshotData: goal })
+    expect(await db.savings_goals.toArray()).toEqual([])
+  })
+})

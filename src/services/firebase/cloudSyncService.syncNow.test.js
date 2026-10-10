@@ -30,7 +30,7 @@ vi.mock('./firebaseApp', () => ({
 const { db } = await import('../../db/database')
 const { initCloudSync, stopCloudSync, syncNowWithCloud } = await import('./cloudSyncService')
 
-const COLLECTION_COUNT = 11
+const COLLECTION_COUNT = 12
 
 // The realtime listeners already keep the local store current; a sync after
 // every write used to tear them down, wipe the store and re-download every
