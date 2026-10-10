@@ -1188,6 +1188,7 @@ button.expense-card-chip {
    the antd Card token). */
 .mobile-list-title,
 .active-budgets-title,
+.savings-goals-title,
 .analysis-title,
 .active-recurring-title {
   font-size: var(--fs-subhead);
@@ -3151,6 +3152,39 @@ button.expense-card-chip {
 
 .goal-cup-fill--muted {
   background: var(--c-track);
+}
+
+/* 支出頁 儲蓄目標 section (SavingsGoalList). */
+.savings-goals-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-section-head);
+}
+
+.savings-goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.savings-goals-archived {
+  margin-top: var(--space-4);
+}
+
+.savings-goals-archived-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  margin-bottom: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-body);
+  color: var(--c-muted);
+  cursor: pointer;
 }
 
 /* Settings 類別列表: icon tile + name. */
