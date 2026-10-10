@@ -395,7 +395,7 @@ button.asset-hero-jar {
 
 /* The jar itself: a faint fill instead of an outline. */
 .networth-jar-body {
-  fill: #e5ebeb;
+  fill: var(--c-jar-body);
 }
 
 .networth-jar-cap {

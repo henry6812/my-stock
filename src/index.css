@@ -28,6 +28,8 @@
   /* Holder group headings on the asset tab (holdings, cash): white like
      the rows; a line under an open heading separates it from its rows. */
   --c-group-heading: #ffffff;
+  /* The net-worth jar's body on the asset tab (NetWorthJar). */
+  --c-jar-body: #e5ebeb;
 
   /* Category tile tints: soft pastels, one per family of expense category,
      behind ink icons (≥12:1). Decoration that tells categories apart at a
