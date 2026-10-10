@@ -2993,6 +2993,28 @@ button.expense-card-chip {
   color: var(--c-muted);
 }
 
+/* Savings goal icon tile (GoalIcon): quiet neutral tile, ink icon. */
+.goal-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-tile);
+  height: var(--icon-tile);
+  border-radius: var(--radius-pill);
+  background: var(--c-neutral-fill);
+  color: var(--c-ink);
+}
+
+.goal-icon svg[data-icon] {
+  font-size: var(--icon-md);
+}
+
+.goal-icon--lg {
+  width: calc(var(--icon-tile) + var(--space-3));
+  height: calc(var(--icon-tile) + var(--space-3));
+}
+
 /* Settings 類別列表: icon tile + name. */
 .category-list-name {
   display: inline-flex;

@@ -1,18 +1,32 @@
-// Icon grid in the category form (antd Form control: value / onChange).
+// Icon grid in a form (antd Form control: value / onChange). Category icons by
+// default; savings goals pass their own options / components / name rule.
 // value null means "pick from the name": the icon the name maps to shows as
 // selected, and choosing an icon stores it. 改回依名稱 clears the choice.
 import { Button } from "antd";
 import { CATEGORY_ICON_OPTIONS, getCategoryIconKey } from "../utils/categoryIcons";
 import { CATEGORY_ICON_COMPONENTS } from "./categoryIconComponents";
 
-export default function CategoryIconPicker({ value = null, onChange, name = "", disabled = false }) {
-  const byName = getCategoryIconKey(name);
-  const selected = value ?? (byName === "none" ? "other" : byName);
+const categoryIconByName = (name) => {
+  const key = getCategoryIconKey(name);
+  return key === "none" ? "other" : key;
+};
+
+export default function CategoryIconPicker({
+  value = null,
+  onChange,
+  name = "",
+  disabled = false,
+  options = CATEGORY_ICON_OPTIONS,
+  components = CATEGORY_ICON_COMPONENTS,
+  resolveByName = categoryIconByName,
+  groupLabel = "分類圖示",
+}) {
+  const selected = value ?? resolveByName(name);
   return (
     <div className="category-icon-picker">
-      <div className="category-icon-picker-grid" role="group" aria-label="分類圖示">
-        {CATEGORY_ICON_OPTIONS.map(({ key, label }) => {
-          const Icon = CATEGORY_ICON_COMPONENTS[key];
+      <div className="category-icon-picker-grid" role="group" aria-label={groupLabel}>
+        {options.map(({ key, label }) => {
+          const Icon = components[key];
           const checked = key === selected;
           return (
             <button

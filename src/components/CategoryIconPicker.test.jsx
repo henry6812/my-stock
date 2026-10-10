@@ -34,4 +34,26 @@ describe('CategoryIconPicker', () => {
     render(<CategoryIconPicker name="" value={null} />)
     expect(screen.getByRole('button', { name: '其他' })).toHaveAttribute('aria-pressed', 'true')
   })
+
+  it('can offer another icon set, picked from the name its own way', async () => {
+    const { GOAL_ICON_OPTIONS, getGoalIconKey } = await import('../utils/savingsGoals')
+    const { GOAL_ICON_COMPONENTS } = await import('./goalIconComponents')
+    const onChange = vi.fn()
+    render(
+      <CategoryIconPicker
+        name="買車"
+        value={null}
+        onChange={onChange}
+        options={GOAL_ICON_OPTIONS}
+        components={GOAL_ICON_COMPONENTS}
+        resolveByName={getGoalIconKey}
+        groupLabel="目標圖示"
+      />,
+    )
+    const group = screen.getByRole('group', { name: '目標圖示' })
+    expect(group.querySelectorAll('button')).toHaveLength(10)
+    expect(screen.getByRole('button', { name: '買車' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: '緊急預備金' }))
+    expect(onChange).toHaveBeenCalledWith('emergency')
+  })
 })
