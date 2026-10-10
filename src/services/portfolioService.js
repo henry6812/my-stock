@@ -53,6 +53,13 @@ import {
 } from "../utils/recurrence";
 import { listBudgetCycleExpenses } from "../utils/budgetView";
 import { buildMonthlySummaries } from "../utils/monthlySummaries";
+import {
+  GOAL_KIND,
+  buildSavingsGoalRows,
+  getNextGoalSortOrder,
+  normalizeSavingsGoalInput,
+  planGoalAccountRelink,
+} from "../utils/savingsGoals";
 import { normalizeCategoryIcon } from "../utils/categoryIcons";
 import {
   HOLDING_SHARES_MODE,
@@ -183,6 +190,24 @@ const migrateHoldingCloudKeyIfNeeded = async ({
   });
 };
 
+// Goals link cash accounts by cloud key; when an account's key changes
+// (holder edit or holder rename) point its goals at the new key.
+const relinkSavingsGoalCashAccounts = async (keyMap) => {
+  if (Object.keys(keyMap).length === 0) return;
+  const goals = (await db.savings_goals.toArray()).filter(
+    (item) => !isDeleted(item),
+  );
+  const nowIso = getNowIso();
+  for (const { goal, cashAccountKeys } of planGoalAccountRelink(goals, keyMap)) {
+    await mirrorToCloud(CLOUD_COLLECTION.SAVINGS_GOALS, {
+      ...goal,
+      cashAccountKeys,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
+  }
+};
+
 const migrateCashAccountCloudKeyIfNeeded = async ({
   previousCashAccount,
   nextCashAccount,
@@ -195,6 +220,7 @@ const migrateCashAccountCloudKeyIfNeeded = async ({
   if (previousDocKey === nextDocKey) {
     return;
   }
+  await relinkSavingsGoalCashAccounts({ [previousDocKey]: nextDocKey });
   registerMigratedDocKey({
     collectionName: CLOUD_COLLECTION.CASH_ACCOUNTS,
     docId: previousDocKey,
@@ -691,6 +717,7 @@ export const saveHolderOptions = async ({ options = [], renameMap = {} } = {}) =
   }
 
   const cashAccounts = await getActiveCashAccounts();
+  const cashKeyMap = {};
   for (const cashAccount of cashAccounts) {
     const currentHolder = normalizeHolderOptionValue(cashAccount.holder);
     const nextHolder = resolveNextHolderValue(currentHolder);
@@ -707,7 +734,10 @@ export const saveHolderOptions = async ({ options = [], renameMap = {} } = {}) =
     };
     await mirrorToCloud(CLOUD_COLLECTION.CASH_ACCOUNTS, nextCashAccount);
     changedCashAccounts.push(nextCashAccount);
+    cashKeyMap[buildCashAccountKey(cashAccount)] =
+      buildCashAccountKey(nextCashAccount);
   }
+  await relinkSavingsGoalCashAccounts(cashKeyMap);
 
   const expenseEntries = await getActiveExpenseEntries();
   for (const entry of expenseEntries) {
@@ -763,6 +793,7 @@ export const exportBackupData = async () => {
     expenseCategories,
     budgets,
     expenseTemplates,
+    savingsGoals,
     appConfig,
   ] = await Promise.all([
     readActive(db.holdings),
@@ -771,6 +802,7 @@ export const exportBackupData = async () => {
     readActive(db.expense_categories),
     readActive(db.budgets),
     readActive(db.expense_templates),
+    readActive(db.savings_goals),
     db.app_config.toArray(),
   ]);
   return {
@@ -783,6 +815,7 @@ export const exportBackupData = async () => {
     expenseCategories,
     budgets,
     expenseTemplates,
+    savingsGoals,
     appConfig,
   };
 };
@@ -2993,6 +3026,110 @@ export const reorderExpenseTemplates = async (orderedIds) => {
   }
 };
 
+const sumCashBalancesByKey = async (keys) => {
+  const wanted = new Set(keys);
+  return (await getActiveCashAccounts())
+    .filter((item) => wanted.has(buildCashAccountKey(item)))
+    .reduce(
+      (sum, item) =>
+        sum +
+        parseNumericLike(item.balanceTwd, {
+          fallback: 0,
+          context: "sumCashBalancesByKey.balanceTwd",
+        }),
+      0,
+    );
+};
+
+const getLiveSavingsGoal = async (id) => {
+  const parsedId = Number(id);
+  const existing =
+    Number.isInteger(parsedId) && parsedId > 0
+      ? await db.savings_goals.get(parsedId)
+      : null;
+  if (!existing || isDeleted(existing)) {
+    throw new Error("Savings goal not found");
+  }
+  return existing;
+};
+
+// 儲蓄目標. startTwd / startDate are set when the goal is created and when it
+// becomes a deadline goal, never on other edits, so progress doesn't reset.
+export const upsertSavingsGoal = async ({ id, ...input }) => {
+  ensureCloudWritable();
+  const today = getNowDate();
+  const nowIso = getNowIso();
+  const existing =
+    id === undefined || id === null ? null : await getLiveSavingsGoal(id);
+  const normalized = normalizeSavingsGoalInput(input, {
+    today,
+    previousDeadline: existing?.deadline ?? null,
+  });
+  const restart =
+    !existing ||
+    (normalized.kind === GOAL_KIND.DEADLINE &&
+      existing.kind !== GOAL_KIND.DEADLINE);
+  const start = restart
+    ? {
+        startTwd: await sumCashBalancesByKey(normalized.cashAccountKeys),
+        startDate: today,
+      }
+    : {};
+
+  if (existing) {
+    await mirrorToCloud(CLOUD_COLLECTION.SAVINGS_GOALS, {
+      ...existing,
+      ...normalized,
+      ...start,
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
+    return { id: existing.id, created: false };
+  }
+
+  const remoteKey = makeRemoteKey("goal");
+  await mirrorToCloud(CLOUD_COLLECTION.SAVINGS_GOALS, {
+    remoteKey,
+    ...normalized,
+    ...start,
+    sortOrder: getNextGoalSortOrder(await db.savings_goals.toArray()),
+    archivedAt: null,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  });
+  const inserted = await db.savings_goals
+    .where("remoteKey")
+    .equals(remoteKey)
+    .first();
+  return { id: requireLocalId(inserted, "儲蓄目標"), created: true };
+};
+
+export const setSavingsGoalArchived = async ({ id, archived }) => {
+  ensureCloudWritable();
+  const existing = await getLiveSavingsGoal(id);
+  const nowIso = getNowIso();
+  await mirrorToCloud(CLOUD_COLLECTION.SAVINGS_GOALS, {
+    ...existing,
+    archivedAt: archived ? nowIso : null,
+    updatedAt: nowIso,
+    syncState: SYNC_PENDING,
+  });
+};
+
+export const removeSavingsGoal = async ({ id }) => {
+  ensureCloudWritable();
+  const existing = await getLiveSavingsGoal(id);
+  const nowIso = getNowIso();
+  await mirrorToCloud(CLOUD_COLLECTION.SAVINGS_GOALS, {
+    ...existing,
+    deletedAt: nowIso,
+    updatedAt: nowIso,
+    syncState: SYNC_PENDING,
+  });
+};
+
 export const upsertBudget = async ({
   id,
   name,
@@ -3692,6 +3829,18 @@ export const getExpenseDashboardView = async (input = {}) => {
         monthOverridesMap,
       }),
   });
+  // Deleted accounts stay in so a goal can tell a removed link from none.
+  const goalCashAccounts = (await db.cash_accounts.toArray()).map((item) => ({
+    key: buildCashAccountKey(item),
+    bankName: item.bankName,
+    accountAlias: item.accountAlias,
+    holder: item.holder ?? null,
+    balanceTwd: parseNumericLike(item.balanceTwd, {
+      fallback: 0,
+      context: "getExpenseDashboardView.goalCashAccounts.balanceTwd",
+    }),
+    deletedAt: item.deletedAt ?? null,
+  }));
   const monthOccurrences = getOccurrencesForMonth(entries, activeMonth).filter(
     (item) => !(item.isRecurringOccurrence && item.occurredAt > today),
   );
@@ -3757,6 +3906,18 @@ export const getExpenseDashboardView = async (input = {}) => {
     incomeForCurrentYearTwd: yearHasIncome ? incomeForCurrentYearTwd : null,
     expenseIncomeProgress,
     monthlySummaries,
+    savingsGoals: buildSavingsGoalRows({
+      goals: await db.savings_goals.toArray(),
+      cashAccounts: goalCashAccounts,
+      monthlySummaries,
+      today,
+    }),
+    savingsGoalAccountOptions: goalCashAccounts
+      .filter((item) => !item.deletedAt)
+      .map(({ deletedAt, ...item }) => {
+        void deletedAt;
+        return item;
+      }),
     incomeSettings,
     expenseRows: decoratedExpenseRows,
     categoryRows: categories
