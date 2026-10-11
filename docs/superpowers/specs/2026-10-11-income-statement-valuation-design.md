@@ -90,6 +90,8 @@
 
 季資料維持年度累計（basis `cumulative`），由 client 換算單季。
 
+個體財報公司沒有「歸屬於母公司業主」一行，母公司淨利沿用稅後淨利；缺所得稅一行時以稅前 − 稅後補上（`fillIncomeFallbacks`，於 `normalizeIncomeRow` 套用）。
+
 ### 腳本與 workflow
 
 - `scripts/split-tw-fundamentals.mjs`：讀三個大檔，輸出每家一檔。掛在 `package.json` 的 `predev` 與 `prebuild`。
