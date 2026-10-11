@@ -65,6 +65,7 @@ import { normalizeCategoryIcon } from "../utils/categoryIcons";
 import {
   HOLDING_SHARES_MODE,
   normalizeHoldingSymbol,
+  normalizeTotalCost,
   resolveNextShares,
 } from "../utils/holdingShares";
 import {
@@ -1936,6 +1937,7 @@ export const getPortfolioView = async () => {
         holding.assetTag ||
         defaultTag,
       shares,
+      totalCost: normalizeTotalCost(holding.totalCost),
       latestPrice: hasLatestPrice ? latestPrice : undefined,
       prevPrice,
       priceChange,

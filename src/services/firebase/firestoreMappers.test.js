@@ -10,6 +10,8 @@ import {
   remoteToAppConfig,
   expenseCategoryToRemote,
   remoteToExpenseCategory,
+  holdingToRemote,
+  remoteToHolding,
 } from './firestoreMappers'
 
 const template = {
@@ -182,5 +184,36 @@ describe('savings goal mappers', () => {
       archivedAt: null,
       deletedAt: null,
     })
+  })
+})
+
+describe('holding totalCost', () => {
+  const holding = {
+    symbol: '2330',
+    market: 'TW',
+    assetTag: 'STOCK',
+    holder: 'Po',
+    shares: 100,
+    totalCost: 50000,
+    companyName: '台積電',
+    sortOrder: 1,
+    createdAt: '2026-10-01T00:00:00.000Z',
+    updatedAt: '2026-10-01T00:00:00.000Z',
+    deletedAt: null,
+  }
+
+  it('round-trips through the remote shape', () => {
+    expect(remoteToHolding(holdingToRemote(holding)).totalCost).toBe(50000)
+  })
+
+  it('stores an unset cost as null', () => {
+    expect(holdingToRemote({ ...holding, totalCost: undefined }).totalCost).toBeNull()
+  })
+
+  it('reads a missing or invalid remote cost as unset', () => {
+    const remote = holdingToRemote(holding)
+    expect(remoteToHolding({ ...remote, totalCost: undefined }).totalCost).toBeNull()
+    expect(remoteToHolding({ ...remote, totalCost: -5 }).totalCost).toBeNull()
+    expect(remoteToHolding({ ...remote, totalCost: '62400' }).totalCost).toBe(62400)
   })
 })

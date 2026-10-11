@@ -1,3 +1,4 @@
+import { normalizeTotalCost } from '../../utils/holdingShares'
 import { parseNumericLike } from '../../utils/number'
 import { normalizeCategoryIcon } from '../../utils/categoryIcons'
 import { GOAL_KINDS, normalizeGoalIcon } from '../../utils/savingsGoals'
@@ -56,6 +57,7 @@ export const holdingToRemote = (holding) => ({
   assetTag: holding.assetTag ?? 'STOCK',
   holder: holding.holder ?? null,
   shares: holding.shares,
+  totalCost: normalizeTotalCost(holding.totalCost),
   companyName: holding.companyName,
   sortOrder: holding.sortOrder,
   createdAt: holding.createdAt ?? null,
@@ -253,6 +255,7 @@ export const remoteToHolding = (data) => ({
     fallback: 0,
     context: 'remoteToHolding.shares',
   }),
+  totalCost: normalizeTotalCost(data.totalCost),
   companyName: data.companyName,
   sortOrder: parseNumericLike(data.sortOrder, {
     fallback: 1,

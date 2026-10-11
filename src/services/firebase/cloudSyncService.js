@@ -413,6 +413,7 @@ const applyRemoteHolding = async (remote, { preferLocalId } = {}) => {
         fallback: 0,
         context: 'applyRemoteHolding.shares',
       }),
+      totalCost: remote.totalCost ?? null,
       companyName: remote.companyName || remote.symbol,
       sortOrder: parseNumericLike(remote.sortOrder, {
         fallback: 1,
@@ -433,6 +434,7 @@ const applyRemoteHolding = async (remote, { preferLocalId } = {}) => {
       fallback: 0,
       context: 'applyRemoteHolding.shares',
     }),
+    totalCost: remote.totalCost ?? null,
     companyName: remote.companyName || local.companyName,
     sortOrder: parseNumericLike(remote.sortOrder, {
       fallback: local.sortOrder ?? 1,
