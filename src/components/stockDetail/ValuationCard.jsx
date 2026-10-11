@@ -58,6 +58,7 @@ function ValuationCard({ model, basis, onBasisChange, market, currency }) {
   const { valuation } = model;
   return (
     <section className="stock-detail-section valuation-card" aria-label="估價">
+      <h3 className="stock-detail-heading">估價</h3>
       <Segmented
         block
         value={basis}

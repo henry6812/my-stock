@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Alert, Button, Drawer, Skeleton, Typography } from "antd";
+import { NavArrowRight } from "iconoir-react";
 import useBodyScrollLock from "../hooks/useBodyScrollLock";
 import useStockFundamentals from "../hooks/useStockFundamentals";
 import useValuationSettings from "../hooks/useValuationSettings";
-import { formatDateTime, formatPrice } from "../utils/formatters";
-import { formatSignedPercent } from "../utils/stockDetail";
+import { formatDateTime } from "../utils/formatters";
 import { buildValuationModel } from "../utils/valuation";
 import EpsTrendChart from "./stockDetail/EpsTrendChart";
 import HoldingPosition from "./stockDetail/HoldingPosition";
@@ -16,9 +16,9 @@ const { Text } = Typography;
 
 const SOURCE_LABELS = { TW: "TWSE / 公開資訊觀測站", US: "Finnhub" };
 
-// One holding (one stock, one holder): price, position and cost, buy /
-// sell, EPS × P/E valuation, EPS trend and P/E history, then managing the
-// holding. Mobile shows a bottom sheet, desktop a right-hand drawer. The
+// One holding (one stock, one holder): its market value, position and
+// cost, buy / sell, EPS × P/E valuation, EPS trend and P/E history, then
+// managing the holding. Mobile shows a bottom sheet, desktop a right-hand drawer. The
 // parent keys this by holding so basis / fold state reset when another opens.
 function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction }) {
   const active = Boolean(open && holding);
@@ -93,27 +93,40 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
 
   const content = (
     <>
-      <header className="stock-detail-header">
-        <span className="stock-detail-price">{formatPrice(holding.latestPrice, currency)}</span>
-        {Number.isFinite(holding.priceChangePct) && (
-          <span className={holding.priceChangePct >= 0 ? "stock-detail-change--up" : "stock-detail-change--down"}>
-            {formatSignedPercent(holding.priceChangePct / 100)}
-          </span>
-        )}
-      </header>
       <HoldingPosition holding={holding} disabled={disabled} onAction={onAction} />
       {body}
-      <div className="stock-detail-manage">
-        <Button block disabled={disabled} onClick={() => onAction?.("edit")}>
-          編輯分類與持有人
-        </Button>
-        <Button block disabled={disabled} onClick={() => onAction?.("calibrate")}>
-          校正股數與成本
-        </Button>
-        <Button block danger disabled={disabled} onClick={() => onAction?.("remove")}>
-          移除持股
-        </Button>
-      </div>
+      {/* Rarely used, so a quiet list rather than buttons. */}
+      <section className="stock-detail-section" aria-label="管理這筆持股">
+        <h3 className="stock-detail-heading">管理這筆持股</h3>
+        <div className="stock-detail-manage">
+          <button
+            type="button"
+            className="stock-detail-manage-row"
+            disabled={disabled}
+            onClick={() => onAction?.("edit")}
+          >
+            <span>編輯分類與持有人</span>
+            <NavArrowRight aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="stock-detail-manage-row"
+            disabled={disabled}
+            onClick={() => onAction?.("calibrate")}
+          >
+            <span>校正股數與成本</span>
+            <NavArrowRight aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="stock-detail-manage-row stock-detail-manage-row--danger"
+            disabled={disabled}
+            onClick={() => onAction?.("remove")}
+          >
+            <span>移除持股</span>
+          </button>
+        </div>
+      </section>
     </>
   );
 

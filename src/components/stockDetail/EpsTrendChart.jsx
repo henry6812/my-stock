@@ -29,7 +29,21 @@ function EpsTrendChart({ fundamentals }) {
   const hasEstimates = data.some((item) => item.estimate !== null);
   return (
     <section className="stock-detail-section" aria-label="EPS 趨勢">
-      <Text strong>EPS 趨勢</Text>
+      <div className="stock-detail-heading-row">
+        <h3 className="stock-detail-heading">EPS 趨勢</h3>
+        {data.length > 0 && (
+          <ul className="stock-detail-legend">
+            <li>
+              <span className="stock-detail-legend-swatch" style={{ background: COLORS.action }} />
+              單季
+            </li>
+            <li>
+              <span className="stock-detail-legend-swatch" style={{ background: CHART_NEUTRAL }} />
+              去年同季
+            </li>
+          </ul>
+        )}
+      </div>
       {data.length === 0 ? (
         <Text type="secondary">尚無 EPS 資料</Text>
       ) : (
@@ -48,7 +62,13 @@ function EpsTrendChart({ fundamentals }) {
         </div>
       )}
       {fundamentals.nextEarnings && (
-        <Text type="secondary">{`${fundamentals.nextEarnings.label}：${fundamentals.nextEarnings.date}`}</Text>
+        <div className="stock-detail-ledger-row stock-detail-next-earnings">
+          <span className="stock-detail-ledger-label">下次財報</span>
+          <span className="stock-detail-next-earnings-value">
+            <span>{fundamentals.nextEarnings.date}</span>
+            <span className="stock-detail-next-earnings-note">{fundamentals.nextEarnings.label}</span>
+          </span>
+        </div>
       )}
     </section>
   );

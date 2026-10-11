@@ -16,6 +16,7 @@ const okModel = {
 describe('ValuationCard', () => {
   it('shows the three prices and the verdict', () => {
     render(<ValuationCard model={okModel} basis="ttm" onBasisChange={() => {}} market="TW" currency="TWD" />)
+    expect(screen.getByRole('heading', { name: '估價' })).toBeInTheDocument()
     expect(screen.getByText('便宜價')).toBeInTheDocument()
     expect(screen.getByText('$120.00')).toBeInTheDocument()
     expect(screen.getByText('$150.00')).toBeInTheDocument()

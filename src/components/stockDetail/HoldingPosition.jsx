@@ -1,4 +1,4 @@
-import { Button, Typography } from "antd";
+import { Button } from "antd";
 import { formatPrice, formatTwd } from "../../utils/formatters";
 import {
   getAverageCost,
@@ -6,8 +6,6 @@ import {
   getUnrealized,
 } from "../../utils/holdingShares";
 import { formatSignedPercent } from "../../utils/stockDetail";
-
-const { Text } = Typography;
 
 const formatShares = (value) =>
   Number(value).toLocaleString("zh-TW", { maximumFractionDigits: 4 });
@@ -19,47 +17,77 @@ const formatAmount = (value, currency) =>
 const formatSignedAmount = (value, currency) =>
   `${value >= 0 ? "+" : "−"}${formatAmount(Math.abs(value), currency)}`;
 
-// The tapped holder's position in the stock detail sheet, with 買進 / 賣出.
+const changeClass = (value) =>
+  value >= 0 ? "stock-detail-change--up" : "stock-detail-change--down";
+
+// The tapped holder's position, top of the stock detail sheet: what the
+// family holds (market value) leads, the ledger lines below explain it,
+// then 買進 / 賣出.
 function HoldingPosition({ holding, disabled, onAction }) {
   const currency = getHoldingCurrency(holding);
   const averageCost = getAverageCost(holding);
   const unrealized = getUnrealized(holding);
+  const hasChange = Number.isFinite(holding.priceChangePct);
 
   return (
     <section className="stock-detail-position" aria-label="持股">
-      <Text type="secondary">
-        {`${holding.holderName || "未設定"} 持有 ${formatShares(holding.shares)} 股 · 市值 ${formatTwd(holding.latestValueTwd)}`}
-      </Text>
+      <span className="stock-detail-position-label">
+        {`${holding.holderName || "未設定"} 的持股`}
+      </span>
+      <span className="stock-detail-value">{formatTwd(holding.latestValueTwd)}</span>
       {averageCost === null ? (
-        <div className="stock-detail-position-line">
-          <Text type="secondary">未設定成本</Text>
+        <div className="stock-detail-gain stock-detail-gain--unset">
+          <span>還沒設定成本</span>
           <Button
             type="link"
             size="small"
             disabled={disabled}
+            aria-label="設定成本"
             onClick={() => onAction?.("calibrate")}
           >
-            設定成本
+            設定
           </Button>
         </div>
       ) : (
-        <>
-          <div className="stock-detail-position-line">
-            {`均價 ${formatPrice(averageCost, currency)} · 成本 ${formatAmount(holding.totalCost, currency)}`}
+        unrealized && (
+          <div className={`stock-detail-gain ${changeClass(unrealized.amount)}`}>
+            {`未實現 ${formatSignedAmount(unrealized.amount, currency)}${
+              unrealized.pct === null ? "" : `（${formatSignedPercent(unrealized.pct)}）`
+            }`}
           </div>
-          {unrealized && (
-            <div
-              className={`stock-detail-position-line ${
-                unrealized.amount >= 0 ? "stock-detail-change--up" : "stock-detail-change--down"
-              }`}
-            >
-              {`未實現 ${formatSignedAmount(unrealized.amount, currency)}${
-                unrealized.pct === null ? "" : `（${formatSignedPercent(unrealized.pct)}）`
-              }`}
-            </div>
-          )}
-        </>
+        )
       )}
+
+      <dl className="stock-detail-ledger">
+        <div className="stock-detail-ledger-row">
+          <dt>股數</dt>
+          <dd>{`${formatShares(holding.shares)} 股`}</dd>
+        </div>
+        {averageCost !== null && (
+          <>
+            <div className="stock-detail-ledger-row">
+              <dt>均價</dt>
+              <dd>{formatPrice(averageCost, currency)}</dd>
+            </div>
+            <div className="stock-detail-ledger-row">
+              <dt>成本</dt>
+              <dd>{formatAmount(holding.totalCost, currency)}</dd>
+            </div>
+          </>
+        )}
+        <div className="stock-detail-ledger-row">
+          <dt>現價</dt>
+          <dd>
+            <span>{formatPrice(holding.latestPrice, currency)}</span>
+            {hasChange && (
+              <span className={changeClass(holding.priceChangePct)}>
+                {formatSignedPercent(holding.priceChangePct / 100)}
+              </span>
+            )}
+          </dd>
+        </div>
+      </dl>
+
       <div className="stock-detail-trade">
         <Button block disabled={disabled} onClick={() => onAction?.("buy")}>
           買進

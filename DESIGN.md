@@ -283,6 +283,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 
 ### Buttons
 冷靜、平面、清楚可點。
+- **Label:** 兩個字的中文按鈕不自動插空格（`ConfigProvider` 的 `button.autoInsertSpace: false`），「買進」不寫成「買 進」。
 - **Shape:** 柔和圓角 (8px)。
 - **Primary:** `action` 炭黑底白字；在 bottom sheet 中最小高度 44px、左右 18px。
 - **Hover / Active:** 只換底色（`action-hover` / `action-active`），沒有陰影、沒有位移。觸控裝置不顯示 hover。
@@ -386,9 +387,12 @@ Sheet 由上而下：一行「分類（左）／算式（右）」→ 收據式�
 
 ### Stock Detail Sheet（個股細節）
 - 以**單一持股**為單位（一檔股票 × 一位持有人）；同一檔股票的其他持有人是另一筆持股，不加總。手機 bottom sheet、桌面右側 drawer。
-- 由上而下：價格與今日漲跌 → 持股摘要（「{持有人} 持有 N 股 · 市值」為 `muted`；「均價 · 成本」為 `ink`；未實現損益用 `up` / `down`；未設定成本時一行 `muted`「未設定成本」+ 連結「設定成本」）→「買進」「賣出」兩個並排的 default 按鈕 → 估價卡、EPS、本益比 → 最底的管理區：「編輯分類與持有人」「校正股數與成本」「移除持股」（`danger`）整列按鈕，以 1px `line` 與上方分隔。
+- 由上而下，節奏同儲蓄目標詳細頁（主角數字 → 帳本列 → 各自有標題的區塊）：
+  - **持股**：「{持有人} 的持股」（`muted` caption）→ 市值（hero 字級 700，sheet 內唯一的大數字；股價不是主角）→ 未實現損益（body 600，`up` / `down`；未設定成本時為 `muted`「還沒設定成本」+ 連結「設定」）→ 帳本列（同 `savings-goal-facts`：上下 1px `line`、左 `muted` 標籤、右 `ink` 數字；股數、均價、成本、現價 + 今日漲跌，未設定成本時不列均價與成本）→「買進」「賣出」兩個並排的 default 按鈕。
+  - **估價 → EPS 趨勢 → 本益比走勢**：每段一個 subhead 600 標題（`h3`），段落間 `--space-8`、標題到內容 `--space-section-head`，不再用分隔線；「估價假設」緊接估價（`--space-4`）。EPS 標題右側是圖例（caption `muted` + 圓點）；圖下的「下次財報」是一列帳本列（右側日期在上、說明為 caption `muted`）。
+  - **管理這筆持股**：很少用，所以是安靜的框線列表（1px `line`、`radius-lg`、列高 44px 以上、`ink` 字 + `muted` chevron，hover 為 `neutral-fill`）；「移除持股」為 `down` 字、沒有 chevron。
 - 每股價格（均價）帶小數；台幣的總額（成本、損益）不帶小數，美元照常帶。
-- 操作表單（`HoldingActionForm`）：手機 bottom sheet、桌面 modal；開啟時細節頁暫時收起，存好後回到細節頁。買進／賣出即時預覽結果（「買進後 N 股 · 均價 $X」「賣出後 N 股」），賣出全部會再確認並移除持股。校正表單頂端註明「用於修正錯誤、股票分割或配股，不算買賣。」
+- 操作表單（`HoldingActionForm`）：手機 bottom sheet、桌面 modal，標題帶出對象（「買進 · 瑞鼎（Po）」）；開啟時細節頁暫時收起，存好後回到細節頁。買進／賣出即時預覽結果（「買進後 N 股 · 均價 $X」「賣出後 N 股」），賣出全部會再確認並移除持股。校正表單頂端註明「用於修正錯誤、股票分割或配股，不算買賣。」
 - 規格來源：`docs/superpowers/specs/2026-10-11-holding-cost-basis-design.md`。
 
 ## Do's and Don'ts

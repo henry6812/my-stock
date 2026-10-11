@@ -35,7 +35,15 @@ describe('chart components', () => {
         fundamentals={{ singles, surprises: [], nextEarnings: { date: '2026-11-14', label: 'Q3 財報法定截止日' } }}
       />,
     )
-    expect(screen.getByText('Q3 財報法定截止日：2026-11-14')).toBeInTheDocument()
+    expect(screen.getByText('下次財報')).toBeInTheDocument()
+    expect(screen.getByText('2026-11-14')).toBeInTheDocument()
+    expect(screen.getByText('Q3 財報法定截止日')).toBeInTheDocument()
+  })
+
+  it('labels the two EPS series', () => {
+    render(<EpsTrendChart fundamentals={{ singles, surprises: [], nextEarnings: null }} />)
+    expect(screen.getByText('單季')).toBeInTheDocument()
+    expect(screen.getByText('去年同季')).toBeInTheDocument()
   })
 
   it('shows an empty state without EPS data', () => {

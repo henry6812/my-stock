@@ -25,7 +25,7 @@ function PeHistoryChart({ peSeries, bands }) {
   const validCount = peSeries.filter((point) => Number.isFinite(point.pe)).length;
   return (
     <section className="stock-detail-section" aria-label="本益比走勢">
-      <Text strong>本益比走勢</Text>
+      <h3 className="stock-detail-heading">本益比走勢</h3>
       {validCount < 2 ? (
         <Text type="secondary">尚無歷史本益比資料</Text>
       ) : (

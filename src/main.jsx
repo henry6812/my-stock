@@ -18,7 +18,12 @@ dayjs.locale("zh-tw");
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <ConfigProvider theme={antdTheme} locale={zhTW}>
+    <ConfigProvider
+      theme={antdTheme}
+      locale={zhTW}
+      // antd spaces out two-character CJK labels (「買 進」); keep them as written.
+      button={{ autoInsertSpace: false }}
+    >
       <IconoirProvider iconProps={iconoirDefaults}>
         <AntdApp>
           <App />
