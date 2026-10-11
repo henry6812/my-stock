@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import EpsTrendChart from './EpsTrendChart'
-import { buildEpsChartData } from '../../utils/stockDetail'
+import { buildEpsChartData, todayLabelPosition } from '../../utils/stockDetail'
 import PeHistoryChart from './PeHistoryChart'
 import PeRiverChart from './PeRiverChart'
 
@@ -86,10 +86,23 @@ describe("chart components", () => {
   })
 
   it("names the river chart and its series", () => {
-    const river = { status: "ok", todayLabel: "2026-10", points: [{ label: "2026-09" }, { label: "2026-10" }] }
+    const river = { status: "ok", todayLabel: "2026-10", points: [{ label: "2026-09" }, { label: "2026-10", future: true }] }
     render(<PeRiverChart river={river} />)
     expect(screen.getByRole("heading", { name: "股價與 EPS" })).toBeInTheDocument()
     for (const label of ["股價", "便宜–昂貴", "推估"]) expect(screen.getByText(label)).toBeInTheDocument()
+  })
+
+  it("shows the 推估 legend only when the river has future points", () => {
+    const points = [{ label: "2026-09", future: false }, { label: "2026-10", future: false }]
+    render(<PeRiverChart river={{ status: "ok", todayLabel: "2026-10", points }} />)
+    expect(screen.queryByText("推估")).not.toBeInTheDocument()
+    expect(screen.getByText("股價")).toBeInTheDocument()
+  })
+
+  it("keeps the 今天 label inside the plot when today is the last point", () => {
+    const past = [{ label: "a", future: false }, { label: "b", future: false }]
+    expect(todayLabelPosition(past)).toBe("insideTopRight")
+    expect(todayLabelPosition([...past, { label: "c", future: true }])).toBe("insideTopLeft")
   })
 
   it("asks for P/E bands, or says there is no price history", () => {

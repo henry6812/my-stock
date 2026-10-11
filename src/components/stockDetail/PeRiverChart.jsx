@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { CHART_STOCK, COLORS } from "../../theme/tokens";
 import { formatPrice } from "../../utils/formatters";
+import { hasFuturePoints as hasFuture, todayLabelPosition } from "../../utils/stockDetail";
 import { formatEps } from "../../utils/valuation";
 
 const { Text } = Typography;
@@ -68,7 +69,7 @@ function PeRiverChart({ river }) {
             <ReferenceLine
               x={river.todayLabel}
               stroke={COLORS.line}
-              label={{ value: "今天", position: "insideTopLeft", fontSize: 11, fill: COLORS.muted }}
+              label={{ value: "今天", position: todayLabelPosition(river.points), fontSize: 11, fill: COLORS.muted }}
             />
           </ComposedChart>
         </ResponsiveContainer>
@@ -88,10 +89,12 @@ function PeRiverChart({ river }) {
             <span className="stock-detail-legend-swatch" style={{ background: CHART_STOCK.previous }} />
             便宜–昂貴
           </li>
-          <li>
-            <span className="stock-detail-legend-swatch stock-detail-legend-swatch--outline" />
-            推估
-          </li>
+          {hasFuture(river.points) && (
+            <li>
+              <span className="stock-detail-legend-swatch stock-detail-legend-swatch--outline" />
+              推估
+            </li>
+          )}
         </ul>
       </div>
       {body}

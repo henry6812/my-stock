@@ -71,3 +71,9 @@ export const buildEpsChartData = ({ singles = [], surprises = [], projected = []
     })),
   ]
 }
+
+export const hasFuturePoints = (points) => points.some((point) => point.future === true)
+
+// With no projection today is the last point; a left-anchored label would
+// run past the right edge of the plot.
+export const todayLabelPosition = (points) => (hasFuturePoints(points) ? 'insideTopLeft' : 'insideTopRight')
