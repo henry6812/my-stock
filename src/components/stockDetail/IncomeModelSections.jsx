@@ -2,12 +2,13 @@ import { Typography } from "antd";
 import { UNAVAILABLE_REASONS } from "../../utils/incomeModel";
 import IncomeAssumptionFields from "./IncomeAssumptionFields";
 import IncomeModelSummary from "./IncomeModelSummary";
+import IncomeQuarterList from "./IncomeQuarterList";
 
 const { Text } = Typography;
 
 // The TW income model inside 估價假設: result, assumptions for every
 // quarter, then each quarter on its own.
-function IncomeModelSections({ income, draft, settings, disabled, onGlobalChange, onGlobalReset }) {
+function IncomeModelSections({ income, draft, settings, disabled, onGlobalChange, onGlobalReset, onQuarterChange }) {
   if (income.status !== "ok") {
     return (
       <section className="valuation-assumptions-group">
@@ -25,6 +26,12 @@ function IncomeModelSections({ income, draft, settings, disabled, onGlobalChange
         disabled={disabled}
         onChange={onGlobalChange}
         onReset={onGlobalReset}
+      />
+      <IncomeQuarterList
+        income={income}
+        overrides={draft.model.quarters}
+        disabled={disabled}
+        onChange={onQuarterChange}
       />
     </>
   );

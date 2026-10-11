@@ -177,6 +177,37 @@ describe('ValuationAssumptions — income model (TW)', () => {
     expect(screen.getByText('0.0 億股')).toBeInTheDocument()
   })
 
+  it('lists projected quarters by year with the yearly total', () => {
+    renderOpen()
+    const list = screen.getByLabelText('逐季推估')
+    expect(list).toHaveTextContent('2026今年 12.88')
+    expect(list).toHaveTextContent('2027明年 19.00')
+    expect(screen.getByRole('button', { name: '2026 Q3 推估 EPS 3.40' })).toHaveTextContent('營收已全部公布')
+    expect(screen.getByRole('button', { name: '2026 Q4 推估 EPS 3.40' })).not.toHaveTextContent('已公布')
+  })
+
+  it('opens one quarter’s statement and overrides it on its own', async () => {
+    const onSave = vi.fn().mockResolvedValue({})
+    const settings = { ...EMPTY_VALUATION_SETTINGS, snapshots: { '2026Q3': { eps: 3.4 } } }
+    renderOpen({ onSave, settings, model: buildModel(settings) })
+    fireEvent.click(screen.getByRole('button', { name: '2026 Q4 推估 EPS 3.40' }))
+    expect(screen.getByLabelText('2026 Q4 營收 YoY（%）')).toHaveAttribute('placeholder', '50.0')
+    expect(screen.queryByLabelText('2026 Q3 毛利率（%）')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('2026 Q4 毛利率（%）'), { target: { value: '55' } })
+    expect(screen.getByRole('button', { name: '2026 Q4 推估 EPS 3.94' })).toHaveTextContent('已覆寫')
+    fireEvent.click(screen.getByRole('button', { name: /儲\s*存/ }))
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({ model: { quarters: { '2026Q4': { grossMargin: 0.55 } } } }, expect.any(Object)),
+    )
+  })
+
+  it('hides the revenue YoY input for a quarter whose revenue is all published', () => {
+    renderOpen()
+    fireEvent.click(screen.getByRole('button', { name: '2026 Q3 推估 EPS 3.40' }))
+    expect(screen.queryByLabelText('2026 Q3 營收 YoY（%）')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('2026 Q3 毛利率（%）')).toBeInTheDocument()
+  })
+
   it('explains why the model is unavailable and keeps 直接指定 EPS', () => {
     const financial = { ...TW_FUNDAMENTALS, company: { ...TW_FUNDAMENTALS.company, statement: 'financial' } }
     const build = (settings) =>

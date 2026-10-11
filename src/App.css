@@ -4312,3 +4312,115 @@ button.expense-card-chip {
   align-items: center;
   gap: var(--space-1);
 }
+
+/* 逐季推估: a framed list grouped by year, like the other lists. */
+.income-quarter-list {
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+}
+
+.income-quarter-group + .income-quarter-group,
+.income-quarter + .income-quarter {
+  border-top: 1px solid var(--c-line);
+}
+
+.income-quarter-group-heading {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-3);
+  background: var(--c-neutral-fill);
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.income-quarter-group-heading span:last-child {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.income-quarter-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-row-x);
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--c-ink);
+  cursor: pointer;
+}
+
+.income-quarter-row svg {
+  font-size: var(--icon-sm);
+  color: var(--c-muted);
+}
+
+.income-quarter-name,
+.income-quarter-eps {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.income-quarter-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+}
+
+.income-quarter-tag {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--c-neutral-fill);
+  color: var(--c-ink);
+}
+
+.income-statement {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-row-x) var(--space-row-y);
+}
+
+.income-statement-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.income-statement-row--input {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr);
+}
+
+.income-statement-row > span:first-child {
+  color: var(--c-muted);
+}
+
+.income-statement-row .ant-input-number {
+  width: 100%;
+}
+
+.income-statement-result {
+  text-align: right;
+  color: var(--c-ink);
+}
+
+.income-statement-total {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--c-line);
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+  font-variant-numeric: tabular-nums;
+}
