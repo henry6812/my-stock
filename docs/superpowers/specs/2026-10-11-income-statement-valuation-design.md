@@ -17,7 +17,7 @@
 
 **包含**
 
-- 台股**上市**、非金融股（`t187ap06_L_ci` 一般業）的逐季損益表推估模型。
+- 台股**上市**、非金融股（有營業毛利欄位的一般業版面）的逐季損益表推估模型。
 - 月營收（MOPS）當作營收錨點。
 - 全域假設 + 單季覆寫，跨裝置同步。
 - 估價卡四種基準：近四季 TTM／下一季後 TTM／今年預估／明年預估。
@@ -58,10 +58,10 @@
 | 資料 | 來源 | 欄位 |
 |---|---|---|
 | 季損益表（年度累計，千元） | 每日：openapi `t187ap06_L_{industry}`；回補：MOPS `ajax_t163sb04` | `營業收入`、`營業成本`、`營業毛利（毛損）淨額`、`營業費用`、`營業利益（損失）`、`營業外收入及支出`、`稅前淨利（淨損）`、`所得稅費用（利益）`、`本期淨利（淨損）`、`淨利（淨損）歸屬於母公司業主`、`基本每股盈餘（元）` |
-| 月營收（千元） | MOPS `https://mopsov.twse.com.tw/nas/t21/sii/t21sc03_{民國年}_{月}_0.html`（Big5 HTML，全上市一頁） | 公司代號、當月營收 |
+| 月營收（千元） | MOPS `https://mopsov.twse.com.tw/nas/t21/sii/t21sc03_{民國年}_{月}_{0|1}.html`（Big5 HTML；`_0` 國內、`_1` KY） | 公司代號、當月營收 |
 | 月底收盤價、本益比 | TWSE rwd `BWIBBU_d`（現有） | `收盤價`、`本益比` |
 
-- 產業後綴（`ci`／`basi`／`bd`／`fh`／`ins`／`mim`）存成 `statement`，只有 `ci` 啟用模型。
+- `statement`：列上有營業毛利欄位為 `general`（啟用模型），否則為 `financial`。以欄位判斷而不是產業後綴，因為 MOPS 回補的列沒有產業後綴。
 - 毛利欄位優先取 `營業毛利（毛損）淨額`，沒有時取 `營業毛利（毛損）`。
 - MOPS `t163sb04` 的回應是否含上述全部欄位，實作第一步先驗證；缺欄位的季度在模型中視為資料不完整。
 
@@ -79,7 +79,7 @@
 {
   "code": "2330", "name": "台積電", "statement": "ci", "updatedAt": "…",
   "quarters": {
-    "2026Q2": { "revenue": 0, "grossProfit": 0, "opex": 0, "operatingIncome": 0,
+    "2026Q2": { "revenue": 0, "grossProfit": 0, "operatingIncome": 0,
                 "nonOperating": 0, "pretaxIncome": 0, "tax": 0, "netIncome": 0,
                 "parentNetIncome": 0, "eps": 0 }
   },
@@ -155,7 +155,7 @@ EPS           = 母公司淨利 ÷ 股數
 
 以下任一情況回傳 `{ status: 'unavailable', reason }`，估價卡的「下季後／今年／明年」退回「自訂 EPS」或顯示原因：
 
-- `statement !== 'ci'`（金融股）。
+- `statement !== 'general'`（金融股）。
 - 近四季任一季缺必要欄位。
 - 股數無法計算（累計 EPS 為 0 或缺值）。
 - 推估需要的去年同月營收缺漏。
