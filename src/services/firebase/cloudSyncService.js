@@ -1117,13 +1117,21 @@ export const deleteCollectionDoc = async ({ collectionName, docId }) => {
   await deleteDoc(ref)
 }
 
+// A valuation doc always carries its whole `valuation` map, and set-merge
+// deep-merges nested maps: keys removed locally (a cleared quarter override,
+// pruned snapshots) would survive in the cloud and come back on the next
+// load. Replace those docs wholesale; every other record keeps merging.
+const replacesWholeDoc = ({ collectionName, payload }) => (
+  collectionName === COLLECTIONS.APP_CONFIG && Object.hasOwn(payload, 'valuation')
+)
+
 export const writeCollectionRecord = async ({ collectionName, record }) => {
   const mutation = buildMutationPayload({ collectionName, record })
   await writeCollectionDoc({
     collectionName,
     docId: mutation.docId,
     payload: mutation.payload,
-    merge: true,
+    merge: !replacesWholeDoc({ collectionName, payload: mutation.payload }),
   })
 }
 
