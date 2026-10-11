@@ -52,6 +52,58 @@
   font-size: 12px;
 }
 
+/* 設定 → 帳號 (phone): who is signed in and how sync is doing, then 登出,
+   in the same hairline frame as the other mobile lists. */
+.account-panel {
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+
+.account-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-row-y) var(--space-row-x);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.account-email {
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--c-ink);
+  overflow-wrap: anywhere;
+}
+
+.account-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-body);
+  color: var(--c-muted);
+}
+
+.account-sync.is-error {
+  color: var(--c-down);
+}
+
+.account-sync svg {
+  flex: none;
+  font-size: var(--icon-sm);
+}
+
+.account-last-sync {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+}
+
+.account-logout.ant-btn {
+  min-height: 44px;
+  border-radius: 0;
+  color: var(--c-ink);
+}
+
 .mobile-main-tabbar {
   position: fixed;
   left: 12px;
@@ -901,57 +953,20 @@ button.expense-card-chip {
 }
 
 @media (max-width: 768px) {
-  /* A slim bar: logo left, sync state right. The page's hero is the first
-     thing that matters, so the header gives its height back to it. */
+  /* A slim bar with the logo alone, centred. Account and sync state live
+     at the bottom of 設定; the page's hero gets the height back. */
   .app-header {
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    justify-items: stretch;
-    gap: var(--space-3);
+    grid-template-columns: 1fr;
+    justify-items: center;
     min-height: 56px;
     padding: var(--space-2) var(--space-4);
     line-height: normal;
   }
 
-  /* Holds the desktop tabs only; on a phone it would take a grid row. */
-  .header-spacer {
-    display: none;
-  }
-
-  /* Read by screen readers, hidden on screen while all is well. */
-  .header-sync-label.is-quiet {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  /* 24px to look at, 44px to tap. */
-  .header-logout.ant-btn::before {
-    content: "";
-    position: absolute;
-    inset: -10px;
-  }
-
-  .header-logo {
-    grid-column: 1;
-    justify-self: start;
-  }
-
+  /* Desktop tabs and account only. */
+  .header-spacer,
   .header-auth {
-    grid-column: 2;
-    justify-content: flex-end;
-    width: 100%;
-  }
-
-  .header-auth .ant-typography {
-    text-align: right;
-  }
-
-  .header-sync-meta {
-    align-items: flex-end;
+    display: none;
   }
 
   .app-content {

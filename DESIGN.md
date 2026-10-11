@@ -260,7 +260,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 
 寬鬆的節奏來自「區塊之間大、區塊內部緊」的對比：區塊距離是標題距離的三倍以上。新寫的 CSS 用 `var(--space-*)`，不寫 px；5、10、14、18px 這類刻度外的值是待收斂的偏差（其他頁面還留有一些）。
 
-觸控：手機上所有輸入框、選單項目、主要按鈕最小高度 44px；視覺上較小的控制項（header 的登出、sheet 的 × 與「完整表單」、標題旁的「新增」）用 `::before` 把點擊區延伸到 44px，不放大外觀。`(hover: none)` 時移除 hover 樣式，避免 sticky hover。尊重 `env(safe-area-inset-bottom)`。手機上的數字欄位一律加 `inputMode`（整數 `numeric`、小數 `decimal`；可能為負的欄位不加，因為 iOS 的 decimal 鍵盤沒有負號）。
+觸控：手機上所有輸入框、選單項目、主要按鈕最小高度 44px；視覺上較小的控制項（sheet 的 × 與「完整表單」、標題旁的「新增」）用 `::before` 把點擊區延伸到 44px，不放大外觀。`(hover: none)` 時移除 hover 樣式，避免 sticky hover。尊重 `env(safe-area-inset-bottom)`。手機上的數字欄位一律加 `inputMode`（整數 `numeric`、小數 `decimal`；可能為負的欄位不加，因為 iOS 的 decimal 鍵盤沒有負號）。
 
 ## Elevation & Depth
 
@@ -348,7 +348,7 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 ### Navigation
 - **Mobile tab bar:** 浮在左下的白色膠囊（94% 不透明 + 8px backdrop blur）、1px `line` 邊、Float 陰影。底邊貼在 home indicator 的 safe area 上（`max(--space-3, safe-area-inset-bottom)`），不再多墊 24px；右下的 FAB 與它垂直置中。內含 Segmented：20px 圖示在上、12px 文字在下，選中項為 `track` 底膠囊 + `ink` 字。
 - **主分頁切換:** 用 View Transitions 做左右推頁（500ms，`cubic-bezier(0.32, 0.72, 0, 1)`）；header、tab bar、FAB 不參與滑動。
-- **Header:** 透明背景 + blur，三欄 grid：左空、中 logo（32px）、右同步狀態。手機上是 56px 高的細條：logo 在左、同步狀態在右；同步正常（已同步、同步中）時只顯示圖示，文字留給螢幕閱讀器，離線或失敗才顯示文字。
+- **Header:** 透明背景 + blur，三欄 grid：左分頁、中 logo（32px）、右同步狀態與登出。手機上是 56px 高的細條，只放置中的 logo；帳號、同步狀態與登出移到「設定」頁最底部的「帳號」區塊（與其他手機列表同樣的 hairline 外框：第一列 email + 同步狀態 + 上次同步時間，第二列整列可點的「登出」）。離線 / 唯讀時頁面上方的警告仍會提示。
 - **系統通知**（例如「有新版本可以使用」）從頂端出現，不放底部，免得蓋住 tab bar 與 FAB。
 
 ### Bottom Sheet

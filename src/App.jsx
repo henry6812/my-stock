@@ -73,6 +73,7 @@ import {
   Star,
   StatsReport,
   Trash,
+  User,
   Wallet,
   WifiOff,
 } from "iconoir-react";
@@ -5420,12 +5421,6 @@ function App() {
     [activeExpenseChartKey, expenseChartCards],
   );
 
-  const isSyncTextQuiet =
-    isMobileViewport &&
-    authReady &&
-    cloudSyncStatus !== "offline" &&
-    cloudSyncStatus !== "error";
-
   const pullOffset = isPullRefreshing ? PULL_REFRESH_TRIGGER : pullDistance;
 
   return (
@@ -5464,8 +5459,10 @@ function App() {
             alt="我的資產"
             className="header-logo"
           />
+          {/* On a phone the header is the logo alone; account and sync state
+              live at the bottom of 設定. */}
           <div className="header-auth">
-            {authUser && (
+            {authUser && !isMobileViewport && (
               <Space size={8}>
                 <div className="header-sync-meta">
                   <Text
@@ -5475,24 +5472,13 @@ function App() {
                       status={cloudSyncStatus}
                       style={{ marginRight: 6 }}
                     />
-                    {/* On a phone the icon alone carries the healthy states;
-                        the words only show when something needs attention. */}
-                    <span
-                      className={
-                        isSyncTextQuiet
-                          ? "header-sync-label is-quiet"
-                          : "header-sync-label"
-                      }
-                    >
-                      {authReady ? cloudSyncText : "讀取登入狀態中..."}
-                    </span>
+                    {authReady ? cloudSyncText : "讀取登入狀態中..."}
                   </Text>
                 </div>
                 <Space size={6}>
                   <HoverTooltip title={authUser.email || "Google 帳號"}>
                     <Button
                       size="small"
-                      className="header-logout"
                       icon={<LogOut />}
                       onClick={handleGoogleLogout}
                       loading={loadingAuthAction}
@@ -6585,6 +6571,50 @@ function App() {
                       </Space>
                     </Card>
                   </Col>
+                  {isMobileViewport && authUser && (
+                    <Col xs={24}>
+                      <section className="mobile-list-section">
+                        <div className="mobile-list-header">
+                          <span className="mobile-list-title">
+                            <SectionTitle icon={User}>帳號</SectionTitle>
+                          </span>
+                        </div>
+                        <div className="account-panel">
+                          <div className="account-row">
+                            <span className="account-email">
+                              {authUser.email || "Google 帳號"}
+                            </span>
+                            <span
+                              className={`account-sync${
+                                cloudSyncStatus === "error" ? " is-error" : ""
+                              }`}
+                            >
+                              <SyncStatusIcon
+                                status={cloudSyncStatus}
+                                aria-hidden
+                              />
+                              {authReady ? cloudSyncText : "讀取登入狀態中..."}
+                            </span>
+                            {cloudLastSyncedText && (
+                              <span className="account-last-sync">
+                                {cloudLastSyncedText}
+                              </span>
+                            )}
+                          </div>
+                          <Button
+                            type="text"
+                            block
+                            className="account-logout"
+                            icon={<LogOut />}
+                            onClick={handleGoogleLogout}
+                            loading={loadingAuthAction}
+                          >
+                            登出
+                          </Button>
+                        </div>
+                      </section>
+                    </Col>
+                  )}
                 </>
               )}
             </Row>
@@ -6621,7 +6651,7 @@ function App() {
             />
           ) : null}
 
-          {authUser && activeMainTab === "settings" && (
+          {authUser && !isMobileViewport && activeMainTab === "settings" && (
             <div style={{ marginTop: 12, textAlign: "center" }}>
               <Text type="secondary" className="cloud-last-sync-time">
                 {cloudLastSyncedText}
