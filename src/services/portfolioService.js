@@ -63,10 +63,11 @@ import {
 } from "../utils/savingsGoals";
 import { normalizeCategoryIcon } from "../utils/categoryIcons";
 import {
-  HOLDING_SHARES_MODE,
+  applyBuy,
+  applyCalibration,
+  applySell,
   normalizeHoldingSymbol,
   normalizeTotalCost,
-  resolveNextShares,
 } from "../utils/holdingShares";
 import {
   compareHoldingsByLegacyOrder,
@@ -935,20 +936,48 @@ const settleQuote = (promise) =>
     (error) => ({ error }),
   );
 
+const parsePositiveShares = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error("股數必須大於 0");
+  }
+  return parsed;
+};
+
+const parsePrice = (value) => {
+  const parsed =
+    value === null || value === undefined || value === "" ? NaN : Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error("請輸入有效的價格");
+  }
+  return parsed;
+};
+
+const getActiveHoldingById = async (id) => {
+  const parsedId = Number(id);
+  if (!Number.isInteger(parsedId) || parsedId <= 0) {
+    throw new Error("Holding not found");
+  }
+  const existing = await db.holdings.get(parsedId);
+  if (!existing || isDeleted(existing)) {
+    throw new Error("Holding not found");
+  }
+  return existing;
+};
+
 export const upsertHolding = async ({
   symbol,
   market,
   shares,
+  price,
   assetTag,
   holder,
-  sharesMode = HOLDING_SHARES_MODE.ADD,
 }) => {
   ensureCloudWritable();
   const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW;
   const normalizedSymbol = normalizeSymbol(symbol, normalizedMarket);
   const holderOptions = await ensureHolderOptions();
   const normalizedHolder = normalizeConfiguredHolder(holder, holderOptions);
-  const parsedShares = Number(shares);
   const options = await ensureHoldingTagOptions();
   const hasAssetTagInput =
     assetTag !== undefined &&
@@ -963,9 +992,8 @@ export const upsertHolding = async ({
     throw new Error("請選擇持有人");
   }
 
-  if (!Number.isFinite(parsedShares) || parsedShares <= 0) {
-    throw new Error("Shares must be a positive number");
-  }
+  const parsedShares = parsePositiveShares(shares);
+  const parsedPrice = parsePrice(price);
 
   const existing = await db.holdings
     .where("[symbol+market+holder]")
@@ -973,17 +1001,13 @@ export const upsertHolding = async ({
     .first();
   const nowIso = getNowIso();
 
-  if (existing) {
+  if (existing && !isDeleted(existing)) {
     const nextAssetTag = hasAssetTagInput
       ? resolveHoldingTag({ inputTag: assetTag, options })
       : existing.assetTag || getDefaultHoldingTag(options);
     const nextHolding = {
       ...existing,
-      shares: resolveNextShares({
-        existingShares: existing.shares,
-        inputShares: parsedShares,
-        mode: sharesMode,
-      }),
+      ...applyBuy(existing, { shares: parsedShares, price: parsedPrice }),
       assetTag: nextAssetTag,
       holder: normalizedHolder,
       updatedAt: nowIso,
@@ -1013,11 +1037,16 @@ export const upsertHolding = async ({
     : getDefaultHoldingTag(options);
 
   const nextHolding = {
+    // A removed holding of the same stock and holder keeps its local row,
+    // but starts over from this purchase.
+    ...(existing ? { id: existing.id } : {}),
     symbol: normalizedSymbol,
     market: normalizedMarket,
     assetTag: nextAssetTag,
     holder: normalizedHolder,
     shares: parsedShares,
+    totalCost: applyCalibration({ shares: parsedShares, averageCost: parsedPrice })
+      .totalCost,
     companyName: normalizedSymbol,
     sortOrder: maxSortOrder + 1,
     createdAt: nowIso,
@@ -1125,6 +1154,59 @@ export const updateHoldingShares = async ({ id, shares }) => {
   await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
     ...existing,
     shares: parsedShares,
+    updatedAt: getNowIso(),
+    syncState: SYNC_PENDING,
+  });
+};
+
+export const buyHolding = async ({ id, shares, price }) => {
+  ensureCloudWritable();
+  const parsedShares = parsePositiveShares(shares);
+  const parsedPrice = parsePrice(price);
+  const existing = await getActiveHoldingById(id);
+  await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
+    ...existing,
+    ...applyBuy(existing, { shares: parsedShares, price: parsedPrice }),
+    updatedAt: getNowIso(),
+    syncState: SYNC_PENDING,
+  });
+};
+
+// Selling everything removes the holding (and its snapshots), as 移除 does.
+export const sellHolding = async ({ id, shares }) => {
+  ensureCloudWritable();
+  const parsedShares = parsePositiveShares(shares);
+  const existing = await getActiveHoldingById(id);
+  if (parsedShares > Number(existing.shares)) {
+    throw new Error("賣出股數不可超過持有股數");
+  }
+  const { soldAll, ...next } = applySell(existing, parsedShares);
+  if (soldAll) {
+    await removeHolding({ id: existing.id });
+    return { removed: true };
+  }
+  await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
+    ...existing,
+    ...next,
+    updatedAt: getNowIso(),
+    syncState: SYNC_PENDING,
+  });
+  return { removed: false };
+};
+
+// Fixes typos, splits and stock dividends: overwrites shares and cost
+// without counting as a trade. averageCost null = cost unset.
+export const calibrateHolding = async ({ id, shares, averageCost }) => {
+  ensureCloudWritable();
+  const parsedShares = parsePositiveShares(shares);
+  const parsedAverage =
+    averageCost === null || averageCost === undefined || averageCost === ""
+      ? null
+      : parsePrice(averageCost);
+  const existing = await getActiveHoldingById(id);
+  await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
+    ...existing,
+    ...applyCalibration({ shares: parsedShares, averageCost: parsedAverage }),
     updatedAt: getNowIso(),
     syncState: SYNC_PENDING,
   });
