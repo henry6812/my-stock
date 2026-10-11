@@ -21,10 +21,12 @@ const STATEMENT_STEPS = [
 const firstMonth = (quarter) => (quarter - 1) * 3 + 1;
 
 const monthsNote = ({ quarter, reportedMonths }) => {
-  if (reportedMonths === 3) return "營收已全部公布";
+  // Monthly revenue is out by the 10th; the quarter's report (and its EPS)
+  // only by the filing deadline — say both so neither reads as the other.
+  if (reportedMonths === 3) return "月營收已公布・財報未出";
   if (reportedMonths === 0) return null;
   const from = firstMonth(quarter);
-  return reportedMonths === 1 ? `${from} 月已公布` : `${from}–${from + 1} 月已公布`;
+  return `${reportedMonths === 1 ? from : `${from}–${from + 1}`} 月營收已公布・財報未出`;
 };
 
 const revenueNote = ({ quarter, reportedMonths }) => {

@@ -81,7 +81,7 @@ describe('ValuationAssumptions', () => {
   it('opens as its own sheet with a full-width save button', () => {
     renderOpen()
     expect(screen.getByText('調整估價假設 · 台積電')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '記下這次預估' })).toHaveClass('ant-btn-block')
+    expect(screen.getByRole('button', { name: '記下 2026 Q3 預估' })).toHaveClass('ant-btn-block')
   })
 
   it('closes after a successful save', async () => {
@@ -167,7 +167,7 @@ describe('ValuationAssumptions — income model (TW)', () => {
   it('records the estimate without changes when next quarter has no snapshot yet', async () => {
     const onSave = vi.fn().mockResolvedValue({})
     renderOpen({ onSave })
-    fireEvent.click(screen.getByRole('button', { name: '記下這次預估' }))
+    fireEvent.click(screen.getByRole('button', { name: '記下 2026 Q3 預估' }))
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
         {},
@@ -219,7 +219,7 @@ describe('ValuationAssumptions — income model (TW)', () => {
     expect(list).toHaveTextContent('2026今年 12.88')
     expect(list).toHaveTextContent('2027明年 19.00')
     // The months note and 已覆寫 are part of the row's accessible name.
-    expect(screen.getByRole('button', { name: '2026 Q3 推估 EPS 3.40，營收已全部公布' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '2026 Q3 推估 EPS 3.40，月營收已公布・財報未出' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '2026 Q4 推估 EPS 3.40' })).not.toHaveTextContent('已公布')
   })
 
@@ -238,9 +238,20 @@ describe('ValuationAssumptions — income model (TW)', () => {
     )
   })
 
+  it('says which months of a quarter are published while its report is not', () => {
+    const october = {
+      ...TW_FUNDAMENTALS,
+      company: { ...TW_FUNDAMENTALS.company, monthlyRevenue: { ...TW_FUNDAMENTALS.company.monthlyRevenue, '2026-10': 450 } },
+    }
+    const build = (settings) =>
+      buildValuationModel({ fundamentals: october, settings, price: 50, basis: 'ttm', todayIso: '2026-10-11' })
+    renderOpen({ model: build(EMPTY_VALUATION_SETTINGS), buildModel: build })
+    expect(screen.getByRole('button', { name: /^2026 Q4 推估 EPS .*，10 月營收已公布・財報未出$/ })).toBeInTheDocument()
+  })
+
   it('hides the revenue YoY input for a quarter whose revenue is all published', () => {
     renderOpen()
-    fireEvent.click(screen.getByRole('button', { name: '2026 Q3 推估 EPS 3.40，營收已全部公布' }))
+    fireEvent.click(screen.getByRole('button', { name: '2026 Q3 推估 EPS 3.40，月營收已公布・財報未出' }))
     expect(screen.queryByLabelText('2026 Q3 營收 YoY（%）')).not.toBeInTheDocument()
     expect(screen.getByLabelText('2026 Q3 毛利率（%）')).toBeInTheDocument()
   })

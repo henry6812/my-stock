@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Drawer, InputNumber, Modal, Typography } from "antd";
 import { diffSettings, setGlobalValue, setQuarterValue, snapshotOf } from "../../utils/incomeAssumptionForm";
-import { formatEps } from "../../utils/valuation";
+import { formatEps, formatQuarter } from "../../utils/valuation";
 import IncomeModelSections from "./IncomeModelSections";
 
 const { Text } = Typography;
@@ -186,7 +186,7 @@ function AssumptionsForm({ model, buildModel, market, settings, disabled, focus,
             loading={saving}
             onClick={() => runSave(patch, next ? snapshotOf(next) : null, { close: true })}
           >
-            {!hasChanges && needsSnapshot ? "記下這次預估" : "儲存"}
+            {!hasChanges && needsSnapshot ? `記下 ${formatQuarter(next)} 預估` : "儲存"}
           </Button>
         )}
       </div>
