@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CHART_NEUTRAL, COLORS } from "../../theme/tokens";
+import { CHART_STOCK, COLORS } from "../../theme/tokens";
 import { buildEpsChartData } from "../../utils/stockDetail";
 
 const { Text } = Typography;
@@ -34,11 +34,11 @@ function EpsTrendChart({ fundamentals }) {
         {data.length > 0 && (
           <ul className="stock-detail-legend">
             <li>
-              <span className="stock-detail-legend-swatch" style={{ background: COLORS.action }} />
+              <span className="stock-detail-legend-swatch" style={{ background: CHART_STOCK.primary }} />
               單季
             </li>
             <li>
-              <span className="stock-detail-legend-swatch" style={{ background: CHART_NEUTRAL }} />
+              <span className="stock-detail-legend-swatch" style={{ background: CHART_STOCK.previous }} />
               去年同季
             </li>
           </ul>
@@ -54,8 +54,8 @@ function EpsTrendChart({ fundamentals }) {
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.muted }} />
               <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
               <Tooltip formatter={formatTooltip} />
-              <Bar dataKey="lastYearEps" fill={CHART_NEUTRAL} radius={[3, 3, 0, 0]} />
-              <Bar dataKey="eps" fill={COLORS.action} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="lastYearEps" fill={CHART_STOCK.previous} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="eps" fill={CHART_STOCK.primary} radius={[3, 3, 0, 0]} />
               {hasEstimates && <Scatter dataKey="estimate" fill={COLORS.warn} />}
             </ComposedChart>
           </ResponsiveContainer>

@@ -218,7 +218,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 
 ### Data & Identity Palettes
 不屬於 UI 色，但同樣是 token，定義在 `src/theme/tokens.js`：
-- **`CHART_PALETTE`**：圖表類別色，石板灰為第一色，其餘是沉穩的色相（藍、赭、梅、苔綠⋯），不含 teal；`CHART_NEUTRAL` 保留給「其他 / 現金」與 EPS 圖的去年對照柱。個股的 EPS / 本益比圖用 `action`。預算條平時為 `muted`，接近上限 `warn`、超支 `down`。
+- **`CHART_PALETTE`**：圖表類別色，石板灰為第一色，其餘是沉穩的色相（藍、赭、梅、苔綠⋯），不含 teal；`CHART_NEUTRAL` 保留給「其他 / 現金」。個股細節的 EPS / 本益比圖用 **`CHART_STOCK`**：`primary` 是色票裡的霧藍（`#4C6FA8`，單季 EPS 柱、本益比線），`previous` 是它的淡色（`#C3D0E6`，去年同季柱）；不用炭黑或灰，那兩個留給文字與結構。預算條平時為 `muted`，接近上限 `warn`、超支 `down`。
 - **`CATEGORY_TONES`**（CSS `--c-cat-*`）：分類圖示 tile 的八個淡底色：peach、butter、sky、periwinkle、lavender、mint、rose、sand，不含 teal。依分類性質分組（外食 / 咖啡 peach；買菜 / 日用 butter；水電 / 通訊 sky；交通 / 旅遊 periwinkle；房屋 / 學習 / 保險 lavender；運動 / 健康 mint；衣服 / 禮物 / 寶寶 rose；娛樂 sand；其他維持 `neutral-fill`），對應寫在 `App.css` 的 `.category-icon[data-category-icon]`。底上一律放 `ink` 圖示（≥12:1）。純粹讓分類一眼可分，不帶狀態語意。
 - **`HOLDER_TONES`**：holder tag 的五組字色 + 底色，依 holder 在設定中的順序分配，保證兩人不撞色；teal 那組排在最後，避免 teal 出現在存錢視覺以外。holder tag 是唯一保留彩色的 tag，因為一眼分出是誰的資產就是它的用途。
 
@@ -391,7 +391,8 @@ Sheet 由上而下：一行「分類（左）／算式（右）」→ 收據式�
   - **持股**：「{持有人} 的持股」（`muted` caption）→ 市值（hero 字級 700，sheet 內唯一的大數字；股價不是主角）→ 未實現損益（body 600，`up` / `down`；未設定成本時為 `muted`「還沒設定成本」+ 連結「設定」）→ 帳本列（同 `savings-goal-facts`：上下 1px `line`、左 `muted` 標籤、右 `ink` 數字；股數、均價、成本、現價 + 今日漲跌，未設定成本時不列均價與成本）→「買進」（primary，`action` 炭黑）與「賣出」（default）兩個並排按鈕，同一組裡只有一個 primary。
   - **估價 → EPS 趨勢 → 本益比走勢**：每段一個 subhead 600 標題（`h3`），段落間 `--space-8`、標題到內容 `--space-section-head`，不再用分隔線；「估價假設」緊接估價（`--space-4`）。買進／賣出、估價基準切換（Segmented）與估價假設的「儲存」高 44px，跟 sheet 底部的送出鍵一樣好按；「設定」這類小連結維持外觀，用 `::before` 把點擊區延伸到 44px。EPS 標題右側是圖例（caption `muted` + 圓點）；圖下的「下次財報」是一列帳本列（右側日期在上、說明為 caption `muted`）。
   - **估價卡**：基準切換（Segmented）→ 結論先講（區間名稱 title 600，低於便宜價 `up`、高於昂貴價 `down`、合理區間 `ink`；下一行 `muted`「比合理價高／低 N%」）→ 色條。色條是四段等寬的區間圖（低於便宜／合理偏低／合理偏高／高於昂貴，兩端為淡 `up` / `down`，中間 `line-strong`），不是比例尺：便宜價／合理價／昂貴價的標籤正好落在三個分界下方，現價在所屬區間內按比例定位，上方寫明「現價 $X」（標籤隨位置由靠左滑到靠右，不超出色條）。
-  - **估價假設**（展開後）：三組各有 body 600 小標題，組間 `--space-6`：「EPS」是兩列帳本列（右側數字、下方 caption 公式）；「本益比」是便宜／合理／昂貴三欄並排的輸入，下方 caption 說明空白時的預設；「今年預估」（美股為「未來四季預估」）是成長率與預估 EPS 兩欄。覆寫過的欄位下方是 caption 連結「改回預設」，不用彩色 tag；「儲存」靠右、一般寬度。
+  - **估價假設入口**：估價卡下方一列框線列（同「管理這筆持股」的列樣式，整列可點、44px 以上），標題「估價假設」+ caption 顯示目前使用的本益比（「本益比 9.48／12.86／15.5」）+ chevron。點了開**另一張疊在細節頁上的 sheet**「調整估價假設 · {名稱}」（桌面為 modal），細節頁留在下面不動。
+  - **估價假設 sheet**：三組各有 body 600 小標題，組間 `--space-6`：「EPS」是兩列帳本列（右側數字、下方 caption 公式）；「本益比」是便宜／合理／昂貴三欄並排的輸入，下方 caption 說明空白時的預設；「今年預估」（美股為「未來四季預估」）是成長率與預估 EPS 兩欄。覆寫過的欄位下方是 caption 連結「改回預設」（立即生效、sheet 不關），不用彩色 tag；「儲存」是固定在 sheet 底部的滿版 primary（同其他表單 sheet 的 `sheet-footer`），存好後關閉 sheet。
   - **管理這筆持股**：很少用，所以是安靜的框線列表（1px `line`、`radius-lg`、列高 44px 以上、`ink` 字 + `muted` chevron，hover 為 `neutral-fill`）；「移除持股」為 `down` 字、沒有 chevron。
 - 每股價格（均價）帶小數；台幣的總額（成本、損益）不帶小數，美元照常帶。
 - 操作表單（`HoldingActionForm`）：手機 bottom sheet、桌面 modal，標題帶出對象（「買進 · 瑞鼎（Po）」）；開啟時細節頁暫時收起，存好後回到細節頁。買進／賣出即時預覽結果（「買進後 N 股 · 均價 $X」「賣出後 N 股」），賣出全部會再確認並移除持股。校正表單頂端註明「用於修正錯誤、股票分割或配股，不算買賣。」

@@ -16,6 +16,12 @@ const { Text } = Typography;
 
 const SOURCE_LABELS = { TW: "TWSE / 公開資訊觀測站", US: "Finnhub" };
 
+// The P/E in use, on the 估價假設 row: 「本益比 9.48／12.86／15.5」.
+const describeBands = (bands) => {
+  const values = [bands?.cheap, bands?.fair, bands?.expensive];
+  return values.every(Number.isFinite) ? `本益比 ${values.join("／")}` : "本益比尚未設定";
+};
+
 // One holding (one stock, one holder): its market value, position and
 // cost, buy / sell, EPS × P/E valuation, EPS trend and P/E history, then
 // managing the holding. Mobile shows a bottom sheet, desktop a right-hand drawer. The
@@ -73,14 +79,27 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
               market={holding.market}
               currency={currency}
             />
+            {/* A whole row to tap; the assumptions open in their own sheet. */}
+            <button
+              type="button"
+              className="valuation-assumptions-entry"
+              onClick={() => setAssumptionsOpen(true)}
+            >
+              <span className="valuation-assumptions-entry-text">
+                <span className="valuation-assumptions-entry-title">估價假設</span>
+                <span className="valuation-assumptions-entry-summary">{describeBands(model.bands)}</span>
+              </span>
+              <NavArrowRight aria-hidden />
+            </button>
             <ValuationAssumptions
-              key={JSON.stringify(settings)}
+              open={assumptionsOpen}
+              isMobile={isMobile}
+              title={`調整估價假設 · ${holding.companyName || holding.symbol}`}
+              onClose={() => setAssumptionsOpen(false)}
               model={model}
               market={holding.market}
               settings={settings}
               disabled={disabled}
-              open={assumptionsOpen}
-              onToggle={() => setAssumptionsOpen((value) => !value)}
               onSave={save}
             />
           </>

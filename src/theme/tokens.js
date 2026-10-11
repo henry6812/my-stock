@@ -91,6 +91,13 @@ export const CHART_PALETTE = [
 
 export const CHART_NEUTRAL = "#B4BAC0";
 
+// The stock detail charts (EPS bars, P/E line): the palette's misty blue,
+// with a pale tint of it for last year's quarters.
+export const CHART_STOCK = {
+  primary: CHART_PALETTE[1],
+  previous: "#C3D0E6",
+};
+
 // Holders are the one tag type that keeps colour — telling Po from Wei at a
 // glance is the point. Assigned by the holder's position in the settings list
 // so two holders never collide.

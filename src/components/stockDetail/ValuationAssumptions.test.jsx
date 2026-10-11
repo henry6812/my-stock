@@ -18,7 +18,9 @@ const renderOpen = (props = {}) =>
       settings={EMPTY_VALUATION_SETTINGS}
       disabled={false}
       open
-      onToggle={() => {}}
+      isMobile
+      title="調整估價假設 · 台積電"
+      onClose={() => {}}
       onSave={vi.fn().mockResolvedValue({})}
       {...props}
     />,
@@ -32,6 +34,20 @@ describe('ValuationAssumptions', () => {
     expect(screen.getByText('79.50')).toBeInTheDocument()
     expect(screen.getByText('今年 Q1–Q2 累計 35.17 + …')).toBeInTheDocument()
     expect(screen.getByText('空白時使用過去 60 期本益比的低、中、高位置')).toBeInTheDocument()
+  })
+
+  it('opens as its own sheet with a full-width save button', () => {
+    renderOpen()
+    expect(screen.getByText('調整估價假設 · 台積電')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /儲\s*存/ })).toHaveClass('ant-btn-block')
+  })
+
+  it('closes after a successful save', async () => {
+    const onClose = vi.fn()
+    renderOpen({ onClose })
+    fireEvent.change(screen.getByLabelText('合理本益比'), { target: { value: '20' } })
+    fireEvent.click(screen.getByRole('button', { name: /儲\s*存/ }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
   it('groups the P/E range apart from the forward estimate', () => {

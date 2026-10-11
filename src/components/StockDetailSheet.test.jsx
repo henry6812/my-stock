@@ -74,6 +74,15 @@ describe('StockDetailSheet', () => {
     expect(screen.getByText(/資料來源：TWSE/)).toBeInTheDocument()
   })
 
+  it('opens the valuation assumptions from a row showing the P/E in use', () => {
+    useStockFundamentals.mockReturnValue({ status: 'ready', data: fundamentals, reload })
+    renderSheet()
+    const entry = screen.getByRole('button', { name: /估價假設/ })
+    expect(entry).toHaveTextContent(/本益比 \d/)
+    fireEvent.click(entry)
+    expect(screen.getByText('調整估價假設 · 台積電')).toBeInTheDocument()
+  })
+
   it('switches to the forward estimate', () => {
     useStockFundamentals.mockReturnValue({ status: 'ready', data: fundamentals, reload })
     renderSheet()
