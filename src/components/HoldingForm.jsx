@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Alert, Form, Input, InputNumber, Radio, Select } from "antd";
+import { Alert, Form, Input, InputNumber, Select } from "antd";
+import { formatPrice } from "../utils/formatters";
 import {
-  HOLDING_SHARES_MODE,
+  applyBuy,
   findExistingHolding,
-  resolveNextShares,
+  getAverageCost,
+  getHoldingCurrency,
 } from "../utils/holdingShares";
 
 const marketOptions = [
@@ -32,7 +34,7 @@ function HoldingForm({
   const watchedSymbol = Form.useWatch("symbol", form);
   const watchedHolder = Form.useWatch("holder", form);
   const watchedShares = Form.useWatch("shares", form);
-  const watchedSharesMode = Form.useWatch("sharesMode", form);
+  const watchedPrice = Form.useWatch("price", form);
   const liveExistingHolding = findExistingHolding(existingHoldings, {
     symbol: watchedSymbol,
     market: watchedMarket,
@@ -45,14 +47,32 @@ function HoldingForm({
   const existingHolding =
     submittedExistingHolding === undefined ? liveExistingHolding : submittedExistingHolding;
   const inputShares = Number(watchedShares);
-  const previewShares =
-    existingHolding && Number.isFinite(inputShares) && inputShares > 0
-      ? resolveNextShares({
-          existingShares: existingHolding.shares,
-          inputShares,
-          mode: watchedSharesMode,
-        })
-      : null;
+  const inputPrice = Number(watchedPrice);
+  const priceCurrency = watchedMarket === "US" ? "USD" : "TWD";
+  // Adding a stock the holder already has is a buy into that holding.
+  let previewText;
+  if (existingHolding && Number.isFinite(inputShares) && inputShares > 0) {
+    const hasPrice =
+      watchedPrice !== null &&
+      watchedPrice !== undefined &&
+      Number.isFinite(inputPrice) &&
+      inputPrice >= 0;
+    const next = applyBuy(existingHolding, {
+      shares: inputShares,
+      price: hasPrice ? inputPrice : 0,
+    });
+    const sharesText = `儲存後 ${next.shares.toLocaleString("zh-TW")} 股`;
+    if (existingHolding.totalCost === null || existingHolding.totalCost === undefined) {
+      previewText = `${sharesText}（成本仍需校正）`;
+    } else if (hasPrice) {
+      previewText = `${sharesText} · 均價 ${formatPrice(
+        getAverageCost(next),
+        getHoldingCurrency(existingHolding),
+      )}`;
+    } else {
+      previewText = sharesText;
+    }
+  }
 
   const handleFinish = async (values) => {
     // From the submitted values: useWatch can lag a fast edit-then-submit.
@@ -60,7 +80,7 @@ function HoldingForm({
     try {
       const shouldReset = await onSubmit(values);
       if (shouldReset !== false) {
-        form.resetFields(["symbol", "shares"]);
+        form.resetFields(["symbol", "shares", "price"]);
       }
     } finally {
       setSubmittedExistingHolding(undefined);
@@ -76,7 +96,6 @@ function HoldingForm({
       initialValues={{
         market: "TW",
         assetTag: "STOCK",
-        sharesMode: HOLDING_SHARES_MODE.ADD,
       }}
       onFinish={handleFinish}
       style={{ width: "100%" }}
@@ -151,26 +170,27 @@ function HoldingForm({
           style={isVerticalLayout ? { width: "100%" } : { width: 140 }}
         />
       </Form.Item>
+      <Form.Item
+        label={`買進價格（${priceCurrency}）`}
+        name="price"
+        rules={[{ required: true, message: "請輸入買進價格" }]}
+      >
+        <InputNumber
+          disabled={disabled}
+          min={0}
+          step={0.01}
+          inputMode="decimal"
+          style={isVerticalLayout ? { width: "100%" } : { width: 140 }}
+        />
+      </Form.Item>
       {existingHolding ? (
-        <>
-          <Alert
-            type="info"
-            showIcon
-            style={{ marginBottom: 12 }}
-            message={`${watchedHolder} 已持有 ${Number(existingHolding.shares).toLocaleString("zh-TW")} 股`}
-            description={
-              previewShares !== null
-                ? `儲存後將變為 ${previewShares.toLocaleString("zh-TW")} 股`
-                : undefined
-            }
-          />
-          <Form.Item label="股數處理方式" name="sharesMode">
-            <Radio.Group disabled={disabled}>
-              <Radio value={HOLDING_SHARES_MODE.ADD}>加總到現有股數</Radio>
-              <Radio value={HOLDING_SHARES_MODE.REPLACE}>覆蓋為輸入的股數</Radio>
-            </Radio.Group>
-          </Form.Item>
-        </>
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={`${watchedHolder} 已持有 ${Number(existingHolding.shares).toLocaleString("zh-TW")} 股，將以買進方式加碼`}
+          description={previewText}
+        />
       ) : null}
     </Form>
   );

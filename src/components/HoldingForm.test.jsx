@@ -14,6 +14,7 @@ describe('<HoldingForm />', () => {
     expect(
       screen.getByPlaceholderText('例如 2330 或 AAPL'),
     ).toBeInTheDocument()
+    expect(screen.getByLabelText(/買進價格/)).toBeInTheDocument()
   })
 
   // Saving writes the holding locally first; the list refreshes with it while
@@ -45,6 +46,7 @@ describe('<HoldingForm />', () => {
       fireEvent.click(await screen.findByTitle('Po'))
       fireEvent.change(screen.getByPlaceholderText('例如 2330 或 AAPL'), { target: { value: '2330' } })
       fireEvent.change(screen.getByRole('spinbutton', { name: '股數' }), { target: { value: '100' } })
+      fireEvent.change(screen.getByRole('spinbutton', { name: /買進價格/ }), { target: { value: '500' } })
       fireEvent.click(screen.getByRole('button', { name: '送出' }))
       await waitFor(() => expect(onSubmit).toHaveBeenCalled())
     }
@@ -55,7 +57,7 @@ describe('<HoldingForm />', () => {
 
       rerenderWith([{ market: 'TW', symbol: '2330', holder: 'Po', shares: 100 }])
       expect(screen.queryByText(/已持有/)).not.toBeInTheDocument()
-      expect(screen.queryByText('加總到現有股數')).not.toBeInTheDocument()
+      expect(screen.queryByText(/將以買進方式加碼/)).not.toBeInTheDocument()
 
       await act(async () => resolve(true))
     })
@@ -67,10 +69,36 @@ describe('<HoldingForm />', () => {
       await fillAndSubmit(onSubmit)
 
       rerenderWith([{ market: 'TW', symbol: '2330', holder: 'Po', shares: 200 }])
-      expect(screen.getByText('Po 已持有 100 股')).toBeInTheDocument()
+      expect(screen.getByText('Po 已持有 100 股，將以買進方式加碼')).toBeInTheDocument()
 
       await act(async () => resolve(true))
     })
+  })
+
+  const fillExisting = async (totalCost) => {
+    render(
+      <HoldingForm
+        onSubmit={vi.fn()}
+        holderOptions={[{ value: 'Po', label: 'Po' }]}
+        existingHoldings={[{ market: 'TW', symbol: '2330', holder: 'Po', shares: 100, totalCost }]}
+      />,
+    )
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '持有人' }))
+    fireEvent.click(await screen.findByTitle('Po'))
+    fireEvent.change(screen.getByPlaceholderText('例如 2330 或 AAPL'), { target: { value: '2330' } })
+    fireEvent.change(screen.getByRole('spinbutton', { name: '股數' }), { target: { value: '50' } })
+    fireEvent.change(screen.getByRole('spinbutton', { name: /買進價格/ }), { target: { value: '560' } })
+  }
+
+  it('previews a buy into an existing holding at the new average', async () => {
+    await fillExisting(50000)
+    expect(await screen.findByText(/儲存後 150 股 · 均價 \$520/)).toBeInTheDocument()
+    expect(screen.queryByText('覆蓋為輸入的股數')).not.toBeInTheDocument()
+  })
+
+  it('notes that an existing holding without cost still needs calibrating', async () => {
+    await fillExisting(null)
+    expect(await screen.findByText('儲存後 150 股（成本仍需校正）')).toBeInTheDocument()
   })
 
   it('applies the given formId to the form element', () => {

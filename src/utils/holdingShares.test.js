@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  HOLDING_SHARES_MODE,
   applyBuy,
   applyCalibration,
   applySell,
@@ -10,7 +9,6 @@ import {
   getUnrealized,
   normalizeHoldingSymbol,
   normalizeTotalCost,
-  resolveNextShares,
 } from './holdingShares'
 
 describe('normalizeHoldingSymbol', () => {
@@ -39,26 +37,6 @@ describe('findExistingHolding', () => {
 
   it('returns null while the form is incomplete', () => {
     expect(findExistingHolding(holdings, { symbol: '', market: 'TW', holder: 'Po' })).toBeNull()
-  })
-})
-
-describe('resolveNextShares', () => {
-  it('adds to existing shares by default', () => {
-    expect(resolveNextShares({ existingShares: 1000, inputShares: 500 })).toBe(1500)
-  })
-
-  it('replaces when asked', () => {
-    expect(
-      resolveNextShares({
-        existingShares: 1000,
-        inputShares: 500,
-        mode: HOLDING_SHARES_MODE.REPLACE,
-      }),
-    ).toBe(500)
-  })
-
-  it('avoids float drift on fractional shares', () => {
-    expect(resolveNextShares({ existingShares: 0.1, inputShares: 0.2 })).toBe(0.3)
   })
 })
 
