@@ -86,7 +86,15 @@ FX (`fxProvider.js`) 打 open.er-api 取得 USD/TWD；不需要 API key。
 
 ### TW fundamentals snapshot（個股細節頁估價用）
 
-`.github/workflows/update-tw-fundamentals.yml`（平日 12:00 UTC）跑 `scripts/update-tw-fundamentals.mjs`：把 TWSE openapi `t187ap06_L_*` 的最新一季（**年度累計** EPS）合併進 `public/data/tw_eps_history.json`，每月補一次上月底本益比（TWSE rwd `BWIBBU_d`）到 `public/data/tw_pe_history.json`，有變更才 commit，並以 `gh workflow run deploy.yml` 觸發部署（`GITHUB_TOKEN` 的 push 不會觸發 `deploy.yml`）。`scripts/check-tw-fundamentals.mjs` 發現漏季會讓 job 失敗；修法是以 `backfill=true` 手動跑 workflow（`scripts/backfill-tw-fundamentals.mjs`，MOPS 用 `mopsov.twse.com.tw`）。純邏輯在 `src/utils/twFundamentalsMerge.js`。
+`.github/workflows/update-tw-fundamentals.yml`（平日 12:00 UTC）跑 `scripts/update-tw-fundamentals.mjs`，維護三個全市場大檔（在 repo 的 `data/twse/`，**不部署**）：
+
+- `eps_history.json`：TWSE openapi `t187ap06_L_*` 的最新一季損益表（**年度累計**；EPS、營收、毛利、營業利益、業外、稅前、所得稅、稅後、母公司淨利），公司另存 `statement`（`general` 有毛利欄位；`financial` 為金融業版面）。
+- `pe_history.json`：每月補上月底的 `[month, 本益比, 收盤價]`（TWSE rwd `BWIBBU_d`）。
+- `monthly_revenue.json`：MOPS `t21sc03`（Big5 HTML，`_0` 國內、`_1` KY）近兩個月月營收，每日 merge；**不要**換成 openapi `t187ap05_L`，它落後一個多月。
+
+有變更才 commit，並以 `gh workflow run deploy.yml` 觸發部署（`GITHUB_TOKEN` 的 push 不會觸發 `deploy.yml`）。`predev`／`prebuild` 跑 `scripts/split-tw-fundamentals.mjs` 把大檔拆成 `public/data/tw/{code}.json`（gitignore），細節頁只載入該檔。`scripts/check-tw-fundamentals.mjs` 發現漏季會讓 job 失敗；修法是以 `backfill=true` 手動跑 workflow（`scripts/backfill-tw-fundamentals.mjs`，MOPS 用 `mopsov.twse.com.tw`）。純邏輯在 `src/utils/twFundamentalsMerge.js`。
+
+估價推估在 `src/utils/incomeModel.js`（逐季損益表推估，台股上市非金融股）、`src/utils/valuation.js`（本益比與估價基準）、`src/utils/peRiver.js`（河流圖）；假設與預估快照存在 `app_config` 的 `valuation:<market>_<symbol>`（`model`、`snapshots`）。
 
 `src/services/bankProviders/twBankDirectoryProvider.js` 與報價無關 — 它抓 data.gov.tw 的台灣銀行/分行清單（FISC + 分行 datasets），供現金帳戶表單選銀行用，帶 7 天 localStorage cache 與硬編的 `FALLBACK_BANKS`（離線 / API 失敗時 fallback）。只被 `App.jsx` 使用。
 
