@@ -146,7 +146,8 @@ import {
   HOLDING_ACTION_SUBMIT_TEXT,
   HOLDING_ACTION_TITLES,
 } from "./components/holdingActions";
-import { buildStockDetailHolding, isInteractiveTarget } from "./utils/stockDetail";
+import { isInteractiveTarget } from "./utils/stockDetail";
+import useStockDetailSelection from "./hooks/useStockDetailSelection";
 import { isFromPortal } from "./utils/portalEvent";
 import CategoryIcon from "./components/CategoryIcon";
 import CategoryIconPicker from "./components/CategoryIconPicker";
@@ -454,6 +455,13 @@ function App() {
     [modal],
   );
   const [rows, setRows] = useState([]);
+  const {
+    stockDetail,
+    holdingAction,
+    openStockDetail,
+    closeStockDetail,
+    setHoldingAction,
+  } = useStockDetailSelection(rows);
   const [cashRows, setCashRows] = useState([]);
   const [totalTwd, setTotalTwd] = useState(0);
   const [displayTotalTwd, setDisplayTotalTwd] = useState(0);
@@ -516,9 +524,6 @@ function App() {
   const [editingGoal, setEditingGoal] = useState(null);
   const [goalFormKey, setGoalFormKey] = useState(0);
   const [loadingGoalAction, setLoadingGoalAction] = useState(false);
-  const [stockDetailId, setStockDetailId] = useState(null);
-  // Which form is open over the stock detail sheet: buy / sell / calibrate / edit.
-  const [holdingAction, setHoldingAction] = useState(null);
   const [loadingHoldingAction, setLoadingHoldingAction] = useState(false);
   // Bumped on every open so QuickExpenseSheet remounts with fresh state.
   const [quickExpenseKey, setQuickExpenseKey] = useState(0);
@@ -1423,7 +1428,7 @@ function App() {
     async (record) => {
       try {
         await removeHolding({ id: record.id });
-        setStockDetailId(null);
+        closeStockDetail();
         await loadAllData();
         await performCloudSync();
         message.success("持股已移除");
@@ -1431,7 +1436,7 @@ function App() {
         message.error(toUserMessage(error, "移除持股失敗"));
       }
     },
-    [loadAllData, message, performCloudSync],
+    [closeStockDetail, loadAllData, message, performCloudSync],
   );
 
   const editingCashAccount = useMemo(
@@ -1877,10 +1882,6 @@ function App() {
     return filterRowsByHolderTab(rows, activeHoldingTab);
   }, [activeHoldingTab, rows]);
 
-  const stockDetail = useMemo(
-    () => (stockDetailId === null ? null : buildStockDetailHolding(rows, stockDetailId)),
-    [rows, stockDetailId],
-  );
 
   const handleStockDetailAction = useCallback(
     (action) => {
@@ -1896,7 +1897,7 @@ function App() {
       }
       setHoldingAction(action);
     },
-    [confirmDestructive, handleRemoveHolding, stockDetail],
+    [confirmDestructive, handleRemoveHolding, setHoldingAction, stockDetail],
   );
 
   const handleSubmitHoldingAction = useCallback(
@@ -1928,7 +1929,7 @@ function App() {
           await loadAllData();
           await performCloudSync();
           setHoldingAction(null);
-          if (removed) setStockDetailId(null);
+          if (removed) closeStockDetail();
           message.success(removed ? "已賣出全部並移除持股" : "持股已更新");
         } catch (error) {
           message.error(toUserMessage(error, "更新持股失敗"));
@@ -1948,11 +1949,13 @@ function App() {
       await run();
     },
     [
+      closeStockDetail,
       confirmDestructive,
       holdingAction,
       loadAllData,
       message,
       performCloudSync,
+      setHoldingAction,
       stockDetail,
     ],
   );
@@ -2438,7 +2441,7 @@ function App() {
                 : `，今日${pct > 0 ? "漲" : "跌"} ${Math.abs(pct).toFixed(2)}%`;
           return (
             <MobileSwipeRow
-              onTap={() => setStockDetailId(record.id)}
+              onTap={() => openStockDetail(record.id)}
               label={`${name}，市值 ${formatTwd(record.latestValueTwd)}${todayText}，查看個股`}
               actions={[]}
               main={
@@ -2510,6 +2513,7 @@ function App() {
     getHolderTagStyle,
     holdingTagOptions,
     isMobileViewport,
+    openStockDetail,
     renderPriceDelta,
     renderValueDelta,
     rowAnimationValues,
@@ -5714,7 +5718,7 @@ function App() {
                         className: "holding-row--clickable",
                         onClick: (event) => {
                           if (isInteractiveTarget(event.target, event.currentTarget)) return;
-                          setStockDetailId(record.id);
+                          openStockDetail(record.id);
                         },
                       })}
                     />
@@ -7019,7 +7023,7 @@ function App() {
             holding={stockDetail}
             isMobile={isMobileViewport}
             disabled={isWriteDisabled}
-            onClose={() => setStockDetailId(null)}
+            onClose={() => closeStockDetail()}
             onAction={handleStockDetailAction}
           />
 

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Alert, Button, Form, InputNumber, Select, Typography } from "antd";
 import { formatPrice } from "../utils/formatters";
 import {
@@ -23,7 +24,7 @@ const isNonNegative = (value) =>
 function HoldingActionForm({
   formId,
   mode,
-  holding,
+  holding: liveHolding,
   holderOptions = [],
   holdingTagOptions = [],
   popupContainer,
@@ -32,6 +33,9 @@ function HoldingActionForm({
   onCalibrateInstead,
 }) {
   const [form] = Form.useForm();
+  // The holding as it was when the form opened: after a save the list
+  // reloads while the form is still closing, and previews must not jump.
+  const [holding] = useState(liveHolding);
   const watchedShares = Form.useWatch("shares", form);
   const watchedPrice = Form.useWatch("price", form);
   const currency = getHoldingCurrency(holding);

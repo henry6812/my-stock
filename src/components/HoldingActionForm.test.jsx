@@ -100,3 +100,19 @@ describe('<HoldingActionForm /> edit', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ assetTag: 'STOCK', holder: 'Po' }))
   })
 })
+
+describe('<HoldingActionForm /> while saving', () => {
+  // After a write, the list reloads while the form is still open: the form
+  // must keep previewing against the holding it was opened with.
+  it('does not flash the sell-everything warning once a partial sale lands', async () => {
+    const ui = (current) => (
+      <HoldingActionForm formId="holding-action" mode="sell" holding={current} onSubmit={vi.fn()} />
+    )
+    const { rerender } = render(ui(holding))
+    fireEvent.change(sharesInput(), { target: { value: '50' } })
+    expect(await screen.findByText('賣出後 50 股')).toBeInTheDocument()
+    rerender(ui({ ...holding, shares: 50, totalCost: 25000 }))
+    expect(screen.getByText('賣出後 50 股')).toBeInTheDocument()
+    expect(screen.queryByText('賣出全部會移除這筆持股')).not.toBeInTheDocument()
+  })
+})
