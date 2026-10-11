@@ -1,10 +1,12 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { monthDaysDescending, parseBwibbuRows } from '../../src/utils/twFundamentalsMerge.js'
+import { monthDaysDescending, parseBwibbuRows, parseMopsRevenueRows } from '../../src/utils/twFundamentalsMerge.js'
 
-export const EPS_PATH = 'public/data/tw_eps_history.json'
-export const PE_PATH = 'public/data/tw_pe_history.json'
+export const EPS_PATH = 'data/twse/eps_history.json'
+export const PE_PATH = 'data/twse/pe_history.json'
+export const REVENUE_PATH = 'data/twse/monthly_revenue.json'
 export const TWSE_DELAY_MS = 1_200
+export const MOPS_DELAY_MS = 3_000
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -41,4 +43,23 @@ export const fetchBwibbuMonth = async (month) => {
     if (rows?.length) return rows
   }
   return null
+}
+
+// MOPS monthly revenue summary for 上市: _0 = domestic, _1 = foreign (KY)
+// companies. An unpublished month is a short page with no rows.
+export const fetchMopsRevenueMonth = async (month) => {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const rows = []
+  for (const suffix of ['0', '1']) {
+    const url = `https://mopsov.twse.com.tw/nas/t21/sii/t21sc03_${year - 1911}_${monthNumber}_${suffix}.html`
+    const response = await fetch(url, { headers: HEADERS })
+    if (response.ok) {
+      const html = new TextDecoder('big5').decode(await response.arrayBuffer())
+      rows.push(...parseMopsRevenueRows(html))
+    } else if (response.status !== 404) {
+      throw new Error(`${url} → HTTP ${response.status}`)
+    }
+    await sleep(MOPS_DELAY_MS)
+  }
+  return rows
 }

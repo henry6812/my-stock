@@ -1,15 +1,28 @@
-// Daily: merge the latest quarter from TWSE openapi into tw_eps_history.json
-// and, once a month, add last month's month-end P/E to tw_pe_history.json.
+// Daily: merge EPS / income statements, last month's month-end P/E and close,
+// and the latest two months of monthly revenue into data/twse/*.json.
 // Files are only rewritten when something changed, so the workflow commits
 // only real updates.
 import {
   hasPeMonth,
   mergeEpsRows,
+  mergeMonthlyRevenue,
   mergePeMonth,
+  monthsBack,
   normalizeIncomeRow,
   previousMonth,
 } from '../src/utils/twFundamentalsMerge.js'
-import { EPS_PATH, PE_PATH, TWSE_DELAY_MS, fetchBwibbuMonth, fetchJson, readJson, sleep, writeJson } from './lib/twse.mjs'
+import {
+  EPS_PATH,
+  PE_PATH,
+  REVENUE_PATH,
+  TWSE_DELAY_MS,
+  fetchBwibbuMonth,
+  fetchJson,
+  fetchMopsRevenueMonth,
+  readJson,
+  sleep,
+  writeJson,
+} from './lib/twse.mjs'
 
 const INDUSTRIES = ['ci', 'basi', 'bd', 'fh', 'ins', 'mim']
 
@@ -37,4 +50,19 @@ if (hasPeMonth(peHistory, month)) {
   if (!peRows) throw new Error(`No TWSE P/E data found for ${month}`)
   await writeJson(PE_PATH, { ...mergePeMonth(peHistory, month, peRows), updatedAt: new Date().toISOString() })
   console.log(`P/E: stored ${peRows.length} rows for ${month}`)
+}
+
+// Companies publish last month's revenue by the 10th, a few each day, so
+// the latest two months are re-read daily and merged.
+let revenueHistory = await readJson(REVENUE_PATH, { updatedAt: null, companies: {} })
+let revenueChanged = false
+for (const revenueMonth of monthsBack(previousMonth(new Date()), 2)) {
+  const revenueRows = await fetchMopsRevenueMonth(revenueMonth)
+  const { history, changed } = mergeMonthlyRevenue(revenueHistory, revenueMonth, revenueRows)
+  revenueHistory = history
+  revenueChanged ||= changed
+  console.log(`Revenue ${revenueMonth}: ${revenueRows.length} rows`)
+}
+if (revenueChanged) {
+  await writeJson(REVENUE_PATH, { ...revenueHistory, updatedAt: new Date().toISOString() })
 }

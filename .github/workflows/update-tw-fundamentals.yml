@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       backfill:
-        description: 'Run the historical backfill (MOPS EPS + 60 months of P/E) instead of the daily update'
+        description: 'Run the historical backfill (MOPS income statements + 60 months of P/E and close + 36 months of revenue) instead of the daily update'
         type: boolean
         default: false
 
@@ -42,7 +42,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          FILES="public/data/tw_eps_history.json public/data/tw_pe_history.json"
+          FILES="data/twse/eps_history.json data/twse/pe_history.json data/twse/monthly_revenue.json"
           if [ -z "$(git status --porcelain -- $FILES)" ]; then
             echo "No snapshot changes"
             exit 0

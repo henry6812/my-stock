@@ -1,20 +1,32 @@
-// One-off (re-runnable) backfill: 13 quarters of year-to-date EPS from MOPS
-// and 60 month-end P/E snapshots from TWSE. Writes after every period so an
+// One-off (re-runnable) backfill: 13 季損益表（MOPS）、60 個月月底本益比與收盤價、
+// 36 個月月營收. Writes after every period so an
 // interrupted run keeps its progress; already-stored months are skipped.
 import {
   hasPeMonth,
   mergeEpsRows,
+  mergeMonthlyRevenue,
   mergePeMonth,
+  monthsBack,
   normalizeIncomeRow,
   parseMopsIncomeTables,
   previousMonth,
 } from '../src/utils/twFundamentalsMerge.js'
-import { EPS_PATH, PE_PATH, fetchBwibbuMonth, readJson, sleep, writeJson } from './lib/twse.mjs'
+import {
+  EPS_PATH,
+  MOPS_DELAY_MS,
+  PE_PATH,
+  REVENUE_PATH,
+  fetchBwibbuMonth,
+  fetchMopsRevenueMonth,
+  readJson,
+  sleep,
+  writeJson,
+} from './lib/twse.mjs'
 
 const MOPS_URL = 'https://mopsov.twse.com.tw/mops/web/ajax_t163sb04'
-const MOPS_DELAY_MS = 3_000
 const EPS_QUARTERS = 13
 const PE_MONTHS = 60
+const REVENUE_MONTHS = 36
 
 const fetchMopsSeason = async (year, quarter) => {
   const body = new URLSearchParams({
@@ -82,4 +94,18 @@ for (let count = 0; count < PE_MONTHS; count += 1) {
   peHistory = { ...mergePeMonth(peHistory, month, rows), updatedAt: new Date().toISOString() }
   await writeJson(PE_PATH, peHistory)
   console.log(`P/E ${month}: ${rows.length} rows`)
+}
+
+let revenueHistory = await readJson(REVENUE_PATH, { updatedAt: null, companies: {} })
+for (const month of monthsBack(previousMonth(now), REVENUE_MONTHS)) {
+  const stored = Object.values(revenueHistory.companies).some((months) => months[month] !== undefined)
+  if (stored) continue
+  const rows = await fetchMopsRevenueMonth(month)
+  if (rows.length === 0) {
+    console.log(`Revenue ${month}: no data`)
+    continue
+  }
+  revenueHistory = { ...mergeMonthlyRevenue(revenueHistory, month, rows).history, updatedAt: new Date().toISOString() }
+  await writeJson(REVENUE_PATH, revenueHistory)
+  console.log(`Revenue ${month}: ${rows.length} rows`)
 }
