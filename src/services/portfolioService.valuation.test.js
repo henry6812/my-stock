@@ -90,13 +90,21 @@ describe('valuation settings', () => {
     expect(settings.model.quarters).toEqual({ '2027Q1': { taxRate: 0.18 } })
   })
 
+  // A subsidiary's loss attributable to minority holders makes parent net
+  // income exceed net income: a negative non-controlling share is valid.
+  it('accepts a negative non-controlling interest ratio', async () => {
+    const settings = await save({ market: 'TW', symbol: '2330', patch: { model: { global: { nciRatio: -0.1 } } } })
+    expect(settings.model.global.nciRatio).toBe(-0.1)
+  })
+
   it('validates model assumptions', async () => {
     const patch = (global) => save({ market: 'TW', symbol: '2330', patch: { model: { global } } })
     await expect(patch({ revenueYoy: -1 })).rejects.toThrow('營收 YoY 必須大於 -100%')
     await expect(patch({ grossMargin: 1.2 })).rejects.toThrow('毛利率必須介於 -100% 與 100%')
     await expect(patch({ opexRatio: -0.1 })).rejects.toThrow('營業費用率必須介於 0% 與 100%')
     await expect(patch({ taxRate: 1.5 })).rejects.toThrow('稅率必須介於 0% 與 100%')
-    await expect(patch({ nciRatio: -0.1 })).rejects.toThrow('非控制權益比必須介於 0% 與 100%')
+    await expect(patch({ nciRatio: -1.1 })).rejects.toThrow('非控制權益比必須介於 -100% 與 100%')
+    await expect(patch({ nciRatio: 1.1 })).rejects.toThrow('非控制權益比必須介於 -100% 與 100%')
     await expect(patch({ foo: 1 })).rejects.toThrow('foo')
     await expect(
       save({ market: 'TW', symbol: '2330', patch: { model: { quarters: { '2026Q5': { taxRate: 0.2 } } } } }),

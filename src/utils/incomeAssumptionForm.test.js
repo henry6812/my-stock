@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  FIELD_META,
   diffSettings,
   formatAssumption,
   formatShares,
@@ -11,6 +12,14 @@ import {
   toInput,
 } from './incomeAssumptionForm'
 import { EMPTY_VALUATION_SETTINGS } from './valuation'
+
+// signed fields get no inputMode, so the phone keyboard can type a minus.
+describe('FIELD_META', () => {
+  it('marks every field that can be negative as signed', () => {
+    const signed = Object.keys(FIELD_META).filter((field) => FIELD_META[field].signed)
+    expect(signed).toEqual(['revenueYoy', 'grossMargin', 'nonOperating', 'nciRatio'])
+  })
+})
 
 describe('input conversion', () => {
   it('shows ratios as percent and thousand NTD as 億', () => {

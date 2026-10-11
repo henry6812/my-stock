@@ -901,7 +901,7 @@ const MODEL_FIELD_RULES = {
   opexRatio: { min: 0, max: 1, message: "營業費用率必須介於 0% 與 100%" },
   nonOperating: {},
   taxRate: { min: 0, max: 1, message: "稅率必須介於 0% 與 100%" },
-  nciRatio: { min: 0, max: 1, message: "非控制權益比必須介於 0% 與 100%" },
+  nciRatio: { min: -1, max: 1, message: "非控制權益比必須介於 -100% 與 100%" },
 };
 
 const QUARTER_KEY_PATTERN = /^\d{4}Q[1-4]$/;

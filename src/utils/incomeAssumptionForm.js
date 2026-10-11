@@ -11,7 +11,7 @@ export const FIELD_META = {
   opexRatio: { label: '營業費用率', unit: '%', kind: 'percent', signed: false },
   nonOperating: { label: '業外', unit: '億/季', kind: 'amount', signed: true },
   taxRate: { label: '稅率', unit: '%', kind: 'percent', signed: false },
-  nciRatio: { label: '非控制權益比', unit: '%', kind: 'percent', signed: false },
+  nciRatio: { label: '非控制權益比', unit: '%', kind: 'percent', signed: true },
 }
 
 const round = (value, digits) => Math.round(value * 10 ** digits) / 10 ** digits

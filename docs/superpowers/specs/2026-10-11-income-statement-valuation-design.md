@@ -185,7 +185,7 @@ valuation: {
 }
 ```
 
-- **驗證**（`saveValuationSettings`）：`revenueYoy > -1`；`grossMargin` 介於 -1～1；`opexRatio`、`taxRate`、`nciRatio` 介於 0～1；`nonOperating` 任意有限數。不合法時丟中文錯誤訊息。
+- **驗證**（`saveValuationSettings`）：`revenueYoy > -1`；`grossMargin`、`nciRatio` 介於 -1～1（子公司虧損時非控制權益比可為負）；`opexRatio`、`taxRate` 介於 0～1；`nonOperating` 任意有限數。不合法時丟中文錯誤訊息。
 - **過期覆寫**：已公布季的單季覆寫在計算時忽略，儲存時刪除。
 - **快照**：每次儲存把當下 `nextQuarter` 的 `eps`、`revenue`、`grossMargin`、`opexRatio` 寫入 `snapshots[下一季]`（覆蓋同季），只留最近 8 季。
 - **記下這次預估**：草稿沒有變更、但下一季還沒有快照時，儲存按鈕文字為「記下這次預估」且可按。
