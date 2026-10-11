@@ -4035,6 +4035,83 @@ button.expense-card-chip {
   font-size: var(--fs-caption);
 }
 
+/* Income model: next quarter's EPS leads the sheet at title size. */
+.income-summary {
+  gap: var(--space-1);
+}
+
+.income-summary-label,
+.income-ledger-label {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+}
+
+.income-summary-main {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.income-summary-eps {
+  font-size: var(--fs-title);
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.income-summary-change {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--c-muted);
+}
+
+.income-summary-change--up {
+  color: var(--c-up);
+}
+
+.income-summary-change--down {
+  color: var(--c-down);
+}
+
+.income-summary-years {
+  font-size: var(--fs-body);
+  color: var(--c-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.income-advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+  cursor: pointer;
+}
+
+.income-advanced-toggle svg {
+  font-size: var(--icon-sm);
+}
+
+.income-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.income-ledger-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+
 
 .holding-row--clickable {
   cursor: pointer;

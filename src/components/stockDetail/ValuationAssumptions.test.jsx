@@ -8,6 +8,15 @@ const buildModel = (settings) =>
   buildValuationModel({ fundamentals: TW_FUNDAMENTALS, settings, price: 50, basis: 'ttm', todayIso: '2026-10-11' })
 const model = buildModel(EMPTY_VALUATION_SETTINGS)
 
+const usModel = () =>
+  buildValuationModel({
+    fundamentals: { ...TW_FUNDAMENTALS, market: 'US', company: undefined },
+    settings: EMPTY_VALUATION_SETTINGS,
+    price: 50,
+    basis: 'ttm',
+    todayIso: '2026-10-11',
+  })
+
 const renderOpen = (props = {}) =>
   render(
     <ValuationAssumptions
@@ -26,17 +35,17 @@ const renderOpen = (props = {}) =>
   )
 
 describe('ValuationAssumptions', () => {
-  it('shows both EPS figures with their formulas and where the default P/E comes from', () => {
-    renderOpen()
-    expect(screen.getByText('10.72')).toBeInTheDocument()
-    expect(screen.getByText('12.88')).toBeInTheDocument()
+  it('shows the US EPS figures with their formulas and where the default P/E comes from', () => {
+    renderOpen({ market: 'US', model: usModel() })
+    expect(screen.getByRole('heading', { name: '本益比' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '未來四季預估' })).toBeInTheDocument()
     expect(screen.getByText('空白時使用過去 8 期本益比的低、中、高位置')).toBeInTheDocument()
   })
 
   it('opens as its own sheet with a full-width save button', () => {
     renderOpen()
     expect(screen.getByText('調整估價假設 · 台積電')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /儲\s*存/ })).toHaveClass('ant-btn-block')
+    expect(screen.getByRole('button', { name: '記下這次預估' })).toHaveClass('ant-btn-block')
   })
 
   it('closes after a successful save', async () => {
@@ -47,19 +56,13 @@ describe('ValuationAssumptions', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
-  it('groups the P/E range apart from the forward estimate', () => {
-    renderOpen()
-    expect(screen.getByRole('heading', { name: '本益比' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '今年預估' })).toBeInTheDocument()
-  })
-
   it('saves only the changed fields', async () => {
     const onSave = vi.fn().mockResolvedValue({})
     renderOpen({ onSave })
     fireEvent.change(screen.getByLabelText('合理本益比'), { target: { value: '20' } })
     fireEvent.change(screen.getByLabelText('預估 EPS'), { target: { value: '80' } })
     fireEvent.click(screen.getByRole('button', { name: /儲\s*存/ }))
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ peFair: 20, forwardEps: 80 }, null))
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ peFair: 20, forwardEps: 80 }, expect.objectContaining({ quarter: '2026Q3' })))
   })
 
   it('resets an overridden field', () => {
@@ -102,5 +105,91 @@ describe('ValuationAssumptions', () => {
     fireEvent.change(screen.getByLabelText('合理本益比'), { target: { value: '20' } })
     fireEvent.click(screen.getByRole('button', { name: /儲\s*存/ }))
     expect(await screen.findByText('本益比必須大於 0')).toBeInTheDocument()
+  })
+})
+
+describe('ValuationAssumptions — income model (TW)', () => {
+  it('shows next quarter, this year and next year at the top', () => {
+    renderOpen()
+    const summary = screen.getByLabelText('推估結果')
+    expect(summary).toHaveTextContent('下一季 2026 Q3 EPS')
+    expect(summary).toHaveTextContent('3.40')
+    expect(summary).toHaveTextContent('YoY ▲46.6%')
+    expect(summary).toHaveTextContent('QoQ ▲11.8%')
+    expect(summary).toHaveTextContent('今年 12.88 · 明年 19.00')
+  })
+
+  it('shows the automatic values as placeholders and updates the estimate live', () => {
+    renderOpen()
+    const margin = screen.getByLabelText('毛利率（%）')
+    expect(margin).toHaveAttribute('placeholder', '自動 50.0')
+    expect(screen.getByLabelText('業外（億/季）')).toHaveAttribute('placeholder', '自動 0.0')
+    fireEvent.change(margin, { target: { value: '60' } })
+    expect(screen.getByLabelText('推估結果')).toHaveTextContent('4.48')
+  })
+
+  it('records the estimate without changes when next quarter has no snapshot yet', async () => {
+    const onSave = vi.fn().mockResolvedValue({})
+    renderOpen({ onSave })
+    fireEvent.click(screen.getByRole('button', { name: '記下這次預估' }))
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        {},
+        { quarter: '2026Q3', eps: 3.4, revenue: 1350, grossMargin: expect.closeTo(0.5, 6), opexRatio: expect.closeTo(0.2, 6) },
+      ),
+    )
+  })
+
+  it('saves changed assumptions with a snapshot of the new estimate', async () => {
+    const onSave = vi.fn().mockResolvedValue({})
+    const settings = { ...EMPTY_VALUATION_SETTINGS, snapshots: { '2026Q3': { eps: 3.4, savedAt: '2026-10-01T00:00:00Z' } } }
+    renderOpen({ onSave, settings, model: buildModel(settings) })
+    expect(screen.getByRole('button', { name: /儲\s*存/ })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('毛利率（%）'), { target: { value: '60' } })
+    fireEvent.click(screen.getByRole('button', { name: /儲\s*存/ }))
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        { model: { global: { grossMargin: 0.6 } } },
+        expect.objectContaining({ quarter: '2026Q3', eps: expect.closeTo(4.48, 6), grossMargin: 0.6 }),
+      ),
+    )
+  })
+
+  it('resets a global override at once', () => {
+    const onSave = vi.fn().mockResolvedValue({})
+    const settings = { ...EMPTY_VALUATION_SETTINGS, model: { global: { ...EMPTY_VALUATION_SETTINGS.model.global, taxRate: 0.18 }, quarters: {} } }
+    renderOpen({ onSave, settings, model: buildModel(settings) })
+    fireEvent.click(screen.getByRole('button', { name: '重設稅率' }))
+    expect(onSave).toHaveBeenCalledWith({ model: { global: { taxRate: null } } }, null)
+  })
+
+  it('keeps the sign key on fields that can be negative', () => {
+    renderOpen()
+    expect(screen.getByLabelText('營收 YoY（%）')).not.toHaveAttribute('inputmode')
+    expect(screen.getByLabelText('業外（億/季）')).not.toHaveAttribute('inputmode')
+    expect(screen.getByLabelText('稅率（%）')).toHaveAttribute('inputmode', 'decimal')
+  })
+
+  it('shows shares and calibration under 進階', () => {
+    renderOpen()
+    fireEvent.click(screen.getByRole('button', { name: '進階' }))
+    expect(screen.getByLabelText('非控制權益比（%）')).toBeInTheDocument()
+    expect(screen.getByText('0.0 億股')).toBeInTheDocument()
+  })
+
+  it('explains why the model is unavailable and keeps 直接指定 EPS', () => {
+    const financial = { ...TW_FUNDAMENTALS, company: { ...TW_FUNDAMENTALS.company, statement: 'financial' } }
+    const build = (settings) =>
+      buildValuationModel({ fundamentals: financial, settings, price: 50, basis: 'ttm', todayIso: '2026-10-11' })
+    renderOpen({ model: build(EMPTY_VALUATION_SETTINGS), buildModel: build })
+    expect(screen.getByText('金融股不適用損益表推估')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '直接指定 EPS' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /儲\s*存/ })).toBeDisabled()
+  })
+
+  it('notes that a custom EPS takes over this year and next year', () => {
+    renderOpen()
+    fireEvent.change(screen.getByLabelText('預估 EPS'), { target: { value: '20' } })
+    expect(screen.getByText('已使用自訂 EPS，模型結果僅供參考')).toBeInTheDocument()
   })
 })
