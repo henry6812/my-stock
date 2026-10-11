@@ -53,8 +53,20 @@ describe('StockDetailSheet', () => {
     expect(screen.getByLabelText('估價')).toBeInTheDocument()
     expect(screen.getByText(/比合理價(高|低)/)).toBeInTheDocument()
     expect(screen.getByText('EPS 趨勢')).toBeInTheDocument()
-    expect(screen.getByText('本益比走勢')).toBeInTheDocument()
+    expect(screen.getByText('股價與 EPS')).toBeInTheDocument()
+    expect(screen.queryByText('本益比走勢')).not.toBeInTheDocument()
     expect(screen.getByText(/資料來源：TWSE/)).toBeInTheDocument()
+  })
+
+  it('keeps the P/E history for US stocks', () => {
+    useStockFundamentals.mockReturnValue({
+      status: 'ready',
+      data: { ...fundamentals, market: 'US', company: undefined },
+      reload,
+    })
+    renderSheet({ holding: { ...holding, market: 'US', symbol: 'AAPL', companyName: 'Apple', latestCurrency: 'USD' } })
+    expect(screen.getByText('本益比走勢')).toBeInTheDocument()
+    expect(screen.queryByText('股價與 EPS')).not.toBeInTheDocument()
   })
 
   it('opens the valuation assumptions from a row showing the P/E in use', () => {

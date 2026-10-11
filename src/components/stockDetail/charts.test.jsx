@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import EpsTrendChart from './EpsTrendChart'
 import { buildEpsChartData } from '../../utils/stockDetail'
 import PeHistoryChart from './PeHistoryChart'
+import PeRiverChart from './PeRiverChart'
 
 const singles = [
   { year: 2024, quarter: 1, eps: 1 },
@@ -60,5 +61,19 @@ describe('chart components', () => {
   it('shows an empty state with fewer than two P/E points', () => {
     render(<PeHistoryChart peSeries={[{ label: '2026-09', pe: 28 }]} bands={{}} />)
     expect(screen.getByText('尚無歷史本益比資料')).toBeInTheDocument()
+  })
+
+  it('names the river chart and its series', () => {
+    const river = { status: 'ok', todayLabel: '2026-10', points: [{ label: '2026-09' }, { label: '2026-10' }] }
+    render(<PeRiverChart river={river} />)
+    expect(screen.getByRole('heading', { name: '股價與 EPS' })).toBeInTheDocument()
+    for (const label of ['股價', '便宜–昂貴', '推估']) expect(screen.getByText(label)).toBeInTheDocument()
+  })
+
+  it('asks for P/E bands, or says there is no price history', () => {
+    const { rerender } = render(<PeRiverChart river={{ status: 'missing-pe', points: [], todayLabel: null }} />)
+    expect(screen.getByText('請先在估價假設設定本益比')).toBeInTheDocument()
+    rerender(<PeRiverChart river={{ status: 'ok', points: [{ label: '2026-10' }], todayLabel: '2026-10' }} />)
+    expect(screen.getByText('尚無歷史股價資料')).toBeInTheDocument()
   })
 })

@@ -6,10 +6,12 @@ import useBodyScrollLock from "../hooks/useBodyScrollLock";
 import useStockFundamentals from "../hooks/useStockFundamentals";
 import useValuationSettings from "../hooks/useValuationSettings";
 import { formatDateTime } from "../utils/formatters";
+import { buildRiverData } from "../utils/peRiver";
 import { buildValuationModel, formatEps, formatQuarter } from "../utils/valuation";
 import EpsTrendChart from "./stockDetail/EpsTrendChart";
 import HoldingPosition from "./stockDetail/HoldingPosition";
 import PeHistoryChart from "./stockDetail/PeHistoryChart";
+import PeRiverChart from "./stockDetail/PeRiverChart";
 import ValuationAssumptions from "./stockDetail/ValuationAssumptions";
 import ValuationCard from "./stockDetail/ValuationCard";
 
@@ -110,8 +112,22 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
             />
           </>
         )}
+        {isStock &&
+          (data.company ? (
+            <PeRiverChart
+              river={buildRiverData({
+                monthly: data.company.monthly,
+                singles: data.singles,
+                projected: model.income?.status === "ok" ? model.income.quarters : [],
+                bands: model.bands,
+                price: holding.latestPrice,
+                todayIso,
+              })}
+            />
+          ) : (
+            <PeHistoryChart peSeries={data.peSeries} bands={model.bands} />
+          ))}
         <EpsTrendChart fundamentals={data} />
-        {isStock && <PeHistoryChart peSeries={data.peSeries} bands={model.bands} />}
         <Text type="secondary" className="stock-detail-source">
           {`資料來源：${SOURCE_LABELS[holding.market]} · 更新於 ${formatDateTime(data.updatedAt)}`}
         </Text>
