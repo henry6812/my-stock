@@ -14,7 +14,7 @@ import { buildEpsChartData } from "../../utils/stockDetail";
 
 const { Text } = Typography;
 
-const TOOLTIP_NAMES = { eps: "單季 EPS", lastYearEps: "去年同季", estimate: "預估" };
+const TOOLTIP_NAMES = { eps: "單季 EPS", lastYearEps: "去年同季", estimate: "預估", projected: "推估" };
 
 const formatTooltip = (value, name, { payload }) => {
   const text = Number.isFinite(value) ? value.toFixed(2) : "--";
@@ -24,9 +24,10 @@ const formatTooltip = (value, name, { payload }) => {
   return [text, TOOLTIP_NAMES[name] ?? name];
 };
 
-function EpsTrendChart({ fundamentals }) {
-  const data = buildEpsChartData(fundamentals);
+function EpsTrendChart({ fundamentals, projected = [] }) {
+  const data = buildEpsChartData({ ...fundamentals, projected });
   const hasEstimates = data.some((item) => item.estimate !== null);
+  const hasProjected = data.some((item) => item.projected !== null);
   return (
     <section className="stock-detail-section" aria-label="EPS 趨勢">
       <div className="stock-detail-heading-row">
@@ -41,6 +42,12 @@ function EpsTrendChart({ fundamentals }) {
               <span className="stock-detail-legend-swatch" style={{ background: CHART_STOCK.previous }} />
               去年同季
             </li>
+            {hasProjected && (
+              <li>
+                <span className="stock-detail-legend-swatch stock-detail-legend-swatch--outline" />
+                推估
+              </li>
+            )}
           </ul>
         )}
       </div>
@@ -56,6 +63,15 @@ function EpsTrendChart({ fundamentals }) {
               <Tooltip formatter={formatTooltip} />
               <Bar dataKey="lastYearEps" fill={CHART_STOCK.previous} radius={[3, 3, 0, 0]} />
               <Bar dataKey="eps" fill={CHART_STOCK.primary} radius={[3, 3, 0, 0]} />
+              {hasProjected && (
+                <Bar
+                  dataKey="projected"
+                  fill="transparent"
+                  stroke={CHART_STOCK.primary}
+                  strokeDasharray="3 3"
+                  radius={[3, 3, 0, 0]}
+                />
+              )}
               {hasEstimates && <Scatter dataKey="estimate" fill={COLORS.warn} />}
             </ComposedChart>
           </ResponsiveContainer>

@@ -32,20 +32,42 @@ export const isInteractiveTarget = (target, row = null) => {
 }
 
 const CHART_QUARTERS = 8
+const MAX_BARS = 12
+const MIN_ACTUAL = 4
 
 const shortLabel = ({ year, quarter }) => `${String(year).slice(2)}Q${quarter}`
 
-// Latest 8 quarters for the EPS chart, each with last year's same quarter
-// and (US) the consensus estimate it was measured against.
-export const buildEpsChartData = ({ singles = [], surprises = [] }) =>
-  singles.slice(-CHART_QUARTERS).map((item) => {
-    const lastYear = singles.find((other) => other.year === item.year - 1 && other.quarter === item.quarter)
+const lastYearOf = (singles, item) => {
+  const lastYear = singles.find((other) => other.year === item.year - 1 && other.quarter === item.quarter)
+  return Number.isFinite(lastYear?.eps) ? lastYear.eps : null
+}
+
+// Latest actual quarters (8, fewer when projections need the room) with
+// last year's quarter and (US) the consensus estimate they were measured
+// against, then (TW) the projected quarters as outlined bars.
+export const buildEpsChartData = ({ singles = [], surprises = [], projected = [] }) => {
+  const ahead = projected.slice(0, MAX_BARS - MIN_ACTUAL)
+  const actualCount = Math.min(CHART_QUARTERS, MAX_BARS - ahead.length)
+  const actual = singles.slice(-actualCount).map((item) => {
     const surprise = surprises.find((other) => other.year === item.year && other.quarter === item.quarter)
     return {
       label: shortLabel(item),
       eps: Number.isFinite(item.eps) ? item.eps : null,
-      lastYearEps: Number.isFinite(lastYear?.eps) ? lastYear.eps : null,
+      lastYearEps: lastYearOf(singles, item),
       estimate: Number.isFinite(surprise?.estimate) ? surprise.estimate : null,
       surprisePercent: Number.isFinite(surprise?.surprisePercent) ? surprise.surprisePercent : null,
+      projected: null,
     }
   })
+  return [
+    ...actual,
+    ...ahead.map((item) => ({
+      label: shortLabel(item),
+      eps: null,
+      lastYearEps: lastYearOf(singles, item),
+      estimate: null,
+      surprisePercent: null,
+      projected: item.eps,
+    })),
+  ]
+}

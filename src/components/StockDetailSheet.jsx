@@ -127,7 +127,10 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
           ) : (
             <PeHistoryChart peSeries={data.peSeries} bands={model.bands} />
           ))}
-        <EpsTrendChart fundamentals={data} />
+        <EpsTrendChart
+          fundamentals={data}
+          projected={isStock && model.income?.status === "ok" ? model.income.quarters : []}
+        />
         <Text type="secondary" className="stock-detail-source">
           {`資料來源：${SOURCE_LABELS[holding.market]} · 更新於 ${formatDateTime(data.updatedAt)}`}
         </Text>
