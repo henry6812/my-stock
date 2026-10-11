@@ -17,8 +17,10 @@ import { formatEps } from "../../utils/valuation";
 const { Text } = Typography;
 
 const price = (value) => (Number.isFinite(value) ? formatPrice(value, "TWD") : "--");
+// Band prices are EPS × P/E, so they carry many decimals; the tooltip shows cents.
+const bandPrice = (value) => (Number.isFinite(value) ? price(Math.round(value * 100) / 100) : "--");
 
-function RiverTooltip({ active, payload }) {
+export function RiverTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
   const impliedPe = Number.isFinite(item.close) && item.ttmEps > 0 ? (item.close / item.ttmEps).toFixed(1) : null;
@@ -28,7 +30,7 @@ function RiverTooltip({ active, payload }) {
       {Number.isFinite(item.close) && <div>{`收盤 ${price(item.close)}`}</div>}
       <div>{`近四季 EPS ${Number.isFinite(item.ttmEps) ? formatEps(item.ttmEps) : "--"}`}</div>
       {impliedPe && <div>{`本益比 ${impliedPe}`}</div>}
-      <div>{`便宜 ${price(item.cheap)}／合理 ${price(item.fair)}／昂貴 ${price(item.expensive)}`}</div>
+      <div>{`便宜 ${bandPrice(item.cheap)}／合理 ${bandPrice(item.fair)}／昂貴 ${bandPrice(item.expensive)}`}</div>
     </div>
   );
 }
