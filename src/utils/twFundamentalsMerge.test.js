@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   INCOME_VALUE_FIELDS,
+  buildCompanyFiles,
   findRecentGaps,
   hasPeMonth,
   mergeEpsRows,
@@ -342,5 +343,28 @@ describe('MOPS monthly revenue', () => {
 
   it('lists months back from a month, newest first', () => {
     expect(monthsBack('2026-02', 3)).toEqual(['2026-02', '2026-01', '2025-12'])
+  })
+})
+
+describe('buildCompanyFiles', () => {
+  it('gives each company its statements, revenue and month-end series', () => {
+    const files = buildCompanyFiles({
+      eps: { updatedAt: '2026-10-05T00:00:00Z', companies: { 2330: { name: '台積電', statement: 'general', quarters: { '2026Q2': { eps: 35.17 } } } } },
+      pe: { companies: { 2330: [['2026-09', 28.75, 1285]] } },
+      revenue: { companies: { 2330: { '2026-09': 511857399 } } },
+    })
+    expect(files).toEqual({
+      2330: {
+        code: '2330', name: '台積電', statement: 'general', updatedAt: '2026-10-05T00:00:00Z',
+        quarters: { '2026Q2': { eps: 35.17 } },
+        monthlyRevenue: { '2026-09': 511857399 },
+        monthly: [['2026-09', 28.75, 1285]],
+      },
+    })
+  })
+
+  it('still writes a company that has no revenue or P/E yet', () => {
+    const files = buildCompanyFiles({ eps: { companies: { 9999: { name: '新上市', quarters: {} } } }, pe: null, revenue: null })
+    expect(files['9999']).toMatchObject({ statement: null, monthlyRevenue: {}, monthly: [] })
   })
 })

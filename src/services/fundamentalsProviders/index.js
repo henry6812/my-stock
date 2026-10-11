@@ -15,11 +15,17 @@ export const loadStockFundamentals = async (market, symbol, { todayIso }) => {
       market,
       singles: cumulativeToSingles(raw.cumulative),
       cumulative: raw.cumulative,
+      company: {
+        statement: raw.statement,
+        cumulative: raw.cumulative,
+        monthlyRevenue: raw.monthlyRevenue,
+        monthly: raw.monthly,
+      },
       surprises: [],
       upcoming: [],
       peSeries: raw.peSeries,
       nextEarnings: deadline ? { date: deadline.date, label: `${deadline.label}法定截止日` } : null,
-      updatedAt: raw.epsUpdatedAt,
+      updatedAt: raw.updatedAt,
     }
   }
   const raw = await getUsFundamentals(symbol)

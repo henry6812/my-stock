@@ -29,3 +29,6 @@ dev-dist/
 
 # Impeccable design-hook cache (local)
 .impeccable/hook.cache.json
+
+# Per-company TW fundamentals, split from data/twse/ by prebuild / predev
+public/data/tw/

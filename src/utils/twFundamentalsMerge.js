@@ -240,3 +240,21 @@ export const mergeMonthlyRevenue = (history, month, rows) => {
   }
   return { history: { updatedAt: history?.updatedAt ?? null, companies }, changed }
 }
+
+// One small file per company for the detail sheet, so opening a stock
+// downloads its own history instead of the whole market.
+export const buildCompanyFiles = ({ eps, pe, revenue }) =>
+  Object.fromEntries(
+    Object.entries(eps?.companies ?? {}).map(([code, company]) => [
+      code,
+      {
+        code,
+        name: company.name,
+        statement: company.statement ?? null,
+        updatedAt: eps?.updatedAt ?? null,
+        quarters: company.quarters ?? {},
+        monthlyRevenue: revenue?.companies?.[code] ?? {},
+        monthly: pe?.companies?.[code] ?? [],
+      },
+    ]),
+  )
