@@ -5,8 +5,8 @@
 import {
   hasPeMonth,
   mergeEpsRows,
-  mergeMonthlyRevenue,
   mergePeMonth,
+  mergeRevenueMonths,
   monthsBack,
   normalizeIncomeRow,
   previousMonth,
@@ -53,16 +53,14 @@ if (hasPeMonth(peHistory, month)) {
 }
 
 // Companies publish last month's revenue by the 10th, a few each day, so
-// the latest two months are re-read daily and merged.
-let revenueHistory = await readJson(REVENUE_PATH, { updatedAt: null, companies: {} })
-let revenueChanged = false
-for (const revenueMonth of monthsBack(previousMonth(new Date()), 2)) {
-  const revenueRows = await fetchMopsRevenueMonth(revenueMonth)
-  const { history, changed } = mergeMonthlyRevenue(revenueHistory, revenueMonth, revenueRows)
-  revenueHistory = history
-  revenueChanged ||= changed
-  console.log(`Revenue ${revenueMonth}: ${revenueRows.length} rows`)
-}
+// the latest two months are re-read daily and merged. A MOPS failure only
+// skips that month: the EPS / P/E updates above must still be committed.
+const revenueHistory = await readJson(REVENUE_PATH, { updatedAt: null, companies: {} })
+const { history: nextRevenue, changed: revenueChanged } = await mergeRevenueMonths(
+  revenueHistory,
+  monthsBack(previousMonth(new Date()), 2),
+  { fetchMonth: fetchMopsRevenueMonth, warn: (message) => console.warn(`::warning::${message}`), log: console.log },
+)
 if (revenueChanged) {
-  await writeJson(REVENUE_PATH, { ...revenueHistory, updatedAt: new Date().toISOString() })
+  await writeJson(REVENUE_PATH, { ...nextRevenue, updatedAt: new Date().toISOString() })
 }

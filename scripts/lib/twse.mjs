@@ -52,14 +52,18 @@ export const fetchMopsRevenueMonth = async (month) => {
   const rows = []
   for (const suffix of ['0', '1']) {
     const url = `https://mopsov.twse.com.tw/nas/t21/sii/t21sc03_${year - 1911}_${monthNumber}_${suffix}.html`
-    const response = await fetch(url, { headers: HEADERS })
-    if (response.ok) {
-      const html = new TextDecoder('big5').decode(await response.arrayBuffer())
-      rows.push(...parseMopsRevenueRows(html))
-    } else if (response.status !== 404) {
-      throw new Error(`${url} → HTTP ${response.status}`)
+    try {
+      const response = await fetch(url, { headers: HEADERS })
+      if (response.ok) {
+        const html = new TextDecoder('big5').decode(await response.arrayBuffer())
+        rows.push(...parseMopsRevenueRows(html))
+      } else if (response.status !== 404) {
+        throw new Error(`${url} → HTTP ${response.status}`)
+      }
+    } finally {
+      // Also after a failure: the caller may go on to the next month.
+      await sleep(MOPS_DELAY_MS)
     }
-    await sleep(MOPS_DELAY_MS)
   }
   return rows
 }

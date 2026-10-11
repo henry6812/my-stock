@@ -7,6 +7,7 @@ import {
   mergeEpsRows,
   mergeMonthlyRevenue,
   mergePeMonth,
+  mergeRevenueMonths,
   monthDaysDescending,
   monthsBack,
   fillIncomeFallbacks,
@@ -404,5 +405,36 @@ describe('fillIncomeFallbacks', () => {
       tax: null,
       parentNetIncome: null,
     })
+  })
+})
+
+describe('mergeRevenueMonths', () => {
+  it('skips a month whose fetch fails, with a warning, and keeps the others', async () => {
+    const warnings = []
+    const fetchMonth = async (month) => {
+      if (month === '2026-08') throw new Error('MOPS 503')
+      return [{ code: '2330', revenue: 511857399 }]
+    }
+    const result = await mergeRevenueMonths(
+      { updatedAt: null, companies: {} },
+      ['2026-08', '2026-09'],
+      { fetchMonth, warn: (message) => warnings.push(message) },
+    )
+    expect(result.changed).toBe(true)
+    expect(result.history.companies['2330']).toEqual({ '2026-09': 511857399 })
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('2026-08')
+    expect(warnings[0]).toContain('MOPS 503')
+  })
+
+  it('reports no change when every fetch fails', async () => {
+    const history = { updatedAt: null, companies: { 1101: { '2026-08': 10 } } }
+    const result = await mergeRevenueMonths(history, ['2026-08'], {
+      fetchMonth: async () => {
+        throw new Error('timeout')
+      },
+      warn: () => {},
+    })
+    expect(result).toEqual({ history, changed: false })
   })
 })

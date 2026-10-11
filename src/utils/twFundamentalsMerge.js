@@ -255,6 +255,27 @@ export const mergeMonthlyRevenue = (history, month, rows) => {
   return { history: { updatedAt: history?.updatedAt ?? null, companies }, changed }
 }
 
+// MOPS is flaky; a month that fails to load is skipped with a warning so the
+// day's EPS / P/E updates are still written and committed.
+export const mergeRevenueMonths = async (history, months, { fetchMonth, warn = console.warn, log = () => {} }) => {
+  let merged = history
+  let changed = false
+  for (const month of months) {
+    let rows
+    try {
+      rows = await fetchMonth(month)
+    } catch (error) {
+      warn(`Revenue ${month}: skipped (${error?.message ?? error})`)
+      continue
+    }
+    const result = mergeMonthlyRevenue(merged, month, rows)
+    merged = result.history
+    changed ||= result.changed
+    log(`Revenue ${month}: ${rows.length} rows`)
+  }
+  return { history: merged, changed }
+}
+
 // One small file per company for the detail sheet, so opening a stock
 // downloads its own history instead of the whole market.
 export const buildCompanyFiles = ({ eps, pe, revenue }) =>
