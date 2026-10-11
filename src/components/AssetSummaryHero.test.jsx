@@ -100,6 +100,20 @@ describe('AssetSummaryHero', () => {
     expect(text(container)).toEqual({ label: '1000萬・還差', num: '$3,615,800', sub: '已達 63.8%' })
   })
 
+  it('asks iOS for the tilt sensor on the first jar tap only', async () => {
+    const requestPermission = vi.fn(() => Promise.resolve('granted'))
+    vi.stubGlobal('DeviceOrientationEvent', { requestPermission })
+    // Earlier taps in this file already asked; start from a fresh module.
+    vi.resetModules()
+    const { default: FreshHero } = await import('./AssetSummaryHero')
+    render(<FreshHero {...props} />)
+    const jar = screen.getByRole('button', { name: '查看里程碑、本金與報價時間' })
+    fireEvent.click(jar)
+    fireEvent.click(jar)
+    expect(requestPermission).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
+  })
+
   it('has nothing to tap with no assets', () => {
     render(<AssetSummaryHero {...props} totalTwd={0} displayTotalTwd={0} baselineTwd={0} changeTwd={null} />)
     expect(screen.queryByRole('button', { name: '查看里程碑、本金與報價時間' })).toBeNull()

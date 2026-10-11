@@ -3,7 +3,8 @@
 // is two moving wave layers, with today's move since yesterday as a pale
 // solid band on top (green up / red down). The capacity label stays hidden
 // until the hero is tapped (`revealed`); an empty jar always shows it, since
-// there is no water to look at. The principal (cash plus what the holdings
+// there is no water to look at. On a phone the water leans against the tilt
+// (utils/deviceTilt.js) with a little slosh; the principal leans later and less. The principal (cash plus what the holdings
 // cost) is a darker layer settled at the bottom: water above it is gain; on a
 // loss a thin line marks where the principal should reach. Its amount shows
 // with the capacity. Geometry lives in utils/netWorthJar.js — this file only
@@ -12,6 +13,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { getJarGeometry } from "../utils/netWorthJar";
 import { formatNetWorthScaleLabel } from "../utils/portfolioView";
 import { prefersReducedMotion } from "../utils/motion";
+import { stepSpring, subscribeTilt } from "../utils/deviceTilt";
 
 const VIEW_W = 120;
 const VIEW_H = 170;
@@ -32,6 +34,13 @@ const PRINCIPAL_WAVELENGTH = 26;
 const PRINCIPAL_AMP = 1.2;
 const PRINCIPAL_PHASE_STEP = 0.018; // per frame; the water moves 0.045
 
+// Tilt springs (per frame). The principal is heavier: slower, and it leans
+// only part of the way.
+const WATER_SPRING = { stiffness: 0.02, damping: 0.12 };
+const PRINCIPAL_SPRING = { stiffness: 0.008, damping: 0.14 };
+const PRINCIPAL_LEAN = 0.6;
+const JAR_CX = JAR.x + JAR.w / 2;
+
 const STEPS = Array.from({ length: (JAR.w + 8) / 4 + 1 }, (_, n) => n * 4);
 const xAt = (i) => JAR.x - 4 + i;
 
@@ -46,14 +55,32 @@ const buildLayerPath = (surfaceAt) => {
 const buildLinePath = (surfaceAt) =>
   STEPS.map((i, n) => `${n ? "L" : "M"} ${xAt(i)} ${surfaceAt(i).toFixed(2)}`).join(" ");
 
-const waveAt = (levelY, phase, amp, offset) => (i) =>
-  levelY + offset + Math.sin(i / 13 + phase) * amp;
+// slope = tan(lean): + raises the right side (the phone's right side is lower).
+const leanAt = (i, slope) => (JAR_CX - xAt(i)) * slope;
 
-const principalWaveAt = (principalY, phase, amp) => (i) =>
-  principalY + Math.sin(i / PRINCIPAL_WAVELENGTH + phase) * amp;
+const waveAt = (levelY, phase, amp, offset, slope = 0) => (i) =>
+  levelY + offset + Math.sin(i / 13 + phase) * amp + leanAt(i, slope);
 
-const buildWavePath = (levelY, phase, amp, offset) =>
-  buildLayerPath(waveAt(levelY, phase, amp, offset));
+const principalWaveAt = (principalY, phase, amp, slope = 0) => (i) =>
+  principalY + Math.sin(i / PRINCIPAL_WAVELENGTH + phase) * amp + leanAt(i, slope);
+
+const buildWavePath = (levelY, phase, amp, offset, slope) =>
+  buildLayerPath(waveAt(levelY, phase, amp, offset, slope));
+
+// Today's band: the strip between two leaning lines.
+const buildBandPath = (topY, bottomY, slope) => {
+  const left = 0;
+  const right = JAR.w + 8;
+  return [
+    `M ${xAt(left)} ${(topY + leanAt(left, slope)).toFixed(2)}`,
+    `L ${xAt(right)} ${(topY + leanAt(right, slope)).toFixed(2)}`,
+    `L ${xAt(right)} ${(bottomY + leanAt(right, slope)).toFixed(2)}`,
+    `L ${xAt(left)} ${(bottomY + leanAt(left, slope)).toFixed(2)}`,
+    "Z",
+  ].join(" ");
+};
+
+const slopeOf = (deg) => Math.tan((deg * Math.PI) / 180);
 
 export default function NetWorthJar({
   totalTwd,
@@ -86,26 +113,31 @@ export default function NetWorthJar({
   const bandRef = useRef(null);
   const principalRef = useRef(null);
   const principalTopRef = useRef(null);
+  const tiltTargetRef = useRef(0);
+  const waterTiltRef = useRef({ value: 0, velocity: 0 });
+  const principalTiltRef = useRef({ value: 0, velocity: 0 });
 
   const paint = () => {
     const g = geometryRef.current;
     const levelY = yOf(levelRef.current);
+    const slope = slopeOf(waterTiltRef.current.value);
     frontRef.current?.setAttribute(
       "d",
-      buildWavePath(levelY, phaseRef.current, ampRef.current, 0),
+      buildWavePath(levelY, phaseRef.current, ampRef.current, 0, slope),
     );
     backRef.current?.setAttribute(
       "d",
-      buildWavePath(levelY, -phaseRef.current * 0.8 + 2, ampRef.current * 1.3, -2.5),
+      buildWavePath(levelY, -phaseRef.current * 0.8 + 2, ampRef.current * 1.3, -2.5, slope),
     );
     // The principal has its own slow swell but never rises past the water,
     // so while the water is below it (rising, or a loss) all water is principal.
     if (g.principalRatio !== null) {
-      const water = waveAt(levelY, phaseRef.current, ampRef.current, 0);
+      const water = waveAt(levelY, phaseRef.current, ampRef.current, 0, slope);
       const principal = principalWaveAt(
         yOf(g.principalRatio),
         principalPhaseRef.current,
         principalAmpRef.current,
+        slopeOf(principalTiltRef.current.value),
       );
       principalRef.current?.setAttribute(
         "d",
@@ -116,8 +148,10 @@ export default function NetWorthJar({
     if (bandRef.current) {
       const show = bandOnRef.current && g.baselineRatio !== null && g.direction !== "flat";
       const baseY = yOf(g.baselineRatio ?? 0);
-      bandRef.current.setAttribute("y", Math.min(levelY, baseY));
-      bandRef.current.setAttribute("height", show ? Math.abs(levelY - baseY) : 0);
+      bandRef.current.setAttribute(
+        "d",
+        show ? buildBandPath(Math.min(levelY, baseY), Math.max(levelY, baseY), slope) : "",
+      );
     }
   };
 
@@ -173,12 +207,33 @@ export default function NetWorthJar({
       phaseRef.current += 0.045;
       principalPhaseRef.current += PRINCIPAL_PHASE_STEP;
       levelRef.current += (targetRef.current - levelRef.current) * LEVEL_EASE;
+      const tilt = tiltTargetRef.current;
+      waterTiltRef.current = stepSpring(
+        waterTiltRef.current,
+        tilt,
+        WATER_SPRING.stiffness,
+        WATER_SPRING.damping,
+      );
+      principalTiltRef.current = stepSpring(
+        principalTiltRef.current,
+        tilt * PRINCIPAL_LEAN,
+        PRINCIPAL_SPRING.stiffness,
+        PRINCIPAL_SPRING.damping,
+      );
       const settled = Math.abs(targetRef.current - levelRef.current) < 0.002;
-      ampRef.current += ((settled ? 1.2 : 3) - ampRef.current) * 0.04;
+      // A quick tilt makes the surface choppier for a moment.
+      const slosh = Math.min(2.5, Math.abs(waterTiltRef.current.velocity) * 2);
+      ampRef.current += ((settled ? 1.2 : 3) + slosh - ampRef.current) * 0.04;
       paint();
     };
     frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    const unsubscribe = subscribeTilt((deg) => {
+      tiltTargetRef.current = deg;
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      unsubscribe();
+    };
   }, [reduced]);
 
   const capLabel = formatNetWorthScaleLabel(geometry.capTwd);
@@ -214,12 +269,9 @@ export default function NetWorthJar({
         {geometry.inLoss && (
           <path ref={principalTopRef} className="networth-jar-principal-top" />
         )}
-        <rect
+        <path
           ref={bandRef}
           className={`networth-jar-band networth-jar-band--${up ? "up" : "down"}`}
-          x={JAR.x}
-          width={JAR.w}
-          height="0"
         />
         {celebrating &&
           Array.from({ length: BUBBLE_COUNT }, (_, index) => (
