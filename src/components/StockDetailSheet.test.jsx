@@ -67,6 +67,7 @@ describe('StockDetailSheet', () => {
     renderSheet({ holding: { ...holding, market: 'US', symbol: 'AAPL', companyName: 'Apple', latestCurrency: 'USD' } })
     expect(screen.getByText('本益比走勢')).toBeInTheDocument()
     expect(screen.queryByText('股價與 EPS')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /月營收/ })).not.toBeInTheDocument()
   })
 
   it('opens the valuation assumptions from the EPS and 本益比 factors, with no separate row', () => {
@@ -75,6 +76,15 @@ describe('StockDetailSheet', () => {
     expect(screen.queryByRole('button', { name: /^估價假設/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^本益比 .*調整本益比$/ }))
     expect(screen.getByText('調整估價假設 · 台積電')).toBeInTheDocument()
+  })
+
+  it('shows the latest monthly revenue and opens its quarter in the assumptions', () => {
+    useStockFundamentals.mockReturnValue({ status: 'ready', data: fundamentals, reload })
+    renderSheet()
+    const row = screen.getByRole('button', { name: /^9 月營收 .+・YoY ▲50\.0%，查看 2026 Q3 推估$/ })
+    fireEvent.click(row)
+    expect(screen.getByText('調整估價假設 · 台積電')).toBeInTheDocument()
+    expect(screen.getByLabelText('2026 Q3 毛利率（%）')).toBeInTheDocument()
   })
 
   it('switches to this year’s estimate', () => {

@@ -1,9 +1,9 @@
 import { Segmented, Typography } from "antd";
 import { NavArrowRight } from "iconoir-react";
-import { CHART_STOCK } from "../../theme/tokens";
 import { formatPrice } from "../../utils/formatters";
 import { formatEps, zonePosition, ZONE_LABELS } from "../../utils/valuation";
 import { describeEpsFactor, describePeFactor } from "../../utils/valuationEquation";
+import PublishedMark from "./PublishedMark";
 
 const { Text } = Typography;
 
@@ -105,23 +105,12 @@ function Factor({ label, value, caption, children, actionLabel, onClick }) {
   );
 }
 
-// Published quarters solid, projected ones outlined — the same marks as
-// the EPS trend chart's bars.
 function QuarterCells({ actual, projected }) {
-  const states = [...Array(actual).fill("actual"), ...Array(projected).fill("projected")];
+  const states = [...Array(actual).fill(true), ...Array(projected).fill(false)];
   return (
     <span className="valuation-factor-cells" aria-hidden>
-      {states.map((state, index) => (
-        <span
-          key={index}
-          className="valuation-factor-cell"
-          data-state={state}
-          style={
-            state === "actual"
-              ? { background: CHART_STOCK.primary }
-              : { border: `1px dashed ${CHART_STOCK.primary}` }
-          }
-        />
+      {states.map((isActual, index) => (
+        <PublishedMark key={index} actual={isActual} className="valuation-factor-cell" />
       ))}
     </span>
   );

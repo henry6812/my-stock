@@ -10,6 +10,7 @@ import {
   toInput,
 } from "../../utils/incomeAssumptionForm";
 import { formatEps, formatQuarter } from "../../utils/valuation";
+import PublishedMark from "./PublishedMark";
 
 const STATEMENT_STEPS = [
   { field: "grossMargin", result: "毛利", value: (q) => q.grossProfit },
@@ -29,14 +30,39 @@ const monthsNote = ({ quarter, reportedMonths }) => {
   return `${reportedMonths === 1 ? from : `${from}–${from + 1}`} 月營收已公布・財報未出`;
 };
 
-const revenueNote = ({ quarter, reportedMonths }) => {
-  const from = firstMonth(quarter);
-  if (reportedMonths === 3) return `（${from}–${from + 2} 月實際）`;
-  if (reportedMonths === 0) return "（推估）";
-  return `（${from}${reportedMonths === 2 ? `–${from + 1}` : ""} 月實際，其餘推估）`;
+const percent = (ratio) => `${(ratio * 100).toFixed(1)}%`;
+
+const monthNote = (item) => {
+  if (item.actual) {
+    if (!Number.isFinite(item.yoy)) return "實際";
+    return `實際・YoY ${item.yoy >= 0 ? "▲" : "▼"}${Math.abs(item.yoy * 100).toFixed(1)}%`;
+  }
+  return `推估・去年 ${formatYi(item.base)}${item.baseActual ? "" : "（推估）"} × (1 + ${percent(item.yoy)})`;
 };
 
-function QuarterStatement({ quarter, overrides, shares, disabled, onChange }) {
+// The quarter's revenue month by month: published months as they came
+// out, the rest grown from the same month a year earlier.
+function RevenueMonths({ quarter, calibration }) {
+  return (
+    <>
+      <ul className="income-revenue-months">
+        {quarter.months.map((item) => (
+          <li key={item.month} className="income-revenue-month">
+            <PublishedMark actual={item.actual} className="income-revenue-mark" />
+            <span className="income-revenue-label">{`${Number(item.month.slice(5))} 月`}</span>
+            <span className="income-revenue-value">{formatYi(item.revenue)}</span>
+            <span className="income-revenue-note">{monthNote(item)}</span>
+          </li>
+        ))}
+      </ul>
+      {calibration !== 1 && (
+        <span className="income-revenue-calibration">{`三個月合計 × 校正 ${calibration.toFixed(2)}`}</span>
+      )}
+    </>
+  );
+}
+
+function QuarterStatement({ quarter, overrides, shares, calibration, disabled, onChange }) {
   const input = (field) => {
     const meta = FIELD_META[field];
     return (
@@ -55,8 +81,9 @@ function QuarterStatement({ quarter, overrides, shares, disabled, onChange }) {
     <div className="income-statement">
       <div className="income-statement-row">
         <span>營收</span>
-        <span className="income-statement-result">{`${formatYi(quarter.revenue)} ${revenueNote(quarter)}`}</span>
+        <span className="income-statement-result">{formatYi(quarter.revenue)}</span>
       </div>
+      <RevenueMonths quarter={quarter} calibration={calibration} />
       {quarter.reportedMonths < 3 && (
         <div className="income-statement-row income-statement-row--input">
           <span>{`${FIELD_META.revenueYoy.label} %`}</span>
@@ -86,11 +113,11 @@ const yearTotal = (income, year) => {
 
 // Grouped by year like the other lists; tapping a quarter shows its small
 // income statement and overrides just that quarter. One open at a time.
-function IncomeQuarterList({ income, overrides, disabled, onChange }) {
-  const [openKey, setOpenKey] = useState(null);
+function IncomeQuarterList({ income, overrides, disabled, initialOpenKey = null, onChange }) {
+  const [openKey, setOpenKey] = useState(initialOpenKey);
   const years = [...new Set(income.quarters.map((quarter) => quarter.year))];
   return (
-    <section className="valuation-assumptions-group" aria-label="逐季推估">
+    <section className="valuation-assumptions-group" aria-label="逐季推估" data-assumption-section="quarters">
       <h4 className="valuation-assumptions-title">逐季推估</h4>
       {income.calibration !== 1 && (
         <span className="valuation-assumptions-hint">{`營收已依季報口徑校正 ×${income.calibration.toFixed(2)}`}</span>
@@ -110,7 +137,7 @@ function IncomeQuarterList({ income, overrides, disabled, onChange }) {
                   const open = openKey === quarter.key;
                   const note = monthsNote(quarter);
                   return (
-                    <div key={quarter.key} className="income-quarter">
+                    <div key={quarter.key} className="income-quarter" data-quarter-key={quarter.key}>
                       <button
                         type="button"
                         className="income-quarter-row"
@@ -137,6 +164,7 @@ function IncomeQuarterList({ income, overrides, disabled, onChange }) {
                           quarter={quarter}
                           overrides={overrides[quarter.key] ?? {}}
                           shares={income.shares}
+                          calibration={income.calibration}
                           disabled={disabled}
                           onChange={(field, value) => onChange(quarter.key, field, value)}
                         />

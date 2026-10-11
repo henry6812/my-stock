@@ -9,7 +9,16 @@ const { Text } = Typography;
 
 // The TW income model inside 估價假設: result, assumptions for every
 // quarter, then each quarter on its own.
-function IncomeModelSections({ income, draft, settings, disabled, onGlobalChange, onGlobalReset, onQuarterChange }) {
+function IncomeModelSections({
+  income,
+  draft,
+  settings,
+  disabled,
+  openQuarter,
+  onGlobalChange,
+  onGlobalReset,
+  onQuarterChange,
+}) {
   if (income.status !== "ok") {
     return (
       <section className="valuation-assumptions-group">
@@ -33,6 +42,7 @@ function IncomeModelSections({ income, draft, settings, disabled, onGlobalChange
         income={income}
         overrides={draft.model.quarters}
         disabled={disabled}
+        initialOpenKey={openQuarter}
         onChange={onQuarterChange}
       />
     </>

@@ -158,19 +158,38 @@ export const projectIncome = (company, assumptions, { todayIso }) => {
     const resolved = Object.fromEntries(
       MODEL_FIELDS.map((field) => [field, resolveAssumption(field, key, auto, assumptions)]),
     )
-    let reportedMonths = 0
-    let monthlyTotal = 0
+    // Each month as published, or grown from the same month a year earlier
+    // (itself published or projected) — kept for the quarter's breakdown.
+    const months = []
     for (const month of monthsOfQuarter(period)) {
-      if (Number.isFinite(company.monthlyRevenue?.[month])) {
-        reportedMonths += 1
-        monthlyTotal += company.monthlyRevenue[month]
+      const lastYearMonth = shiftYear(month, -1)
+      const base = revenueByMonth[lastYearMonth]
+      const baseActual = Number.isFinite(company.monthlyRevenue?.[lastYearMonth])
+      const published = company.monthlyRevenue?.[month]
+      if (Number.isFinite(published)) {
+        months.push({
+          month,
+          revenue: published,
+          actual: true,
+          base: Number.isFinite(base) ? base : null,
+          baseActual,
+          yoy: Number.isFinite(base) && base > 0 ? published / base - 1 : null,
+        })
         continue
       }
-      const lastYear = revenueByMonth[shiftYear(month, -1)]
-      if (!Number.isFinite(lastYear)) return unavailable('revenue-history')
-      revenueByMonth[month] = lastYear * (1 + resolved.revenueYoy.value)
-      monthlyTotal += revenueByMonth[month]
+      if (!Number.isFinite(base)) return unavailable('revenue-history')
+      revenueByMonth[month] = base * (1 + resolved.revenueYoy.value)
+      months.push({
+        month,
+        revenue: revenueByMonth[month],
+        actual: false,
+        base,
+        baseActual,
+        yoy: resolved.revenueYoy.value,
+      })
     }
+    const reportedMonths = months.filter((item) => item.actual).length
+    const monthlyTotal = sum(months.map((item) => item.revenue))
     const revenue = monthlyTotal * calibration
     const grossProfit = revenue * resolved.grossMargin.value
     const operatingIncome = grossProfit - revenue * resolved.opexRatio.value
@@ -182,6 +201,7 @@ export const projectIncome = (company, assumptions, { todayIso }) => {
       ...period,
       key,
       reportedMonths,
+      months,
       revenue,
       grossProfit,
       operatingIncome,
@@ -267,3 +287,19 @@ export const compareSnapshots = (snapshots, reported) =>
     })
     .filter(Boolean)
     .sort((a, b) => quarterIndexOf(b) - quarterIndexOf(a))
+
+// The latest published month with its YoY and quarter, for the detail
+// sheet's 月營收 row.
+export const latestMonthRevenue = (monthlyRevenue) => {
+  const month = Object.keys(monthlyRevenue ?? {}).sort().at(-1)
+  if (!month) return null
+  const revenue = monthlyRevenue[month]
+  const base = monthlyRevenue[shiftYear(month, -1)]
+  const [year, monthNumber] = month.split('-').map(Number)
+  return {
+    month,
+    revenue,
+    yoy: Number.isFinite(base) && base > 0 ? revenue / base - 1 : null,
+    quarterKey: quarterKeyOf({ year, quarter: Math.ceil(monthNumber / 3) }),
+  }
+}

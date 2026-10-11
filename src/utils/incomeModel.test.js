@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   compareSnapshots,
   computeAutoAssumptions,
+  latestMonthRevenue,
   projectIncome,
   recentRevenueYoy,
   revenueCalibration,
@@ -207,6 +208,34 @@ describe('projectIncome', () => {
   })
 })
 
+describe('projectIncome — monthly breakdown', () => {
+  it('lists each month of a quarter as published or projected, with its base', () => {
+    const company = { ...COMPANY, monthlyRevenue: { ...MONTHLY_REVENUE, '2026-10': 500 } }
+    const [q3, q4, , , , q2027q4] = project(undefined, TODAY, company).quarters
+    expect(q3.months).toEqual([
+      { month: '2026-07', revenue: 450, actual: true, base: 300, baseActual: true, yoy: 0.5 },
+      { month: '2026-08', revenue: 450, actual: true, base: 300, baseActual: true, yoy: 0.5 },
+      { month: '2026-09', revenue: 450, actual: true, base: 300, baseActual: true, yoy: 0.5 },
+    ])
+    // Latest three months 2026-08..10 vs 2025: (450 + 450 + 500) / 900 − 1
+    const yoy = 1400 / 900 - 1
+    expect(q4.months[0]).toEqual({ month: '2026-10', revenue: 500, actual: true, base: 300, baseActual: true, yoy: expect.closeTo(2 / 3, 6) })
+    expect(q4.months[1]).toEqual({
+      month: '2026-11',
+      revenue: expect.closeTo(300 * (1 + yoy), 6),
+      actual: false,
+      base: 300,
+      baseActual: true,
+      yoy: expect.closeTo(yoy, 6),
+    })
+    expect(q4.revenue).toBeCloseTo(500 + 2 * 300 * (1 + yoy), 6)
+    // Next year's Q4 grows this year's months: October's base is published,
+    // November's is itself projected.
+    expect(q2027q4.months[0]).toMatchObject({ month: '2027-10', base: 500, baseActual: true })
+    expect(q2027q4.months[1]).toMatchObject({ month: '2027-11', baseActual: false, base: expect.closeTo(300 * (1 + yoy), 6) })
+  })
+})
+
 describe('compareSnapshots', () => {
   const reported = toSingleStatements(CUMULATIVE)
 
@@ -226,5 +255,18 @@ describe('compareSnapshots', () => {
       actual: { eps: 3.04, revenue: 1200, grossMargin: 0.5, opexRatio: 0.2 },
     })
     expect(result[0].epsDiff).toBeCloseTo(3.04 / 3.2 - 1, 6)
+  })
+})
+
+describe('latestMonthRevenue', () => {
+  it('gives the latest published month, its YoY and the quarter it belongs to', () => {
+    expect(latestMonthRevenue(MONTHLY_REVENUE)).toEqual({
+      month: '2026-09',
+      revenue: 450,
+      yoy: expect.closeTo(0.5, 6),
+      quarterKey: '2026Q3',
+    })
+    expect(latestMonthRevenue({ '2026-10': 10 })).toEqual({ month: '2026-10', revenue: 10, yoy: null, quarterKey: '2026Q4' })
+    expect(latestMonthRevenue({})).toBeNull()
   })
 })

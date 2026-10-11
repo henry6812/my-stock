@@ -54,6 +54,17 @@ describe('ValuationAssumptions — opening at a section', () => {
     expect(scrolled[0]).toHaveTextContent(text)
   })
 
+  it('opens a quarter expanded and scrolls to it', async () => {
+    const scrolled = []
+    Element.prototype.scrollIntoView = function scrollIntoView() {
+      scrolled.push(this)
+    }
+    renderOpen({ focus: 'quarters:2026Q4' })
+    expect(screen.getByLabelText('2026 Q4 毛利率（%）')).toBeInTheDocument()
+    await waitFor(() => expect(scrolled).toHaveLength(1))
+    expect(scrolled[0]).toHaveAttribute('data-quarter-key', '2026Q4')
+  })
+
   it('stays at the top without a section', async () => {
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView
@@ -247,6 +258,28 @@ describe('ValuationAssumptions — income model (TW)', () => {
       buildValuationModel({ fundamentals: october, settings, price: 50, basis: 'ttm', todayIso: '2026-10-11' })
     renderOpen({ model: build(EMPTY_VALUATION_SETTINGS), buildModel: build })
     expect(screen.getByRole('button', { name: /^2026 Q4 推估 EPS .*，10 月營收已公布・財報未出$/ })).toBeInTheDocument()
+  })
+
+  it('breaks a quarter’s revenue into published months', () => {
+    renderOpen()
+    fireEvent.click(screen.getByRole('button', { name: /^2026 Q3 推估 EPS/ }))
+    for (const month of ['7 月', '8 月', '9 月']) expect(screen.getByText(month)).toBeInTheDocument()
+    expect(screen.getAllByText('實際・YoY ▲50.0%')).toHaveLength(3)
+  })
+
+  it('shows which months are still projected and how', () => {
+    const october = {
+      ...TW_FUNDAMENTALS,
+      company: { ...TW_FUNDAMENTALS.company, monthlyRevenue: { ...TW_FUNDAMENTALS.company.monthlyRevenue, '2026-10': 500 } },
+    }
+    const build = (settings) =>
+      buildValuationModel({ fundamentals: october, settings, price: 50, basis: 'ttm', todayIso: '2026-10-11' })
+    renderOpen({ model: build(EMPTY_VALUATION_SETTINGS), buildModel: build })
+    fireEvent.click(screen.getByRole('button', { name: /^2026 Q4 推估 EPS/ }))
+    expect(screen.getByText('實際・YoY ▲66.7%')).toBeInTheDocument()
+    expect(screen.getAllByText(/^推估・去年 .+ × \(1 \+ 55\.6%\)$/)).toHaveLength(2)
+    expect(document.querySelectorAll('.income-revenue-month [data-state="actual"]')).toHaveLength(1)
+    expect(document.querySelectorAll('.income-revenue-month [data-state="projected"]')).toHaveLength(2)
   })
 
   it('hides the revenue YoY input for a quarter whose revenue is all published', () => {

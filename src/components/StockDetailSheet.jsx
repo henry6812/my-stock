@@ -6,8 +6,10 @@ import useBodyScrollLock from "../hooks/useBodyScrollLock";
 import useStockFundamentals from "../hooks/useStockFundamentals";
 import useValuationSettings from "../hooks/useValuationSettings";
 import { formatDateTime } from "../utils/formatters";
+import { formatYi } from "../utils/incomeAssumptionForm";
+import { latestMonthRevenue, parseQuarterKey } from "../utils/incomeModel";
 import { buildRiverData } from "../utils/peRiver";
-import { buildValuationModel } from "../utils/valuation";
+import { buildValuationModel, formatQuarter } from "../utils/valuation";
 import EpsTrendChart from "./stockDetail/EpsTrendChart";
 import HoldingPosition from "./stockDetail/HoldingPosition";
 import PeHistoryChart from "./stockDetail/PeHistoryChart";
@@ -18,6 +20,35 @@ import ValuationCard from "./stockDetail/ValuationCard";
 const { Text } = Typography;
 
 const SOURCE_LABELS = { TW: "TWSE / 公開資訊觀測站", US: "Finnhub" };
+
+const describeYoy = (yoy) =>
+  Number.isFinite(yoy) ? `YoY ${yoy >= 0 ? "▲" : "▼"}${Math.abs(yoy * 100).toFixed(1)}%` : null;
+
+// The latest monthly revenue under the valuation card: opens 估價假設 at
+// the quarter it belongs to (expanded) when that quarter is projected.
+function MonthlyRevenueRow({ latest, projectedKeys, onOpen }) {
+  const yoy = describeYoy(latest.yoy);
+  const projected = projectedKeys.includes(latest.quarterKey);
+  const text = [`${Number(latest.month.slice(5))} 月營收 ${formatYi(latest.revenue)}`, yoy].filter(Boolean).join("・");
+  return (
+    <button
+      type="button"
+      className="monthly-revenue-entry"
+      aria-label={projected ? `${text}，查看 ${formatQuarter(parseQuarterKey(latest.quarterKey))} 推估` : `${text}，查看推估`}
+      onClick={() => onOpen(projected ? `quarters:${latest.quarterKey}` : "model")}
+    >
+      <span className="monthly-revenue-entry-text">
+        <span>{`${Number(latest.month.slice(5))} 月營收 ${formatYi(latest.revenue)}`}</span>
+        {yoy && (
+          <span className={`monthly-revenue-entry-yoy monthly-revenue-entry-yoy--${latest.yoy >= 0 ? "up" : "down"}`}>
+            {yoy}
+          </span>
+        )}
+      </span>
+      <NavArrowRight aria-hidden />
+    </button>
+  );
+}
 
 // One holding (one stock, one holder): its market value, position and
 // cost, buy / sell, EPS × P/E valuation, EPS trend and P/E history, then
@@ -42,6 +73,7 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
   const buildModel = (nextSettings) =>
     buildValuationModel({ fundamentals: data, settings: nextSettings, price: holding.latestPrice, basis, todayIso });
   const model = data ? buildModel(settings) : null;
+  const latestRevenue = data?.company ? latestMonthRevenue(data.company.monthlyRevenue) : null;
 
   let body;
   if (fundamentals.status === "loading" || fundamentals.status === "idle") {
@@ -80,6 +112,13 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
               market={holding.market}
               currency={currency}
             />
+            {latestRevenue && (
+              <MonthlyRevenueRow
+                latest={latestRevenue}
+                projectedKeys={model.income?.status === "ok" ? model.income.quarters.map((quarter) => quarter.key) : []}
+                onOpen={setAssumptionsFocus}
+              />
+            )}
             <ValuationAssumptions
               open={assumptionsFocus !== null}
               focus={assumptionsFocus}

@@ -3886,6 +3886,58 @@ button.valuation-factor {
   font-size: var(--icon-sm);
 }
 
+/* The latest monthly revenue, a quiet row under the valuation card that
+   opens its quarter in 估價假設. */
+.monthly-revenue-entry {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-row-x);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  font: inherit;
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  color: var(--c-ink);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .monthly-revenue-entry:hover {
+    background: var(--c-neutral-fill);
+  }
+}
+
+.monthly-revenue-entry svg {
+  flex: none;
+  font-size: var(--icon-sm);
+  color: var(--c-muted);
+}
+
+.monthly-revenue-entry-text {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.monthly-revenue-entry-yoy {
+  font-weight: 600;
+}
+
+.monthly-revenue-entry-yoy--up {
+  color: var(--c-up);
+}
+
+.monthly-revenue-entry-yoy--down {
+  color: var(--c-down);
+}
+
 /* How the EPS in use is made up, under the basis switch. */
 .valuation-card-formula {
   font-size: var(--fs-caption);
@@ -4493,6 +4545,53 @@ button.valuation-factor {
 .income-statement-result {
   text-align: right;
   color: var(--c-ink);
+}
+
+/* A quarter's revenue month by month: mark, month, amount, then how it is
+   known (published with YoY, or grown from last year) on its own line. */
+.income-revenue-months {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 0 var(--space-3);
+  list-style: none;
+}
+
+.income-revenue-month {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-2);
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.income-revenue-mark {
+  width: var(--space-4);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+}
+
+.income-revenue-label {
+  color: var(--c-ink);
+}
+
+.income-revenue-value {
+  color: var(--c-ink);
+  text-align: right;
+}
+
+.income-revenue-note {
+  grid-column: 2 / -1;
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+}
+
+.income-revenue-calibration {
+  padding-left: var(--space-3);
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
 }
 
 .income-statement-total {

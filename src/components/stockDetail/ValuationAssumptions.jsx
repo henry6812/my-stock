@@ -65,15 +65,19 @@ function AssumptionsForm({ model, buildModel, market, settings, disabled, focus,
     }
   };
 
-  // Opened from a factor on the valuation card: bring its section into view
-  // once the sheet has laid out.
+  // focus: a section ("model", "pe", "custom") or "quarters:<key>" to open
+  // that quarter expanded. Brought into view once the sheet has laid out.
+  const [focusSection, focusQuarter = null] = focus ? focus.split(":") : [];
   useEffect(() => {
-    if (!focus) return undefined;
+    if (!focusSection) return undefined;
+    const selector = focusQuarter
+      ? `[data-quarter-key="${focusQuarter}"]`
+      : `[data-assumption-section="${focusSection}"]`;
     const frame = requestAnimationFrame(() => {
-      bodyRef.current?.querySelector(`[data-assumption-section="${focus}"]`)?.scrollIntoView?.({ block: "start" });
+      bodyRef.current?.querySelector(selector)?.scrollIntoView?.({ block: "start" });
     });
     return () => cancelAnimationFrame(frame);
-  }, [focus]);
+  }, [focusSection, focusQuarter]);
 
   const setRoot = (field) => (value) => setDraft((previous) => ({ ...previous, [field]: value ?? null }));
 
@@ -109,6 +113,7 @@ function AssumptionsForm({ model, buildModel, market, settings, disabled, focus,
               draft={draft}
               settings={settings}
               disabled={locked}
+              openQuarter={focusQuarter}
               onGlobalChange={(field, value) => setDraft((previous) => setGlobalValue(previous, field, value))}
               onGlobalReset={(field) => runSave({ model: { global: { [field]: null } } }, null)}
               onQuarterChange={(key, field, value) => setDraft((previous) => setQuarterValue(previous, key, field, value))}
