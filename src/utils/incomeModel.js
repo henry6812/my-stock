@@ -120,3 +120,143 @@ export const computeAutoAssumptions = ({ singles, cumulative, monthlyRevenue }) 
     calibration: revenueCalibration(recent, monthlyRevenue),
   }
 }
+
+const resolveAssumption = (field, key, auto, assumptions) => {
+  const quarterValue = assumptions?.quarters?.[key]?.[field]
+  if (Number.isFinite(quarterValue)) return { value: quarterValue, source: 'quarter' }
+  const globalValue = assumptions?.global?.[field]
+  if (Number.isFinite(globalValue)) return { value: globalValue, source: 'global' }
+  return { value: auto[field], source: 'auto' }
+}
+
+const changeRatio = (value, base) => (Number.isFinite(value) && Number.isFinite(base) && base > 0 ? value / base - 1 : null)
+
+export const projectIncome = (company, assumptions, { todayIso }) => {
+  if (company?.statement !== 'general') return unavailable('financial')
+  const reported = toSingleStatements(company.cumulative)
+  const base = computeAutoAssumptions({ singles: reported, cumulative: company.cumulative, monthlyRevenue: company.monthlyRevenue })
+  if (base.status !== 'ok') return base
+  const { auto, shares, calibration, latest } = base
+  const thisYear = Number(todayIso.slice(0, 4))
+  const firstIndex = quarterIndexOf(latest) + 1
+  const lastIndex = quarterIndexOf({ year: thisYear + 1, quarter: 4 })
+
+  // Published months, then each projected month as it is computed, so next
+  // year's months grow this year's projections.
+  const revenueByMonth = { ...company.monthlyRevenue }
+  const quarters = []
+  for (let index = firstIndex; index <= lastIndex; index += 1) {
+    const period = quarterOfIndex(index)
+    const key = quarterKeyOf(period)
+    const resolved = Object.fromEntries(
+      MODEL_FIELDS.map((field) => [field, resolveAssumption(field, key, auto, assumptions)]),
+    )
+    let reportedMonths = 0
+    let monthlyTotal = 0
+    for (const month of monthsOfQuarter(period)) {
+      if (Number.isFinite(company.monthlyRevenue?.[month])) {
+        reportedMonths += 1
+        monthlyTotal += company.monthlyRevenue[month]
+        continue
+      }
+      const lastYear = revenueByMonth[shiftYear(month, -1)]
+      if (!Number.isFinite(lastYear)) return unavailable('revenue-history')
+      revenueByMonth[month] = lastYear * (1 + resolved.revenueYoy.value)
+      monthlyTotal += revenueByMonth[month]
+    }
+    const revenue = monthlyTotal * calibration
+    const grossProfit = revenue * resolved.grossMargin.value
+    const operatingIncome = grossProfit - revenue * resolved.opexRatio.value
+    const pretaxIncome = operatingIncome + resolved.nonOperating.value
+    const netIncome = pretaxIncome * (1 - resolved.taxRate.value)
+    const parentNetIncome = netIncome * (1 - resolved.nciRatio.value)
+    const overrides = assumptions?.quarters?.[key] ?? {}
+    quarters.push({
+      ...period,
+      key,
+      reportedMonths,
+      revenue,
+      grossProfit,
+      operatingIncome,
+      pretaxIncome,
+      netIncome,
+      parentNetIncome,
+      eps: round(parentNetIncome / shares),
+      overridden: MODEL_FIELDS.some((field) => Number.isFinite(overrides[field])),
+      assumptions: resolved,
+    })
+  }
+
+  const epsByIndex = new Map([
+    ...reported.map((item) => [quarterIndexOf(item), item.eps]),
+    ...quarters.map((item) => [quarterIndexOf(item), item.eps]),
+  ])
+  const sumEps = (from, to) => {
+    let total = 0
+    for (let index = from; index <= to; index += 1) {
+      const value = epsByIndex.get(index)
+      if (!Number.isFinite(value)) return null
+      total += value
+    }
+    return round(total)
+  }
+
+  const next = quarters[0]
+  return {
+    status: 'ok',
+    latest,
+    shares,
+    calibration,
+    auto,
+    reported,
+    quarters,
+    nextQuarter: {
+      ...next,
+      yoy: changeRatio(next.eps, epsByIndex.get(firstIndex - 4)),
+      qoq: changeRatio(next.eps, epsByIndex.get(firstIndex - 1)),
+    },
+    ttmAfterNext: { eps: sumEps(firstIndex - 3, firstIndex), from: quarterOfIndex(firstIndex - 3) },
+    thisYear: {
+      year: thisYear,
+      eps: sumEps(quarterIndexOf({ year: thisYear, quarter: 1 }), quarterIndexOf({ year: thisYear, quarter: 4 })),
+      reportedQuarters: latest.year === thisYear ? latest.quarter : 0,
+    },
+    nextYear: {
+      year: thisYear + 1,
+      eps: sumEps(quarterIndexOf({ year: thisYear + 1, quarter: 1 }), lastIndex),
+    },
+    rollingTtm: quarters.map((item) => ({
+      year: item.year,
+      quarter: item.quarter,
+      eps: sumEps(quarterIndexOf(item) - 3, quarterIndexOf(item)),
+    })),
+  }
+}
+
+const ratioOf = (part, whole) => (Number.isFinite(part) && whole > 0 ? part / whole : null)
+
+// Snapshots of quarters that have since been published, with the actual
+// figures next to the estimate.
+export const compareSnapshots = (snapshots, reported) =>
+  Object.entries(snapshots ?? {})
+    .map(([key, estimate]) => {
+      const { year, quarter } = parseQuarterKey(key)
+      const actual = reported.find((item) => item.year === year && item.quarter === quarter)
+      if (!actual || !Number.isFinite(actual.eps) || !(actual.revenue > 0)) return null
+      return {
+        key,
+        year,
+        quarter,
+        savedAt: estimate.savedAt ?? null,
+        estimate,
+        actual: {
+          eps: actual.eps,
+          revenue: actual.revenue,
+          grossMargin: ratioOf(actual.grossProfit, actual.revenue),
+          opexRatio: ratioOf(actual.grossProfit - actual.operatingIncome, actual.revenue),
+        },
+        epsDiff: changeRatio(actual.eps, estimate.eps),
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => quarterIndexOf(b) - quarterIndexOf(a))
