@@ -1,4 +1,4 @@
-// One-off (re-runnable) backfill: 13 季損益表（MOPS）、60 個月月底本益比與收盤價、
+// One-off (re-runnable) backfill: 24 季損益表（MOPS）、60 個月月底本益比與收盤價、
 // 36 個月月營收. Writes after every period so an
 // interrupted run keeps its progress; already-stored months are skipped.
 import {
@@ -24,7 +24,7 @@ import {
 } from './lib/twse.mjs'
 
 const MOPS_URL = 'https://mopsov.twse.com.tw/mops/web/ajax_t163sb04'
-const EPS_QUARTERS = 13
+const EPS_QUARTERS = 24
 const PE_MONTHS = 60
 const REVENUE_MONTHS = 36
 
