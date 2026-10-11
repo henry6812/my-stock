@@ -62,10 +62,13 @@ function EpsTrendChart({ fundamentals, projected = [] }) {
               <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
               <Tooltip formatter={formatTooltip} />
               <Bar dataKey="lastYearEps" fill={CHART_STOCK.previous} radius={[3, 3, 0, 0]} />
-              <Bar dataKey="eps" fill={CHART_STOCK.primary} radius={[3, 3, 0, 0]} />
+              {/* eps and projected never share a row; one stack keeps them in
+                  the same slot, beside 去年同季, instead of a third slot. */}
+              <Bar dataKey="eps" stackId="eps" fill={CHART_STOCK.primary} radius={[3, 3, 0, 0]} />
               {hasProjected && (
                 <Bar
                   dataKey="projected"
+                  stackId="eps"
                   fill="transparent"
                   stroke={CHART_STOCK.primary}
                   strokeDasharray="3 3"
