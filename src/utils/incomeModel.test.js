@@ -83,6 +83,15 @@ describe('computeAutoAssumptions', () => {
     expect(result.auto.taxRate).toBe(0.2)
   })
 
+  // A tiny cumulative EPS is mostly rounding (0.006 → 0.01): dividing by it
+  // would be far off, so the largest |EPS| of the latest four records wins.
+  it('takes the share count from the latest-four record with the largest |EPS|', () => {
+    const tiny = { ...CUMULATIVE, '2026Q2': { ...CUMULATIVE['2026Q2'], parentNetIncome: 0.6, eps: 0.01 } }
+    const result = computeAutoAssumptions({ singles: toSingleStatements(tiny), cumulative: tiny, monthlyRevenue: MONTHLY_REVENUE })
+    // 2025Q4: 928 thousand NTD ÷ 9.28 NTD
+    expect(result.shares).toBeCloseTo(100, 6)
+  })
+
   it('reports why it cannot run', () => {
     const missingField = { ...CUMULATIVE, '2026Q2': { ...CUMULATIVE['2026Q2'], grossProfit: null } }
     expect(
@@ -94,7 +103,7 @@ describe('computeAutoAssumptions', () => {
       computeAutoAssumptions({ singles: toSingleStatements(short), cumulative: short, monthlyRevenue: MONTHLY_REVENUE }).reason,
     ).toBe('incomplete')
 
-    const zeroEps = { ...CUMULATIVE, '2026Q2': { ...CUMULATIVE['2026Q2'], eps: 0 } }
+    const zeroEps = Object.fromEntries(Object.entries(CUMULATIVE).map(([key, values]) => [key, { ...values, eps: 0 }]))
     expect(
       computeAutoAssumptions({ singles: toSingleStatements(zeroEps), cumulative: zeroEps, monthlyRevenue: MONTHLY_REVENUE }).reason,
     ).toBe('shares')

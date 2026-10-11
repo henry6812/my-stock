@@ -87,6 +87,17 @@ export const revenueCalibration = (quarters, monthlyRevenue) => {
 
 const unavailable = (reason) => ({ status: 'unavailable', reason })
 
+// Parent net income ÷ EPS of the latest four cumulative records' largest
+// |EPS|: a small EPS is mostly rounding (0.006 → 0.01) and would skew it.
+const shareCount = (quarters, cumulative) => {
+  const usable = quarters
+    .map((quarter) => cumulative?.[quarterKeyOf(quarter)])
+    .filter((record) => Number.isFinite(record?.eps) && record.eps !== 0 && Number.isFinite(record.parentNetIncome))
+  if (usable.length === 0) return null
+  const best = usable.reduce((top, record) => (Math.abs(record.eps) > Math.abs(top.eps) ? record : top))
+  return best.parentNetIncome / best.eps
+}
+
 export const computeAutoAssumptions = ({ singles, cumulative, monthlyRevenue }) => {
   const recent = latestFourComplete(singles)
   if (!recent) return unavailable('incomplete')
@@ -94,11 +105,7 @@ export const computeAutoAssumptions = ({ singles, cumulative, monthlyRevenue }) 
   const revenue = total('revenue')
   if (!(revenue > 0)) return unavailable('incomplete')
   const latest = { year: recent[3].year, quarter: recent[3].quarter }
-  const latestCumulative = cumulative?.[quarterKeyOf(latest)]
-  const shares =
-    Number.isFinite(latestCumulative?.eps) && latestCumulative.eps !== 0
-      ? latestCumulative.parentNetIncome / latestCumulative.eps
-      : null
+  const shares = shareCount(recent, cumulative)
   if (!(shares > 0)) return unavailable('shares')
   const revenueYoy = recentRevenueYoy(monthlyRevenue)
   if (revenueYoy === null) return unavailable('revenue-history')
