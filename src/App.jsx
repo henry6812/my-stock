@@ -148,6 +148,7 @@ import {
 } from "./components/holdingActions";
 import { isInteractiveTarget } from "./utils/stockDetail";
 import useStockDetailSelection from "./hooks/useStockDetailSelection";
+import { guardConfirm } from "./utils/confirmGuard";
 import { isFromPortal } from "./utils/portalEvent";
 import CategoryIcon from "./components/CategoryIcon";
 import CategoryIconPicker from "./components/CategoryIconPicker";
@@ -442,7 +443,7 @@ function App() {
   const { message, notification, modal } = AntdApp.useApp();
   // Swipe 刪除 / 移除 on mobile asks first, as the desktop Popconfirm does.
   const confirmDestructive = useCallback(
-    ({ title, content, okText = "刪除", onOk }) => {
+    ({ title, content, okText = "刪除", onOk, onCancel }) => {
       modal.confirm({
         title,
         content,
@@ -450,6 +451,7 @@ function App() {
         cancelText: "取消",
         okButtonProps: { danger: true },
         onOk,
+        onCancel,
       });
     },
     [modal],
@@ -1883,11 +1885,17 @@ function App() {
   }, [activeHoldingTab, rows]);
 
 
+  // One confirm at a time for a holding's 移除 / 賣出全部 (double taps).
+  const confirmHoldingOnce = useMemo(
+    () => guardConfirm(confirmDestructive),
+    [confirmDestructive],
+  );
+
   const handleStockDetailAction = useCallback(
     (action) => {
       if (!stockDetail) return;
       if (action === "remove") {
-        confirmDestructive({
+        confirmHoldingOnce({
           title: "移除此持股？",
           content: "會一併刪除該持股的所有快照資料。",
           okText: "移除",
@@ -1897,7 +1905,7 @@ function App() {
       }
       setHoldingAction(action);
     },
-    [confirmDestructive, handleRemoveHolding, setHoldingAction, stockDetail],
+    [confirmHoldingOnce, handleRemoveHolding, setHoldingAction, stockDetail],
   );
 
   const handleSubmitHoldingAction = useCallback(
@@ -1938,7 +1946,7 @@ function App() {
         }
       };
       if (holdingAction === "sell" && values.shares >= Number(stockDetail.shares)) {
-        confirmDestructive({
+        confirmHoldingOnce({
           title: "賣出全部？",
           content: "賣出全部會移除這筆持股，並一併刪除它的快照資料。",
           okText: "賣出並移除",
@@ -1950,7 +1958,7 @@ function App() {
     },
     [
       closeStockDetail,
-      confirmDestructive,
+      confirmHoldingOnce,
       holdingAction,
       loadAllData,
       message,
