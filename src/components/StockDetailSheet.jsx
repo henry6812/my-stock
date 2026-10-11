@@ -39,18 +39,28 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
 
   let body;
   if (fundamentals.status === "loading" || fundamentals.status === "idle") {
-    body = <Skeleton active paragraph={{ rows: 6 }} />;
+    body = (
+      <div className="stock-detail-section">
+        <Skeleton active paragraph={{ rows: 6 }} />
+      </div>
+    );
   } else if (fundamentals.status === "error") {
     body = (
-      <Alert
-        type="error"
-        showIcon
-        title={fundamentals.error?.message || "載入失敗"}
-        action={<Button size="small" onClick={fundamentals.reload}>重試</Button>}
-      />
+      <div className="stock-detail-section">
+        <Alert
+          type="error"
+          showIcon
+          title={fundamentals.error?.message || "載入失敗"}
+          action={<Button size="small" onClick={fundamentals.reload}>重試</Button>}
+        />
+      </div>
     );
   } else if (fundamentals.status === "unsupported") {
-    body = <Text type="secondary">目前僅支援上市股票，查無這檔的 EPS 資料</Text>;
+    body = (
+      <div className="stock-detail-section">
+        <Text type="secondary">目前僅支援上市股票，查無這檔的 EPS 資料</Text>
+      </div>
+    );
   } else {
     body = (
       <>

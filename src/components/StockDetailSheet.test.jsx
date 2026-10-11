@@ -68,7 +68,7 @@ describe('StockDetailSheet', () => {
     expect(screen.getByText('+1.2%')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '管理這筆持股' })).toBeInTheDocument()
     expect(screen.getByLabelText('估價')).toBeInTheDocument()
-    expect(screen.getByText(/目前.+距合理價/)).toBeInTheDocument()
+    expect(screen.getByText(/比合理價(高|低)/)).toBeInTheDocument()
     expect(screen.getByText('EPS 趨勢')).toBeInTheDocument()
     expect(screen.getByText('本益比走勢')).toBeInTheDocument()
     expect(screen.getByText(/資料來源：TWSE/)).toBeInTheDocument()
@@ -78,7 +78,7 @@ describe('StockDetailSheet', () => {
     useStockFundamentals.mockReturnValue({ status: 'ready', data: fundamentals, reload })
     renderSheet()
     fireEvent.click(screen.getByText('今年預估'))
-    expect(screen.getByText(/目前.+距合理價/)).toBeInTheDocument()
+    expect(screen.getByText(/比合理價(高|低)/)).toBeInTheDocument()
   })
 
   it('shows a skeleton while loading', () => {

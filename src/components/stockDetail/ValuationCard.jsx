@@ -1,7 +1,6 @@
 import { Segmented, Typography } from "antd";
 import { formatPrice } from "../../utils/formatters";
-import { formatSignedPercent } from "../../utils/stockDetail";
-import { positionOnScale, ZONE_LABELS } from "../../utils/valuation";
+import { zonePosition, ZONE_LABELS } from "../../utils/valuation";
 
 const { Text } = Typography;
 
@@ -18,38 +17,47 @@ const PRICE_ITEMS = [
   { key: "expensive", label: "昂貴價" },
 ];
 
-const percent = (value) => `${(value * 100).toFixed(2)}%`;
+const ZONES = ["below", "fair-low", "fair-high", "above"];
 
-// Three bands on one axis: cheap (green) up to 便宜價, fair (grey) up to
-// 昂貴價, expensive (red) beyond; ▼ marks the current price.
+const describeDistance = (distance) => {
+  const percent = Math.abs(distance * 100).toFixed(1);
+  if (percent === "0.0") return "就在合理價";
+  return `比合理價${distance > 0 ? "高" : "低"} ${percent}%`;
+};
+
+// Four equal zones, so 便宜價 / 合理價 / 昂貴價 sit on the quarter marks
+// with their labels right under them; the current price is pinned inside
+// its zone and named, instead of an unlabelled ▼ on a to-scale bar.
 function PriceRuler({ valuation, currency }) {
   const { prices, scale, price } = valuation;
-  const cheapAt = positionOnScale(prices.cheap, scale);
-  const fairAt = positionOnScale(prices.fair, scale);
-  const expensiveAt = positionOnScale(prices.expensive, scale);
+  const at = price === null ? null : zonePosition(price, prices, scale);
   return (
     <div className="valuation-ruler">
-      <div className="valuation-ruler-track">
-        <span className="valuation-ruler-band valuation-ruler-band--cheap" style={{ width: percent(cheapAt) }} />
-        <span
-          className="valuation-ruler-band valuation-ruler-band--fair"
-          style={{ left: percent(cheapAt), width: percent(expensiveAt - cheapAt) }}
-        />
-        <span
-          className="valuation-ruler-band valuation-ruler-band--expensive"
-          style={{ left: percent(expensiveAt), width: percent(1 - expensiveAt) }}
-        />
-        <span className="valuation-ruler-tick" style={{ left: percent(fairAt) }} />
-      </div>
-      {price !== null && (
-        <span
+      {at !== null && (
+        <div
           className="valuation-ruler-marker"
-          style={{ left: percent(positionOnScale(price, scale)) }}
+          style={{ "--at": at }}
           aria-label={`現價 ${formatPrice(price, currency)}`}
         >
-          ▼
-        </span>
+          <span className="valuation-ruler-marker-label">{`現價 ${formatPrice(price, currency)}`}</span>
+          <span className="valuation-ruler-marker-pin" aria-hidden>
+            ▼
+          </span>
+        </div>
       )}
+      <div className="valuation-ruler-track">
+        {ZONES.map((zone) => (
+          <span key={zone} className={`valuation-ruler-zone valuation-ruler-zone--${zone}`} />
+        ))}
+      </div>
+      <div className="valuation-ruler-prices">
+        {PRICE_ITEMS.map(({ key, label }) => (
+          <div key={key} className={`valuation-card-price valuation-card-price--${key}`}>
+            <span className="valuation-card-price-label">{label}</span>
+            <span className="valuation-card-price-value">{formatPrice(prices[key], currency)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -74,22 +82,17 @@ function ValuationCard({ model, basis, onBasisChange, market, currency }) {
         </Text>
       ) : (
         <>
-          <PriceRuler valuation={valuation} currency={currency} />
-          <div className="valuation-card-prices">
-            {PRICE_ITEMS.map(({ key, label }) => (
-              <div key={key} className={`valuation-card-price valuation-card-price--${key}`}>
-                <Text type="secondary">{label}</Text>
-                <span className="valuation-card-price-value">
-                  {formatPrice(valuation.prices[key], currency)}
-                </span>
-              </div>
-            ))}
-          </div>
           {valuation.zone && (
-            <div className={`valuation-card-verdict valuation-card-verdict--${valuation.zone}`}>
-              {`目前${ZONE_LABELS[valuation.zone]}，距合理價 ${formatSignedPercent(valuation.distanceToFair)}`}
+            <div className="valuation-card-verdict">
+              <span className={`valuation-card-zone valuation-card-zone--${valuation.zone}`}>
+                {ZONE_LABELS[valuation.zone]}
+              </span>
+              <span className="valuation-card-distance">
+                {describeDistance(valuation.distanceToFair)}
+              </span>
             </div>
           )}
+          <PriceRuler valuation={valuation} currency={currency} />
         </>
       )}
     </section>

@@ -25,11 +25,19 @@ const renderOpen = (props = {}) =>
   )
 
 describe('ValuationAssumptions', () => {
-  it('shows both EPS formulas and where the default P/E comes from', () => {
+  it('shows both EPS figures with their formulas and where the default P/E comes from', () => {
     renderOpen()
+    expect(screen.getByText('72.11')).toBeInTheDocument()
     expect(screen.getByText('近四季 2025 Q3–2026 Q2 合計 72.11')).toBeInTheDocument()
+    expect(screen.getByText('79.50')).toBeInTheDocument()
     expect(screen.getByText('今年 Q1–Q2 累計 35.17 + …')).toBeInTheDocument()
-    expect(screen.getByText('預設：近 60 期本益比的 P25 / P50 / P75')).toBeInTheDocument()
+    expect(screen.getByText('空白時使用過去 60 期本益比的低、中、高位置')).toBeInTheDocument()
+  })
+
+  it('groups the P/E range apart from the forward estimate', () => {
+    renderOpen()
+    expect(screen.getByRole('heading', { name: '本益比' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '今年預估' })).toBeInTheDocument()
   })
 
   it('saves only the changed fields, converting growth % to a ratio', async () => {
@@ -48,7 +56,8 @@ describe('ValuationAssumptions', () => {
       settings: { ...EMPTY_VALUATION_SETTINGS, peFair: 20 },
       model: { ...model, bands: { ...model.bands, fair: 20, overridden: { cheap: false, fair: true, expensive: false } } },
     })
-    expect(screen.getByText('已覆寫')).toBeInTheDocument()
+    expect(screen.queryByText('已覆寫')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重設合理本益比' })).toHaveTextContent('改回預設')
     fireEvent.click(screen.getByRole('button', { name: '重設合理本益比' }))
     expect(onSave).toHaveBeenCalledWith({ peFair: null })
   })

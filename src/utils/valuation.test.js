@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  zonePosition,
   computeTtm,
   computeValuation,
   cumulativeToSingles,
@@ -143,5 +144,34 @@ describe('positionOnScale', () => {
     expect(positionOnScale(50, { min: 100, max: 200 })).toBe(0)
     expect(positionOnScale(150, { min: 100, max: 200 })).toBe(0.5)
     expect(positionOnScale(300, { min: 100, max: 200 })).toBe(1)
+  })
+})
+
+describe('zonePosition', () => {
+  const prices = { cheap: 120, fair: 150, expensive: 180 }
+  const scale = { min: 108, max: 198 }
+
+  it('puts the three prices on the quarter marks', () => {
+    expect(zonePosition(120, prices, scale)).toBe(0.25)
+    expect(zonePosition(150, prices, scale)).toBe(0.5)
+    expect(zonePosition(180, prices, scale)).toBe(0.75)
+  })
+
+  it('places a price proportionally inside its zone', () => {
+    expect(zonePosition(114, prices, scale)).toBe(0.125)
+    expect(zonePosition(135, prices, scale)).toBe(0.375)
+    expect(zonePosition(165, prices, scale)).toBe(0.625)
+    expect(zonePosition(189, prices, scale)).toBe(0.875)
+  })
+
+  it('stays on the ruler at and beyond its ends', () => {
+    expect(zonePosition(108, prices, scale)).toBe(0)
+    expect(zonePosition(198, prices, scale)).toBe(1)
+    expect(zonePosition(50, prices, scale)).toBe(0)
+    expect(zonePosition(500, prices, scale)).toBe(1)
+  })
+
+  it('handles zones of zero width', () => {
+    expect(zonePosition(150, { cheap: 150, fair: 150, expensive: 180 }, scale)).toBe(0.5)
   })
 })

@@ -124,6 +124,23 @@ export const computeValuation = ({ eps, bands, price }) => {
 
 export const positionOnScale = (value, scale) =>
   Math.min(1, Math.max(0, (value - scale.min) / (scale.max - scale.min)))
+
+// Where a price sits on the valuation ruler drawn as four equal zones
+// (below 便宜價 / to 合理價 / to 昂貴價 / above), so the three prices land on
+// the quarter marks. Inside a zone the price is placed proportionally.
+export const zonePosition = (price, prices, scale) => {
+  const stops = [scale.min, prices.cheap, prices.fair, prices.expensive, scale.max]
+  if (price <= stops[0]) return 0
+  if (price >= stops[4]) return 1
+  // The last stop at or below the price: a price equal to a stop sits on its
+  // mark even when neighbouring stops are equal (便宜價 = 合理價).
+  let zone = 3
+  while (stops[zone] > price) zone -= 1
+  const from = stops[zone]
+  const to = stops[zone + 1]
+  return (zone + (to > from ? (price - from) / (to - from) : 0)) / 4
+}
+
 const formatPercent = (value) => `${(value * 100).toFixed(1)}%`
 
 const quarterRangeLabel = (from) => (from === 4 ? 'Q4' : `Q${from}–Q4`)

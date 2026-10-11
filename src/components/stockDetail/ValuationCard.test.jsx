@@ -21,8 +21,9 @@ describe('ValuationCard', () => {
     expect(screen.getByText('$120.00')).toBeInTheDocument()
     expect(screen.getByText('$150.00')).toBeInTheDocument()
     expect(screen.getByText('$180.00')).toBeInTheDocument()
-    expect(screen.getByText('目前合理偏低，距合理價 −6.7%')).toBeInTheDocument()
-    expect(screen.getByLabelText('現價 $140.00')).toBeInTheDocument()
+    expect(screen.getByText('合理偏低')).toBeInTheDocument()
+    expect(screen.getByText('比合理價低 6.7%')).toBeInTheDocument()
+    expect(screen.getByLabelText('現價 $140.00')).toHaveTextContent('現價 $140.00')
   })
 
   it('labels the forward tab per market and reports basis changes', () => {
@@ -49,7 +50,7 @@ describe('ValuationCard', () => {
   it('hides the verdict and marker without a price', () => {
     const noPrice = { valuation: { ...okModel.valuation, zone: null, distanceToFair: null, price: null } }
     render(<ValuationCard model={noPrice} basis="ttm" onBasisChange={() => {}} market="TW" currency="TWD" />)
-    expect(screen.queryByText(/距合理價/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/比合理價/)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/現價/)).not.toBeInTheDocument()
   })
 })

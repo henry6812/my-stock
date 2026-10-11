@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Alert, Button, InputNumber, Tag, Typography } from "antd";
+import { Alert, Button, InputNumber, Typography } from "antd";
 import { NavArrowDown, NavArrowRight } from "iconoir-react";
 import Collapsible from "../Collapsible";
+import { formatEps } from "../../utils/valuation";
 
 const { Text } = Typography;
 
 const PE_FIELDS = [
-  { field: "peCheap", band: "cheap", label: "便宜本益比" },
-  { field: "peFair", band: "fair", label: "合理本益比" },
-  { field: "peExpensive", band: "expensive", label: "昂貴本益比" },
+  { field: "peCheap", band: "cheap", label: "便宜本益比", short: "便宜" },
+  { field: "peFair", band: "fair", label: "合理本益比", short: "合理" },
+  { field: "peExpensive", band: "expensive", label: "昂貴本益比", short: "昂貴" },
 ];
 
 const GROWTH_WARNING_THRESHOLD = 0.5;
@@ -56,21 +57,28 @@ function ValuationAssumptions({ model, market, settings, disabled, open, onToggl
 
   const setField = (field) => (value) => setDraft((previous) => ({ ...previous, [field]: value ?? null }));
 
-  const overrideTag = (field, label) =>
+  // An overridden field offers to go back to the automatic value.
+  const resetLink = (field, label) =>
     settings[field] !== null && (
-      <span className="valuation-assumption-override">
-        <Tag color="processing">已覆寫</Tag>
-        <Button
-          type="link"
-          size="small"
-          disabled={disabled || saving}
-          aria-label={`重設${label}`}
-          onClick={() => runSave({ [field]: null })}
-        >
-          重設
-        </Button>
-      </span>
+      <Button
+        type="link"
+        size="small"
+        className="valuation-assumption-reset"
+        disabled={disabled || saving}
+        aria-label={`重設${label}`}
+        onClick={() => runSave({ [field]: null })}
+      >
+        改回預設
+      </Button>
     );
+
+  const field = ({ key, settingKey = key, label, short, input }) => (
+    <label key={key} className="valuation-assumption-field">
+      <span className="valuation-assumption-label">{short}</span>
+      {input}
+      {resetLink(settingKey, label)}
+    </label>
+  );
 
   const growthRate = model.forward?.growthRate;
   const showGrowthWarning =
@@ -84,78 +92,108 @@ function ValuationAssumptions({ model, market, settings, disabled, open, onToggl
       </button>
       <Collapsible open={open}>
         <div className="valuation-assumptions-body">
-          <div className="valuation-assumptions-formulas">
-            <Text type="secondary">近四季 TTM</Text>
-            <Text>{model.ttm?.formula ?? "資料不足"}</Text>
-            <Text type="secondary">{market === "US" ? "未來四季預估" : "今年預估"}</Text>
-            <Text>{model.forward?.formula ?? "無預估資料"}</Text>
+          <div className="valuation-assumptions-group">
+            <h4 className="valuation-assumptions-title">EPS</h4>
+            <div className="valuation-eps">
+              <div className="valuation-eps-line">
+                <span className="valuation-eps-label">近四季</span>
+                <span>{Number.isFinite(model.ttm?.eps) ? formatEps(model.ttm.eps) : "資料不足"}</span>
+              </div>
+              {model.ttm?.formula && <span className="valuation-eps-formula">{model.ttm.formula}</span>}
+            </div>
+            <div className="valuation-eps">
+              <div className="valuation-eps-line">
+                <span className="valuation-eps-label">{market === "US" ? "未來四季預估" : "今年預估"}</span>
+                <span>{Number.isFinite(model.forward?.eps) ? formatEps(model.forward.eps) : "無預估資料"}</span>
+              </div>
+              {model.forward?.formula && <span className="valuation-eps-formula">{model.forward.formula}</span>}
+            </div>
           </div>
 
-          <Text type="secondary" className="valuation-assumptions-hint">
-            {model.autoBands
-              ? `預設：近 ${model.autoBands.sampleSize} 期本益比的 P25 / P50 / P75`
-              : "歷史本益比資料不足，請自行填入"}
-          </Text>
-
-          {PE_FIELDS.map(({ field, band, label }) => (
-            <div key={field} className="valuation-assumption-row">
-              <span>{label}</span>
-              <InputNumber
-                inputMode="decimal"
-                aria-label={label}
-                min={0}
-                step={0.5}
-                value={draft[field]}
-                placeholder={model.autoBands?.[band] != null ? String(model.autoBands[band]) : "未設定"}
-                disabled={disabled || saving}
-                onChange={setField(field)}
-              />
-              {overrideTag(field, label)}
+          <div className="valuation-assumptions-group">
+            <h4 className="valuation-assumptions-title">本益比</h4>
+            <div className="valuation-assumption-grid valuation-assumption-grid--3">
+              {PE_FIELDS.map(({ field: key, band, label, short }) =>
+                field({
+                  key,
+                  label,
+                  short,
+                  input: (
+                    <InputNumber
+                      inputMode="decimal"
+                      aria-label={label}
+                      min={0}
+                      step={0.5}
+                      value={draft[key]}
+                      placeholder={model.autoBands?.[band] != null ? String(model.autoBands[band]) : "未設定"}
+                      disabled={disabled || saving}
+                      onChange={setField(key)}
+                    />
+                  ),
+                }),
+              )}
             </div>
-          ))}
-
-          {market === "TW" && (
-            <div className="valuation-assumption-row">
-              <span>成長率 (%)</span>
-              <InputNumber
-                aria-label="成長率 (%)"
-                step={1}
-                value={draft.growthPercent}
-                placeholder={
-                  Number.isFinite(model.forward?.autoGrowthRate)
-                    ? (model.forward.autoGrowthRate * 100).toFixed(1)
-                    : "無法計算"
-                }
-                disabled={disabled || saving}
-                onChange={setField("growthPercent")}
-              />
-              {overrideTag("growthRate", "成長率")}
-            </div>
-          )}
-
-          <div className="valuation-assumption-row">
-            <span>預估 EPS</span>
-            <InputNumber
-              aria-label="預估 EPS"
-              step={0.1}
-              value={draft.forwardEps}
-              placeholder="自動"
-              disabled={disabled || saving}
-              onChange={setField("forwardEps")}
-            />
-            {overrideTag("forwardEps", "預估 EPS")}
+            <span className="valuation-assumptions-hint">
+              {model.autoBands
+                ? `空白時使用過去 ${model.autoBands.sampleSize} 期本益比的低、中、高位置`
+                : "歷史本益比資料不足，請自行填入"}
+            </span>
           </div>
 
-          {showGrowthWarning && <Alert type="warning" showIcon title="成長率異常，建議覆寫" />}
+          <div className="valuation-assumptions-group">
+            <h4 className="valuation-assumptions-title">{market === "US" ? "未來四季預估" : "今年預估"}</h4>
+            <div className="valuation-assumption-grid">
+              {market === "TW" &&
+                field({
+                  key: "growthPercent",
+                  settingKey: "growthRate",
+                  label: "成長率",
+                  short: "成長率 %",
+                  input: (
+                    <InputNumber
+                      aria-label="成長率 (%)"
+                      step={1}
+                      value={draft.growthPercent}
+                      placeholder={
+                        Number.isFinite(model.forward?.autoGrowthRate)
+                          ? (model.forward.autoGrowthRate * 100).toFixed(1)
+                          : "無法計算"
+                      }
+                      disabled={disabled || saving}
+                      onChange={setField("growthPercent")}
+                    />
+                  ),
+                })}
+              {field({
+                key: "forwardEps",
+                label: "預估 EPS",
+                short: "預估 EPS",
+                input: (
+                  <InputNumber
+                    aria-label="預估 EPS"
+                    step={0.1}
+                    value={draft.forwardEps}
+                    placeholder="自動"
+                    disabled={disabled || saving}
+                    onChange={setField("forwardEps")}
+                  />
+                ),
+              })}
+            </div>
+            {showGrowthWarning && <Alert type="warning" showIcon title="成長率異常，建議覆寫" />}
+          </div>
+
           {error && <Text type="danger">{error}</Text>}
 
-          {disabled ? (
-            <Text type="secondary">登入後可調整估價假設</Text>
-          ) : (
-            <Button type="primary" disabled={!hasChanges} loading={saving} onClick={() => runSave(patch)}>
-              儲存
-            </Button>
-          )}
+          <div className="valuation-assumptions-actions">
+            {disabled ? (
+              <Text type="secondary">登入後可調整估價假設</Text>
+            ) : (
+              <Button type="primary" disabled={!hasChanges} loading={saving} onClick={() => runSave(patch)}>
+                儲存
+              </Button>
+            )}
+          </div>
         </div>
       </Collapsible>
     </section>
