@@ -14,6 +14,7 @@ import {
   calibrateHolding,
   getPortfolioView,
   sellHolding,
+  updateHoldingHolder,
   upsertHolding,
 } from './portfolioService'
 
@@ -141,5 +142,25 @@ describe('getPortfolioView', () => {
     const { rows } = await getPortfolioView()
     const bySymbol = Object.fromEntries(rows.map((row) => [row.symbol, row.totalCost]))
     expect(bySymbol).toEqual({ 2330: 50000, '0050': null })
+  })
+})
+
+describe('updateHoldingHolder', () => {
+  // The target holder removed this stock before: that soft-deleted row
+  // shares the new key and must not be revived in place of the moved one.
+  it('moves a holding onto a holder who once removed the same stock', async () => {
+    const movedId = await addHolding({ holder: 'Po', shares: 100, totalCost: 50000 })
+    const removedId = await addHolding({
+      holder: 'Wei',
+      shares: 7,
+      totalCost: 700,
+      deletedAt: '2026-05-01T00:00:00.000Z',
+      updatedAt: '2026-05-01T00:00:00.000Z',
+    })
+    await updateHoldingHolder({ id: movedId, holder: 'Wei' })
+    const active = (await db.holdings.toArray()).filter((row) => !row.deletedAt)
+    expect(active).toHaveLength(1)
+    expect(active[0]).toMatchObject({ id: movedId, holder: 'Wei', shares: 100, totalCost: 50000 })
+    expect(await db.holdings.get(removedId)).toBeUndefined()
   })
 })

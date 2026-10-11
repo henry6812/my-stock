@@ -1120,6 +1120,25 @@ export const updateHoldingHolder = async ({ id, holder }) => {
     throw new Error("同持有人的該股票已存在");
   }
 
+  // A removed holding of this stock under the target holder shares the new
+  // key; left in place, the local apply would revive it instead of moving
+  // this one. Its cloud doc is overwritten by the write below.
+  const removedAtTarget = await db.holdings
+    .where("[symbol+market+holder]")
+    .equals([existing.symbol, existing.market, normalizedHolder])
+    .and((item) => item.id !== parsedId && isDeleted(item))
+    .toArray();
+  for (const removed of removedAtTarget) {
+    const snapshots = await db.price_snapshots
+      .where("holdingId")
+      .equals(removed.id)
+      .toArray();
+    for (const snapshot of snapshots) {
+      await db.price_snapshots.delete(snapshot.id);
+    }
+    await db.holdings.delete(removed.id);
+  }
+
   const nextHolding = {
     ...existing,
     holder: normalizedHolder,
