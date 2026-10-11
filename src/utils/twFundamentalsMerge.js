@@ -29,9 +29,30 @@ const NET_INCOME_FIELDS = ['本期淨利（淨損）', '本期稅後淨利（淨
 // Insurers moved to IFRS 17 in 2026; their MOPS layout drops the （元）.
 const EPS_FIELDS = ['基本每股盈餘（元）', '基本每股盈餘']
 
+const GROSS_PROFIT_FIELDS = ['營業毛利（毛損）淨額', '營業毛利（毛損）']
+const NON_OPERATING_FIELDS = ['營業外收入及支出', '營業外損益']
+const PRETAX_FIELDS = [
+  '稅前淨利（淨損）',
+  '繼續營業單位稅前淨利（淨損）',
+  '繼續營業單位稅前損益',
+  '繼續營業單位稅前純益（純損）',
+]
+// Only the expense-signed column: insurers' 所得稅（費用）利益 has the
+// opposite sign, and they are not modelled anyway.
+const TAX_FIELDS = ['所得稅費用（利益）']
+const PARENT_NET_INCOME_FIELDS = ['淨利（淨損）歸屬於母公司業主', '淨利（損）歸屬於母公司業主']
+
+export const INCOME_VALUE_FIELDS = [
+  'eps', 'revenue', 'grossProfit', 'operatingIncome', 'nonOperating',
+  'pretaxIncome', 'tax', 'netIncome', 'parentNetIncome',
+]
+
+// First non-null value wins (openapi gives blank strings for unused columns).
 const pickNumber = (row, names) => {
   for (const name of names) {
-    if (row[name] !== undefined) return parseTwNumber(row[name])
+    if (row[name] === undefined) continue
+    const value = parseTwNumber(row[name])
+    if (value !== null) return value
   }
   return null
 }
@@ -45,21 +66,28 @@ export const normalizeIncomeRow = (row, period = {}) => {
   const quarter = period.quarter ?? (row['季別'] ? Number(row['季別']) : null)
   const eps = pickNumber(row, EPS_FIELDS)
   if (!code || !year || !(quarter >= 1 && quarter <= 4) || eps === null) return null
+  const hasGrossProfit = GROSS_PROFIT_FIELDS.some((name) => row[name] !== undefined)
   return {
     code,
     name: String(row['公司名稱'] ?? '').trim(),
     year,
     quarter,
+    // Banks, insurers and brokers have no gross-profit line; the income
+    // model only runs on the general layout.
+    statement: hasGrossProfit ? 'general' : 'financial',
     eps,
     revenue: pickNumber(row, REVENUE_FIELDS),
+    grossProfit: pickNumber(row, GROSS_PROFIT_FIELDS),
     operatingIncome: pickNumber(row, OPERATING_INCOME_FIELDS),
+    nonOperating: pickNumber(row, NON_OPERATING_FIELDS),
+    pretaxIncome: pickNumber(row, PRETAX_FIELDS),
+    tax: pickNumber(row, TAX_FIELDS),
     netIncome: pickNumber(row, NET_INCOME_FIELDS),
+    parentNetIncome: pickNumber(row, PARENT_NET_INCOME_FIELDS),
   }
 }
 
-const VALUE_FIELDS = ['eps', 'revenue', 'operatingIncome', 'netIncome']
-
-const sameValues = (a, b) => Boolean(a && b) && VALUE_FIELDS.every((field) => a[field] === b[field])
+const sameValues = (a, b) => Boolean(a && b) && INCOME_VALUE_FIELDS.every((field) => a[field] === b[field])
 
 // Values are year-to-date as published; a later row for the same company and
 // quarter replaces the earlier one (restatements).
@@ -67,12 +95,13 @@ export const mergeEpsRows = (history, rows) => {
   const companies = { ...(history?.companies ?? {}) }
   let changed = false
   for (const row of rows) {
-    const previous = companies[row.code] ?? { name: row.name, quarters: {} }
+    const previous = companies[row.code] ?? { name: row.name, statement: row.statement, quarters: {} }
     const key = quarterKey(row.year, row.quarter)
-    const value = Object.fromEntries(VALUE_FIELDS.map((field) => [field, row[field]]))
+    const value = Object.fromEntries(INCOME_VALUE_FIELDS.map((field) => [field, row[field] ?? null]))
     const name = row.name || previous.name
-    if (sameValues(previous.quarters[key], value) && name === previous.name) continue
-    companies[row.code] = { name, quarters: { ...previous.quarters, [key]: value } }
+    const statement = row.statement ?? previous.statement ?? null
+    if (sameValues(previous.quarters[key], value) && name === previous.name && statement === previous.statement) continue
+    companies[row.code] = { name, statement, quarters: { ...previous.quarters, [key]: value } }
     changed = true
   }
   return {
@@ -106,26 +135,36 @@ export const parseBwibbuRows = (json) => {
   if (json?.stat !== 'OK' || !Array.isArray(json.fields) || !Array.isArray(json.data)) return null
   const codeIndex = json.fields.indexOf('證券代號')
   const peIndex = json.fields.indexOf('本益比')
+  const closeIndex = json.fields.indexOf('收盤價')
   if (codeIndex < 0 || peIndex < 0) return null
   return json.data.map((row) => {
     const pe = parseTwNumber(row[peIndex])
-    return { code: String(row[codeIndex]).trim(), pe: pe !== null && pe > 0 ? pe : null }
+    const close = closeIndex < 0 ? null : parseTwNumber(row[closeIndex])
+    return {
+      code: String(row[codeIndex]).trim(),
+      pe: pe !== null && pe > 0 ? pe : null,
+      close: close !== null && close > 0 ? close : null,
+    }
   })
 }
 
 export const mergePeMonth = (history, month, rows) => {
   const companies = { ...(history?.companies ?? {}) }
-  for (const { code, pe } of rows) {
+  for (const { code, pe, close = null } of rows) {
     const series = (companies[code] ?? []).filter(([existing]) => existing !== month)
-    series.push([month, pe])
+    series.push([month, pe, close])
     series.sort((a, b) => (a[0] < b[0] ? 1 : -1))
     companies[code] = series
   }
   return { updatedAt: history?.updatedAt ?? null, companies }
 }
 
+// Rows stored before the close was kept are [month, pe]; those months are
+// fetched again so the price history fills in.
 export const hasPeMonth = (history, month) =>
-  Object.values(history?.companies ?? {}).some((series) => series.some(([existing]) => existing === month))
+  Object.values(history?.companies ?? {}).some((series) =>
+    series.some((entry) => entry[0] === month && entry.length >= 3),
+  )
 
 const pad2 = (value) => String(value).padStart(2, '0')
 
@@ -160,4 +199,44 @@ export const parseMopsIncomeTables = (html) => {
     }
   }
   return rows
+}
+
+export const REVENUE_MONTHS_KEPT = 36
+
+export const monthsBack = (month, count) => {
+  const [year, monthNumber] = month.split('-').map(Number)
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(Date.UTC(year, monthNumber - 1 - index, 1))
+    return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}`
+  })
+}
+
+const cellsOf = (tr) =>
+  [...tr.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((match) => stripTags(match[1]))
+
+// MOPS t21sc03 (Big5, decoded by the caller): one table per industry, each
+// company row is 公司代號 / 公司名稱 / 當月營收 / 上月營收 / …
+export const parseMopsRevenueRows = (html) => {
+  const rows = []
+  for (const match of html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const cells = cellsOf(match[0])
+    if (cells.length < 3 || !/^\d{4,6}[A-Z]?$/.test(cells[0])) continue
+    const revenue = parseTwNumber(cells[2])
+    if (revenue !== null) rows.push({ code: cells[0], revenue })
+  }
+  return rows
+}
+
+export const mergeMonthlyRevenue = (history, month, rows) => {
+  const companies = { ...(history?.companies ?? {}) }
+  let changed = false
+  for (const { code, revenue } of rows) {
+    const previous = companies[code] ?? {}
+    if (previous[month] === revenue) continue
+    const months = Object.keys({ ...previous, [month]: revenue }).sort().slice(-REVENUE_MONTHS_KEPT)
+    const next = { ...previous, [month]: revenue }
+    companies[code] = Object.fromEntries(months.map((key) => [key, next[key]]))
+    changed = true
+  }
+  return { history: { updatedAt: history?.updatedAt ?? null, companies }, changed }
 }

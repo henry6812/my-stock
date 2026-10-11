@@ -1,13 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import {
+  INCOME_VALUE_FIELDS,
   findRecentGaps,
   hasPeMonth,
   mergeEpsRows,
+  mergeMonthlyRevenue,
   mergePeMonth,
   monthDaysDescending,
+  monthsBack,
   normalizeIncomeRow,
   parseBwibbuRows,
   parseMopsIncomeTables,
+  parseMopsRevenueRows,
   parseTwNumber,
   previousMonth,
   quarterKey,
@@ -45,10 +49,16 @@ describe('normalizeIncomeRow', () => {
       name: '台灣積體電路製造股份有限公司',
       year: 2026,
       quarter: 2,
+      statement: 'financial',
       eps: 49.33,
       revenue: 2404483690,
+      grossProfit: null,
       operatingIncome: 1425568793,
+      nonOperating: null,
+      pretaxIncome: null,
+      tax: null,
       netIncome: 1279582227,
+      parentNetIncome: null,
     })
   })
 
@@ -160,8 +170,8 @@ describe('P/E history helpers', () => {
 
   it('parses BWIBBU_d rows, mapping "-" to null', () => {
     expect(parseBwibbuRows(bwibbu)).toEqual([
-      { code: '1101', pe: null },
-      { code: '2330', pe: 28.28 },
+      { code: '1101', pe: null, close: 26.3 },
+      { code: '2330', pe: 28.28, close: 1085 },
     ])
   })
 
@@ -171,10 +181,10 @@ describe('P/E history helpers', () => {
 
   it('merges a month, replacing an existing entry and keeping newest first', () => {
     let history = { updatedAt: null, companies: { 2330: [['2026-08', 27]] } }
-    history = mergePeMonth(history, '2026-09', [{ code: '2330', pe: 28.28 }])
-    history = mergePeMonth(history, '2026-09', [{ code: '2330', pe: 28.5 }])
+    history = mergePeMonth(history, '2026-09', [{ code: '2330', pe: 28.28, close: null }])
+    history = mergePeMonth(history, '2026-09', [{ code: '2330', pe: 28.5, close: null }])
     expect(history.companies['2330']).toEqual([
-      ['2026-09', 28.5],
+      ['2026-09', 28.5, null],
       ['2026-08', 27],
     ])
     expect(hasPeMonth(history, '2026-09')).toBe(true)
@@ -210,5 +220,127 @@ describe('parseMopsIncomeTables', () => {
       { 公司代號: '2303', 公司名稱: '聯電', '基本每股盈餘（元）': '1.85' },
       { 公司代號: '2881', 公司名稱: '富邦金', 淨收益: '1,000', '基本每股盈餘（元）': '6.10' },
     ])
+  })
+})
+
+describe('normalizeIncomeRow — full income statement', () => {
+  const generalRow = {
+    年度: '115', 季別: '2', 公司代號: '2330', 公司名稱: '台積電',
+    營業收入: '2404483690.00', 營業成本: '792877574.00',
+    '營業毛利（毛損）': '1611606116.00', '營業毛利（毛損）淨額': '1611606116.00',
+    營業費用: '192987740.00', '營業利益（損失）': '1425568793.00',
+    營業外收入及支出: '124660980.00', '稅前淨利（淨損）': '1550229773.00',
+    '所得稅費用（利益）': '270647546.00', '本期淨利（淨損）': '1279582227.00',
+    '淨利（淨損）歸屬於母公司業主': '1279041690.00', '基本每股盈餘（元）': '49.33',
+  }
+
+  it('keeps every line the model needs and marks the statement as general', () => {
+    expect(normalizeIncomeRow(generalRow)).toEqual({
+      code: '2330', name: '台積電', year: 2026, quarter: 2, statement: 'general',
+      eps: 49.33, revenue: 2404483690, grossProfit: 1611606116, operatingIncome: 1425568793,
+      nonOperating: 124660980, pretaxIncome: 1550229773, tax: 270647546,
+      netIncome: 1279582227, parentNetIncome: 1279041690,
+    })
+  })
+
+  it('falls back to 營業毛利（毛損） when the 淨額 column is blank', () => {
+    const row = { ...generalRow, '營業毛利（毛損）淨額': '' }
+    expect(normalizeIncomeRow(row).grossProfit).toBe(1611606116)
+  })
+
+  it('marks a bank layout (no gross profit) as financial', () => {
+    const bank = {
+      公司代號: '2801', 公司名稱: '彰銀', 利息淨收益: '19,797,974',
+      '繼續營業單位稅前淨利（淨損）': '16,936,820', '所得稅費用（利益）': '2,786,369',
+      '本期稅後淨利（淨損）': '14,150,451', '淨利（損）歸屬於母公司業主': '14,150,451',
+      '基本每股盈餘（元）': '1.20',
+    }
+    const result = normalizeIncomeRow(bank, { year: 2025, quarter: 3 })
+    expect(result.statement).toBe('financial')
+    expect(result.grossProfit).toBeNull()
+    expect(result.pretaxIncome).toBe(16936820)
+    expect(result.parentNetIncome).toBe(14150451)
+  })
+})
+
+describe('mergeEpsRows — full statement', () => {
+  it('stores every value field and the statement type', () => {
+    const row = {
+      code: '2330', name: '台積電', year: 2026, quarter: 2, statement: 'general',
+      ...Object.fromEntries(INCOME_VALUE_FIELDS.map((field, index) => [field, index + 1])),
+    }
+    const { history, changed } = mergeEpsRows(null, [row])
+    expect(changed).toBe(true)
+    expect(history.companies['2330'].statement).toBe('general')
+    expect(history.companies['2330'].quarters['2026Q2']).toEqual(
+      Object.fromEntries(INCOME_VALUE_FIELDS.map((field, index) => [field, index + 1])),
+    )
+    expect(mergeEpsRows(history, [row]).changed).toBe(false)
+  })
+})
+
+describe('BWIBBU close', () => {
+  const json = {
+    stat: 'OK',
+    fields: ['證券代號', '證券名稱', '收盤價', '殖利率(%)', '股利年度', '本益比', '股價淨值比', '財報年/季'],
+    data: [
+      ['1101', '台泥', '26.30', '3.04', 114, '-', '0.85', '115/2'],
+      ['2330', '台積電', '1,285.00', '1.40', 114, '28.75', '8.10', '115/2'],
+    ],
+  }
+
+  it('reads the close next to the P/E', () => {
+    expect(parseBwibbuRows(json)).toEqual([
+      { code: '1101', pe: null, close: 26.3 },
+      { code: '2330', pe: 28.75, close: 1285 },
+    ])
+  })
+
+  it('stores [month, pe, close] and only counts months that carry a close', () => {
+    const legacy = { updatedAt: null, companies: { 2330: [['2026-09', 28.75]] } }
+    expect(hasPeMonth(legacy, '2026-09')).toBe(false)
+    const merged = mergePeMonth(legacy, '2026-09', parseBwibbuRows(json))
+    expect(merged.companies['2330']).toEqual([['2026-09', 28.75, 1285]])
+    expect(hasPeMonth(merged, '2026-09')).toBe(true)
+  })
+})
+
+describe('MOPS monthly revenue', () => {
+  const html = `<table><tr><th class=tt>公司代號</th><th class=tt>公司名稱</th><th class=tt>當月營收</th></tr>
+<tr align=right><td align=center>2330</td><td align=left>台積電</td><td nowrap>            511,857,399</td><td nowrap>  514,805,337</td><Td nowrap>  54.64</td></tr><tr align=right><td align=center>2337</td><td align=left>旺宏</td><td nowrap>8,367,275</td></tr>
+<tr><td colspan=2>合計</td><td>1,000</td></tr></table>`
+
+  it('reads code and this month’s revenue, skipping totals and headers', () => {
+    expect(parseMopsRevenueRows(html)).toEqual([
+      { code: '2330', revenue: 511857399 },
+      { code: '2337', revenue: 8367275 },
+    ])
+  })
+
+  it('returns no rows for a month that is not published yet', () => {
+    expect(parseMopsRevenueRows('<html><body>查無資料</body></html>')).toEqual([])
+  })
+
+  it('merges a month without touching other months or companies', () => {
+    const history = { updatedAt: null, companies: { 2330: { '2026-08': 514805337 }, 1101: { '2026-08': 10 } } }
+    const { history: merged, changed } = mergeMonthlyRevenue(history, '2026-09', [{ code: '2330', revenue: 511857399 }])
+    expect(changed).toBe(true)
+    expect(merged.companies['2330']).toEqual({ '2026-08': 514805337, '2026-09': 511857399 })
+    expect(merged.companies['1101']).toEqual({ '2026-08': 10 })
+    expect(mergeMonthlyRevenue(merged, '2026-09', [{ code: '2330', revenue: 511857399 }]).changed).toBe(false)
+  })
+
+  it('keeps only the latest 36 months per company', () => {
+    const months = monthsBack('2026-09', 40)
+    let history = null
+    for (const month of months) history = mergeMonthlyRevenue(history, month, [{ code: '2330', revenue: 1 }]).history
+    const kept = Object.keys(history.companies['2330']).sort()
+    expect(kept).toHaveLength(36)
+    expect(kept[0]).toBe('2023-10')
+    expect(kept.at(-1)).toBe('2026-09')
+  })
+
+  it('lists months back from a month, newest first', () => {
+    expect(monthsBack('2026-02', 3)).toEqual(['2026-02', '2026-01', '2025-12'])
   })
 })
