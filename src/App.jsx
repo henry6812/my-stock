@@ -244,7 +244,7 @@ import {
 } from "./utils/portfolioView";
 import { getBootPhase } from "./utils/bootPhase";
 import { prefersReducedMotion } from "./utils/motion";
-import { getAssetAnimationPlan } from "./utils/netWorthJar";
+import { getAssetAnimationPlan, getPrincipalTwd } from "./utils/netWorthJar";
 import AssetSummaryHero from "./components/AssetSummaryHero";
 import ExpenseSummaryCard from "./components/ExpenseSummaryCard";
 import { toUserMessage } from "./utils/userMessage";
@@ -1099,6 +1099,12 @@ function App() {
     setHolderDraftRows(createHolderDraftRows(options));
     return options;
   }, []);
+
+  // The jar's principal layer: net worth minus the holdings' unrealized gain.
+  const jarPrincipal = useMemo(
+    () => getPrincipalTwd({ totalTwd, rows }),
+    [totalTwd, rows],
+  );
 
   const holderSelectOptions = useMemo(
     () => holderOptions.map((holder) => ({ value: holder, label: holder })),
@@ -5598,6 +5604,8 @@ function App() {
                     totalTwd={totalTwd}
                     displayTotalTwd={displayTotalTwd}
                     baselineTwd={baselineTotalTwd}
+                    principalTwd={jarPrincipal.principalTwd}
+                    unsetCostCount={jarPrincipal.unsetCount}
                     changeTwd={totalChangeTwd}
                     changePct={totalChangePct}
                     priceDataStale={priceDataStale}

@@ -58,20 +58,27 @@ describe('AssetSummaryHero', () => {
 
   it('shows the next milestone and the quote time when the jar is tapped, then goes back', () => {
     const { container } = render(<AssetSummaryHero {...props} />)
-    fireEvent.click(screen.getByRole('button', { name: '查看里程碑與報價時間' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看里程碑、本金與報價時間' }))
     expect(text(container)).toEqual({
       label: '2000萬・還差',
       num: '$5,836,126',
-      sub: '從 1000萬 起已達 41.6%・報價 10/07 21:52',
+      sub: '已達 70.8%・報價 10/07 21:52',
     })
-    expect(screen.getByRole('button', { name: '查看里程碑與報價時間' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '查看里程碑、本金與報價時間' })).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(container.querySelector('.asset-hero-num'))
     expect(text(container).label).toBe('今日・總資產')
   })
 
+  it('notes holdings without a cost in the milestone view', () => {
+    const { container } = render(<AssetSummaryHero {...props} principalTwd={12_000_000} unsetCostCount={3} />)
+    fireEvent.click(screen.getByRole('button', { name: '查看里程碑、本金與報價時間' }))
+    expect(text(container).sub).toBe('已達 70.8%・報價 10/07 21:52・3 檔未設成本')
+    expect(screen.getByText('本金 1200萬')).toBeInTheDocument()
+  })
+
   it('toggles back when the jar is tapped again', () => {
     const { container } = render(<AssetSummaryHero {...props} />)
-    const jar = screen.getByRole('button', { name: '查看里程碑與報價時間' })
+    const jar = screen.getByRole('button', { name: '查看里程碑、本金與報價時間' })
     fireEvent.click(jar)
     fireEvent.click(jar)
     expect(text(container).label).toBe('今日・總資產')
@@ -79,7 +86,7 @@ describe('AssetSummaryHero', () => {
 
   it('forgets the milestone view when the hero replays', () => {
     const { container, rerender } = render(<AssetSummaryHero {...props} />)
-    fireEvent.click(screen.getByRole('button', { name: '查看里程碑與報價時間' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看里程碑、本金與報價時間' }))
     rerender(<AssetSummaryHero {...props} playKey={2} />)
     expect(text(container).label).toBe('今日・總資產')
   })
@@ -89,12 +96,12 @@ describe('AssetSummaryHero', () => {
       <AssetSummaryHero {...props} totalTwd={6_384_200} displayTotalTwd={6_384_200} quoteAt={null} />,
     )
     expect(text(container).label).toBe('總資產')
-    fireEvent.click(screen.getByRole('button', { name: '查看里程碑與報價時間' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看里程碑、本金與報價時間' }))
     expect(text(container)).toEqual({ label: '1000萬・還差', num: '$3,615,800', sub: '已達 63.8%' })
   })
 
   it('has nothing to tap with no assets', () => {
     render(<AssetSummaryHero {...props} totalTwd={0} displayTotalTwd={0} baselineTwd={0} changeTwd={null} />)
-    expect(screen.queryByRole('button', { name: '查看里程碑與報價時間' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '查看里程碑、本金與報價時間' })).toBeNull()
   })
 })

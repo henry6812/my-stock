@@ -1,12 +1,13 @@
 // Asset-tab hero, same shape as the expense summary card: label → big number
 // → one line of secondary text → the net-worth jar. The label reads
 // 「時間・指標」. Tapping the jar swaps the figures for the next milestone and
-// the quote time, and reveals the jar's capacity; tapping anywhere
+// the quote time, and reveals the jar's capacity and principal (noting
+// holdings without a cost); tapping anywhere
 // else, or the jar again, goes back.
 import { useState } from "react";
 import dayjs from "dayjs";
 import NetWorthJar from "./NetWorthJar";
-import { JAR_UNIT_TWD, getJarGeometry } from "../utils/netWorthJar";
+import { getJarGeometry } from "../utils/netWorthJar";
 import { formatNetWorthScaleLabel } from "../utils/portfolioView";
 
 const digits = (value) => Math.round(Math.abs(value)).toLocaleString("en-US");
@@ -34,6 +35,8 @@ export default function AssetSummaryHero({
   totalTwd,
   displayTotalTwd,
   baselineTwd,
+  principalTwd,
+  unsetCostCount = 0,
   changeTwd,
   changePct,
   priceDataStale,
@@ -53,12 +56,12 @@ export default function AssetSummaryHero({
   let sub;
   if (milestone) {
     const total = Number(totalTwd) || 0;
-    const reached = ((total - geometry.floorTwd) / JAR_UNIT_TWD) * 100;
+    // Same scale as the jar: 0 → the next 千萬.
+    const reached = (total / geometry.capTwd) * 100;
     const parts = [
-      geometry.floorTwd > 0
-        ? `從 ${formatNetWorthScaleLabel(geometry.floorTwd)} 起已達 ${reached.toFixed(1)}%`
-        : `已達 ${reached.toFixed(1)}%`,
+      `已達 ${reached.toFixed(1)}%`,
       quoteAt ? `報價 ${quoteTime(quoteAt)}` : null,
+      unsetCostCount > 0 ? `${unsetCostCount} 檔未設成本` : null,
     ].filter(Boolean);
     label = `${formatNetWorthScaleLabel(geometry.capTwd)}・還差`;
     amount = geometry.capTwd - total;
@@ -93,7 +96,7 @@ export default function AssetSummaryHero({
         <button
           type="button"
           className="asset-hero-jar"
-          aria-label="查看里程碑與報價時間"
+          aria-label="查看里程碑、本金與報價時間"
           aria-pressed={milestone}
           onClick={(event) => {
             event.stopPropagation();
@@ -103,6 +106,7 @@ export default function AssetSummaryHero({
           <NetWorthJar
             totalTwd={totalTwd}
             baselineTwd={baselineTwd}
+            principalTwd={principalTwd}
             playKey={playKey}
             revealed={milestone}
           />

@@ -388,6 +388,33 @@ button.asset-hero-jar {
   fill: rgba(207, 19, 34, 0.16);
 }
 
+/* The principal settles under the waves as a darker, still layer. */
+.networth-jar-principal {
+  fill: var(--c-teal-ink);
+}
+
+/* On a loss: where the principal should reach, above the water. */
+.networth-jar-principal-top {
+  fill: none;
+  stroke: var(--c-teal-ink);
+  stroke-width: 1.5;
+}
+
+.networth-jar-principal-label {
+  font-size: var(--fs-caption);
+  fill: var(--c-surface);
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.networth-jar-principal-label--dry {
+  fill: var(--c-muted);
+}
+
+.networth-jar--revealed .networth-jar-principal-label {
+  opacity: 1;
+}
+
 .networth-jar-wave-back {
   fill: var(--c-teal-tint);
   opacity: 0.55;

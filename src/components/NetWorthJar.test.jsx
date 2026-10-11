@@ -58,4 +58,26 @@ describe('NetWorthJar (reduced motion → final state)', () => {
     const { container } = render(<NetWorthJar totalTwd={0} baselineTwd={0} playKey={1} />)
     expect(container.querySelector('.networth-jar-water')).toBeNull()
   })
+
+  it('settles the principal under the water and names it with the capacity', () => {
+    const { container } = render(
+      <NetWorthJar totalTwd={6_384_200} baselineTwd={6_301_000} principalTwd={5_208_000} playKey={1} />,
+    )
+    expect(screen.getByRole('img', { name: '總資產水位 638萬，本金 520萬，容量 1000萬' })).toBeInTheDocument()
+    expect(container.querySelector('.networth-jar-principal')).not.toBeNull()
+    expect(screen.getByText('本金 520萬')).toBeInTheDocument()
+    expect(container.querySelector('.networth-jar-principal-top')).toBeNull()
+  })
+
+  it('marks the principal line above the water on a loss', () => {
+    const { container } = render(
+      <NetWorthJar totalTwd={6_384_200} baselineTwd={6_301_000} principalTwd={7_000_000} playKey={1} />,
+    )
+    expect(container.querySelector('.networth-jar-principal-top')).not.toBeNull()
+  })
+
+  it('draws no principal layer without a principal', () => {
+    const { container } = render(<NetWorthJar totalTwd={6_384_200} baselineTwd={6_301_000} playKey={1} />)
+    expect(container.querySelector('.networth-jar-principal, .networth-jar-principal-label')).toBeNull()
+  })
 })
