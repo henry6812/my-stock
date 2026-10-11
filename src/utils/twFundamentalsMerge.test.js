@@ -9,6 +9,7 @@ import {
   mergePeMonth,
   monthDaysDescending,
   monthsBack,
+  fillIncomeFallbacks,
   normalizeIncomeRow,
   parseBwibbuRows,
   parseMopsIncomeTables,
@@ -59,7 +60,8 @@ describe('normalizeIncomeRow', () => {
       pretaxIncome: null,
       tax: null,
       netIncome: 1279582227,
-      parentNetIncome: null,
+      // No parent line in this row: falls back to net income.
+      parentNetIncome: 1279582227,
     })
   })
 
@@ -90,6 +92,16 @@ describe('normalizeIncomeRow', () => {
       { year: 2026, quarter: 1 },
     )
     expect(row).toMatchObject({ code: '2851', year: 2026, quarter: 1, eps: 3.99 })
+  })
+
+  it('falls back to net income and pretax − net for standalone filers', () => {
+    const row = normalizeIncomeRow({
+      ...tsmcOpenApiRow,
+      '營業毛利（毛損）': '100',
+      '稅前淨利（淨損）': '50',
+      '本期淨利（淨損）': '40',
+    })
+    expect(row).toMatchObject({ statement: 'general', pretaxIncome: 50, netIncome: 40, parentNetIncome: 40, tax: 10 })
   })
 
   it('drops rows without a usable EPS or period', () => {
@@ -366,5 +378,31 @@ describe('buildCompanyFiles', () => {
   it('still writes a company that has no revenue or P/E yet', () => {
     const files = buildCompanyFiles({ eps: { companies: { 9999: { name: '新上市', quarters: {} } } }, pe: null, revenue: null })
     expect(files['9999']).toMatchObject({ statement: null, monthlyRevenue: {}, monthly: [] })
+  })
+})
+
+describe('fillIncomeFallbacks', () => {
+  it('uses netIncome when the parent line is missing', () => {
+    expect(fillIncomeFallbacks({ netIncome: 40, parentNetIncome: null })).toMatchObject({ parentNetIncome: 40 })
+  })
+
+  it('derives tax from pretax − net when tax is missing', () => {
+    expect(fillIncomeFallbacks({ pretaxIncome: 50, netIncome: 40, tax: null })).toMatchObject({ tax: 10 })
+    expect(fillIncomeFallbacks({ pretaxIncome: -20, netIncome: -25, tax: null })).toMatchObject({ tax: 5 })
+  })
+
+  it('keeps published values and leaves gaps it cannot fill', () => {
+    expect(fillIncomeFallbacks({ pretaxIncome: 50, netIncome: 40, tax: 12, parentNetIncome: 38 })).toEqual({
+      pretaxIncome: 50,
+      netIncome: 40,
+      tax: 12,
+      parentNetIncome: 38,
+    })
+    expect(fillIncomeFallbacks({ pretaxIncome: null, netIncome: null, tax: null, parentNetIncome: null })).toEqual({
+      pretaxIncome: null,
+      netIncome: null,
+      tax: null,
+      parentNetIncome: null,
+    })
   })
 })

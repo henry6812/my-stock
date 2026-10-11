@@ -57,6 +57,20 @@ const pickNumber = (row, names) => {
   return null
 }
 
+// Standalone filers publish no parent-net-income line (all of net income is
+// the parent's), and some layouts omit income tax; fill both from the lines
+// that are there so the income model can run.
+export const fillIncomeFallbacks = (record) => {
+  const filled = { ...record }
+  if (!Number.isFinite(filled.parentNetIncome) && Number.isFinite(filled.netIncome)) {
+    filled.parentNetIncome = filled.netIncome
+  }
+  if (!Number.isFinite(filled.tax) && Number.isFinite(filled.pretaxIncome) && Number.isFinite(filled.netIncome)) {
+    filled.tax = filled.pretaxIncome - filled.netIncome
+  }
+  return filled
+}
+
 // One income-statement row (TWSE openapi t187ap06_L_* or a MOPS t163sb04
 // table row) → our record. MOPS rows carry no 年度 / 季別, so the caller
 // passes the period it queried.
@@ -67,7 +81,7 @@ export const normalizeIncomeRow = (row, period = {}) => {
   const eps = pickNumber(row, EPS_FIELDS)
   if (!code || !year || !(quarter >= 1 && quarter <= 4) || eps === null) return null
   const hasGrossProfit = GROSS_PROFIT_FIELDS.some((name) => row[name] !== undefined)
-  return {
+  return fillIncomeFallbacks({
     code,
     name: String(row['公司名稱'] ?? '').trim(),
     year,
@@ -84,7 +98,7 @@ export const normalizeIncomeRow = (row, period = {}) => {
     tax: pickNumber(row, TAX_FIELDS),
     netIncome: pickNumber(row, NET_INCOME_FIELDS),
     parentNetIncome: pickNumber(row, PARENT_NET_INCOME_FIELDS),
-  }
+  })
 }
 
 const sameValues = (a, b) => Boolean(a && b) && INCOME_VALUE_FIELDS.every((field) => a[field] === b[field])
