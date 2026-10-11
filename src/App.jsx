@@ -141,6 +141,11 @@ import SavingsGoalDetailSheet from "./components/SavingsGoalDetailSheet";
 import SavingsGoalForm from "./components/SavingsGoalForm";
 import StaleBalanceIcon from "./components/StaleBalanceIcon";
 import StockDetailSheet from "./components/StockDetailSheet";
+import HoldingActionForm from "./components/HoldingActionForm";
+import {
+  HOLDING_ACTION_SUBMIT_TEXT,
+  HOLDING_ACTION_TITLES,
+} from "./components/holdingActions";
 import { buildStockDetailHolding, isInteractiveTarget } from "./utils/stockDetail";
 import { isFromPortal } from "./utils/portalEvent";
 import CategoryIcon from "./components/CategoryIcon";
@@ -168,7 +173,9 @@ import {
   updateCashAccountHolder,
   updateHoldingTag,
   updateHoldingHolder,
-  updateHoldingShares,
+  buyHolding,
+  sellHolding,
+  calibrateHolding,
   upsertCashAccount,
   exportBackupData,
   upsertHolding,
@@ -291,6 +298,7 @@ const LAST_EXPENSE_DEFAULTS_KEY = "my-stock:last-expense-defaults";
 const TEMPLATE_FORM_ID = "expense-template-form";
 const GOAL_FORM_ID = "savings-goal-form";
 const CASH_EDIT_FORM_ID = "cash-account-edit-form";
+const HOLDING_ACTION_FORM_ID = "holding-action-form";
 
 const readLastExpenseDefaults = () => {
   try {
@@ -509,6 +517,9 @@ function App() {
   const [goalFormKey, setGoalFormKey] = useState(0);
   const [loadingGoalAction, setLoadingGoalAction] = useState(false);
   const [stockDetailId, setStockDetailId] = useState(null);
+  // Which form is open over the stock detail sheet: buy / sell / calibrate / edit.
+  const [holdingAction, setHoldingAction] = useState(null);
+  const [loadingHoldingAction, setLoadingHoldingAction] = useState(false);
   // Bumped on every open so QuickExpenseSheet remounts with fresh state.
   const [quickExpenseKey, setQuickExpenseKey] = useState(0);
   const [quickExpenseDefaults, setQuickExpenseDefaults] = useState({});
@@ -552,11 +563,6 @@ function App() {
     createHolderDraftRows(["Po", "Wei"]),
   );
   const [loadingHolderSettings, setLoadingHolderSettings] = useState(false);
-  const [editingHoldingId, setEditingHoldingId] = useState(null);
-  const [editingShares, setEditingShares] = useState(null);
-  const [editingHoldingTag, setEditingHoldingTag] = useState(null);
-  const [editingHoldingHolder, setEditingHoldingHolder] = useState(null);
-  const [loadingActionById, setLoadingActionById] = useState({});
   const [editingCashAccountId, setEditingCashAccountId] = useState(null);
   const [loadingCashActionById, setLoadingCashActionById] = useState({});
   const [expenseRows, setExpenseRows] = useState([]);
@@ -1405,100 +1411,27 @@ function App() {
     }
   }, [budgetForm, editingBudget, loadExpenseData, message, performCloudSync]);
 
-  const setRowLoading = useCallback((id, isLoading) => {
-    setLoadingActionById((prev) => ({ ...prev, [id]: isLoading }));
-  }, []);
-
   const setCashRowLoading = useCallback((id, isLoading) => {
     setLoadingCashActionById((prev) => ({ ...prev, [id]: isLoading }));
-  }, []);
-
-  const handleEditClick = useCallback((record) => {
-    setEditingHoldingId(record.id);
-    setEditingShares(record.shares);
-    setEditingHoldingTag(record.assetTag || "STOCK");
-    setEditingHoldingHolder(record.holder ?? null);
-  }, []);
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingHoldingId(null);
-    setEditingShares(null);
-    setEditingHoldingTag(null);
-    setEditingHoldingHolder(null);
   }, []);
 
   const handleCashEditClick = useCallback((record) => {
     setEditingCashAccountId(record.id);
   }, []);
 
-  const handleSaveShares = useCallback(
-    async (record) => {
-      const parsedShares = Number(editingShares);
-      if (!Number.isFinite(parsedShares) || parsedShares <= 0) {
-        message.error("股數必須大於 0");
-        return;
-      }
-
-      try {
-        setRowLoading(record.id, true);
-        if ((editingHoldingHolder ?? null) !== (record.holder ?? null)) {
-          await updateHoldingHolder({
-            id: record.id,
-            holder: editingHoldingHolder ?? null,
-          });
-        }
-        await updateHoldingShares({ id: record.id, shares: parsedShares });
-        if (editingHoldingTag) {
-          await updateHoldingTag({
-            id: record.id,
-            assetTag: editingHoldingTag,
-          });
-        }
-        await loadAllData();
-        await performCloudSync();
-        setEditingHoldingId(null);
-        setEditingShares(null);
-        setEditingHoldingTag(null);
-        setEditingHoldingHolder(null);
-        message.success("持股已更新");
-      } catch (error) {
-        message.error(toUserMessage(error, "更新股數失敗"));
-      } finally {
-        setRowLoading(record.id, false);
-      }
-    },
-    [
-      editingHoldingTag,
-      editingHoldingHolder,
-      editingShares,
-      loadAllData,
-      message,
-      performCloudSync,
-      setRowLoading,
-    ],
-  );
-
   const handleRemoveHolding = useCallback(
     async (record) => {
       try {
-        setRowLoading(record.id, true);
         await removeHolding({ id: record.id });
+        setStockDetailId(null);
         await loadAllData();
         await performCloudSync();
-        if (editingHoldingId === record.id) {
-          setEditingHoldingId(null);
-          setEditingShares(null);
-          setEditingHoldingTag(null);
-          setEditingHoldingHolder(null);
-        }
         message.success("持股已移除");
       } catch (error) {
         message.error(toUserMessage(error, "移除持股失敗"));
-      } finally {
-        setRowLoading(record.id, false);
       }
     },
-    [editingHoldingId, loadAllData, message, performCloudSync, setRowLoading],
+    [loadAllData, message, performCloudSync],
   );
 
   const editingCashAccount = useMemo(
@@ -1949,6 +1882,81 @@ function App() {
     [rows, stockDetailId],
   );
 
+  const handleStockDetailAction = useCallback(
+    (action) => {
+      if (!stockDetail) return;
+      if (action === "remove") {
+        confirmDestructive({
+          title: "移除此持股？",
+          content: "會一併刪除該持股的所有快照資料。",
+          okText: "移除",
+          onOk: () => handleRemoveHolding(stockDetail),
+        });
+        return;
+      }
+      setHoldingAction(action);
+    },
+    [confirmDestructive, handleRemoveHolding, stockDetail],
+  );
+
+  const handleSubmitHoldingAction = useCallback(
+    async (values) => {
+      if (!holdingAction || !stockDetail) return;
+      const id = stockDetail.id;
+      const run = async () => {
+        setLoadingHoldingAction(true);
+        try {
+          let removed = false;
+          if (holdingAction === "buy") {
+            await buyHolding({ id, shares: values.shares, price: values.price });
+          } else if (holdingAction === "sell") {
+            ({ removed } = await sellHolding({ id, shares: values.shares }));
+          } else if (holdingAction === "calibrate") {
+            await calibrateHolding({
+              id,
+              shares: values.shares,
+              averageCost: values.averageCost,
+            });
+          } else {
+            if ((values.holder ?? null) !== (stockDetail.holder ?? null)) {
+              await updateHoldingHolder({ id, holder: values.holder ?? null });
+            }
+            if (values.assetTag && values.assetTag !== stockDetail.assetTag) {
+              await updateHoldingTag({ id, assetTag: values.assetTag });
+            }
+          }
+          await loadAllData();
+          await performCloudSync();
+          setHoldingAction(null);
+          if (removed) setStockDetailId(null);
+          message.success(removed ? "已賣出全部並移除持股" : "持股已更新");
+        } catch (error) {
+          message.error(toUserMessage(error, "更新持股失敗"));
+        } finally {
+          setLoadingHoldingAction(false);
+        }
+      };
+      if (holdingAction === "sell" && values.shares >= Number(stockDetail.shares)) {
+        confirmDestructive({
+          title: "賣出全部？",
+          content: "賣出全部會移除這筆持股，並一併刪除它的快照資料。",
+          okText: "賣出並移除",
+          onOk: run,
+        });
+        return;
+      }
+      await run();
+    },
+    [
+      confirmDestructive,
+      holdingAction,
+      loadAllData,
+      message,
+      performCloudSync,
+      stockDetail,
+    ],
+  );
+
   const handleExportHoldingsCsv = useCallback(() => {
     if (rows.length === 0) {
       return;
@@ -2336,25 +2344,10 @@ function App() {
         dataIndex: "shares",
         key: "shares",
         align: "right",
-        render: (value, record) => {
-          if (editingHoldingId !== record.id) {
-            return Number(value).toLocaleString("en-US", {
-              maximumFractionDigits: 4,
-            });
-          }
-
-          return (
-            <InputNumber
-              inputMode={record.market === "US" ? "decimal" : "numeric"}
-              min={record.market === "US" ? 0.0001 : 1}
-              step={1}
-              precision={record.market === "US" ? 4 : 0}
-              value={editingShares ?? value}
-              onChange={(next) => setEditingShares(next)}
-              style={{ width: 130 }}
-            />
-          );
-        },
+        render: (value) =>
+          Number(value).toLocaleString("en-US", {
+            maximumFractionDigits: 4,
+          }),
       },
       {
         title: "分類",
@@ -2362,18 +2355,6 @@ function App() {
         key: "assetTag",
         width: 120,
         render: (value, record) => {
-          if (editingHoldingId === record.id) {
-            return (
-              <Select
-                size="small"
-                value={editingHoldingTag || value || "STOCK"}
-                options={holdingTagOptions}
-                onChange={(next) => setEditingHoldingTag(next)}
-                style={{ width: 110 }}
-              />
-            );
-          }
-
           const label =
             holdingTagOptions.find((item) => item.value === value)?.label ||
             record.assetTagLabel ||
@@ -2389,20 +2370,7 @@ function App() {
         dataIndex: "holder",
         key: "holder",
         width: 120,
-        render: (value, record) => {
-          if (editingHoldingId === record.id) {
-            return (
-              <Select
-                size="small"
-                value={editingHoldingHolder ?? value ?? undefined}
-                options={holderSelectOptions}
-                placeholder="請選擇"
-                onChange={(next) => setEditingHoldingHolder(next)}
-                style={{ width: 110 }}
-              />
-            );
-          }
-
+        render: (_, record) => {
           const holderName = record.holderName || "未設定";
           return (
             <Tag
@@ -2416,77 +2384,6 @@ function App() {
           );
         },
       },
-      {
-        title: "操作",
-        key: "actions",
-        fixed: isMobileViewport ? undefined : "right",
-        width: isMobileViewport ? undefined : 190,
-        align: "left",
-        render: (_, record) => {
-          const rowLoading = Boolean(loadingActionById[record.id]);
-          const isEditing = editingHoldingId === record.id;
-
-          if (isEditing) {
-            return (
-              <Space>
-              <Button
-                  type="primary"
-                  size="small"
-                  loading={rowLoading}
-                  disabled={isWriteDisabled}
-                  onClick={() => handleSaveShares(record)}
-                >
-                  儲存
-                </Button>
-                <Button
-                  size="small"
-                  disabled={rowLoading || isWriteDisabled}
-                  onClick={handleCancelEdit}
-                >
-                  取消
-                </Button>
-              </Space>
-            );
-          }
-
-          return (
-            <Space>
-              <Button
-                type="text"
-                className="row-action"
-                size="small"
-                disabled={isWriteDisabled || editingHoldingId !== null}
-                loading={rowLoading}
-                onClick={() => handleEditClick(record)}
-                icon={<EditPencil />}
-                aria-label="編輯股數"
-              ></Button>
-              <Popconfirm
-                title="移除此持股？"
-                description="會一併刪除該持股的所有快照資料。"
-                okText="刪除"
-                cancelText="取消"
-                onConfirm={() => handleRemoveHolding(record)}
-                okButtonProps={{ danger: true, loading: rowLoading }}
-                disabled={isWriteDisabled || editingHoldingId !== null}
-              >
-                <Button
-                  type="text"
-                  className="row-action row-action--danger"
-                  size="small"
-                  disabled={
-                    isWriteDisabled ||
-                    editingHoldingId !== null ||
-                    rowLoading
-                  }
-                  icon={<Trash />}
-                  aria-label="移除持股"
-                ></Button>
-              </Popconfirm>
-            </Space>
-          );
-        },
-      },
     ];
 
     if (!isMobileViewport) {
@@ -2496,9 +2393,6 @@ function App() {
     // Mobile: three short lines a side so nothing wraps. Left: name + 分類,
     // 代號 · 股數, 股價 + its % change. Right: 現值 + its change (amount and
     // %). Holder and market are left out to keep the row light.
-    const byKey = Object.fromEntries(
-      columns.map((column) => [column.key, column]),
-    );
     const animatedOr = (record, key) => {
       const animated = rowAnimationValues[record.id]?.[key];
       return typeof animated === "number" && Number.isFinite(animated)
@@ -2528,39 +2422,13 @@ function App() {
       record.assetTagLabel ||
       record.assetTag ||
       "個股";
-    // One column: the row slides to reveal 編輯 / 移除 (no drag handle and no
-    // action buttons on mobile). The editor replaces the row while editing.
+    // One column; tapping a row opens the stock detail sheet, where every
+    // holding action lives.
     return [
       {
         key: "row",
         render: (_, record) => {
-          if (editingHoldingId === record.id) {
-            return (
-              <div className="mobile-swipe-row mobile-swipe-row--editing">
-              <div className="holding-mobile-editor">
-                <label>
-                  <span>股數</span>
-                  {byKey.shares.render(record.shares, record)}
-                </label>
-                <label>
-                  <span>分類</span>
-                  {byKey.assetTag.render(record.assetTag, record)}
-                </label>
-                <label>
-                  <span>持有人</span>
-                  {byKey.holder.render(record.holder, record)}
-                </label>
-                {/* 儲存 / 取消 live here while editing: the fixed-width
-                    actions column is too narrow for text buttons. */}
-                <div className="holding-mobile-editor-actions">
-                  {byKey.actions.render(null, record)}
-                </div>
-              </div>
-              </div>
-            );
-          }
           const name = record.companyName || record.symbol;
-          const rowBusy = Boolean(loadingActionById[record.id]);
           const pct = record.priceChangePct;
           const todayText =
             typeof pct !== "number" || !record.hasPreviousSnapshot
@@ -2572,21 +2440,7 @@ function App() {
             <MobileSwipeRow
               onTap={() => setStockDetailId(record.id)}
               label={`${name}，市值 ${formatTwd(record.latestValueTwd)}${todayText}，查看個股`}
-              disabled={isWriteDisabled || editingHoldingId !== null || rowBusy}
-              actions={[
-                swipeEditAction(name, () => handleEditClick(record)),
-                swipeDeleteAction(
-                  name,
-                  () =>
-                    confirmDestructive({
-                      title: "移除此持股？",
-                      content: "會一併刪除該持股的所有快照資料。",
-                      okText: "移除",
-                      onOk: () => handleRemoveHolding(record),
-                    }),
-                  "移除",
-                ),
-              ]}
+              actions={[]}
               main={
             <div className="holding-mobile-target">
               <div className="holding-mobile-name">
@@ -2652,25 +2506,13 @@ function App() {
       },
     ];
   }, [
-      confirmDestructive,
-      getDeltaClassName,
-      getHolderTagStyle,
-      isWriteDisabled,
-      editingHoldingId,
-    editingHoldingTag,
-    editingHoldingHolder,
-    editingShares,
-    handleCancelEdit,
-    handleEditClick,
-    handleRemoveHolding,
-    renderPriceDelta,
-    handleSaveShares,
-    holderSelectOptions,
+    getDeltaClassName,
+    getHolderTagStyle,
     holdingTagOptions,
     isMobileViewport,
-    loadingActionById,
-    rowAnimationValues,
+    renderPriceDelta,
     renderValueDelta,
+    rowAnimationValues,
   ]);
 
   const cashTableColumns = useMemo(() => {
@@ -4734,6 +4576,26 @@ function App() {
     />
   ) : null;
 
+  const holdingActionFormNode =
+    holdingAction && stockDetail ? (
+      <HoldingActionForm
+        key={`${stockDetail.id}_${holdingAction}`}
+        formId={HOLDING_ACTION_FORM_ID}
+        mode={holdingAction}
+        holding={stockDetail}
+        holderOptions={holderSelectOptions}
+        holdingTagOptions={holdingTagOptions}
+        popupContainer={getSheetPopupContainer}
+        disabled={isWriteDisabled}
+        onSubmit={handleSubmitHoldingAction}
+        onCalibrateInstead={() => setHoldingAction("calibrate")}
+      />
+    ) : null;
+  const holdingActionOpen = Boolean(holdingAction && stockDetail);
+  const closeHoldingAction = () => {
+    if (!loadingHoldingAction) setHoldingAction(null);
+  };
+
   const savingsGoalFormNode = (
     <SavingsGoalForm
       key={goalFormKey}
@@ -5196,9 +5058,7 @@ function App() {
         options: nextOptions,
         renameMap,
       });
-      setEditingHoldingId(null);
       setEditingCashAccountId(null);
-      setEditingHoldingHolder(null);
       await Promise.all([
         loadHolderOptionSettings(),
         loadAllData(),
@@ -5853,7 +5713,7 @@ function App() {
                       onRow={(record) => ({
                         className: "holding-row--clickable",
                         onClick: (event) => {
-                          if (editingHoldingId === record.id || isInteractiveTarget(event.target, event.currentTarget)) return;
+                          if (isInteractiveTarget(event.target, event.currentTarget)) return;
                           setStockDetailId(record.id);
                         },
                       })}
@@ -7154,13 +7014,44 @@ function App() {
           </Modal>
 
           <StockDetailSheet
-            key={stockDetail ? `${stockDetail.market}_${stockDetail.symbol}` : "none"}
-            open={Boolean(stockDetail)}
+            key={stockDetail ? stockDetail.id : "none"}
+            open={Boolean(stockDetail) && !holdingActionOpen}
             holding={stockDetail}
             isMobile={isMobileViewport}
             disabled={isWriteDisabled}
             onClose={() => setStockDetailId(null)}
+            onAction={handleStockDetailAction}
           />
+
+          <MobileFormSheetLayout
+            title={holdingAction ? HOLDING_ACTION_TITLES[holdingAction] : ""}
+            open={isMobileViewport && holdingActionOpen}
+            onClose={closeHoldingAction}
+            loading={loadingHoldingAction}
+            submitDisabled={isWriteDisabled}
+            submitText={holdingAction ? HOLDING_ACTION_SUBMIT_TEXT[holdingAction] : "儲存"}
+            submitFormId={HOLDING_ACTION_FORM_ID}
+            className="holding-sheet"
+          >
+            {isMobileViewport && holdingActionFormNode}
+          </MobileFormSheetLayout>
+
+          <Modal
+            title={holdingAction ? HOLDING_ACTION_TITLES[holdingAction] : ""}
+            open={!isMobileViewport && holdingActionOpen}
+            onCancel={closeHoldingAction}
+            confirmLoading={loadingHoldingAction}
+            okText={holdingAction ? HOLDING_ACTION_SUBMIT_TEXT[holdingAction] : "儲存"}
+            cancelText="取消"
+            okButtonProps={{
+              disabled: isWriteDisabled,
+              htmlType: "submit",
+              form: HOLDING_ACTION_FORM_ID,
+            }}
+            destroyOnHidden
+          >
+            {!isMobileViewport && holdingActionFormNode}
+          </Modal>
 
           <QuickExpenseSheet
             key={quickExpenseKey}

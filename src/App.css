@@ -1684,30 +1684,6 @@ button.expense-card-chip {
   font-weight: 400;
 }
 
-.holding-mobile-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.holding-mobile-editor label {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: var(--fs-caption);
-  color: var(--c-muted);
-}
-
-.holding-mobile-editor .ant-input-number,
-.holding-mobile-editor .ant-select {
-  width: 100% !important;
-}
-
-.holding-mobile-actions .ant-space {
-  flex-direction: column;
-  align-items: stretch;
-}
-
 /* Touch targets: small icon buttons and title "+" buttons grow to ~40px on
    touch devices only, so the desktop density is unchanged. */
 @media (hover: none) and (pointer: coarse) {
@@ -2432,10 +2408,6 @@ button.expense-card-chip {
   text-overflow: ellipsis;
 }
 
-.holding-mobile-editor-actions {
-  margin-top: 4px;
-}
-
 /* Swipe-to-reveal row actions (SwipeActions) on mobile lists. */
 .swipe-actions {
   position: relative;
@@ -2748,12 +2720,6 @@ button.expense-card-chip {
   outline: 2px solid var(--c-action);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
-}
-
-.mobile-swipe-row--editing {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
 }
 
 /* Swipe rows carry their own padding; the cell must not add any. */

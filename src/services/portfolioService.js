@@ -1133,32 +1133,6 @@ export const updateHoldingHolder = async ({ id, holder }) => {
   });
 };
 
-export const updateHoldingShares = async ({ id, shares }) => {
-  ensureCloudWritable();
-  const parsedId = Number(id);
-  const parsedShares = Number(shares);
-
-  if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    throw new Error("Holding not found");
-  }
-
-  if (!Number.isFinite(parsedShares) || parsedShares <= 0) {
-    throw new Error("Shares must be a positive number");
-  }
-
-  const existing = await db.holdings.get(parsedId);
-  if (!existing || isDeleted(existing)) {
-    throw new Error("Holding not found");
-  }
-
-  await mirrorToCloud(CLOUD_COLLECTION.HOLDINGS, {
-    ...existing,
-    shares: parsedShares,
-    updatedAt: getNowIso(),
-    syncState: SYNC_PENDING,
-  });
-};
-
 export const buyHolding = async ({ id, shares, price }) => {
   ensureCloudWritable();
   const parsedShares = parsePositiveShares(shares);
