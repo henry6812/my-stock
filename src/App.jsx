@@ -144,7 +144,7 @@ import StockDetailSheet from "./components/StockDetailSheet";
 import HoldingActionForm from "./components/HoldingActionForm";
 import {
   HOLDING_ACTION_SUBMIT_TEXT,
-  HOLDING_ACTION_TITLES,
+  getHoldingActionTitle,
 } from "./components/holdingActions";
 import { isInteractiveTarget } from "./utils/stockDetail";
 import useStockDetailSelection from "./hooks/useStockDetailSelection";
@@ -7028,7 +7028,7 @@ function App() {
           />
 
           <MobileFormSheetLayout
-            title={holdingAction ? HOLDING_ACTION_TITLES[holdingAction] : ""}
+            title={getHoldingActionTitle(holdingAction, stockDetail)}
             open={isMobileViewport && holdingActionOpen}
             onClose={closeHoldingAction}
             loading={loadingHoldingAction}
@@ -7041,7 +7041,7 @@ function App() {
           </MobileFormSheetLayout>
 
           <Modal
-            title={holdingAction ? HOLDING_ACTION_TITLES[holdingAction] : ""}
+            title={getHoldingActionTitle(holdingAction, stockDetail)}
             open={!isMobileViewport && holdingActionOpen}
             onCancel={closeHoldingAction}
             confirmLoading={loadingHoldingAction}

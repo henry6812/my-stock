@@ -92,3 +92,11 @@ export const getUnrealized = (holding) => {
 
 export const getHoldingCurrency = (holding) =>
   holding?.latestCurrency || (holding?.market === "US" ? "USD" : "TWD");
+
+// Prices and costs are kept to 4 decimals; a form rule for their inputs.
+export const MAX_FOUR_DECIMALS_RULE = {
+  validator: (_, value) =>
+    typeof value === "number" && Math.round(value * 10000) / 10000 !== value
+      ? Promise.reject(new Error("最多 4 位小數"))
+      : Promise.resolve(),
+};

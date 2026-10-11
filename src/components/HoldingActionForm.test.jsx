@@ -116,3 +116,22 @@ describe('<HoldingActionForm /> while saving', () => {
     expect(screen.queryByText('賣出全部會移除這筆持股')).not.toBeInTheDocument()
   })
 })
+
+describe('<HoldingActionForm /> precision', () => {
+  it('saves an unchanged calibration without rounding the cost', async () => {
+    const { onSubmit } = renderForm({ mode: 'calibrate', holding: { ...holding, shares: 3, totalCost: 1000 } })
+    submit()
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    const { shares, averageCost } = onSubmit.mock.calls[0][0]
+    expect(shares * averageCost).toBe(1000)
+  })
+
+  it('refuses prices with more than 4 decimals', async () => {
+    const { onSubmit } = renderForm()
+    fireEvent.change(sharesInput(), { target: { value: '10' } })
+    fireEvent.change(screen.getByRole('spinbutton', { name: /每股價格/ }), { target: { value: '1.23456' } })
+    submit()
+    expect(await screen.findByText('最多 4 位小數')).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+})

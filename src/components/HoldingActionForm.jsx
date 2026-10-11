@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Alert, Button, Form, InputNumber, Select, Typography } from "antd";
 import { formatPrice } from "../utils/formatters";
 import {
+  MAX_FOUR_DECIMALS_RULE,
   applyBuy,
   applySell,
   getAverageCost,
@@ -42,6 +43,10 @@ function HoldingActionForm({
   const isUs = holding.market === "US";
   const averageCost = getAverageCost(holding);
   const heldShares = Number(holding.shares);
+  // The average field shows 4 decimals; saving it untouched keeps the exact
+  // average so the stored cost does not drift (1000 / 3 → 999.9999).
+  const shownAverage =
+    averageCost === null ? null : Math.round(averageCost * 10000) / 10000;
 
   const handleFinish = (values) => {
     if (mode === "buy") {
@@ -49,7 +54,12 @@ function HoldingActionForm({
     } else if (mode === "sell") {
       onSubmit?.({ shares: values.shares });
     } else if (mode === "calibrate") {
-      onSubmit?.({ shares: values.shares, averageCost: values.averageCost ?? null });
+      const untouched =
+        values.shares === heldShares && values.averageCost === shownAverage;
+      onSubmit?.({
+        shares: values.shares,
+        averageCost: untouched ? averageCost : values.averageCost ?? null,
+      });
     } else {
       onSubmit?.({ assetTag: values.assetTag, holder: values.holder });
     }
@@ -71,7 +81,7 @@ function HoldingActionForm({
   if (mode === "calibrate") {
     initialValues = {
       shares: holding.shares,
-      averageCost: averageCost === null ? null : Math.round(averageCost * 10000) / 10000,
+      averageCost: shownAverage,
     };
   } else if (mode === "edit") {
     initialValues = {
@@ -177,7 +187,7 @@ function HoldingActionForm({
         <Form.Item
           label={`每股價格（${currency}）`}
           name="price"
-          rules={[{ required: true, message: "請輸入價格" }]}
+          rules={[{ required: true, message: "請輸入價格" }, MAX_FOUR_DECIMALS_RULE]}
         >
           <InputNumber min={0} step={0.01} inputMode="decimal" style={{ width: "100%" }} />
         </Form.Item>
@@ -188,6 +198,7 @@ function HoldingActionForm({
           label={`平均成本（${currency}）`}
           name="averageCost"
           extra="留空表示未設定成本"
+          rules={[MAX_FOUR_DECIMALS_RULE]}
         >
           <InputNumber min={0} step={0.01} inputMode="decimal" style={{ width: "100%" }} />
         </Form.Item>

@@ -101,6 +101,36 @@ describe('<HoldingForm />', () => {
     expect(await screen.findByText('儲存後 150 股（成本仍需校正）')).toBeInTheDocument()
   })
 
+  it('shows fractional US shares to 4 decimals', async () => {
+    render(
+      <HoldingForm
+        onSubmit={vi.fn()}
+        holderOptions={[{ value: 'Po', label: 'Po' }]}
+        existingHoldings={[{ market: 'US', symbol: 'AAPL', holder: 'Po', shares: 0.1234, totalCost: 20 }]}
+      />,
+    )
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '市場' }))
+    fireEvent.click(await screen.findByTitle('美股 (US)'))
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '持有人' }))
+    fireEvent.click(await screen.findByTitle('Po'))
+    fireEvent.change(screen.getByPlaceholderText('例如 2330 或 AAPL'), { target: { value: 'AAPL' } })
+    expect(await screen.findByText('Po 已持有 0.1234 股，將以買進方式加碼')).toBeInTheDocument()
+  })
+
+  it('refuses buy prices with more than 4 decimals', async () => {
+    const onSubmit = vi.fn()
+    render(
+      <>
+        <HoldingForm onSubmit={onSubmit} formId="f" holderOptions={[{ value: 'Po', label: 'Po' }]} />
+        <button type="submit" form="f">送出</button>
+      </>,
+    )
+    fireEvent.change(screen.getByRole('spinbutton', { name: /買進價格/ }), { target: { value: '1.23456' } })
+    fireEvent.click(screen.getByRole('button', { name: '送出' }))
+    expect(await screen.findByText('最多 4 位小數')).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
   it('applies the given formId to the form element', () => {
     const { container } = render(
       <HoldingForm onSubmit={vi.fn()} formId="my-holding-form" />,

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Alert, Form, Input, InputNumber, Select } from "antd";
 import { formatPrice } from "../utils/formatters";
 import {
+  MAX_FOUR_DECIMALS_RULE,
   applyBuy,
   findExistingHolding,
   getAverageCost,
@@ -61,7 +62,7 @@ function HoldingForm({
       shares: inputShares,
       price: hasPrice ? inputPrice : 0,
     });
-    const sharesText = `儲存後 ${next.shares.toLocaleString("zh-TW")} 股`;
+    const sharesText = `儲存後 ${next.shares.toLocaleString("zh-TW", { maximumFractionDigits: 4 })} 股`;
     if (existingHolding.totalCost === null || existingHolding.totalCost === undefined) {
       previewText = `${sharesText}（成本仍需校正）`;
     } else if (hasPrice) {
@@ -173,7 +174,7 @@ function HoldingForm({
       <Form.Item
         label={`買進價格（${priceCurrency}）`}
         name="price"
-        rules={[{ required: true, message: "請輸入買進價格" }]}
+        rules={[{ required: true, message: "請輸入買進價格" }, MAX_FOUR_DECIMALS_RULE]}
       >
         <InputNumber
           disabled={disabled}
@@ -188,7 +189,7 @@ function HoldingForm({
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message={`${watchedHolder} 已持有 ${Number(existingHolding.shares).toLocaleString("zh-TW")} 股，將以買進方式加碼`}
+          message={`${watchedHolder} 已持有 ${Number(existingHolding.shares).toLocaleString("zh-TW", { maximumFractionDigits: 4 })} 股，將以買進方式加碼`}
           description={previewText}
         />
       ) : null}
