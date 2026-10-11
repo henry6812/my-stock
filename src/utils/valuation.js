@@ -122,8 +122,6 @@ export const computeValuation = ({ eps, bands, price }) => {
   }
 }
 
-export const positionOnScale = (value, scale) =>
-  Math.min(1, Math.max(0, (value - scale.min) / (scale.max - scale.min)))
 
 // Where a price sits on the valuation ruler drawn as four equal zones
 // (below 便宜價 / to 合理價 / to 昂貴價 / above), so the three prices land on

@@ -6,7 +6,6 @@ import {
   cumulativeToSingles,
   EMPTY_VALUATION_SETTINGS,
   peBandsFromHistory,
-  positionOnScale,
   resolvePeBands,
 } from './valuation'
 
@@ -117,7 +116,6 @@ describe('computeValuation', () => {
   it('widens the scale to include a price outside the bands', () => {
     const result = computeValuation({ eps: 10, bands, price: 250 })
     expect(result.scale.max).toBeCloseTo(275, 6)
-    expect(positionOnScale(250, result.scale)).toBeCloseTo(142 / 167, 6)
   })
 
   it('omits zone and distance without a price', () => {
@@ -136,14 +134,6 @@ describe('computeValuation', () => {
 
   it('rejects non-monotonic P/E bands instead of drawing a broken ruler', () => {
     expect(computeValuation({ eps: 10, bands: { cheap: 20, fair: 15, expensive: 18 }, price: 100 }).status).toBe('invalid-pe')
-  })
-})
-
-describe('positionOnScale', () => {
-  it('clamps to 0..1', () => {
-    expect(positionOnScale(50, { min: 100, max: 200 })).toBe(0)
-    expect(positionOnScale(150, { min: 100, max: 200 })).toBe(0.5)
-    expect(positionOnScale(300, { min: 100, max: 200 })).toBe(1)
   })
 })
 
