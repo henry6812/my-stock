@@ -29,13 +29,6 @@ describe('estimateTwForwardEps', () => {
     expect(result.overridden).toEqual({ forwardEps: false, growthRate: false })
   })
 
-  it('uses an overridden growth rate', () => {
-    const result = estimateTwForwardEps(TSMC_CUMULATIVE, { ...EMPTY_VALUATION_SETTINGS, growthRate: 0.1 })
-    expect(result.eps).toBeCloseTo(75.8, 2)
-    expect(result.growthRate).toBe(0.1)
-    expect(result.overridden.growthRate).toBe(true)
-  })
-
   it('uses an overridden forward EPS above everything else', () => {
     const result = estimateTwForwardEps(TSMC_CUMULATIVE, { ...EMPTY_VALUATION_SETTINGS, growthRate: 0.1, forwardEps: 80 })
     expect(result.eps).toBe(80)

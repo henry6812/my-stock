@@ -25,8 +25,8 @@ export default function useValuationSettings(market, symbol) {
   }, [key, market, symbol])
 
   const save = useCallback(
-    async (patch) => {
-      const settings = await saveValuationSettings({ market, symbol, patch })
+    async (patch, snapshot = null) => {
+      const settings = await saveValuationSettings({ market, symbol, patch, snapshot })
       setState({ key, settings })
       return settings
     },

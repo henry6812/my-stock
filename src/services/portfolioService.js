@@ -39,6 +39,7 @@ import {
   buildExpenseNameSuggestions,
   rankCategoriesByUsage,
 } from "../utils/expenseSuggestions";
+import { MODEL_FIELDS, parseQuarterKey, quarterIndexOf } from "../utils/incomeModel";
 import { mapWithConcurrency } from "../utils/concurrency";
 import {
   buildTemplateRows,
@@ -891,34 +892,132 @@ const normalizeValuationValue = (field, value) => {
   if (field.startsWith("pe") && number <= 0) {
     throw new Error("本益比必須大於 0");
   }
-  if (field === "growthRate" && number <= -1) {
-    throw new Error("成長率必須大於 -100%");
+  return number;
+};
+
+const MODEL_FIELD_RULES = {
+  revenueYoy: { min: -1, minExclusive: true, message: "營收 YoY 必須大於 -100%" },
+  grossMargin: { min: -1, max: 1, message: "毛利率必須介於 -100% 與 100%" },
+  opexRatio: { min: 0, max: 1, message: "營業費用率必須介於 0% 與 100%" },
+  nonOperating: {},
+  taxRate: { min: 0, max: 1, message: "稅率必須介於 0% 與 100%" },
+  nciRatio: { min: 0, max: 1, message: "非控制權益比必須介於 0% 與 100%" },
+};
+
+const QUARTER_KEY_PATTERN = /^\d{4}Q[1-4]$/;
+const SNAPSHOT_LIMIT = 8;
+
+const quarterOrder = (key) => quarterIndexOf(parseQuarterKey(key));
+
+const normalizeModelValue = (field, value) => {
+  if (!MODEL_FIELDS.includes(field)) {
+    throw new Error(`Unknown valuation field: ${field}`);
+  }
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw new Error(`${field} 必須是數字`);
+  }
+  const { min = -Infinity, max = Infinity, minExclusive = false, message } = MODEL_FIELD_RULES[field];
+  if ((minExclusive ? number <= min : number < min) || number > max) {
+    throw new Error(message);
   }
   return number;
 };
 
+const readModelAssumptions = (stored) => {
+  const quarters = {};
+  for (const [key, values] of Object.entries(stored?.quarters ?? {})) {
+    if (!QUARTER_KEY_PATTERN.test(key)) continue;
+    const kept = Object.fromEntries(
+      MODEL_FIELDS.filter((field) => Number.isFinite(values?.[field])).map((field) => [field, values[field]]),
+    );
+    if (Object.keys(kept).length > 0) quarters[key] = kept;
+  }
+  return {
+    global: Object.fromEntries(
+      MODEL_FIELDS.map((field) => [field, Number.isFinite(stored?.global?.[field]) ? stored.global[field] : null]),
+    ),
+    quarters,
+  };
+};
+
+const readSnapshots = (stored) =>
+  Object.fromEntries(
+    Object.entries(stored ?? {}).filter(([key, snapshot]) => QUARTER_KEY_PATTERN.test(key) && Number.isFinite(snapshot?.eps)),
+  );
+
+const finiteOrNull = (value) => (Number.isFinite(value) ? value : null);
+
 export const getValuationSettings = async ({ market, symbol }) => {
   const config = await db.app_config.get(valuationConfigKey(market, symbol));
   const stored = config && !config.deletedAt ? config.valuation ?? {} : {};
-  return Object.fromEntries(
-    VALUATION_SETTING_FIELDS.map((field) => [
-      field,
-      Number.isFinite(stored[field]) ? stored[field] : EMPTY_VALUATION_SETTINGS[field],
-    ]),
-  );
+  return {
+    ...Object.fromEntries(
+      VALUATION_SETTING_FIELDS.map((field) => [
+        field,
+        Number.isFinite(stored[field]) ? stored[field] : EMPTY_VALUATION_SETTINGS[field],
+      ]),
+    ),
+    model: readModelAssumptions(stored.model),
+    snapshots: readSnapshots(stored.snapshots),
+  };
 };
 
-export const saveValuationSettings = async ({ market, symbol, patch }) => {
+// patch: changed P/E / forwardEps fields and model.global / model.quarters
+// leaves (null clears). snapshot: the next quarter's estimate at save time;
+// overrides of quarters before it are published and dropped.
+export const saveValuationSettings = async ({ market, symbol, patch, snapshot = null }) => {
   ensureCloudWritable();
   if (!market || !symbol) {
     throw new Error("Missing market / symbol");
   }
   const next = await getValuationSettings({ market, symbol });
-  for (const [field, value] of Object.entries(patch ?? {})) {
+  const { model: modelPatch, ...scalarPatch } = patch ?? {};
+  for (const [field, value] of Object.entries(scalarPatch)) {
     if (!VALUATION_SETTING_FIELDS.includes(field)) {
       throw new Error(`Unknown valuation field: ${field}`);
     }
     next[field] = normalizeValuationValue(field, value);
+  }
+  for (const [field, value] of Object.entries(modelPatch?.global ?? {})) {
+    next.model.global[field] = normalizeModelValue(field, value);
+  }
+  for (const [key, values] of Object.entries(modelPatch?.quarters ?? {})) {
+    if (!QUARTER_KEY_PATTERN.test(key)) {
+      throw new Error(`Unknown quarter: ${key}`);
+    }
+    const merged = { ...(next.model.quarters[key] ?? {}) };
+    for (const [field, value] of Object.entries(values ?? {})) {
+      const normalized = normalizeModelValue(field, value);
+      if (normalized === null) delete merged[field];
+      else merged[field] = normalized;
+    }
+    if (Object.keys(merged).length > 0) next.model.quarters[key] = merged;
+    else delete next.model.quarters[key];
+  }
+  if (snapshot) {
+    if (!QUARTER_KEY_PATTERN.test(snapshot.quarter ?? "") || !Number.isFinite(snapshot.eps)) {
+      throw new Error("Invalid valuation snapshot");
+    }
+    const cutoff = quarterOrder(snapshot.quarter);
+    for (const key of Object.keys(next.model.quarters)) {
+      if (quarterOrder(key) < cutoff) delete next.model.quarters[key];
+    }
+    const snapshots = {
+      ...next.snapshots,
+      [snapshot.quarter]: {
+        eps: snapshot.eps,
+        revenue: finiteOrNull(snapshot.revenue),
+        grossMargin: finiteOrNull(snapshot.grossMargin),
+        opexRatio: finiteOrNull(snapshot.opexRatio),
+        savedAt: getNowIso(),
+      },
+    };
+    const kept = Object.keys(snapshots)
+      .sort((a, b) => quarterOrder(b) - quarterOrder(a))
+      .slice(0, SNAPSHOT_LIMIT);
+    next.snapshots = Object.fromEntries(kept.map((key) => [key, snapshots[key]]));
   }
   await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, {
     key: valuationConfigKey(market, symbol),

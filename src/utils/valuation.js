@@ -1,11 +1,20 @@
 // EPS × P/E valuation maths for the stock detail sheet. Pure functions; see
 // docs/superpowers/specs/2026-10-05-stock-valuation-design.md for the rules.
 
-export const VALUATION_SETTING_FIELDS = ['peCheap', 'peFair', 'peExpensive', 'growthRate', 'forwardEps']
+import { MODEL_FIELDS } from './incomeModel'
 
-export const EMPTY_VALUATION_SETTINGS = Object.freeze(
-  Object.fromEntries(VALUATION_SETTING_FIELDS.map((field) => [field, null])),
-)
+export const VALUATION_SETTING_FIELDS = ['peCheap', 'peFair', 'peExpensive', 'forwardEps']
+
+export const EMPTY_MODEL_ASSUMPTIONS = Object.freeze({
+  global: Object.freeze(Object.fromEntries(MODEL_FIELDS.map((field) => [field, null]))),
+  quarters: Object.freeze({}),
+})
+
+export const EMPTY_VALUATION_SETTINGS = Object.freeze({
+  ...Object.fromEntries(VALUATION_SETTING_FIELDS.map((field) => [field, null])),
+  model: EMPTY_MODEL_ASSUMPTIONS,
+  snapshots: Object.freeze({}),
+})
 
 export const MIN_PE_SAMPLES = 8
 

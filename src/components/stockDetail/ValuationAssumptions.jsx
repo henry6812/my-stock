@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Alert, Button, Drawer, InputNumber, Modal, Typography } from "antd";
-import { formatEps } from "../../utils/valuation";
+import { Button, Drawer, InputNumber, Modal, Typography } from "antd";
+import { VALUATION_SETTING_FIELDS, formatEps } from "../../utils/valuation";
 
 const { Text } = Typography;
 
@@ -10,23 +10,7 @@ const PE_FIELDS = [
   { field: "peExpensive", band: "expensive", label: "昂貴本益比", short: "昂貴" },
 ];
 
-const GROWTH_WARNING_THRESHOLD = 0.5;
-
-const toDraft = (settings) => ({
-  peCheap: settings.peCheap,
-  peFair: settings.peFair,
-  peExpensive: settings.peExpensive,
-  growthPercent: Number.isFinite(settings.growthRate) ? Math.round(settings.growthRate * 1000) / 10 : null,
-  forwardEps: settings.forwardEps,
-});
-
-const draftToSettings = (draft) => ({
-  peCheap: draft.peCheap,
-  peFair: draft.peFair,
-  peExpensive: draft.peExpensive,
-  growthRate: Number.isFinite(draft.growthPercent) ? draft.growthPercent / 100 : null,
-  forwardEps: draft.forwardEps,
-});
+const toDraft = (settings) => Object.fromEntries(VALUATION_SETTING_FIELDS.map((field) => [field, settings[field]]));
 
 // Remounted (key = settings) after a save or a synced change, so the draft
 // always starts from the stored values.
@@ -35,9 +19,8 @@ function AssumptionsForm({ model, market, settings, disabled, onSave, onSaved })
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  const nextSettings = draftToSettings(draft);
   const patch = Object.fromEntries(
-    Object.entries(nextSettings).filter(([field, value]) => (value ?? null) !== (settings[field] ?? null)),
+    Object.entries(draft).filter(([field, value]) => (value ?? null) !== (settings[field] ?? null)),
   );
   const hasChanges = Object.keys(patch).length > 0;
 
@@ -45,7 +28,7 @@ function AssumptionsForm({ model, market, settings, disabled, onSave, onSaved })
     setSaving(true);
     setError(null);
     try {
-      await onSave(values);
+      await onSave(values, null);
       if (close) onSaved?.();
     } catch (saveError) {
       setError(saveError.message);
@@ -78,10 +61,6 @@ function AssumptionsForm({ model, market, settings, disabled, onSave, onSaved })
       {resetLink(settingKey, label)}
     </label>
   );
-
-  const growthRate = model.forward?.growthRate;
-  const showGrowthWarning =
-    market === "TW" && Number.isFinite(growthRate) && Math.abs(growthRate) > GROWTH_WARNING_THRESHOLD;
 
   return (
     <>
@@ -137,27 +116,6 @@ function AssumptionsForm({ model, market, settings, disabled, onSave, onSaved })
         <div className="valuation-assumptions-group">
           <h4 className="valuation-assumptions-title">{market === "US" ? "未來四季預估" : "今年預估"}</h4>
           <div className="valuation-assumption-grid">
-            {market === "TW" &&
-              field({
-                key: "growthPercent",
-                settingKey: "growthRate",
-                label: "成長率",
-                short: "成長率 %",
-                input: (
-                  <InputNumber
-                    aria-label="成長率 (%)"
-                    step={1}
-                    value={draft.growthPercent}
-                    placeholder={
-                      Number.isFinite(model.forward?.autoGrowthRate)
-                        ? (model.forward.autoGrowthRate * 100).toFixed(1)
-                        : "無法計算"
-                    }
-                    disabled={disabled || saving}
-                    onChange={setField("growthPercent")}
-                  />
-                ),
-              })}
             {field({
               key: "forwardEps",
               label: "預估 EPS",
@@ -174,7 +132,6 @@ function AssumptionsForm({ model, market, settings, disabled, onSave, onSaved })
               ),
             })}
           </div>
-          {showGrowthWarning && <Alert type="warning" showIcon title="成長率異常，建議覆寫" />}
         </div>
 
         {error && <Text type="danger">{error}</Text>}

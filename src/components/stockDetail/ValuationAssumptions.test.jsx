@@ -56,13 +56,13 @@ describe('ValuationAssumptions', () => {
     expect(screen.getByRole('heading', { name: '今年預估' })).toBeInTheDocument()
   })
 
-  it('saves only the changed fields, converting growth % to a ratio', async () => {
+  it('saves only the changed fields', async () => {
     const onSave = vi.fn().mockResolvedValue({})
     renderOpen({ onSave })
     fireEvent.change(screen.getByLabelText('合理本益比'), { target: { value: '20' } })
-    fireEvent.change(screen.getByLabelText('成長率 (%)'), { target: { value: '15' } })
+    fireEvent.change(screen.getByLabelText('預估 EPS'), { target: { value: '80' } })
     fireEvent.click(screen.getByRole('button', { name: /儲\s*存/ }))
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ peFair: 20, growthRate: 0.15 }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ peFair: 20, forwardEps: 80 }, null))
   })
 
   it('resets an overridden field', () => {
@@ -75,7 +75,7 @@ describe('ValuationAssumptions', () => {
     expect(screen.queryByText('已覆寫')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重設合理本益比' })).toHaveTextContent('改回預設')
     fireEvent.click(screen.getByRole('button', { name: '重設合理本益比' }))
-    expect(onSave).toHaveBeenCalledWith({ peFair: null })
+    expect(onSave).toHaveBeenCalledWith({ peFair: null }, null)
   })
 
   it('is read-only with a hint when writes are disabled', () => {
@@ -84,19 +84,12 @@ describe('ValuationAssumptions', () => {
     expect(screen.getByLabelText('合理本益比')).toBeDisabled()
   })
 
-  it('warns about an extreme growth rate (TW only)', () => {
-    renderOpen({ model: { ...model, forward: { ...model.forward, growthRate: 0.8 } } })
-    expect(screen.getByText('成長率異常，建議覆寫')).toBeInTheDocument()
-  })
-
-  it('shows that the growth rate is unknown rather than 0', () => {
-    renderOpen({ model: { ...model, forward: { ...model.forward, growthRate: 0, autoGrowthRate: null } } })
-    expect(screen.getByLabelText('成長率 (%)')).toHaveAttribute('placeholder', '無法計算')
-  })
-
-  it('hides growth rate for US stocks', () => {
+  it('never shows a growth-rate field', () => {
+    const { unmount } = renderOpen({ market: 'TW' })
+    expect(screen.queryByLabelText('成長率 (%)')).toBeNull()
+    unmount()
     renderOpen({ market: 'US' })
-    expect(screen.queryByLabelText('成長率 (%)')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('成長率 (%)')).toBeNull()
     expect(screen.getByLabelText('預估 EPS')).toBeInTheDocument()
   })
 
