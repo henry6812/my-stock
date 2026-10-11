@@ -3947,6 +3947,29 @@ button.expense-card-chip {
   margin-top: var(--space-4);
 }
 
+/* Thumb-sized controls in the sheet: 買進 / 賣出, the valuation basis
+   switch and 估價假設's 儲存 are 44px tall, like the sheets' footer button. */
+.stock-detail-trade .ant-btn,
+.valuation-assumptions .ant-btn-primary {
+  height: 44px;
+}
+
+.valuation-card .ant-segmented-item-label {
+  min-height: 40px;
+  line-height: 40px;
+}
+
+/* The small 設定 link keeps its look but gets a 44px tap area. */
+.stock-detail-gain .ant-btn-link {
+  position: relative;
+}
+
+.stock-detail-gain .ant-btn-link::before {
+  content: "";
+  position: absolute;
+  inset: -10px -8px;
+}
+
 .stock-detail-manage {
   display: flex;
   flex-direction: column;

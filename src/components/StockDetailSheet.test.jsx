@@ -143,6 +143,13 @@ describe('StockDetailSheet', () => {
     }
   })
 
+  it('makes 買進 the primary action and 賣出 the secondary one', () => {
+    useStockFundamentals.mockReturnValue({ status: 'loading', reload })
+    renderSheet()
+    expect(screen.getByRole('button', { name: /買\s*進/ })).toHaveClass('ant-btn-primary')
+    expect(screen.getByRole('button', { name: /賣\s*出/ })).not.toHaveClass('ant-btn-primary')
+  })
+
   it('disables the actions while writing is not allowed', () => {
     useStockFundamentals.mockReturnValue({ status: 'loading', reload })
     renderSheet({ disabled: true })

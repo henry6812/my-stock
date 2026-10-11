@@ -89,7 +89,7 @@ function HoldingPosition({ holding, disabled, onAction }) {
       </dl>
 
       <div className="stock-detail-trade">
-        <Button block disabled={disabled} onClick={() => onAction?.("buy")}>
+        <Button type="primary" block disabled={disabled} onClick={() => onAction?.("buy")}>
           買進
         </Button>
         <Button block disabled={disabled} onClick={() => onAction?.("sell")}>
