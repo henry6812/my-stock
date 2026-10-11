@@ -223,4 +223,21 @@ describe('ValuationAssumptions — income model (TW)', () => {
     fireEvent.change(screen.getByLabelText('預估 EPS'), { target: { value: '20' } })
     expect(screen.getByText('已使用自訂 EPS，模型結果僅供參考')).toBeInTheDocument()
   })
+
+  it('compares past estimates with the published figures', () => {
+    const settings = {
+      ...EMPTY_VALUATION_SETTINGS,
+      snapshots: {
+        '2026Q2': { eps: 3.2, revenue: 1_250, grossMargin: 0.52, opexRatio: 0.19, savedAt: '2026-07-20T00:00:00Z' },
+        '2026Q3': { eps: 3.4, savedAt: '2026-10-01T00:00:00Z' },
+      },
+    }
+    renderOpen({ settings, model: buildModel(settings) })
+    const row = screen.getByRole('button', { name: /2026 Q2/ })
+    expect(row).toHaveTextContent('預估 3.20 → 實際 3.04')
+    expect(row).toHaveTextContent('▼5.0%')
+    expect(screen.queryByRole('button', { name: /^2026 Q3 預估/ })).not.toBeInTheDocument()
+    fireEvent.click(row)
+    expect(screen.getByText('52.0% → 50.0%')).toBeInTheDocument()
+  })
 })

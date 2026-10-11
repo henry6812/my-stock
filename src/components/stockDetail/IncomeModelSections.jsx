@@ -1,5 +1,6 @@
 import { Typography } from "antd";
-import { UNAVAILABLE_REASONS } from "../../utils/incomeModel";
+import { compareSnapshots, UNAVAILABLE_REASONS } from "../../utils/incomeModel";
+import EstimateHistory from "./EstimateHistory";
 import IncomeAssumptionFields from "./IncomeAssumptionFields";
 import IncomeModelSummary from "./IncomeModelSummary";
 import IncomeQuarterList from "./IncomeQuarterList";
@@ -19,6 +20,7 @@ function IncomeModelSections({ income, draft, settings, disabled, onGlobalChange
   return (
     <>
       <IncomeModelSummary income={income} />
+      <EstimateHistory comparisons={compareSnapshots(settings.snapshots, income.reported)} />
       <IncomeAssumptionFields
         income={income}
         values={draft.model.global}

@@ -4424,3 +4424,17 @@ button.expense-card-chip {
   color: var(--c-muted);
   font-variant-numeric: tabular-nums;
 }
+
+.income-history-diff {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-muted);
+}
+
+.income-history-diff--up {
+  color: var(--c-up);
+}
+
+.income-history-diff--down {
+  color: var(--c-down);
+}
