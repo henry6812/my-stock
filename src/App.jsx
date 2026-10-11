@@ -70,6 +70,7 @@ import {
   Refresh,
   Repeat,
   Settings,
+  SmartphoneDevice,
   Star,
   StatsReport,
   Trash,
@@ -124,6 +125,12 @@ import ExpenseTemplateForm from "./components/ExpenseTemplateForm";
 import RecurringOverview from "./components/RecurringOverview";
 import EmptyState from "./components/EmptyState";
 import SectionTitle from "./components/SectionTitle";
+import {
+  checkTiltPermission,
+  enableTiltFromTap,
+  isTiltEnabled,
+  setTiltEnabled,
+} from "./utils/deviceTilt";
 import MobileIncomeSettings from "./components/MobileIncomeSettings";
 import MobileSwipeRow from "./components/MobileSwipeRow";
 import {
@@ -546,6 +553,24 @@ function App() {
   const [isMobileViewport, setIsMobileViewport] = useState(
     typeof window !== "undefined" ? window.innerWidth <= 768 : false,
   );
+  // 設定 → 手機: whether the net-worth jar's water leans with the phone.
+  const [tiltEnabled, setTiltEnabledState] = useState(isTiltEnabled);
+  useEffect(() => {
+    checkTiltPermission();
+  }, []);
+  const handleToggleTilt = (checked) => {
+    if (!checked) {
+      setTiltEnabled(false);
+      setTiltEnabledState(false);
+      return;
+    }
+    // Must ask iOS inside this tap.
+    setTiltEnabledState(true);
+    enableTiltFromTap().then((granted) => {
+      setTiltEnabledState(granted);
+      if (!granted) message.info("沒有取得動作感測器權限，水面不會隨手機傾斜");
+    });
+  };
   // The 更新價格 market sheet is a bare Drawer; the other mobile sheets lock
   // the page themselves (MobileFormSheetLayout, QuickExpenseSheet, …).
   useBodyScrollLock(isMobileViewport && isUpdateSheetOpen);
@@ -6571,6 +6596,33 @@ function App() {
                       </Space>
                     </Card>
                   </Col>
+                  {isMobileViewport && (
+                    <Col xs={24}>
+                      <section className="mobile-list-section">
+                        <div className="mobile-list-header">
+                          <span className="mobile-list-title">
+                            <SectionTitle icon={SmartphoneDevice}>手機</SectionTitle>
+                          </span>
+                        </div>
+                        <div className="account-panel">
+                          <label className="device-setting-row">
+                            <span className="device-setting-text">
+                              <span className="device-setting-label">
+                                水面隨手機傾斜
+                              </span>
+                              <span className="device-setting-hint">
+                                iPhone 每次重新開啟 App，第一次點存錢罐時會再詢問一次
+                              </span>
+                            </span>
+                            <Switch
+                              checked={tiltEnabled}
+                              onChange={handleToggleTilt}
+                            />
+                          </label>
+                        </div>
+                      </section>
+                    </Col>
+                  )}
                   {isMobileViewport && authUser && (
                     <Col xs={24}>
                       <section className="mobile-list-section">

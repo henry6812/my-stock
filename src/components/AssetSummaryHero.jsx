@@ -6,9 +6,9 @@
 // else, or the jar again, goes back.
 import { useState } from "react";
 import dayjs from "dayjs";
+import { requestTiltPermission } from "../utils/deviceTilt";
 import NetWorthJar from "./NetWorthJar";
 import { getJarGeometry } from "../utils/netWorthJar";
-import { requestTiltPermission } from "../utils/deviceTilt";
 import { formatNetWorthScaleLabel } from "../utils/portfolioView";
 
 const digits = (value) => Math.round(Math.abs(value)).toLocaleString("en-US");
@@ -101,8 +101,8 @@ export default function AssetSummaryHero({
           aria-pressed={milestone}
           onClick={(event) => {
             event.stopPropagation();
-            // iOS only lets the water follow the phone's tilt after asking,
-            // and only from a tap: the first jar tap asks.
+            // iOS forgets the tilt permission when the app closes; with the
+            // tilt on in 設定, the first jar tap of a launch asks again.
             requestTiltPermission();
             setMilestone(!milestone);
           }}

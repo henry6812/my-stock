@@ -324,7 +324,7 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 - **圖示選擇器（Category Icon Picker）：** 分類表單中 6 欄的 44px 圓形按鈕（`aria-pressed`），平時白底 `line` 邊 + `muted` 圖示，選中為 `neutral-fill` 底、`action` 邊、`ink` 圖示。沒自選時標示依名稱對應的那個，下方以 `muted` 12px 註明「依名稱自動選擇」；自選後換成「改回依名稱自動選擇」連結。
 - **狀態圖示：** 狀態不只靠顏色表達。預算「接近上限」在金額前加 `WarningCircle`、「超支」加 `WarningTriangle`（跟著 `warn` / `down` 色，`BudgetRemaining`）；header 同步狀態依狀態換圖示：正常 `CloudCheck`、連線中 `CloudSync`、離線 `WifiOff`、失敗 `CloudXmark`。支出列的「固定」tag 帶 `Repeat`、「預計」tag 帶 `Clock`。銀行帳戶的餘額超過一個月沒更新（以最後一次存餘額的時間計，不是改別名或持有人的時間）時，主名稱後接一個 `--icon-sm` 的 `muted` `ClockRotateRight`（`StaleBalanceIcon`），只有圖示、不加底色或徽章；天數放在 hover tooltip 與 `aria-label`（「N 天沒更新餘額」）。
 - **動作圖示：** 同一個動作全 App 用同一個圖示：重新抓取（更新價格、重試、PWA 立即更新）是 `Refresh`，匯出是 `Download`，新增是 `Plus`。同一列並排的按鈕要嘛都有圖示、要嘛都沒有。
-- **區塊標題（Section Title）：** 只用在設定頁這種靠掃讀找區塊的長頁：標題前 `--icon-md` 圖示、間距 `--space-2`、跟標題同色（`SectionTitle`）。收入 `Coins`、持有人 `Group`、類別 `Label`、常用支出 `Star`、預算 `Wallet`、資料匯出 `Download`。資產頁、支出頁的區塊標題不加。
+- **區塊標題（Section Title）：** 只用在設定頁這種靠掃讀找區塊的長頁：標題前 `--icon-md` 圖示、間距 `--space-2`、跟標題同色（`SectionTitle`）。收入 `Coins`、持有人 `Group`、類別 `Label`、常用支出 `Star`、預算 `Wallet`、資料匯出 `Download`、手機 `SmartphoneDevice`、帳號 `User`。資產頁、支出頁的區塊標題不加。
 - **空狀態（Empty State）：** 不用 antd `Empty` 插圖，改用 `EmptyState`：`--icon-tile` 白底 + 1px `line` 內框的圓形 tile（同沒有分類的 Category Icon）放主題圖示（`muted`、`--icon-md`）→ 一行 `muted` 14px 說明 → 可選的動作按鈕。表格 `locale.emptyText` 的純文字不在此限。
 - **下拉重新整理：** 指示器是 `ArrowDown` + 文字；拉過門檻時箭頭 180ms 轉向朝上，放開後換成 `LoadingOutlined`。拉動時整頁內容以 `transform: translateY` 往下滑（不改高度，避免每一幀重新排版），指示器固定在內容頂端的裁切槽裡、底邊跟著頁面頂端走；tab bar 與 FAB 不在滑動層內，以免 `transform` 改變它們的 fixed 定位。`prefers-reduced-motion` 下不轉場。
 - **無障礙：** 單獨傳達意義的圖示（例如名稱前的「定期支出」標記）加 `aria-hidden={false} role="img" aria-label`；純圖示按鈕把 `aria-label` 放在按鈕上。
@@ -348,7 +348,7 @@ App 的主體是分組列表（支出依日分組、預算、定期支出、持�
 ### Navigation
 - **Mobile tab bar:** 浮在左下的白色膠囊（94% 不透明 + 8px backdrop blur）、1px `line` 邊、Float 陰影。底邊貼在 home indicator 的 safe area 上（`max(--space-3, safe-area-inset-bottom)`），不再多墊 24px；右下的 FAB 與它垂直置中。內含 Segmented：20px 圖示在上、12px 文字在下，選中項為 `track` 底膠囊 + `ink` 字。
 - **主分頁切換:** 用 View Transitions 做左右推頁（500ms，`cubic-bezier(0.32, 0.72, 0, 1)`）；header、tab bar、FAB 不參與滑動。
-- **Header:** 透明背景 + blur，三欄 grid：左分頁、中 logo（32px）、右同步狀態與登出。手機上是 56px 高的細條，只放置中的 logo；帳號、同步狀態與登出移到「設定」頁最底部的「帳號」區塊（與其他手機列表同樣的 hairline 外框：第一列 email + 同步狀態 + 上次同步時間，第二列整列可點的「登出」）。離線 / 唯讀時頁面上方的警告仍會提示。
+- **Header:** 透明背景 + blur，三欄 grid：左分頁、中 logo（32px）、右同步狀態與登出。手機上是 56px 高的細條，只放置中的 logo；帳號、同步狀態與登出移到「設定」頁最底部的「帳號」區塊（與其他手機列表同樣的 hairline 外框：第一列 email + 同步狀態 + 上次同步時間，第二列整列可點的「登出」）。離線 / 唯讀時頁面上方的警告仍會提示。「帳號」上方是只在手機出現的「手機」區塊（同一種 hairline 外框），放這台裝置自己的偏好、存在 `localStorage` 不同步：目前只有「水面隨手機傾斜」一個開關（列高至少 44px，左側 `ink` 500 標籤疊 `muted` caption 說明，右側 Switch）。預設關閉；iOS 關掉 App 就會忘記動作感測器權限，所以開啟時每次啟動後第一次點資產頁的存錢罐會再詢問，關閉時永遠不問（`src/utils/deviceTilt.js`）。
 - **系統通知**（例如「有新版本可以使用」）從頂端出現，不放底部，免得蓋住 tab bar 與 FAB。
 
 ### Bottom Sheet

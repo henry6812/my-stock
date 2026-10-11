@@ -98,6 +98,33 @@
   color: var(--c-muted);
 }
 
+/* 設定 → 手機 (phone): one switch row in the same hairline frame. */
+.device-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-row-y) var(--space-row-x);
+}
+
+.device-setting-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.device-setting-label {
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--c-ink);
+}
+
+.device-setting-hint {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+}
+
 .account-logout.ant-btn {
   min-height: 44px;
   border-radius: 0;

@@ -100,17 +100,26 @@ describe('AssetSummaryHero', () => {
     expect(text(container)).toEqual({ label: '1000萬・還差', num: '$3,615,800', sub: '已達 63.8%' })
   })
 
-  it('asks iOS for the tilt sensor on the first jar tap only', async () => {
+  it('asks iOS for the tilt sensor on a jar tap only with the tilt on in 設定', async () => {
     const requestPermission = vi.fn(() => Promise.resolve('granted'))
     vi.stubGlobal('DeviceOrientationEvent', { requestPermission })
-    // Earlier taps in this file already asked; start from a fresh module.
+    // The switch and the per-launch ask live in module state: start fresh.
     vi.resetModules()
-    const { default: FreshHero } = await import('./AssetSummaryHero')
+    let { default: FreshHero } = await import('./AssetSummaryHero')
+    const { unmount } = render(<FreshHero {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: '查看里程碑、本金與報價時間' }))
+    expect(requestPermission).not.toHaveBeenCalled()
+    unmount()
+
+    window.localStorage.setItem('my-stock:tilt-enabled', '1')
+    vi.resetModules()
+    ;({ default: FreshHero } = await import('./AssetSummaryHero'))
     render(<FreshHero {...props} />)
     const jar = screen.getByRole('button', { name: '查看里程碑、本金與報價時間' })
     fireEvent.click(jar)
     fireEvent.click(jar)
     expect(requestPermission).toHaveBeenCalledTimes(1)
+    window.localStorage.clear()
     vi.unstubAllGlobals()
   })
 
