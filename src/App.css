@@ -3874,3 +3874,15 @@ button.expense-card-chip {
   padding: 16px 0 8px;
   font-size: var(--fs-caption);
 }
+
+/* HoldingActionForm (buy / sell / calibrate / edit a holding). */
+.holding-action-note {
+  display: block;
+  margin-bottom: var(--space-4);
+}
+
+.holding-action-extra {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
