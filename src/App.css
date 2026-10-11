@@ -3860,13 +3860,38 @@ button.expense-card-chip {
   color: var(--c-down);
 }
 
-.stock-detail-holding {
-  flex-basis: 100%;
-}
-
 .stock-detail-chart {
   width: 100%;
   min-width: 0;
+}
+
+.stock-detail-position {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--c-line);
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-detail-position-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stock-detail-trade {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.stock-detail-manage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) 0 var(--space-2);
+  border-top: 1px solid var(--c-line);
 }
 
 .stock-detail-source {

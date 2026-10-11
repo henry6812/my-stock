@@ -3,10 +3,11 @@ import { Alert, Button, Drawer, Skeleton, Typography } from "antd";
 import useBodyScrollLock from "../hooks/useBodyScrollLock";
 import useStockFundamentals from "../hooks/useStockFundamentals";
 import useValuationSettings from "../hooks/useValuationSettings";
-import { formatDateTime, formatPrice, formatTwd } from "../utils/formatters";
+import { formatDateTime, formatPrice } from "../utils/formatters";
 import { formatSignedPercent } from "../utils/stockDetail";
 import { buildValuationModel } from "../utils/valuation";
 import EpsTrendChart from "./stockDetail/EpsTrendChart";
+import HoldingPosition from "./stockDetail/HoldingPosition";
 import PeHistoryChart from "./stockDetail/PeHistoryChart";
 import ValuationAssumptions from "./stockDetail/ValuationAssumptions";
 import ValuationCard from "./stockDetail/ValuationCard";
@@ -15,10 +16,11 @@ const { Text } = Typography;
 
 const SOURCE_LABELS = { TW: "TWSE / 公開資訊觀測站", US: "Finnhub" };
 
-// One stock: price, EPS × P/E valuation, EPS trend and P/E history. Mobile
-// shows a bottom sheet, desktop a right-hand drawer. The parent keys this by
-// stock so basis / fold state reset when another stock opens.
-function StockDetailSheet({ open, holding, isMobile, disabled, onClose }) {
+// One holding (one stock, one holder): price, position and cost, buy /
+// sell, EPS × P/E valuation, EPS trend and P/E history, then managing the
+// holding. Mobile shows a bottom sheet, desktop a right-hand drawer. The
+// parent keys this by holding so basis / fold state reset when another opens.
+function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction }) {
   const active = Boolean(open && holding);
   useBodyScrollLock(active && isMobile);
   const fundamentals = useStockFundamentals(active ? holding.market : null, active ? holding.symbol : null);
@@ -98,11 +100,20 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose }) {
             {formatSignedPercent(holding.priceChangePct / 100)}
           </span>
         )}
-        <Text type="secondary" className="stock-detail-holding">
-          {`持有 ${Number(holding.totalShares).toLocaleString("zh-TW", { maximumFractionDigits: 4 })} 股 · 市值 ${formatTwd(holding.totalValueTwd)}`}
-        </Text>
       </header>
+      <HoldingPosition holding={holding} disabled={disabled} onAction={onAction} />
       {body}
+      <div className="stock-detail-manage">
+        <Button block disabled={disabled} onClick={() => onAction?.("edit")}>
+          編輯分類與持有人
+        </Button>
+        <Button block disabled={disabled} onClick={() => onAction?.("calibrate")}>
+          校正股數與成本
+        </Button>
+        <Button block danger disabled={disabled} onClick={() => onAction?.("remove")}>
+          移除持股
+        </Button>
+      </div>
     </>
   );
 

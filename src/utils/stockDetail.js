@@ -4,19 +4,11 @@ export const formatSignedPercent = (value) => {
   return `${sign}${Math.abs(value * 100).toFixed(1)}%`
 }
 
-// The sheet shows one stock; the same stock may be held under several
-// holders (separate holding rows), so shares and value are summed.
-export const buildStockDetailHolding = (rows, id) => {
-  const row = rows.find((item) => item.id === id)
-  if (!row) return null
-  const sameStock = rows.filter((item) => item.market === row.market && item.symbol === row.symbol)
-  const values = sameStock.map((item) => item.latestValueTwd).filter(Number.isFinite)
-  return {
-    ...row,
-    totalShares: sameStock.reduce((sum, item) => sum + (Number(item.shares) || 0), 0),
-    totalValueTwd: values.length ? values.reduce((sum, value) => sum + value, 0) : undefined,
-  }
-}
+// The sheet shows the holding that was tapped: one stock of one holder.
+// The same stock under another holder is a separate holding with its own
+// shares and cost.
+export const buildStockDetailHolding = (rows, id) =>
+  rows.find((item) => item.id === id) ?? null
 
 const INTERACTIVE_SELECTOR = [
   'button',

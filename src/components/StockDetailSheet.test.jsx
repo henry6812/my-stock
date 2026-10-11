@@ -38,8 +38,11 @@ const holding = {
   latestPrice: 1085,
   priceChangePct: 1.2,
   latestCurrency: 'TWD',
-  totalShares: 2000,
-  totalValueTwd: 2170000,
+  holder: 'Po',
+  holderName: 'Po',
+  shares: 2000,
+  latestValueTwd: 2170000,
+  totalCost: null,
 }
 
 const reload = vi.fn()
@@ -50,7 +53,7 @@ beforeEach(() => {
 })
 
 const renderSheet = (props = {}) =>
-  render(<StockDetailSheet open holding={holding} isMobile disabled={false} onClose={() => {}} {...props} />)
+  render(<StockDetailSheet open holding={holding} isMobile disabled={false} onClose={() => {}} onAction={vi.fn()} {...props} />)
 
 describe('StockDetailSheet', () => {
   it('renders header, valuation, charts and source when data is ready', () => {
@@ -58,7 +61,7 @@ describe('StockDetailSheet', () => {
     renderSheet()
     expect(screen.getByText('台積電')).toBeInTheDocument()
     expect(screen.getByText('2330')).toBeInTheDocument()
-    expect(screen.getByText(/持有 2,000 股/)).toBeInTheDocument()
+    expect(screen.getByText(/Po 持有 2,000 股/)).toBeInTheDocument()
     expect(screen.getByLabelText('估價')).toBeInTheDocument()
     expect(screen.getByText(/目前.+距合理價/)).toBeInTheDocument()
     expect(screen.getByText('EPS 趨勢')).toBeInTheDocument()
@@ -99,6 +102,45 @@ describe('StockDetailSheet', () => {
     expect(screen.queryByLabelText('估價')).not.toBeInTheDocument()
     expect(screen.queryByText('本益比走勢')).not.toBeInTheDocument()
     expect(screen.getByText('EPS 趨勢')).toBeInTheDocument()
+  })
+
+  it('shows the average cost and unrealized gain when the cost is set', () => {
+    useStockFundamentals.mockReturnValue({ status: 'ready', data: fundamentals, reload })
+    renderSheet({ holding: { ...holding, totalCost: 1000000 } })
+    expect(screen.getByText('均價 $500.00 · 成本 $1,000,000')).toBeInTheDocument()
+    expect(screen.getByText('未實現 +$1,170,000（+117.0%）')).toBeInTheDocument()
+  })
+
+  it('offers to set the cost when it is missing', () => {
+    useStockFundamentals.mockReturnValue({ status: 'ready', data: fundamentals, reload })
+    const onAction = vi.fn()
+    renderSheet({ onAction })
+    expect(screen.getByText('未設定成本')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '設定成本' }))
+    expect(onAction).toHaveBeenCalledWith('calibrate')
+  })
+
+  it('routes every holding action through onAction', () => {
+    useStockFundamentals.mockReturnValue({ status: 'loading', reload })
+    const onAction = vi.fn()
+    renderSheet({ onAction })
+    for (const [name, action] of [
+      [/買\s*進/, 'buy'],
+      [/賣\s*出/, 'sell'],
+      ['編輯分類與持有人', 'edit'],
+      ['校正股數與成本', 'calibrate'],
+      ['移除持股', 'remove'],
+    ]) {
+      fireEvent.click(screen.getByRole('button', { name }))
+      expect(onAction).toHaveBeenLastCalledWith(action)
+    }
+  })
+
+  it('disables the actions while writing is not allowed', () => {
+    useStockFundamentals.mockReturnValue({ status: 'loading', reload })
+    renderSheet({ disabled: true })
+    expect(screen.getByRole('button', { name: /買\s*進/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '移除持股' })).toBeDisabled()
   })
 
   it('renders nothing without a holding', () => {

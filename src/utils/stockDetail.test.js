@@ -13,19 +13,14 @@ describe('buildStockDetailHolding', () => {
   const rows = [
     { id: 1, market: 'TW', symbol: '2330', holder: 'Po', shares: 1000, latestValueTwd: 1085000 },
     { id: 2, market: 'TW', symbol: '2330', holder: 'Mia', shares: 500, latestValueTwd: 542500 },
-    { id: 3, market: 'US', symbol: '2330', holder: 'Po', shares: 1, latestValueTwd: 100 },
   ]
 
-  it('sums shares and value across holders of the same stock', () => {
-    expect(buildStockDetailHolding(rows, 2)).toMatchObject({ id: 2, totalShares: 1500, totalValueTwd: 1627500 })
+  it('returns only the tapped holder’s holding', () => {
+    expect(buildStockDetailHolding(rows, 2)).toBe(rows[1])
   })
 
   it('returns null for an unknown id', () => {
     expect(buildStockDetailHolding(rows, 99)).toBeNull()
-  })
-
-  it('leaves the total value undefined when no row has a price', () => {
-    expect(buildStockDetailHolding([{ id: 1, market: 'TW', symbol: '1101', shares: 10 }], 1).totalValueTwd).toBeUndefined()
   })
 })
 
