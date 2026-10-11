@@ -34,7 +34,7 @@ function RiverTooltip({ active, payload }) {
 }
 
 // Price against EPS × the P/E bands in use: when the price runs above the
-// band it has outpaced earnings. Past the dashed 今天 line the band follows
+// band it has outpaced earnings. Past the 今天 line the band follows
 // the projected EPS.
 function PeRiverChart({ river }) {
   let body;

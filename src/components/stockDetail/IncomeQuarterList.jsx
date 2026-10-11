@@ -113,7 +113,13 @@ function IncomeQuarterList({ income, overrides, disabled, onChange }) {
                         type="button"
                         className="income-quarter-row"
                         aria-expanded={open}
-                        aria-label={`${formatQuarter(quarter)} 推估 EPS ${formatEps(quarter.eps)}`}
+                        aria-label={[
+                          `${formatQuarter(quarter)} 推估 EPS ${formatEps(quarter.eps)}`,
+                          note,
+                          quarter.overridden ? "已覆寫" : null,
+                        ]
+                          .filter(Boolean)
+                          .join("，")}
                         onClick={() => setOpenKey(open ? null : quarter.key)}
                       >
                         <span className="income-quarter-name">{`Q${quarter.quarter}`}</span>

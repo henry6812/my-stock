@@ -27,7 +27,7 @@ function UsEpsGroup({ model }) {
       <div className="valuation-eps">
         <div className="valuation-eps-line">
           <span className="valuation-eps-label">未來四季預估</span>
-          <span>{Number.isFinite(forward?.eps) ? formatEps(forward.eps) : "無預估資料"}</span>
+          <span>{Number.isFinite(forward?.eps) ? formatEps(forward.eps) : forward?.reason ?? "無預估資料"}</span>
         </div>
         {forward?.formula && <span className="valuation-eps-formula">{forward.formula}</span>}
       </div>

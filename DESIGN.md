@@ -219,8 +219,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 ### Data & Identity Palettes
 不屬於 UI 色，但同樣是 token，定義在 `src/theme/tokens.js`：
 - **`CHART_PALETTE`**：圖表類別色，石板灰為第一色，其餘是沉穩的色相（藍、赭、梅、苔綠⋯），不含 teal；`CHART_NEUTRAL` 保留給「其他 / 現金」。個股細節的 EPS / 本益比圖用 **`CHART_STOCK`**：`primary` 是色票裡的霧藍（`#4C6FA8`，單季 EPS 柱、本益比線），`previous` 是它的淡色（`#C3D0E6`，去年同季柱）；不用炭黑或灰，那兩個留給文字與結構。預算條平時為 `muted`，接近上限 `warn`、超支 `down`。
-
-河流圖（`PeRiverChart`）：股價為 `primary` 實線 2px；便宜–昂貴帶為 `previous` 填色、合理線為半透明 `primary` 虛線；「今天」之後的推估段降低透明度、邊線改虛線，以 `line` 色直線分隔。推估值（EPS 趨勢圖的推估季、河流圖未來段）一律用空心或虛線表示，圖例用虛線外框色塊（`stock-detail-legend-swatch--outline`），不另用新色。
+  - 河流圖（`PeRiverChart`）：股價為 `primary` 實線 2px；便宜–昂貴帶為 `previous` 填色、合理線為半透明 `primary` 虛線；「今天」之後的推估段降低透明度、邊線改虛線，以 `line` 色直線分隔。推估值（EPS 趨勢圖的推估季、河流圖未來段）一律用空心或虛線表示，圖例用虛線外框色塊（`stock-detail-legend-swatch--outline`），不另用新色。
 - **`CATEGORY_TONES`**（CSS `--c-cat-*`）：分類圖示 tile 的八個淡底色：peach、butter、sky、periwinkle、lavender、mint、rose、sand，不含 teal。依分類性質分組（外食 / 咖啡 peach；買菜 / 日用 butter；水電 / 通訊 sky；交通 / 旅遊 periwinkle；房屋 / 學習 / 保險 lavender；運動 / 健康 mint；衣服 / 禮物 / 寶寶 rose；娛樂 sand；其他維持 `neutral-fill`），對應寫在 `App.css` 的 `.category-icon[data-category-icon]`。底上一律放 `ink` 圖示（≥12:1）。純粹讓分類一眼可分，不帶狀態語意。
 - **`HOLDER_TONES`**：holder tag 的五組字色 + 底色，依 holder 在設定中的順序分配，保證兩人不撞色；teal 那組排在最後，避免 teal 出現在存錢視覺以外。holder tag 是唯一保留彩色的 tag，因為一眼分出是誰的資產就是它的用途。
 

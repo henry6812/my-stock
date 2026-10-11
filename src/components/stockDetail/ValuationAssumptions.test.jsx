@@ -42,6 +42,13 @@ describe('ValuationAssumptions', () => {
     expect(screen.getByText('空白時使用過去 8 期本益比的低、中、高位置')).toBeInTheDocument()
   })
 
+  it('shows why the US forward EPS is missing when the model gives a reason', () => {
+    const base = usModel()
+    const withReason = { ...base, byBasis: { ...base.byBasis, forward: { eps: null, reason: '分析師預估不足' } } }
+    renderOpen({ market: 'US', model: withReason })
+    expect(screen.getByText('分析師預估不足')).toBeInTheDocument()
+  })
+
   it('opens as its own sheet with a full-width save button', () => {
     renderOpen()
     expect(screen.getByText('調整估價假設 · 台積電')).toBeInTheDocument()
@@ -182,7 +189,8 @@ describe('ValuationAssumptions — income model (TW)', () => {
     const list = screen.getByLabelText('逐季推估')
     expect(list).toHaveTextContent('2026今年 12.88')
     expect(list).toHaveTextContent('2027明年 19.00')
-    expect(screen.getByRole('button', { name: '2026 Q3 推估 EPS 3.40' })).toHaveTextContent('營收已全部公布')
+    // The months note and 已覆寫 are part of the row's accessible name.
+    expect(screen.getByRole('button', { name: '2026 Q3 推估 EPS 3.40，營收已全部公布' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '2026 Q4 推估 EPS 3.40' })).not.toHaveTextContent('已公布')
   })
 
@@ -194,7 +202,7 @@ describe('ValuationAssumptions — income model (TW)', () => {
     expect(screen.getByLabelText('2026 Q4 營收 YoY（%）')).toHaveAttribute('placeholder', '50.0')
     expect(screen.queryByLabelText('2026 Q3 毛利率（%）')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('2026 Q4 毛利率（%）'), { target: { value: '55' } })
-    expect(screen.getByRole('button', { name: '2026 Q4 推估 EPS 3.94' })).toHaveTextContent('已覆寫')
+    expect(screen.getByRole('button', { name: '2026 Q4 推估 EPS 3.94，已覆寫' })).toHaveTextContent('已覆寫')
     fireEvent.click(screen.getByRole('button', { name: /儲\s*存/ }))
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith({ model: { quarters: { '2026Q4': { grossMargin: 0.55 } } } }, expect.any(Object)),
@@ -203,7 +211,7 @@ describe('ValuationAssumptions — income model (TW)', () => {
 
   it('hides the revenue YoY input for a quarter whose revenue is all published', () => {
     renderOpen()
-    fireEvent.click(screen.getByRole('button', { name: '2026 Q3 推估 EPS 3.40' }))
+    fireEvent.click(screen.getByRole('button', { name: '2026 Q3 推估 EPS 3.40，營收已全部公布' }))
     expect(screen.queryByLabelText('2026 Q3 營收 YoY（%）')).not.toBeInTheDocument()
     expect(screen.getByLabelText('2026 Q3 毛利率（%）')).toBeInTheDocument()
   })
