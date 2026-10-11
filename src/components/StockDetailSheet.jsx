@@ -7,7 +7,7 @@ import useStockFundamentals from "../hooks/useStockFundamentals";
 import useValuationSettings from "../hooks/useValuationSettings";
 import { formatDateTime } from "../utils/formatters";
 import { buildRiverData } from "../utils/peRiver";
-import { buildValuationModel, formatEps, formatQuarter } from "../utils/valuation";
+import { buildValuationModel } from "../utils/valuation";
 import EpsTrendChart from "./stockDetail/EpsTrendChart";
 import HoldingPosition from "./stockDetail/HoldingPosition";
 import PeHistoryChart from "./stockDetail/PeHistoryChart";
@@ -19,14 +19,6 @@ const { Text } = Typography;
 
 const SOURCE_LABELS = { TW: "TWSE / 公開資訊觀測站", US: "Finnhub" };
 
-// The 估價假設 row: next quarter's estimate (TW) and the P/E in use.
-const describeEntry = (model) => {
-  const values = [model.bands?.cheap, model.bands?.fair, model.bands?.expensive];
-  const pe = values.every(Number.isFinite) ? `本益比 ${values.join("／")}` : "本益比尚未設定";
-  const next = model.income?.status === "ok" ? model.income.nextQuarter : null;
-  return next ? `${formatQuarter(next)} 預估 EPS ${formatEps(next.eps)} · ${pe}` : pe;
-};
-
 // One holding (one stock, one holder): its market value, position and
 // cost, buy / sell, EPS × P/E valuation, EPS trend and P/E history, then
 // managing the holding. Mobile shows a bottom sheet, desktop a right-hand drawer. The
@@ -37,7 +29,8 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
   const fundamentals = useStockFundamentals(active ? holding.market : null, active ? holding.symbol : null);
   const { settings, save } = useValuationSettings(active ? holding.market : null, active ? holding.symbol : null);
   const [basis, setBasis] = useState("ttm");
-  const [assumptionsOpen, setAssumptionsOpen] = useState(false);
+  // null when closed; otherwise the 估價假設 section to open at.
+  const [assumptionsFocus, setAssumptionsFocus] = useState(null);
 
   const todayIso = dayjs().format("YYYY-MM-DD");
 
@@ -83,26 +76,16 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
               model={model}
               basis={basis}
               onBasisChange={setBasis}
+              onOpenAssumptions={setAssumptionsFocus}
               market={holding.market}
               currency={currency}
             />
-            {/* A whole row to tap; the assumptions open in their own sheet. */}
-            <button
-              type="button"
-              className="valuation-assumptions-entry"
-              onClick={() => setAssumptionsOpen(true)}
-            >
-              <span className="valuation-assumptions-entry-text">
-                <span className="valuation-assumptions-entry-title">估價假設</span>
-                <span className="valuation-assumptions-entry-summary">{describeEntry(model)}</span>
-              </span>
-              <NavArrowRight aria-hidden />
-            </button>
             <ValuationAssumptions
-              open={assumptionsOpen}
+              open={assumptionsFocus !== null}
+              focus={assumptionsFocus}
               isMobile={isMobile}
               title={`調整估價假設 · ${holding.companyName || holding.symbol}`}
-              onClose={() => setAssumptionsOpen(false)}
+              onClose={() => setAssumptionsFocus(null)}
               model={model}
               buildModel={buildModel}
               market={holding.market}

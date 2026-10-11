@@ -157,6 +157,7 @@ export const estimateUsForwardEps = ({ upcoming = [], singles = [] }, settings) 
     return {
       eps: settings.forwardEps,
       formula: `自訂預估 EPS ${formatEps(settings.forwardEps)}`,
+      custom: true,
     }
   }
   const estimates = upcoming
@@ -174,6 +175,7 @@ export const estimateUsForwardEps = ({ upcoming = [], singles = [] }, settings) 
   return {
     eps: round(estimateSum + actualSum, 4),
     formula: `${parts.join(' + ')}（分析師 consensus，調整後 EPS）`,
+    composition: { actual: need, projected: estimates.length },
   }
 }
 
@@ -201,14 +203,16 @@ export const US_BASES = ['ttm', 'forward']
 
 const NO_EPS = '資料不足，無法計算'
 
-const epsOrReason = (eps, formula) =>
-  Number.isFinite(eps) ? { eps, formula: formula(eps) } : { eps: null, reason: NO_EPS }
+// composition: how many of the four quarters are published vs projected,
+// for the EPS factor on the valuation card.
+const epsOrReason = (eps, formula, composition) =>
+  Number.isFinite(eps) ? { eps, formula: formula(eps), composition } : { eps: null, reason: NO_EPS }
 
 // 台股: TTM plus three projections from the income model; a custom
 // forward EPS replaces this year's and next year's.
 const twBasisEps = (income, ttm, settings) => {
   const custom = Number.isFinite(settings?.forwardEps)
-    ? { eps: settings.forwardEps, formula: `自訂預估 EPS ${formatEps(settings.forwardEps)}` }
+    ? { eps: settings.forwardEps, formula: `自訂預估 EPS ${formatEps(settings.forwardEps)}`, custom: true }
     : null
   const fromIncome = (pick) =>
     income.status === 'ok' ? pick(income) : { eps: null, reason: UNAVAILABLE_REASONS[income.reason] ?? NO_EPS }
@@ -219,6 +223,7 @@ const twBasisEps = (income, ttm, settings) => {
         ttmAfterNext.eps,
         (eps) =>
           `${formatQuarter(ttmAfterNext.from)}–${formatQuarter(latest)} 實際 + ${formatQuarter(nextQuarter)} 推估 合計 ${formatEps(eps)}`,
+        { actual: 3, projected: 1 },
       ),
     ),
     thisYear:
@@ -228,11 +233,14 @@ const twBasisEps = (income, ttm, settings) => {
           thisYear.reportedQuarters === 0
             ? `${thisYear.year} 全年推估 合計 ${formatEps(eps)}`
             : `${thisYear.year} Q1–Q${thisYear.reportedQuarters} 實際 + ${quarterRangeLabel(thisYear.reportedQuarters + 1)} 推估 合計 ${formatEps(eps)}`,
+          { actual: thisYear.reportedQuarters, projected: 4 - thisYear.reportedQuarters },
         ),
       ),
     nextYear:
       custom ??
-      fromIncome(({ nextYear }) => epsOrReason(nextYear.eps, (eps) => `${nextYear.year} 全年推估 合計 ${formatEps(eps)}`)),
+      fromIncome(({ nextYear }) =>
+        epsOrReason(nextYear.eps, (eps) => `${nextYear.year} 全年推估 合計 ${formatEps(eps)}`, { actual: 0, projected: 4 }),
+      ),
   }
 }
 
@@ -240,12 +248,13 @@ export const buildValuationModel = ({ fundamentals, settings, price, basis, toda
   const autoBands = peBandsFromHistory(fundamentals.peSeries.map((point) => point.pe))
   const bands = resolvePeBands(autoBands, settings)
   const ttm = computeTtm(fundamentals.singles)
+  const ttmBasis = ttm && { ...ttm, composition: { actual: 4, projected: 0 } }
   const income =
     fundamentals.market === 'TW' ? projectIncome(fundamentals.company, settings?.model, { todayIso }) : undefined
   const byBasis =
     fundamentals.market === 'TW'
-      ? twBasisEps(income, ttm, settings)
-      : { ttm, forward: estimateUsForwardEps(fundamentals, settings) }
+      ? twBasisEps(income, ttmBasis, settings)
+      : { ttm: ttmBasis, forward: estimateUsForwardEps(fundamentals, settings) }
   const chosen = byBasis[basis] ?? byBasis.ttm
   return {
     basis,

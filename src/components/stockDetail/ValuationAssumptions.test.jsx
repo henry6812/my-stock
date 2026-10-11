@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import ValuationAssumptions from './ValuationAssumptions'
 import { buildValuationModel, EMPTY_VALUATION_SETTINGS } from '../../utils/valuation'
@@ -33,6 +33,35 @@ const renderOpen = (props = {}) =>
       {...props}
     />,
   )
+
+describe('ValuationAssumptions — opening at a section', () => {
+  afterEach(() => {
+    delete Element.prototype.scrollIntoView
+  })
+
+  it.each([
+    ['model', '下一季 2026 Q3 EPS'],
+    ['pe', '本益比'],
+    ['custom', '直接指定 EPS'],
+  ])('scrolls to the %s section the card was tapped for', async (focus, text) => {
+    const scrolled = []
+    Element.prototype.scrollIntoView = function scrollIntoView() {
+      scrolled.push(this)
+    }
+    renderOpen({ focus })
+    await waitFor(() => expect(scrolled).toHaveLength(1))
+    expect(scrolled[0]).toHaveAttribute('data-assumption-section', focus)
+    expect(scrolled[0]).toHaveTextContent(text)
+  })
+
+  it('stays at the top without a section', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    renderOpen()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+})
 
 describe('ValuationAssumptions', () => {
   it('shows the US EPS figures with their formulas and where the default P/E comes from', () => {

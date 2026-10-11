@@ -69,13 +69,11 @@ describe('StockDetailSheet', () => {
     expect(screen.queryByText('股價與 EPS')).not.toBeInTheDocument()
   })
 
-  it('opens the valuation assumptions from a row showing the P/E in use', () => {
+  it('opens the valuation assumptions from the EPS and 本益比 factors, with no separate row', () => {
     useStockFundamentals.mockReturnValue({ status: 'ready', data: fundamentals, reload })
     renderSheet()
-    const entry = screen.getByRole('button', { name: /估價假設/ })
-    expect(entry).toHaveTextContent('2026 Q3 預估 EPS 3.40')
-    expect(entry).toHaveTextContent('本益比')
-    fireEvent.click(entry)
+    expect(screen.queryByRole('button', { name: /^估價假設/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^本益比 .*調整本益比$/ }))
     expect(screen.getByText('調整估價假設 · 台積電')).toBeInTheDocument()
   })
 

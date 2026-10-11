@@ -3792,6 +3792,100 @@ button.expense-card-chip {
   font-weight: 600;
 }
 
+/* EPS × 本益比: the two inputs of every price on the ruler, side by side.
+   Each factor is a quiet framed button that opens 估價假設 at its section. */
+.valuation-equation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.valuation-equation-times {
+  align-self: center;
+  font-size: var(--fs-subhead);
+  color: var(--c-muted);
+}
+
+.valuation-factor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  font: inherit;
+  text-align: left;
+  color: var(--c-ink);
+}
+
+button.valuation-factor {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  button.valuation-factor:hover {
+    background: var(--c-neutral-fill);
+  }
+}
+
+.valuation-factor-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+}
+
+.valuation-factor-label,
+.valuation-factor-caption {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+}
+
+.valuation-factor-value {
+  font-size: var(--fs-subhead);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.valuation-factor-cells {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.valuation-factor-cell {
+  flex: 1;
+  max-width: var(--space-6);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+}
+
+.valuation-factor-tag {
+  align-self: flex-start;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--c-neutral-fill);
+  font-size: var(--fs-caption);
+  color: var(--c-ink);
+}
+
+.valuation-factor-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  margin-top: auto;
+}
+
+.valuation-factor-caption svg {
+  flex: none;
+  font-size: var(--icon-sm);
+}
+
 /* How the EPS in use is made up, under the basis switch. */
 .valuation-card-formula {
   font-size: var(--fs-caption);
@@ -3928,50 +4022,10 @@ button.expense-card-chip {
 
 /* The row that opens 估價假設: the same quiet bordered row as 管理這筆持股,
    with the P/E in use under its title. */
-.valuation-assumptions-entry {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: 44px;
-  margin-top: var(--space-4);
-  padding: var(--space-3) var(--space-row-x);
-  border: 1px solid var(--c-line);
-  border-radius: var(--radius-lg);
-  background: var(--c-surface);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.valuation-assumptions-entry svg {
-  flex: none;
-  color: var(--c-muted);
-}
-
-@media (hover: hover) {
-  .valuation-assumptions-entry:hover {
-    background: var(--c-neutral-fill);
-  }
-}
-
-.valuation-assumptions-entry-text {
+.valuation-assumptions-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.valuation-assumptions-entry-title {
-  font-size: var(--fs-body);
-  color: var(--c-ink);
-}
-
-.valuation-assumptions-entry-summary {
-  font-size: var(--fs-caption);
-  color: var(--c-muted);
-  font-variant-numeric: tabular-nums;
+  gap: var(--space-6);
 }
 
 .valuation-assumptions-body {

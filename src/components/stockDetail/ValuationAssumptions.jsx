@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Drawer, InputNumber, Modal, Typography } from "antd";
 import { diffSettings, setGlobalValue, setQuarterValue, snapshotOf } from "../../utils/incomeAssumptionForm";
 import { formatEps } from "../../utils/valuation";
@@ -38,8 +38,9 @@ function UsEpsGroup({ model }) {
 // Remounted (key = settings) after a save or a synced change, so the draft
 // always starts from the stored values. The TW estimate is rebuilt from the
 // draft on every change, so the figures move as you type.
-function AssumptionsForm({ model, buildModel, market, settings, disabled, onSave, onSaved }) {
+function AssumptionsForm({ model, buildModel, market, settings, disabled, focus, onSave, onSaved }) {
   const [draft, setDraft] = useState(settings);
+  const bodyRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -64,6 +65,16 @@ function AssumptionsForm({ model, buildModel, market, settings, disabled, onSave
     }
   };
 
+  // Opened from a factor on the valuation card: bring its section into view
+  // once the sheet has laid out.
+  useEffect(() => {
+    if (!focus) return undefined;
+    const frame = requestAnimationFrame(() => {
+      bodyRef.current?.querySelector(`[data-assumption-section="${focus}"]`)?.scrollIntoView?.({ block: "start" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focus]);
+
   const setRoot = (field) => (value) => setDraft((previous) => ({ ...previous, [field]: value ?? null }));
 
   const rootField = ({ field, label, short, input }) => (
@@ -87,25 +98,27 @@ function AssumptionsForm({ model, buildModel, market, settings, disabled, onSave
 
   return (
     <>
-      <div className="sheet-content valuation-assumptions-body">
+      <div ref={bodyRef} className="sheet-content valuation-assumptions-body">
         {market === "TW" && Number.isFinite(draft.forwardEps) && (
           <Alert type="info" showIcon title="已使用自訂 EPS，模型結果僅供參考" />
         )}
-        {market === "TW" ? (
-          <IncomeModelSections
-            income={income}
-            draft={draft}
-            settings={settings}
-            disabled={locked}
-            onGlobalChange={(field, value) => setDraft((previous) => setGlobalValue(previous, field, value))}
-            onGlobalReset={(field) => runSave({ model: { global: { [field]: null } } }, null)}
-            onQuarterChange={(key, field, value) => setDraft((previous) => setQuarterValue(previous, key, field, value))}
-          />
-        ) : (
-          <UsEpsGroup model={live} />
-        )}
+        <div className="valuation-assumptions-section" data-assumption-section="model">
+          {market === "TW" ? (
+            <IncomeModelSections
+              income={income}
+              draft={draft}
+              settings={settings}
+              disabled={locked}
+              onGlobalChange={(field, value) => setDraft((previous) => setGlobalValue(previous, field, value))}
+              onGlobalReset={(field) => runSave({ model: { global: { [field]: null } } }, null)}
+              onQuarterChange={(key, field, value) => setDraft((previous) => setQuarterValue(previous, key, field, value))}
+            />
+          ) : (
+            <UsEpsGroup model={live} />
+          )}
+        </div>
 
-        <div className="valuation-assumptions-group">
+        <div className="valuation-assumptions-group" data-assumption-section="pe">
           <h4 className="valuation-assumptions-title">本益比</h4>
           <div className="valuation-assumption-grid valuation-assumption-grid--3">
             {PE_FIELDS.map(({ field, band, label, short }) =>
@@ -135,7 +148,7 @@ function AssumptionsForm({ model, buildModel, market, settings, disabled, onSave
           </span>
         </div>
 
-        <div className="valuation-assumptions-group">
+        <div className="valuation-assumptions-group" data-assumption-section="custom">
           <h4 className="valuation-assumptions-title">{market === "US" ? "未來四季預估" : "直接指定 EPS"}</h4>
           <div className="valuation-assumption-grid">
             {rootField({

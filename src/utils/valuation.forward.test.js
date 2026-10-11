@@ -74,6 +74,7 @@ describe('buildValuationModel', () => {
     expect(afterNext.chosen).toEqual({
       eps: expect.closeTo(11.8, 4),
       formula: '2025 Q4–2026 Q2 實際 + 2026 Q3 推估 合計 11.80',
+      composition: { actual: 3, projected: 1 },
     })
     expect(build('thisYear').chosen.formula).toBe('2026 Q1–Q2 實際 + Q3–Q4 推估 合計 12.88')
     expect(build('nextYear').chosen.formula).toBe('2027 全年推估 合計 19.00')
@@ -81,7 +82,7 @@ describe('buildValuationModel', () => {
 
   it('uses a custom forward EPS for this year and next year', () => {
     const settings = { ...EMPTY_VALUATION_SETTINGS, forwardEps: 20 }
-    expect(build('thisYear', settings).chosen).toEqual({ eps: 20, formula: '自訂預估 EPS 20.00' })
+    expect(build('thisYear', settings).chosen).toEqual({ eps: 20, formula: '自訂預估 EPS 20.00', custom: true })
     expect(build('nextYear', settings).chosen.eps).toBe(20)
     expect(build('ttmAfterNext', settings).chosen.eps).toBeCloseTo(11.8, 4)
   })

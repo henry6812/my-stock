@@ -1,11 +1,13 @@
 import { Segmented, Typography } from "antd";
+import { NavArrowRight } from "iconoir-react";
+import { CHART_STOCK } from "../../theme/tokens";
 import { formatPrice } from "../../utils/formatters";
-import { zonePosition, ZONE_LABELS } from "../../utils/valuation";
+import { formatEps, zonePosition, ZONE_LABELS } from "../../utils/valuation";
+import { describeEpsFactor, describePeFactor } from "../../utils/valuationEquation";
 
 const { Text } = Typography;
 
 const STATUS_MESSAGES = {
-  "no-eps": "資料不足，無法計算",
   loss: "虧損中，無法用本益比估價",
   "missing-pe": "歷史本益比不足，請在估價假設填入本益比",
   "invalid-pe": "本益比需符合 便宜 ≤ 合理 ≤ 昂貴",
@@ -75,7 +77,89 @@ function PriceRuler({ valuation, currency }) {
   );
 }
 
-function ValuationCard({ model, basis, onBasisChange, market, currency }) {
+// One factor of the equation. A button when it leads to inputs in 估價假設,
+// a plain group when there is nothing to adjust (近四季).
+function Factor({ label, value, caption, children, actionLabel, onClick }) {
+  const content = (
+    <>
+      <span className="valuation-factor-head">
+        <span className="valuation-factor-label">{label}</span>
+        <span className="valuation-factor-value">{value}</span>
+      </span>
+      {children}
+      <span className="valuation-factor-caption">
+        <span>{caption}</span>
+        {onClick && <NavArrowRight aria-hidden />}
+      </span>
+    </>
+  );
+  const name = `${label} ${value}，${caption}`;
+  return onClick ? (
+    <button type="button" className="valuation-factor" aria-label={`${name}，${actionLabel}`} onClick={onClick}>
+      {content}
+    </button>
+  ) : (
+    <div className="valuation-factor valuation-factor--static" role="group" aria-label={name}>
+      {content}
+    </div>
+  );
+}
+
+// Published quarters solid, projected ones outlined — the same marks as
+// the EPS trend chart's bars.
+function QuarterCells({ actual, projected }) {
+  const states = [...Array(actual).fill("actual"), ...Array(projected).fill("projected")];
+  return (
+    <span className="valuation-factor-cells" aria-hidden>
+      {states.map((state, index) => (
+        <span
+          key={index}
+          className="valuation-factor-cell"
+          data-state={state}
+          style={
+            state === "actual"
+              ? { background: CHART_STOCK.primary }
+              : { border: `1px dashed ${CHART_STOCK.primary}` }
+          }
+        />
+      ))}
+    </span>
+  );
+}
+
+// EPS × 本益比: the two inputs every price on the ruler is made of, each
+// opening 估價假設 at the section that sets it.
+function ValuationEquation({ model, basis, onOpenAssumptions }) {
+  const eps = describeEpsFactor(model.chosen, basis);
+  const pe = describePeFactor(model.bands);
+  const epsTarget = eps.kind === "quarters" ? "model" : "custom";
+  return (
+    <div className="valuation-equation">
+      <Factor
+        label="EPS"
+        value={Number.isFinite(model.chosen?.eps) ? formatEps(model.chosen.eps) : "--"}
+        caption={eps.caption}
+        actionLabel={epsTarget === "model" ? "調整推估假設" : "調整直接指定 EPS"}
+        onClick={eps.adjustable ? () => onOpenAssumptions?.(epsTarget) : null}
+      >
+        {eps.kind === "quarters" && <QuarterCells actual={eps.actual} projected={eps.projected} />}
+        {eps.kind === "custom" && <span className="valuation-factor-tag">自訂</span>}
+      </Factor>
+      <span className="valuation-equation-times" aria-hidden>
+        ×
+      </span>
+      <Factor
+        label="本益比"
+        value={pe.value}
+        caption={pe.caption}
+        actionLabel="調整本益比"
+        onClick={() => onOpenAssumptions?.("pe")}
+      />
+    </div>
+  );
+}
+
+function ValuationCard({ model, basis, onBasisChange, onOpenAssumptions, market, currency }) {
   const { valuation } = model;
   return (
     <section className="stock-detail-section valuation-card" aria-label="估價">
@@ -86,11 +170,15 @@ function ValuationCard({ model, basis, onBasisChange, market, currency }) {
         onChange={onBasisChange}
         options={BASIS_OPTIONS[market] ?? BASIS_OPTIONS.US}
       />
+      <ValuationEquation model={model} basis={basis} onOpenAssumptions={onOpenAssumptions} />
       {model.chosen?.formula && <span className="valuation-card-formula">{model.chosen.formula}</span>}
       {valuation.status !== "ok" ? (
-        <Text type="secondary" className="valuation-card-message">
-          {model.chosen?.reason ?? STATUS_MESSAGES[valuation.status]}
-        </Text>
+        // Without an EPS the EPS factor already says why.
+        valuation.status !== "no-eps" && (
+          <Text type="secondary" className="valuation-card-message">
+            {STATUS_MESSAGES[valuation.status]}
+          </Text>
+        )
       ) : (
         <>
           {valuation.zone && (
