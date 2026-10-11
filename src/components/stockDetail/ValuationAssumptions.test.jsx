@@ -1,19 +1,18 @@
 import { describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import ValuationAssumptions from './ValuationAssumptions'
-import { EMPTY_VALUATION_SETTINGS } from '../../utils/valuation'
+import { buildValuationModel, EMPTY_VALUATION_SETTINGS } from '../../utils/valuation'
+import { TW_FUNDAMENTALS } from '../../utils/incomeModel.fixture'
 
-const model = {
-  ttm: { eps: 72.11, formula: '近四季 2025 Q3–2026 Q2 合計 72.11' },
-  forward: { eps: 79.5, growthRate: 0.2, autoGrowthRate: 0.2, formula: '今年 Q1–Q2 累計 35.17 + …' },
-  autoBands: { cheap: 15, fair: 18, expensive: 22, sampleSize: 60 },
-  bands: { cheap: 15, fair: 18, expensive: 22, overridden: { cheap: false, fair: false, expensive: false } },
-}
+const buildModel = (settings) =>
+  buildValuationModel({ fundamentals: TW_FUNDAMENTALS, settings, price: 50, basis: 'ttm', todayIso: '2026-10-11' })
+const model = buildModel(EMPTY_VALUATION_SETTINGS)
 
 const renderOpen = (props = {}) =>
   render(
     <ValuationAssumptions
       model={model}
+      buildModel={buildModel}
       market="TW"
       settings={EMPTY_VALUATION_SETTINGS}
       disabled={false}
@@ -29,11 +28,9 @@ const renderOpen = (props = {}) =>
 describe('ValuationAssumptions', () => {
   it('shows both EPS figures with their formulas and where the default P/E comes from', () => {
     renderOpen()
-    expect(screen.getByText('72.11')).toBeInTheDocument()
-    expect(screen.getByText('近四季 2025 Q3–2026 Q2 合計 72.11')).toBeInTheDocument()
-    expect(screen.getByText('79.50')).toBeInTheDocument()
-    expect(screen.getByText('今年 Q1–Q2 累計 35.17 + …')).toBeInTheDocument()
-    expect(screen.getByText('空白時使用過去 60 期本益比的低、中、高位置')).toBeInTheDocument()
+    expect(screen.getByText('10.72')).toBeInTheDocument()
+    expect(screen.getByText('12.88')).toBeInTheDocument()
+    expect(screen.getByText('空白時使用過去 8 期本益比的低、中、高位置')).toBeInTheDocument()
   })
 
   it('opens as its own sheet with a full-width save button', () => {
@@ -70,7 +67,7 @@ describe('ValuationAssumptions', () => {
     renderOpen({
       onSave,
       settings: { ...EMPTY_VALUATION_SETTINGS, peFair: 20 },
-      model: { ...model, bands: { ...model.bands, fair: 20, overridden: { cheap: false, fair: true, expensive: false } } },
+      model: buildModel({ ...EMPTY_VALUATION_SETTINGS, peFair: 20 }),
     })
     expect(screen.queryByText('已覆寫')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重設合理本益比' })).toHaveTextContent('改回預設')
@@ -88,7 +85,14 @@ describe('ValuationAssumptions', () => {
     const { unmount } = renderOpen({ market: 'TW' })
     expect(screen.queryByLabelText('成長率 (%)')).toBeNull()
     unmount()
-    renderOpen({ market: 'US' })
+    const usModel = buildValuationModel({
+      fundamentals: { ...TW_FUNDAMENTALS, market: 'US', company: undefined },
+      settings: EMPTY_VALUATION_SETTINGS,
+      price: 50,
+      basis: 'ttm',
+      todayIso: '2026-10-11',
+    })
+    renderOpen({ market: 'US', model: usModel })
     expect(screen.queryByLabelText('成長率 (%)')).toBeNull()
     expect(screen.getByLabelText('預估 EPS')).toBeInTheDocument()
   })

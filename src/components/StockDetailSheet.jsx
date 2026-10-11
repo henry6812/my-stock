@@ -1,11 +1,12 @@
 import { useState } from "react";
+import dayjs from "dayjs";
 import { Alert, Button, Drawer, Skeleton, Typography } from "antd";
 import { NavArrowRight } from "iconoir-react";
 import useBodyScrollLock from "../hooks/useBodyScrollLock";
 import useStockFundamentals from "../hooks/useStockFundamentals";
 import useValuationSettings from "../hooks/useValuationSettings";
 import { formatDateTime } from "../utils/formatters";
-import { buildValuationModel } from "../utils/valuation";
+import { buildValuationModel, formatEps, formatQuarter } from "../utils/valuation";
 import EpsTrendChart from "./stockDetail/EpsTrendChart";
 import HoldingPosition from "./stockDetail/HoldingPosition";
 import PeHistoryChart from "./stockDetail/PeHistoryChart";
@@ -16,10 +17,12 @@ const { Text } = Typography;
 
 const SOURCE_LABELS = { TW: "TWSE / 公開資訊觀測站", US: "Finnhub" };
 
-// The P/E in use, on the 估價假設 row: 「本益比 9.48／12.86／15.5」.
-const describeBands = (bands) => {
-  const values = [bands?.cheap, bands?.fair, bands?.expensive];
-  return values.every(Number.isFinite) ? `本益比 ${values.join("／")}` : "本益比尚未設定";
+// The 估價假設 row: next quarter's estimate (TW) and the P/E in use.
+const describeEntry = (model) => {
+  const values = [model.bands?.cheap, model.bands?.fair, model.bands?.expensive];
+  const pe = values.every(Number.isFinite) ? `本益比 ${values.join("／")}` : "本益比尚未設定";
+  const next = model.income?.status === "ok" ? model.income.nextQuarter : null;
+  return next ? `${formatQuarter(next)} 預估 EPS ${formatEps(next.eps)} · ${pe}` : pe;
 };
 
 // One holding (one stock, one holder): its market value, position and
@@ -34,14 +37,16 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
   const [basis, setBasis] = useState("ttm");
   const [assumptionsOpen, setAssumptionsOpen] = useState(false);
 
+  const todayIso = dayjs().format("YYYY-MM-DD");
+
   if (!holding) return null;
 
   const isStock = (holding.assetTag || "STOCK") === "STOCK";
   const currency = holding.latestCurrency || (holding.market === "US" ? "USD" : "TWD");
   const data = fundamentals.status === "ready" ? fundamentals.data : null;
-  const model = data
-    ? buildValuationModel({ fundamentals: data, settings, price: holding.latestPrice, basis })
-    : null;
+  const buildModel = (nextSettings) =>
+    buildValuationModel({ fundamentals: data, settings: nextSettings, price: holding.latestPrice, basis, todayIso });
+  const model = data ? buildModel(settings) : null;
 
   let body;
   if (fundamentals.status === "loading" || fundamentals.status === "idle") {
@@ -87,7 +92,7 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
             >
               <span className="valuation-assumptions-entry-text">
                 <span className="valuation-assumptions-entry-title">估價假設</span>
-                <span className="valuation-assumptions-entry-summary">{describeBands(model.bands)}</span>
+                <span className="valuation-assumptions-entry-summary">{describeEntry(model)}</span>
               </span>
               <NavArrowRight aria-hidden />
             </button>
@@ -97,6 +102,7 @@ function StockDetailSheet({ open, holding, isMobile, disabled, onClose, onAction
               title={`調整估價假設 · ${holding.companyName || holding.symbol}`}
               onClose={() => setAssumptionsOpen(false)}
               model={model}
+              buildModel={buildModel}
               market={holding.market}
               settings={settings}
               disabled={disabled}

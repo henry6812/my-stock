@@ -62,6 +62,9 @@ function AssumptionsForm({ model, market, settings, disabled, onSave, onSaved })
     </label>
   );
 
+  const forwardKey = market === "US" ? "forward" : "thisYear";
+  const forward = model.byBasis?.[forwardKey];
+
   return (
     <>
       <div className="sheet-content valuation-assumptions-body">
@@ -77,9 +80,9 @@ function AssumptionsForm({ model, market, settings, disabled, onSave, onSaved })
           <div className="valuation-eps">
             <div className="valuation-eps-line">
               <span className="valuation-eps-label">{market === "US" ? "未來四季預估" : "今年預估"}</span>
-              <span>{Number.isFinite(model.forward?.eps) ? formatEps(model.forward.eps) : "無預估資料"}</span>
+              <span>{Number.isFinite(forward?.eps) ? formatEps(forward.eps) : forward?.reason ?? "無預估資料"}</span>
             </div>
-            {model.forward?.formula && <span className="valuation-eps-formula">{model.forward.formula}</span>}
+            {forward?.formula && <span className="valuation-eps-formula">{forward.formula}</span>}
           </div>
         </div>
 

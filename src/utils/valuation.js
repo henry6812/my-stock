@@ -1,7 +1,7 @@
 // EPS × P/E valuation maths for the stock detail sheet. Pure functions; see
 // docs/superpowers/specs/2026-10-05-stock-valuation-design.md for the rules.
 
-import { MODEL_FIELDS } from './incomeModel'
+import { MODEL_FIELDS, projectIncome, UNAVAILABLE_REASONS } from './incomeModel'
 
 export const VALUATION_SETTING_FIELDS = ['peCheap', 'peFair', 'peExpensive', 'forwardEps']
 
@@ -148,66 +148,7 @@ export const zonePosition = (price, prices, scale) => {
   return (zone + (to > from ? (price - from) / (to - from) : 0)) / 4
 }
 
-const formatPercent = (value) => `${(value * 100).toFixed(1)}%`
-
 const quarterRangeLabel = (from) => (from === 4 ? 'Q4' : `Q${from}–Q4`)
-
-// 台股今年預估: YTD + last year's remaining quarters × (1 + YTD growth).
-// After Q4 (annual) is out, projects next year from the annual figure.
-export const estimateTwForwardEps = (cumulative, settings) => {
-  const singles = cumulativeToSingles(cumulative)
-  const latest = [...singles].reverse().find((item) => Number.isFinite(cumulative?.[`${item.year}Q${item.quarter}`]?.eps))
-  if (!latest) return null
-  const { year, quarter } = latest
-  const cumOf = (y, q) => cumulative?.[`${y}Q${q}`]?.eps
-  const latestCum = cumOf(year, quarter)
-  const base = cumOf(year - 1, quarter)
-  const autoGrowthRate = Number.isFinite(base) && base > 0 ? latestCum / base - 1 : null
-  const overrideGrowth = Number.isFinite(settings?.growthRate) ? settings.growthRate : null
-  const growthRate = overrideGrowth ?? autoGrowthRate ?? 0
-  let growthNote = '今年累計 YoY'
-  if (overrideGrowth !== null) growthNote = '自訂成長率'
-  else if (autoGrowthRate === null) growthNote = '無法計算成長率，以 0% 計'
-  const targetYear = quarter === 4 ? year + 1 : year
-  const common = { targetYear, growthRate, autoGrowthRate, growthNote }
-
-  if (Number.isFinite(settings?.forwardEps)) {
-    return {
-      ...common,
-      eps: settings.forwardEps,
-      overridden: { forwardEps: true, growthRate: overrideGrowth !== null },
-      formula: `自訂預估 EPS ${formatEps(settings.forwardEps)}`,
-    }
-  }
-  const overridden = { forwardEps: false, growthRate: overrideGrowth !== null }
-  // 0% is a fallback, not a forecast: say so instead of looking like flat growth.
-  const unknownGrowth = overrideGrowth === null && autoGrowthRate === null ? `（${growthNote}）` : ''
-
-  if (quarter === 4) {
-    return {
-      ...common,
-      overridden,
-      eps: round(latestCum * (1 + growthRate)),
-      formula: `${targetYear} 年預估：${year} 全年 ${formatEps(latestCum)} × (1 + ${formatPercent(growthRate)})${unknownGrowth}`,
-    }
-  }
-
-  const range = quarterRangeLabel(quarter + 1)
-  const rest = []
-  for (let q = quarter + 1; q <= 4; q += 1) {
-    rest.push(singles.find((item) => item.year === year - 1 && item.quarter === q)?.eps)
-  }
-  if (rest.some((value) => !Number.isFinite(value))) {
-    return { ...common, overridden, eps: null, formula: `缺少 ${year - 1} 年 ${range} 資料，無法推估` }
-  }
-  const restSum = rest.reduce((sum, value) => sum + value, 0)
-  return {
-    ...common,
-    overridden,
-    eps: round(latestCum + restSum * (1 + growthRate)),
-    formula: `今年 Q1–Q${quarter} 累計 ${formatEps(latestCum)} + 去年 ${range} ${formatEps(restSum)} × (1 + ${formatPercent(growthRate)})${unknownGrowth}`,
-  }
-}
 
 // 美股未來四季: up to 4 upcoming consensus estimates, topped up with the
 // most recent actual quarters.
@@ -215,7 +156,6 @@ export const estimateUsForwardEps = ({ upcoming = [], singles = [] }, settings) 
   if (Number.isFinite(settings?.forwardEps)) {
     return {
       eps: settings.forwardEps,
-      overridden: { forwardEps: true, growthRate: false },
       formula: `自訂預估 EPS ${formatEps(settings.forwardEps)}`,
     }
   }
@@ -233,7 +173,6 @@ export const estimateUsForwardEps = ({ upcoming = [], singles = [] }, settings) 
   if (need > 0) parts.push(`最近 ${need} 季實際 ${formatEps(actualSum)}`)
   return {
     eps: round(estimateSum + actualSum, 4),
-    overridden: { forwardEps: false, growthRate: false },
     formula: `${parts.join(' + ')}（分析師 consensus，調整後 EPS）`,
   }
 }
@@ -257,19 +196,63 @@ export const nextTwFilingDeadline = (todayIso) => {
   return null
 }
 
-export const buildValuationModel = ({ fundamentals, settings, price, basis }) => {
+export const TW_BASES = ['ttm', 'ttmAfterNext', 'thisYear', 'nextYear']
+export const US_BASES = ['ttm', 'forward']
+
+const NO_EPS = '資料不足，無法計算'
+
+const epsOrReason = (eps, formula) =>
+  Number.isFinite(eps) ? { eps, formula: formula(eps) } : { eps: null, reason: NO_EPS }
+
+// 台股: TTM plus three projections from the income model; a custom
+// forward EPS replaces this year's and next year's.
+const twBasisEps = (income, ttm, settings) => {
+  const custom = Number.isFinite(settings?.forwardEps)
+    ? { eps: settings.forwardEps, formula: `自訂預估 EPS ${formatEps(settings.forwardEps)}` }
+    : null
+  const fromIncome = (pick) =>
+    income.status === 'ok' ? pick(income) : { eps: null, reason: UNAVAILABLE_REASONS[income.reason] ?? NO_EPS }
+  return {
+    ttm,
+    ttmAfterNext: fromIncome(({ ttmAfterNext, latest, nextQuarter }) =>
+      epsOrReason(
+        ttmAfterNext.eps,
+        (eps) =>
+          `${formatQuarter(ttmAfterNext.from)}–${formatQuarter(latest)} 實際 + ${formatQuarter(nextQuarter)} 推估 合計 ${formatEps(eps)}`,
+      ),
+    ),
+    thisYear:
+      custom ??
+      fromIncome(({ thisYear }) =>
+        epsOrReason(thisYear.eps, (eps) =>
+          thisYear.reportedQuarters === 0
+            ? `${thisYear.year} 全年推估 合計 ${formatEps(eps)}`
+            : `${thisYear.year} Q1–Q${thisYear.reportedQuarters} 實際 + ${quarterRangeLabel(thisYear.reportedQuarters + 1)} 推估 合計 ${formatEps(eps)}`,
+        ),
+      ),
+    nextYear:
+      custom ??
+      fromIncome(({ nextYear }) => epsOrReason(nextYear.eps, (eps) => `${nextYear.year} 全年推估 合計 ${formatEps(eps)}`)),
+  }
+}
+
+export const buildValuationModel = ({ fundamentals, settings, price, basis, todayIso }) => {
   const autoBands = peBandsFromHistory(fundamentals.peSeries.map((point) => point.pe))
   const bands = resolvePeBands(autoBands, settings)
   const ttm = computeTtm(fundamentals.singles)
-  const forward =
+  const income =
+    fundamentals.market === 'TW' ? projectIncome(fundamentals.company, settings?.model, { todayIso }) : undefined
+  const byBasis =
     fundamentals.market === 'TW'
-      ? estimateTwForwardEps(fundamentals.cumulative, settings)
-      : estimateUsForwardEps(fundamentals, settings)
-  const chosen = basis === 'forward' ? forward : ttm
+      ? twBasisEps(income, ttm, settings)
+      : { ttm, forward: estimateUsForwardEps(fundamentals, settings) }
+  const chosen = byBasis[basis] ?? byBasis.ttm
   return {
     basis,
     ttm,
-    forward,
+    income,
+    byBasis,
+    chosen,
     autoBands,
     bands,
     valuation: computeValuation({ eps: chosen?.eps, bands, price }),

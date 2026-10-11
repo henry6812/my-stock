@@ -11,6 +11,19 @@ const STATUS_MESSAGES = {
   "invalid-pe": "本益比需符合 便宜 ≤ 合理 ≤ 昂貴",
 };
 
+const BASIS_OPTIONS = {
+  TW: [
+    { label: "近四季", value: "ttm" },
+    { label: "下季後", value: "ttmAfterNext" },
+    { label: "今年", value: "thisYear" },
+    { label: "明年", value: "nextYear" },
+  ],
+  US: [
+    { label: "近四季 TTM", value: "ttm" },
+    { label: "未來四季預估", value: "forward" },
+  ],
+};
+
 const PRICE_ITEMS = [
   { key: "cheap", label: "便宜價" },
   { key: "fair", label: "合理價" },
@@ -71,14 +84,12 @@ function ValuationCard({ model, basis, onBasisChange, market, currency }) {
         block
         value={basis}
         onChange={onBasisChange}
-        options={[
-          { label: "近四季 TTM", value: "ttm" },
-          { label: market === "US" ? "未來四季預估" : "今年預估", value: "forward" },
-        ]}
+        options={BASIS_OPTIONS[market] ?? BASIS_OPTIONS.US}
       />
+      {model.chosen?.formula && <span className="valuation-card-formula">{model.chosen.formula}</span>}
       {valuation.status !== "ok" ? (
         <Text type="secondary" className="valuation-card-message">
-          {STATUS_MESSAGES[valuation.status]}
+          {model.chosen?.reason ?? STATUS_MESSAGES[valuation.status]}
         </Text>
       ) : (
         <>

@@ -36,3 +36,32 @@ export const MONTHLY_REVENUE = {
 }
 
 export const COMPANY = { statement: 'general', cumulative: CUMULATIVE, monthlyRevenue: MONTHLY_REVENUE, monthly: [] }
+
+// The fundamentals object loadStockFundamentals returns for this company.
+// cumulativeToSingles is inlined here (eps only) to keep the fixture free of
+// app imports.
+const epsSingles = Object.entries(CUMULATIVE).map(([key, values], index, entries) => {
+  const [year, quarter] = key.split('Q').map(Number)
+  const previous = quarter === 1 ? 0 : entries[index - 1][1].eps
+  return { year, quarter, eps: Math.round((values.eps - previous) * 10000) / 10000 }
+})
+
+export const MONTHLY_CLOSES = [
+  { month: '2026-02', pe: null, close: 40 },
+  { month: '2026-03', pe: null, close: 42 },
+  { month: '2026-05', pe: null, close: 45 },
+  { month: '2026-08', pe: null, close: 50 },
+  { month: '2026-09', pe: null, close: null },
+]
+
+export const TW_FUNDAMENTALS = {
+  market: 'TW',
+  singles: epsSingles,
+  cumulative: CUMULATIVE,
+  company: { ...COMPANY, monthly: MONTHLY_CLOSES },
+  surprises: [],
+  upcoming: [],
+  peSeries: [10, 12, 14, 15, 16, 18, 20, 22].map((pe, index) => ({ label: `2026-0${index + 1}`, pe })),
+  nextEarnings: null,
+  updatedAt: '2026-10-05T12:03:11Z',
+}

@@ -3768,6 +3768,13 @@ button.expense-card-chip {
   border-radius: var(--radius-pill);
 }
 
+/* How the EPS in use is made up, under the basis switch. */
+.valuation-card-formula {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .valuation-card-message {
   padding: var(--space-3) 0;
 }

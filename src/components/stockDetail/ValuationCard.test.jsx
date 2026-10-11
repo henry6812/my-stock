@@ -26,15 +26,28 @@ describe('ValuationCard', () => {
     expect(screen.getByLabelText('現價 $140.00')).toHaveTextContent('現價 $140.00')
   })
 
-  it('labels the forward tab per market and reports basis changes', () => {
+  it('offers four bases for TW stocks, two for US, and reports basis changes', () => {
     const onBasisChange = vi.fn()
     const { rerender } = render(
       <ValuationCard model={okModel} basis="ttm" onBasisChange={onBasisChange} market="TW" currency="TWD" />,
     )
-    fireEvent.click(screen.getByText('今年預估'))
-    expect(onBasisChange).toHaveBeenCalledWith('forward')
+    for (const label of ['近四季', '下季後', '今年', '明年']) expect(screen.getByText(label)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('下季後'))
+    expect(onBasisChange).toHaveBeenCalledWith('ttmAfterNext')
     rerender(<ValuationCard model={okModel} basis="ttm" onBasisChange={onBasisChange} market="US" currency="USD" />)
+    expect(screen.getByText('近四季 TTM')).toBeInTheDocument()
     expect(screen.getByText('未來四季預估')).toBeInTheDocument()
+  })
+
+  it('shows how the EPS in use is made up, or why there is none', () => {
+    const withFormula = { ...okModel, chosen: { eps: 11.8, formula: '2025 Q4–2026 Q2 實際 + 2026 Q3 推估 合計 11.80' } }
+    const { rerender } = render(
+      <ValuationCard model={withFormula} basis="ttmAfterNext" onBasisChange={() => {}} market="TW" currency="TWD" />,
+    )
+    expect(screen.getByText('2025 Q4–2026 Q2 實際 + 2026 Q3 推估 合計 11.80')).toBeInTheDocument()
+    const unavailable = { valuation: { status: 'no-eps' }, chosen: { eps: null, reason: '金融股不適用損益表推估' } }
+    rerender(<ValuationCard model={unavailable} basis="nextYear" onBasisChange={() => {}} market="TW" currency="TWD" />)
+    expect(screen.getByText('金融股不適用損益表推估')).toBeInTheDocument()
   })
 
   it.each([

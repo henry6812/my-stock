@@ -7,27 +7,10 @@ vi.mock('../hooks/useValuationSettings', () => ({ default: vi.fn() }))
 import useStockFundamentals from '../hooks/useStockFundamentals'
 import useValuationSettings from '../hooks/useValuationSettings'
 import StockDetailSheet from './StockDetailSheet'
-import { cumulativeToSingles, EMPTY_VALUATION_SETTINGS } from '../utils/valuation'
+import { EMPTY_VALUATION_SETTINGS } from '../utils/valuation'
+import { TW_FUNDAMENTALS } from '../utils/incomeModel.fixture'
 
-const cumulative = {
-  '2025Q1': { eps: 13.94 },
-  '2025Q2': { eps: 29.31 },
-  '2025Q3': { eps: 46.36 },
-  '2025Q4': { eps: 66.25 },
-  '2026Q1': { eps: 16.0 },
-  '2026Q2': { eps: 35.17 },
-}
-
-const fundamentals = {
-  market: 'TW',
-  singles: cumulativeToSingles(cumulative),
-  cumulative,
-  surprises: [],
-  upcoming: [],
-  peSeries: [10, 12, 14, 15, 16, 18, 20, 22].map((pe, i) => ({ label: `2026-0${i + 1}`, pe })),
-  nextEarnings: { date: '2026-11-14', label: 'Q3 財報法定截止日' },
-  updatedAt: '2026-10-05T12:03:11Z',
-}
+const fundamentals = TW_FUNDAMENTALS
 
 const holding = {
   id: 1,
@@ -35,7 +18,7 @@ const holding = {
   symbol: '2330',
   companyName: '台積電',
   assetTag: 'STOCK',
-  latestPrice: 1085,
+  latestPrice: 50,
   priceChangePct: 1.2,
   latestCurrency: 'TWD',
   holder: 'Po',
@@ -64,7 +47,7 @@ describe('StockDetailSheet', () => {
     expect(screen.getByText('Po 的持股')).toBeInTheDocument()
     expect(screen.getByText('$2,170,000')).toBeInTheDocument()
     expect(screen.getByText('2,000 股')).toBeInTheDocument()
-    expect(screen.getByText('$1,085.00')).toBeInTheDocument()
+    expect(screen.getByText('$50.00')).toBeInTheDocument()
     expect(screen.getByText('+1.2%')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '管理這筆持股' })).toBeInTheDocument()
     expect(screen.getByLabelText('估價')).toBeInTheDocument()
@@ -78,15 +61,16 @@ describe('StockDetailSheet', () => {
     useStockFundamentals.mockReturnValue({ status: 'ready', data: fundamentals, reload })
     renderSheet()
     const entry = screen.getByRole('button', { name: /估價假設/ })
-    expect(entry).toHaveTextContent(/本益比 \d/)
+    expect(entry).toHaveTextContent('2026 Q3 預估 EPS 3.40')
+    expect(entry).toHaveTextContent('本益比')
     fireEvent.click(entry)
     expect(screen.getByText('調整估價假設 · 台積電')).toBeInTheDocument()
   })
 
-  it('switches to the forward estimate', () => {
+  it('switches to this year’s estimate', () => {
     useStockFundamentals.mockReturnValue({ status: 'ready', data: fundamentals, reload })
     renderSheet()
-    fireEvent.click(screen.getByText('今年預估'))
+    fireEvent.click(screen.getByText('今年'))
     expect(screen.getByText(/比合理價(高|低)/)).toBeInTheDocument()
   })
 
@@ -123,7 +107,7 @@ describe('StockDetailSheet', () => {
     renderSheet({ holding: { ...holding, totalCost: 1000000 } })
     expect(screen.getByText('均價').nextSibling).toHaveTextContent('$500.00')
     expect(screen.getByText('成本').nextSibling).toHaveTextContent('$1,000,000')
-    expect(screen.getByText('未實現 +$1,170,000（+117.0%）')).toBeInTheDocument()
+    expect(screen.getByText('未實現 −$900,000（−90.0%）')).toBeInTheDocument()
   })
 
   it('offers to set the cost when it is missing', () => {
