@@ -271,3 +271,51 @@ describe('applyCollectionRecordLocally (savings_goals)', () => {
     expect(await db.savings_goals.toArray()).toEqual([])
   })
 })
+
+describe('applyCollectionRecordLocally (watchlist)', () => {
+  const item = {
+    remoteKey: 'TW_2330',
+    market: 'TW',
+    symbol: '2330',
+    name: '台積電',
+    latestPrice: 1000,
+    previousClose: 990,
+    currency: 'TWD',
+    priceUpdatedAt: '2026-10-13T06:00:00.000Z',
+    createdAt: '2026-10-13T05:00:00.000Z',
+    updatedAt: '2026-10-13T06:00:00.000Z',
+    deletedAt: null,
+  }
+
+  beforeEach(async () => {
+    await db.watchlist.clear()
+  })
+
+  it('adds a watched stock', async () => {
+    await applyCollectionRecordLocally({ collectionName: 'watchlist', record: item })
+    const [row] = await db.watchlist.toArray()
+    expect(row).toMatchObject({ ...item, syncState: 'synced' })
+    expect(Number.isInteger(row.id)).toBe(true)
+  })
+
+  it('updates only when the remote copy is newer', async () => {
+    await applyCollectionRecordLocally({ collectionName: 'watchlist', record: item })
+    await applyCollectionRecordLocally({
+      collectionName: 'watchlist',
+      record: { ...item, latestPrice: 1, updatedAt: '2026-10-13T05:30:00.000Z' },
+    })
+    await applyCollectionRecordLocally({
+      collectionName: 'watchlist',
+      record: { ...item, latestPrice: 1010, updatedAt: '2026-10-13T07:00:00.000Z' },
+    })
+    const rows = await db.watchlist.toArray()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].latestPrice).toBe(1010)
+  })
+
+  it('removes the local row when the remote doc is deleted', async () => {
+    await applyCollectionRecordLocally({ collectionName: 'watchlist', record: item })
+    await removeCollectionDocLocally({ collectionName: 'watchlist', docId: 'TW_2330', snapshotData: item })
+    expect(await db.watchlist.toArray()).toEqual([])
+  })
+})

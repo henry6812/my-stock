@@ -2,6 +2,7 @@ import { normalizeTotalCost } from '../../utils/holdingShares'
 import { parseNumericLike } from '../../utils/number'
 import { normalizeCategoryIcon } from '../../utils/categoryIcons'
 import { GOAL_KINDS, normalizeGoalIcon } from '../../utils/savingsGoals'
+import { buildWatchlistRemoteKey } from '../../utils/watchlist'
 
 const toIso = (value) => {
   if (!value) return null
@@ -48,6 +49,8 @@ export const buildExpenseTemplateKey = (template) => (
 export const buildSavingsGoalKey = (goal) => (
   goal.remoteKey || `goal_${goal.id}`
 )
+
+export const buildWatchlistKey = (item) => item.remoteKey || buildWatchlistRemoteKey(item)
 
 export const buildAppConfigKey = (config) => String(config?.key || '')
 
@@ -226,6 +229,26 @@ export const savingsGoalToRemote = (goal) => ({
   updatedAt: goal.updatedAt,
   deletedAt: goal.deletedAt ?? null,
   clientUpdatedAt: goal.updatedAt,
+})
+
+const toPriceOrNull = (value) => {
+  if (value === null || value === undefined) return null
+  return toPositiveAmountOrNull(value)
+}
+
+export const watchlistItemToRemote = (item) => ({
+  remoteKey: buildWatchlistKey(item),
+  market: item.market,
+  symbol: item.symbol,
+  name: item.name ?? item.symbol,
+  latestPrice: toPriceOrNull(item.latestPrice),
+  previousClose: toPriceOrNull(item.previousClose),
+  currency: item.currency ?? (item.market === 'US' ? 'USD' : 'TWD'),
+  priceUpdatedAt: item.priceUpdatedAt ?? null,
+  createdAt: item.createdAt ?? null,
+  updatedAt: item.updatedAt,
+  deletedAt: item.deletedAt ?? null,
+  clientUpdatedAt: item.updatedAt,
 })
 
 export const appConfigToRemote = (config) => ({
@@ -429,6 +452,20 @@ export const remoteToSavingsGoal = (data) => ({
   cashAccountKeys: toStringList(data.cashAccountKeys),
   sortOrder: Number(data.sortOrder) || 0,
   archivedAt: toIso(data.archivedAt),
+  createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
+  updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
+  deletedAt: toIso(data.deletedAt),
+})
+
+export const remoteToWatchlistItem = (data) => ({
+  remoteKey: data.remoteKey ?? (data.market && data.symbol ? buildWatchlistRemoteKey(data) : null),
+  market: data.market,
+  symbol: data.symbol,
+  name: data.name ?? data.symbol,
+  latestPrice: toPriceOrNull(data.latestPrice),
+  previousClose: toPriceOrNull(data.previousClose),
+  currency: data.currency ?? (data.market === 'US' ? 'USD' : 'TWD'),
+  priceUpdatedAt: toIso(data.priceUpdatedAt),
   createdAt: toIso(data.createdAt) ?? data.createdAt ?? null,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),

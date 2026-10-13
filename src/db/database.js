@@ -13,6 +13,7 @@ const TABLE_STORAGE_KEYS = {
   budgets: 'my-stock:budgets',
   expenseTemplates: 'my-stock:expense_templates',
   savingsGoals: 'my-stock:savings_goals',
+  watchlist: 'my-stock:watchlist',
 }
 
 export const DB_MIN_KEY = MIN_SENTINEL
@@ -470,6 +471,11 @@ class StockDatabase {
       primaryKey: 'id',
       autoIncrement: true,
       storageKey: TABLE_STORAGE_KEYS.savingsGoals,
+    })
+    this.watchlist = new PersistedInMemoryTable({
+      primaryKey: 'id',
+      autoIncrement: true,
+      storageKey: TABLE_STORAGE_KEYS.watchlist,
     })
   }
 

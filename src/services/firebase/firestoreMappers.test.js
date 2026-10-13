@@ -12,6 +12,9 @@ import {
   remoteToExpenseCategory,
   holdingToRemote,
   remoteToHolding,
+  buildWatchlistKey,
+  watchlistItemToRemote,
+  remoteToWatchlistItem,
 } from './firestoreMappers'
 
 const template = {
@@ -215,5 +218,50 @@ describe('holding totalCost', () => {
     expect(remoteToHolding({ ...remote, totalCost: undefined }).totalCost).toBeNull()
     expect(remoteToHolding({ ...remote, totalCost: -5 }).totalCost).toBeNull()
     expect(remoteToHolding({ ...remote, totalCost: '62400' }).totalCost).toBe(62400)
+  })
+})
+
+describe('watchlist mappers', () => {
+  const item = {
+    id: 3,
+    remoteKey: 'TW_2330',
+    market: 'TW',
+    symbol: '2330',
+    name: '台積電',
+    latestPrice: 1000,
+    previousClose: 990,
+    currency: 'TWD',
+    priceUpdatedAt: '2026-10-13T06:00:00.000Z',
+    createdAt: '2026-10-13T05:00:00.000Z',
+    updatedAt: '2026-10-13T06:00:00.000Z',
+    deletedAt: null,
+    syncState: 'pending',
+  }
+
+  it('keys the doc by market and symbol', () => {
+    expect(buildWatchlistKey(item)).toBe('TW_2330')
+    expect(buildWatchlistKey({ market: 'US', symbol: 'NVDA' })).toBe('US_NVDA')
+  })
+
+  it('round-trips the fields without local-only ones', () => {
+    const remote = watchlistItemToRemote(item)
+    expect(remote).not.toHaveProperty('id')
+    expect(remote).not.toHaveProperty('syncState')
+    expect(remote.clientUpdatedAt).toBe(item.updatedAt)
+    const { id: _id, syncState: _syncState, ...fields } = item
+    expect(remoteToWatchlistItem(remote)).toEqual(fields)
+  })
+
+  it('keeps a missing price as null', () => {
+    const remote = watchlistItemToRemote({ ...item, latestPrice: null, previousClose: undefined, priceUpdatedAt: null })
+    const local = remoteToWatchlistItem(remote)
+    expect(local.latestPrice).toBeNull()
+    expect(local.previousClose).toBeNull()
+    expect(local.priceUpdatedAt).toBeNull()
+  })
+
+  it('defaults the currency from the market', () => {
+    expect(remoteToWatchlistItem({ market: 'US', symbol: 'NVDA' }).currency).toBe('USD')
+    expect(remoteToWatchlistItem({ market: 'TW', symbol: '2330' }).currency).toBe('TWD')
   })
 })

@@ -29,6 +29,7 @@ export const CLOUD_COLLECTION = {
   BUDGETS: "budgets",
   EXPENSE_TEMPLATES: "expense_templates",
   SAVINGS_GOALS: "savings_goals",
+  WATCHLIST: "watchlist",
   APP_CONFIG: "app_config",
 };
 

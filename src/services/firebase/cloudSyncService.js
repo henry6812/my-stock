@@ -15,6 +15,7 @@ import {
   buildBudgetKey,
   buildExpenseTemplateKey,
   buildSavingsGoalKey,
+  buildWatchlistKey,
   buildAppConfigKey,
   buildExpenseCategoryKey,
   buildExpenseEntryKey,
@@ -23,6 +24,7 @@ import {
   budgetToRemote,
   expenseTemplateToRemote,
   savingsGoalToRemote,
+  watchlistItemToRemote,
   appConfigToRemote,
   cashBalanceSnapshotToRemote,
   cashAccountToRemote,
@@ -34,6 +36,7 @@ import {
   remoteToBudget,
   remoteToExpenseTemplate,
   remoteToSavingsGoal,
+  remoteToWatchlistItem,
   remoteToAppConfig,
   remoteToCashBalanceSnapshot,
   remoteToCashAccount,
@@ -65,6 +68,7 @@ const COLLECTIONS = {
   BUDGETS: 'budgets',
   EXPENSE_TEMPLATES: 'expense_templates',
   SAVINGS_GOALS: 'savings_goals',
+  WATCHLIST: 'watchlist',
   APP_CONFIG: 'app_config',
 }
 
@@ -244,6 +248,7 @@ const clearLocalCloudBackedData = async () => {
     db.budgets,
     db.expense_templates,
     db.savings_goals,
+    db.watchlist,
     db.app_config,
     async () => {
       await db.holdings.clear()
@@ -257,6 +262,7 @@ const clearLocalCloudBackedData = async () => {
       await db.budgets.clear()
       await db.expense_templates.clear()
       await db.savings_goals.clear()
+      await db.watchlist.clear()
       await db.app_config.clear()
     },
   )
@@ -295,6 +301,9 @@ const buildMutationPayload = ({ collectionName, record }) => {
   }
   if (collectionName === COLLECTIONS.SAVINGS_GOALS) {
     return { docId: buildSavingsGoalKey(record), payload: savingsGoalToRemote(record) }
+  }
+  if (collectionName === COLLECTIONS.WATCHLIST) {
+    return { docId: buildWatchlistKey(record), payload: watchlistItemToRemote(record) }
   }
   if (collectionName === COLLECTIONS.APP_CONFIG) {
     return { docId: buildAppConfigKey(record), payload: appConfigToRemote(record) }
@@ -773,6 +782,30 @@ const applyRemoteSavingsGoal = async (remote) => {
   })
 }
 
+const applyRemoteWatchlistItem = async (remote) => {
+  if (!remote.remoteKey || !remote.symbol) return
+  const local = await db.watchlist.where('remoteKey').equals(remote.remoteKey).first()
+  const nowIso = getNowIso()
+  const { remoteKey, createdAt, updatedAt, ...fields } = remote
+  if (!local) {
+    await db.watchlist.add({
+      remoteKey,
+      ...fields,
+      createdAt: createdAt || nowIso,
+      updatedAt: updatedAt || nowIso,
+      syncState: SYNC_SYNCED,
+    })
+    return
+  }
+  if (!isRemoteNewer(local.updatedAt, updatedAt)) return
+  await db.watchlist.update(local.id, {
+    ...fields,
+    createdAt: createdAt || local.createdAt,
+    updatedAt: updatedAt || local.updatedAt,
+    syncState: SYNC_SYNCED,
+  })
+}
+
 const applyRemoteBudget = async (remote) => {
   if (!remote.remoteKey || !remote.name) return
   const local = await db.budgets.where('remoteKey').equals(remote.remoteKey).first()
@@ -874,6 +907,8 @@ export const applyCollectionRecordLocally = async ({
     await applyRemoteExpenseTemplate(remoteToExpenseTemplate(payload))
   } else if (collectionName === COLLECTIONS.SAVINGS_GOALS) {
     await applyRemoteSavingsGoal(remoteToSavingsGoal(payload))
+  } else if (collectionName === COLLECTIONS.WATCHLIST) {
+    await applyRemoteWatchlistItem(remoteToWatchlistItem(payload))
   } else if (collectionName === COLLECTIONS.APP_CONFIG) {
     await applyRemoteAppConfig(remoteToAppConfig(payload))
   } else {
@@ -977,6 +1012,13 @@ export const removeCollectionDocLocally = async ({ collectionName, docId, snapsh
     if (goal) {
       await db.savings_goals.delete(goal.id)
     }
+  } else if (collectionName === COLLECTIONS.WATCHLIST) {
+    const remoteKey = snapshotData ? remoteToWatchlistItem(snapshotData).remoteKey : docId
+    if (!remoteKey) return
+    const item = await db.watchlist.where('remoteKey').equals(remoteKey).first()
+    if (item) {
+      await db.watchlist.delete(item.id)
+    }
   } else if (collectionName === COLLECTIONS.APP_CONFIG) {
     const key = snapshotData ? remoteToAppConfig(snapshotData).key : docId
     if (key) {
@@ -1040,6 +1082,10 @@ const applyRealtimeSnapshot = async (collectionName, snapshot) => {
     }
     if (collectionName === COLLECTIONS.SAVINGS_GOALS) {
       await applyRemoteSavingsGoal(remoteToSavingsGoal(data))
+      continue
+    }
+    if (collectionName === COLLECTIONS.WATCHLIST) {
+      await applyRemoteWatchlistItem(remoteToWatchlistItem(data))
       continue
     }
     if (collectionName === COLLECTIONS.APP_CONFIG) {
@@ -1173,6 +1219,7 @@ export const startRealtimeSync = async (uid) => {
       COLLECTIONS.BUDGETS,
       COLLECTIONS.EXPENSE_TEMPLATES,
       COLLECTIONS.SAVINGS_GOALS,
+      COLLECTIONS.WATCHLIST,
       COLLECTIONS.APP_CONFIG,
     ]),
     waiters: [],
@@ -1194,6 +1241,7 @@ export const startRealtimeSync = async (uid) => {
     subscribeCollection(COLLECTIONS.BUDGETS),
     subscribeCollection(COLLECTIONS.EXPENSE_TEMPLATES),
     subscribeCollection(COLLECTIONS.SAVINGS_GOALS),
+    subscribeCollection(COLLECTIONS.WATCHLIST),
     subscribeCollection(COLLECTIONS.APP_CONFIG),
   ])
 
