@@ -11,11 +11,16 @@ vi.mock('./priceProviders/finnhubProvider', () => ({
   getHoldingQuote: vi.fn(),
   sleepForRateLimit: vi.fn(() => Promise.resolve()),
 }))
+vi.mock('./priceProviders/twseDailyProvider', () => ({
+  getTwseDailyQuotes: vi.fn(async () => {
+    throw new Error('down')
+  }),
+}))
 
 import { db } from '../db/database'
 import { assertCloudWriteReady } from './firebase/cloudSyncService'
 import { getHoldingQuote } from './priceProviders/finnhubProvider'
-import { addWatchlistItem, getWatchlistView, removeWatchlistItem } from './portfolioService'
+import { addWatchlistItem, getWatchlistView, refreshWatchlistPrices, removeWatchlistItem } from './portfolioService'
 
 let clock = Date.parse('2026-10-13T06:00:00.000Z')
 const tick = () => {
@@ -108,5 +113,61 @@ describe('removeWatchlistItem', () => {
 
   it('rejects an unknown id', async () => {
     await expect(removeWatchlistItem({ id: 999 })).rejects.toThrow('找不到這支觀察股票')
+  })
+})
+
+describe('refreshWatchlistPrices', () => {
+  it('updates each watched stock with its new quote', async () => {
+    const { id } = await addWatchlistItem({ market: 'US', symbol: 'NVDA' })
+    tick()
+    vi.mocked(getHoldingQuote).mockResolvedValue({ price: 120, previousClose: 118, currency: 'USD', name: 'NVIDIA' })
+    const result = await refreshWatchlistPrices()
+    expect(result).toMatchObject({ updatedCount: 1, targetCount: 1, failed: [] })
+    expect(await db.watchlist.get(id)).toMatchObject({
+      latestPrice: 120,
+      previousClose: 118,
+      name: 'NVIDIA',
+      priceUpdatedAt: new Date(clock).toISOString(),
+    })
+  })
+
+  it('keeps the old price for a stock whose quote failed', async () => {
+    const a = await addWatchlistItem({ market: 'US', symbol: 'NVDA' })
+    const b = await addWatchlistItem({ market: 'US', symbol: 'AAPL' })
+    const before = await db.watchlist.get(b.id)
+    tick()
+    vi.mocked(getHoldingQuote).mockImplementation(async ({ symbol }) => {
+      if (symbol === 'AAPL') throw new Error('timeout')
+      return { price: 120, currency: 'USD', name: 'NVIDIA' }
+    })
+    const result = await refreshWatchlistPrices()
+    expect(result.failed).toEqual([{ symbol: 'AAPL', market: 'US', reason: 'timeout' }])
+    expect((await db.watchlist.get(a.id)).latestPrice).toBe(120)
+    expect(await db.watchlist.get(b.id)).toMatchObject({
+      latestPrice: before.latestPrice,
+      priceUpdatedAt: before.priceUpdatedAt,
+    })
+  })
+
+  it('throws when every quote fails', async () => {
+    await addWatchlistItem({ market: 'US', symbol: 'NVDA' })
+    vi.mocked(getHoldingQuote).mockRejectedValue(new Error('timeout'))
+    await expect(refreshWatchlistPrices()).rejects.toThrow('全部 1 檔報價都抓取失敗：timeout')
+  })
+
+  it('does nothing for an empty list', async () => {
+    await expect(refreshWatchlistPrices()).resolves.toMatchObject({ updatedCount: 0, targetCount: 0 })
+    expect(getHoldingQuote).not.toHaveBeenCalled()
+  })
+
+  it('does not revive an item removed while quotes were in flight', async () => {
+    const { id } = await addWatchlistItem({ market: 'US', symbol: 'NVDA' })
+    tick()
+    vi.mocked(getHoldingQuote).mockImplementation(async () => {
+      await removeWatchlistItem({ id })
+      return { price: 120, currency: 'USD', name: 'NVIDIA' }
+    })
+    await refreshWatchlistPrices()
+    expect((await db.watchlist.get(id)).deletedAt).not.toBeNull()
   })
 })

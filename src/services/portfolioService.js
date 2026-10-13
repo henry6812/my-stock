@@ -568,6 +568,56 @@ const getActiveHoldings = async () => {
   return holdings.filter((item) => !isDeleted(item));
 };
 
+const getActiveWatchlist = async () => {
+  const items = await db.watchlist.toArray();
+  return items.filter((item) => !isDeleted(item));
+};
+
+const toQuoteTarget = (market, symbol, companyName) => ({ market, symbol, companyName });
+
+// Collects the per-symbol outcome of a fetchQuotes map once, however many
+// holdings / watched stocks share the symbol.
+const summarizeQuotes = (quotes) => {
+  const failed = [];
+  let updatedCount = 0;
+  for (const [key, { quote, error }] of quotes) {
+    if (quote) {
+      updatedCount += 1;
+      continue;
+    }
+    const [market, symbol] = key.split(":");
+    console.warn(`[quotes] ${key} failed`, error);
+    failed.push({
+      symbol,
+      market,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return { updatedCount, failed, targetCount: quotes.size };
+};
+
+// Writes each watched stock's new quote. Re-reads the row first: one
+// removed while the quotes were in flight (here or on another device)
+// stays removed.
+const applyWatchlistQuotes = async (items, quotes, nowIso) => {
+  for (const item of items) {
+    const result = quotes.get(quoteTargetKey(item));
+    if (!result?.quote) continue;
+    const current = await db.watchlist.get(item.id);
+    if (!current || isDeleted(current)) continue;
+    await mirrorToCloud(CLOUD_COLLECTION.WATCHLIST, {
+      ...current,
+      name: result.quote.name || current.name,
+      ...watchlistQuoteFields(result.quote, nowIso),
+      updatedAt: nowIso,
+      syncState: SYNC_PENDING,
+    });
+  }
+};
+
+const allQuotesFailedError = (failed) =>
+  new Error(`全部 ${failed.length} 檔報價都抓取失敗：${failed[0]?.reason ?? "未知錯誤"}`);
+
 const getActiveCashAccounts = async () => {
   const cashAccounts = await db.cash_accounts.toArray();
   return cashAccounts.filter((item) => !isDeleted(item));
@@ -1427,6 +1477,25 @@ export const refreshHoldingPrice = async ({ holdingId }) => {
   };
 };
 
+// 研究 tab: only the watched stocks — no price_snapshots, no sync_meta.
+export const refreshWatchlistPrices = async () => {
+  ensureCloudWritable();
+  const items = await getActiveWatchlist();
+  if (items.length === 0) {
+    return { updatedCount: 0, targetCount: 0, failed: [], lastUpdatedAt: null };
+  }
+  const quotes = await fetchQuotes(
+    items.map((item) => toQuoteTarget(item.market, item.symbol, item.name)),
+  );
+  const summary = summarizeQuotes(quotes);
+  if (summary.updatedCount === 0) {
+    throw allQuotesFailedError(summary.failed);
+  }
+  const nowIso = getNowIso();
+  await applyWatchlistQuotes(items, quotes, nowIso);
+  return { ...summary, lastUpdatedAt: nowIso };
+};
+
 export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
   ensureCloudWritable();
   const normalized = String(inputMarket ?? "ALL").toUpperCase();
@@ -1441,7 +1510,11 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
       ? holdings
       : holdings.filter((item) => item.market === market);
 
-  if (targetHoldings.length === 0) {
+  const watchlist = await getActiveWatchlist();
+  const targetWatchlist =
+    market === "ALL" ? watchlist : watchlist.filter((item) => item.market === market);
+
+  if (targetHoldings.length === 0 && targetWatchlist.length === 0) {
     const lastUpdatedAt = await setSyncMeta({ status: "success" });
     return {
       updatedCount: 0,
@@ -1472,28 +1545,20 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
     const nowIso = getNowIso();
     const snapshots = [];
 
-    const quotes = await fetchQuotes(
-      targetHoldings.map((holding) => ({
-        market: holding.market,
-        symbol: holding.symbol,
-        companyName: holding.companyName,
-      })),
-    );
+    const quotes = await fetchQuotes([
+      ...targetHoldings.map((holding) =>
+        toQuoteTarget(holding.market, holding.symbol, holding.companyName),
+      ),
+      ...targetWatchlist.map((item) => toQuoteTarget(item.market, item.symbol, item.name)),
+    ]);
+    const summary = summarizeQuotes(quotes);
+    if (summary.updatedCount === 0) {
+      throw allQuotesFailedError(summary.failed);
+    }
 
-    // One bad symbol shouldn't discard every other quote: save what we got
-    // and report the misses. Only when nothing succeeds is it a hard error.
-    const failed = [];
     for (const holding of targetHoldings) {
-      const { quote, error } = quotes.get(quoteTargetKey(holding));
-      if (!quote) {
-        console.warn(`[refreshPrices] ${holding.market}:${holding.symbol} failed`, error);
-        failed.push({
-          symbol: holding.symbol,
-          market: holding.market,
-          reason: error instanceof Error ? error.message : String(error),
-        });
-        continue;
-      }
+      const { quote } = quotes.get(quoteTargetKey(holding));
+      if (!quote) continue;
       const valueTwd =
         holding.market === MARKET.US
           ? quote.price * holding.shares * usdTwdRate
@@ -1527,18 +1592,12 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
       }
     }
 
-    if (snapshots.length === 0) {
-      throw new Error(
-        `全部 ${failed.length} 檔報價都抓取失敗：${failed[0]?.reason ?? "未知錯誤"}`,
-      );
+    for (const snapshot of snapshots) {
+      await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot);
+      await pruneEarlierSnapshotsSameDay(snapshot);
     }
 
-    if (snapshots.length > 0) {
-      for (const snapshot of snapshots) {
-        await mirrorToCloud(CLOUD_COLLECTION.PRICE_SNAPSHOTS, snapshot);
-        await pruneEarlierSnapshotsSameDay(snapshot);
-      }
-    }
+    await applyWatchlistQuotes(targetWatchlist, quotes, nowIso);
 
     await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, {
       key: SYNC_KEY_PRICES,
@@ -1551,9 +1610,9 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
     });
 
     return {
-      updatedCount: snapshots.length,
-      targetCount: targetHoldings.length,
-      failed,
+      updatedCount: summary.updatedCount,
+      targetCount: summary.targetCount,
+      failed: summary.failed,
       market,
       lastUpdatedAt: nowIso,
     };

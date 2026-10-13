@@ -60,6 +60,7 @@ beforeEach(async () => {
   await db.price_snapshots.clear()
   await db.sync_meta.clear()
   await db.fx_rates.clear()
+  await db.watchlist.clear()
 })
 
 afterEach(() => {
@@ -141,5 +142,76 @@ describe('refreshPrices', () => {
     const result = await refreshPrices({ market: 'ALL' })
     expect(result).toMatchObject({ updatedCount: 0, targetCount: 0 })
     expect(getHoldingQuote).not.toHaveBeenCalled()
+  })
+})
+
+const addWatched = (market, symbol) =>
+  db.watchlist.add({
+    remoteKey: `${market}_${symbol}`,
+    market,
+    symbol,
+    name: symbol,
+    latestPrice: null,
+    previousClose: null,
+    currency: market === 'US' ? 'USD' : 'TWD',
+    priceUpdatedAt: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    deletedAt: null,
+  })
+
+describe('refreshPrices with the watchlist', () => {
+  it('fetches a symbol held and watched only once', async () => {
+    const holdingId = await addHolding('US', 'NVDA')
+    const watchId = await addWatched('US', 'NVDA')
+    vi.mocked(getHoldingQuote).mockResolvedValue(usQuote(100))
+    const result = await refreshPrices({ market: 'ALL' })
+    expect(getHoldingQuote).toHaveBeenCalledTimes(1)
+    expect((await latestPriceOf(holdingId)).price).toBe(100)
+    expect((await db.watchlist.get(watchId)).latestPrice).toBe(100)
+    expect(result).toMatchObject({ updatedCount: 1, targetCount: 1 })
+  })
+
+  it('refreshes the watchlist when there are no holdings', async () => {
+    const watchId = await addWatched('US', 'NVDA')
+    vi.mocked(getHoldingQuote).mockResolvedValue(usQuote(100))
+    const result = await refreshPrices({ market: 'ALL' })
+    expect(result).toMatchObject({ updatedCount: 1, targetCount: 1 })
+    expect((await db.watchlist.get(watchId)).latestPrice).toBe(100)
+    expect(await db.price_snapshots.toArray()).toEqual([])
+  })
+
+  it('only refreshes watched stocks of the chosen market', async () => {
+    const twId = await addWatched('TW', '2330')
+    await addWatched('US', 'NVDA')
+    vi.mocked(getTwseDailyQuotes).mockResolvedValue({
+      date: '20261013',
+      quotes: { 2330: twQuote(1000) },
+      listedSymbols: new Set(['2330']),
+    })
+    await refreshPrices({ market: 'TW' })
+    expect(getHoldingQuote).not.toHaveBeenCalled()
+    expect((await db.watchlist.get(twId)).latestPrice).toBe(1000)
+  })
+
+  it('lists a failed watched stock once in failed', async () => {
+    await addHolding('US', 'NVDA')
+    await addWatched('US', 'NOPE')
+    vi.mocked(getHoldingQuote).mockImplementation(async ({ symbol }) => {
+      if (symbol === 'NOPE') throw new Error('No quote found')
+      return usQuote(100)
+    })
+    const result = await refreshPrices({ market: 'US' })
+    expect(result.failed).toEqual([{ symbol: 'NOPE', market: 'US', reason: 'No quote found' }])
+    expect(result).toMatchObject({ updatedCount: 1, targetCount: 2 })
+  })
+
+  it('does not fetch the FX rate for watched US stocks alone', async () => {
+    const { getUsdTwdRate } = await import('./priceProviders/fxProvider')
+    vi.mocked(getUsdTwdRate).mockClear()
+    await addWatched('US', 'NVDA')
+    vi.mocked(getHoldingQuote).mockResolvedValue(usQuote(100))
+    await refreshPrices({ market: 'US' })
+    expect(getUsdTwdRate).not.toHaveBeenCalled()
   })
 })
