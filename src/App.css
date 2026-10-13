@@ -2579,6 +2579,60 @@ button.expense-card-chip {
   font-variant-numeric: tabular-nums;
 }
 
+/* 研究 › 觀察清單: name over symbol, price over today's change. */
+.watchlist-groups .mobile-swipe-row {
+  min-height: 72px;
+  padding-block: var(--space-row-y);
+}
+
+.watchlist-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.watchlist-row-name {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--c-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watchlist-row-symbol,
+.watchlist-updated.ant-typography {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+}
+
+.watchlist-row-side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.watchlist-row-price {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.watchlist-row-price-main {
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.watchlist-row-change {
+  font-size: var(--fs-caption);
+}
+
+.watchlist-header-end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 /* Holder groups (holdings, cash): both start folded. Headings sit on
    --c-group-heading, get a line under them while open, and stick to the
    top while their rows scroll by; a stuck heading stretches to the full
