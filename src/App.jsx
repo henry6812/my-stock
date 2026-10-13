@@ -149,6 +149,10 @@ import SavingsGoalDetailSheet from "./components/SavingsGoalDetailSheet";
 import SavingsGoalForm from "./components/SavingsGoalForm";
 import StaleBalanceIcon from "./components/StaleBalanceIcon";
 import StockDetailSheet from "./components/StockDetailSheet";
+import WatchlistDetailSheet from "./components/WatchlistDetailSheet";
+import WatchlistSection from "./components/research/WatchlistSection";
+import WatchlistForm, { WATCHLIST_FORM_ID } from "./components/research/WatchlistForm";
+import useWatchlist from "./hooks/useWatchlist";
 import HoldingActionForm from "./components/HoldingActionForm";
 import {
   HOLDING_ACTION_SUBMIT_TEXT,
@@ -209,6 +213,8 @@ import {
   setSavingsGoalArchived,
   removeSavingsGoal,
   repairNumericFields,
+  addWatchlistItem,
+  removeWatchlistItem,
 } from "./services/portfolioService";
 import {
   loginWithEmailPassword,
@@ -503,6 +509,12 @@ function App() {
   const [pullDistance, setPullDistance] = useState(0);
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const [activeMainTab, setActiveMainTab] = useState("asset");
+  const [isWatchlistFormOpen, setIsWatchlistFormOpen] = useState(false);
+  const [loadingAddWatch, setLoadingAddWatch] = useState(false);
+  const watchlist = useWatchlist({
+    enabled: Boolean(authUser) && bootPhase === "ready",
+    autoRefresh: activeMainTab === "research" && !isWriteDisabled && !loadingRefresh,
+  });
   // Main tab switches slide in the direction of travel (View Transitions API);
   // flushSync makes React commit inside the transition's update callback, and
   // scrolling there means the incoming tab is captured already at the top.
@@ -3944,11 +3956,11 @@ function App() {
       await performCloudSync();
       if (result.targetCount === 0) {
         if (targetMarket === "TW") {
-          message.info("目前沒有可更新的台股持股");
+          message.info("目前沒有可更新的台股");
         } else if (targetMarket === "US") {
-          message.info("目前沒有可更新的美股持股");
+          message.info("目前沒有可更新的美股");
         } else {
-          message.info("目前沒有可更新的持股");
+          message.info("目前沒有可更新的持股或觀察股票");
         }
         return;
       }
@@ -3980,6 +3992,46 @@ function App() {
     } finally {
       setLoadingRefresh(false);
     }
+  };
+
+  const handleRefreshWatchlist = async () => {
+    try {
+      const result = await watchlist.refresh();
+      const failedSymbols = (result.failed ?? []).map((item) => item.symbol);
+      if (failedSymbols.length > 0) {
+        message.warning(`以下抓價失敗：${failedSymbols.join("、")}。可稍後再試。`, 6);
+      }
+    } catch (error) {
+      message.error(toUserMessage(error, "更新觀察清單報價失敗"));
+    }
+  };
+
+  const handleAddWatch = async (values) => {
+    setLoadingAddWatch(true);
+    try {
+      await addWatchlistItem(values);
+      await watchlist.reload();
+      setIsWatchlistFormOpen(false);
+      message.success("已加入觀察清單");
+    } finally {
+      setLoadingAddWatch(false);
+    }
+  };
+
+  const handleRemoveWatch = (row) => {
+    confirmDestructive({
+      title: `從觀察清單移除 ${row.name}？`,
+      content: "估價假設會保留，之後重新加入還看得到。",
+      okText: "移除",
+      onOk: async () => {
+        try {
+          await removeWatchlistItem({ id: row.id });
+          await watchlist.reload();
+        } catch (error) {
+          message.error(toUserMessage(error, "移除失敗"));
+        }
+      },
+    });
   };
 
   const handleAddCashAccount = async (values) => {
@@ -5471,6 +5523,11 @@ function App() {
                     icon: <StatsReport aria-hidden />,
                   },
                   {
+                    label: "投資研究",
+                    value: "research",
+                    icon: <GraphUp aria-hidden />,
+                  },
+                  {
                     label: "設定",
                     value: "settings",
                     icon: <Settings aria-hidden />,
@@ -5868,6 +5925,19 @@ function App() {
                 </section>
               </Col>
             </Row>
+          ) : activeMainTab === "research" ? (
+            <div className="research-page">
+              <WatchlistSection
+                view={watchlist.view}
+                isMobile={isMobileViewport}
+                disabled={isWriteDisabled}
+                refreshing={watchlist.refreshing}
+                refreshFailed={watchlist.refreshFailed}
+                onRefresh={handleRefreshWatchlist}
+                onOpen={watchlist.openItem}
+                onRemove={handleRemoveWatch}
+              />
+            </div>
           ) : (
             <Row
               gutter={[16, 16]}
@@ -6674,15 +6744,20 @@ function App() {
           </div>
 
           {authUser &&
-          ((isMobileViewport &&
-            (activeMainTab === "expense" || activeMainTab === "asset")) ||
-            (!isMobileViewport &&
-              (activeMainTab === "expense" || activeMainTab === "asset"))) ? (
+          (activeMainTab === "expense" ||
+            activeMainTab === "asset" ||
+            activeMainTab === "research") ? (
             <Button
               type="primary"
               shape="circle"
               icon={<Plus />}
-              aria-label={activeMainTab === "asset" ? "新增持股" : "新增支出"}
+              aria-label={
+                activeMainTab === "asset"
+                  ? "新增持股"
+                  : activeMainTab === "research"
+                    ? "新增觀察"
+                    : "新增支出"
+              }
               className={`expense-fab ${
                 isMobileViewport
                   ? "expense-fab--mobile"
@@ -6690,6 +6765,10 @@ function App() {
               }`}
               disabled={isWriteDisabled}
               onClick={() => {
+                if (activeMainTab === "research") {
+                  setIsWatchlistFormOpen(true);
+                  return;
+                }
                 if (activeMainTab === "asset") {
                   openAddHoldingForm();
                   return;
@@ -6725,6 +6804,7 @@ function App() {
                     text: "支出",
                     value: "expense",
                   },
+                  { icon: <GraphUp aria-hidden />, text: "研究", value: "research" },
                   {
                     icon: <Settings aria-hidden />,
                     text: "設定",
@@ -7123,6 +7203,50 @@ function App() {
             disabled={isWriteDisabled}
             onClose={() => closeStockDetail()}
             onAction={handleStockDetailAction}
+          />
+
+          <Modal
+            title="新增觀察"
+            open={!isMobileViewport && isWatchlistFormOpen}
+            onCancel={() => {
+              if (!loadingAddWatch) setIsWatchlistFormOpen(false);
+            }}
+            confirmLoading={loadingAddWatch}
+            okButtonProps={{
+              disabled: isWriteDisabled,
+              htmlType: "submit",
+              form: WATCHLIST_FORM_ID,
+            }}
+            okText="加入"
+            destroyOnHidden
+          >
+            {!isMobileViewport && (
+              <WatchlistForm formId={WATCHLIST_FORM_ID} disabled={isWriteDisabled} onSubmit={handleAddWatch} />
+            )}
+          </Modal>
+
+          <MobileFormSheetLayout
+            title="新增觀察"
+            open={isMobileViewport && isWatchlistFormOpen}
+            onClose={() => setIsWatchlistFormOpen(false)}
+            loading={loadingAddWatch}
+            submitDisabled={isWriteDisabled}
+            submitText="加入"
+            submitFormId={WATCHLIST_FORM_ID}
+          >
+            {isMobileViewport && (
+              <WatchlistForm formId={WATCHLIST_FORM_ID} disabled={isWriteDisabled} onSubmit={handleAddWatch} />
+            )}
+          </MobileFormSheetLayout>
+
+          <WatchlistDetailSheet
+            key={watchlist.selectedItem ? watchlist.selectedItem.id : "none"}
+            open={Boolean(watchlist.selectedItem)}
+            item={watchlist.selectedItem}
+            isMobile={isMobileViewport}
+            disabled={isWriteDisabled}
+            onClose={watchlist.closeItem}
+            onRemove={() => handleRemoveWatch(watchlist.selectedItem)}
           />
 
           <MobileFormSheetLayout

@@ -6,6 +6,10 @@ describe("getMainTabDirection", () => {
     expect(getMainTabDirection("asset", "expense")).toBe("forward");
     expect(getMainTabDirection("asset", "settings")).toBe("forward");
     expect(getMainTabDirection("settings", "expense")).toBe("back");
+    expect(getMainTabDirection("expense", "research")).toBe("forward");
+    expect(getMainTabDirection("research", "settings")).toBe("forward");
+    expect(getMainTabDirection("settings", "research")).toBe("back");
+    expect(getMainTabDirection("research", "asset")).toBe("back");
   });
 
   it("returns null for the same tab or an unknown tab", () => {

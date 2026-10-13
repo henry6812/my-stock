@@ -1217,6 +1217,13 @@ button.expense-card-chip {
   margin-bottom: 0;
 }
 
+/* 研究: sections stack a token-sized gap apart, as on 支出. */
+.research-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section);
+}
+
 .mobile-list-header {
   display: flex;
   align-items: center;

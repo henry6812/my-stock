@@ -1,6 +1,6 @@
 // Main tabs in their on-screen order; moving to a later tab slides content in
 // from the right, moving to an earlier one slides it in from the left.
-export const MAIN_TAB_ORDER = ["asset", "expense", "settings"];
+export const MAIN_TAB_ORDER = ["asset", "expense", "research", "settings"];
 
 export const getMainTabDirection = (fromTab, toTab) => {
   const fromIndex = MAIN_TAB_ORDER.indexOf(fromTab);
