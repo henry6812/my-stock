@@ -54,7 +54,7 @@ Query API 模仿 Dexie (`db.holdings.where('...').equals(...).toArray()`、compo
 - 沒有真正的 transactions；`db.transaction(...)` 只是直接呼叫 callback。
 - `outbox` table 故意不 persistent (`InMemoryTable`，而非 `PersistedInMemoryTable`)，因為 pending writes 會在 reload 時重新推導。
 
-修改 schema 時，要同時更新 `database.js` 中對應的 `TABLE_STORAGE_KEYS` entry 與 `src/services/firebase/firestoreMappers.js` 中對應的 mapper — 本地 rows 與雲端 docs 共用相同 field shape。
+修改 schema 時，要同時更新 `database.js` 中對應的 `TABLE_STORAGE_KEYS` entry 與 `src/services/firebase/firestoreMappers.js` 中對應的 mapper — 本地 rows 與雲端 docs 共用相同 field shape。`watchlist`（觀察清單）以 `${market}_${symbol}` 為雲端 doc key，現價存在項目本身，不寫 `price_snapshots`。
 
 ### Sync model (local-first)
 
@@ -74,7 +74,7 @@ Query API 模仿 Dexie (`db.holdings.where('...').equals(...).toArray()`、compo
 1. **US stocks**：只用 Finnhub (`/quote`)。
 2. **TW stocks**：**不打 Finnhub**。直接走 `twseRwdProvider` → `twseProvider` (full snapshot) → `tpexProvider`（自己內部又會嘗試 `public/data/tpex_daily_close_quotes.json` same-origin snapshot、TPEX 官方 API，最後是 `VITE_TPEX_PROXY_URL`）。三者全失敗才拋出彙整後的錯誤。
 
-批次刷新（`portfolioService.refreshPrices`）時台股先打一次 `twseDailyProvider`（TWSE `rwd/.../MI_INDEX?type=ALLBUT0999`，當天收盤後即更新；**不要**換成 openapi 的 `STOCK_DAY_ALL`，它隔天清晨才更新），命中的直接用；沒命中的才逐檔走上面的 chain（不在 TWSE 名單的代碼帶 `tpexFirst` 先查 TPEX），逐檔打 TWSE 前仍需 `sleepForRateLimit(1_200)`。美股與台股兩條線並行，美股用 `mapWithConcurrency` 限制 4 個同時請求。
+批次刷新（`portfolioService.refreshPrices`）時台股先打一次 `twseDailyProvider`（TWSE `rwd/.../MI_INDEX?type=ALLBUT0999`，當天收盤後即更新；**不要**換成 openapi 的 `STOCK_DAY_ALL`，它隔天清晨才更新），命中的直接用；沒命中的才逐檔走上面的 chain（不在 TWSE 名單的代碼帶 `tpexFirst` 先查 TPEX），逐檔打 TWSE 前仍需 `sleepForRateLimit(1_200)`。美股與台股兩條線並行，美股用 `mapWithConcurrency` 限制 4 個同時請求。抓價邏輯在 `src/services/quoteBatch.js` 的 `fetchQuotes`（依 `market:symbol` 去重）；`refreshPrices` 會一併刷新同市場的觀察清單，`refreshWatchlistPrices` 只刷觀察清單。
 
 > 過去文件（含舊版 README / 技術導覽）宣稱台股「先打 Finnhub 再 fallback」，這是錯的 — code 從未對 TW market 呼叫 Finnhub。詳見 `docs/code-review-notes.md`。
 
@@ -100,7 +100,7 @@ FX (`fxProvider.js`) 打 open.er-api 取得 USD/TWD；不需要 API key。
 
 ### UI
 
-`src/App.jsx` 刻意維持為 monolithic（約 6.4k 行）— 包含 tabs (holdings、expenses、budgets、charts)、drawers、modals，以及大部分內嵌的 reducers。部分元件已抽出到 `src/components/`（表單、mobile sheet、圖表，以及支出頁摘要卡 `ExpenseSummaryCard` 與其 `SavingsTower` / `SavingsGrowthTower` / `ExpenseMonthBars`、資產頁 `NetWorthJar` 等）；塔與長條的純計算在 `src/utils/savingsTower.js`、`savingsGrowthTower.js`、`monthlySummaries.js`。新增 top-level state 之前，先在 `App.jsx` 中搜尋是否有可以延伸的既有 `useState`，而不是再開一個新 context。
+`src/App.jsx` 刻意維持為 monolithic（約 6.4k 行）— 包含 tabs (holdings、expenses、research、settings)、drawers、modals，以及大部分內嵌的 reducers。部分元件已抽出到 `src/components/`（表單、mobile sheet、圖表，以及支出頁摘要卡 `ExpenseSummaryCard` 與其 `SavingsTower` / `SavingsGrowthTower` / `ExpenseMonthBars`、資產頁 `NetWorthJar` 等）；塔與長條的純計算在 `src/utils/savingsTower.js`、`savingsGrowthTower.js`、`monthlySummaries.js`。研究 tab 的觀察清單在 `src/components/research/`（`WatchlistSection`、`WatchlistForm`）與 `src/hooks/useWatchlist.js`；`WatchlistDetailSheet` 由 `src/components/stockDetail/StockSheetShell` + `src/components/stockDetail/StockResearchContent` 組成，與持股的 `StockDetailSheet` 共用研究內容。新增 top-level state 之前，先在 `App.jsx` 中搜尋是否有可以延伸的既有 `useState`，而不是再開一個新 context。
 
 Stack：React 19、Ant Design 6、`iconoir-react`（UI 圖示，規範見 `DESIGN.md` 的 Icons）、Recharts 3、`@dnd-kit` (用於可拖曳重排的 holdings)、`animejs` (數字 tweening)、`dayjs`（含 `utc` + `timezone` plugins）。
 
