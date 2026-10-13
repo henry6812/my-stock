@@ -4261,6 +4261,19 @@ button.valuation-factor {
   color: var(--c-down);
 }
 
+/* 觀察 sheet: the last quote in place of a holding's position. */
+.watchlist-quote-price {
+  font-size: var(--fs-title);
+  font-weight: 700;
+  color: var(--c-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.watchlist-quote-time {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+}
+
 .stock-detail-chart {
   width: 100%;
   min-width: 0;
