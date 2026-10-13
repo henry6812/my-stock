@@ -848,6 +848,7 @@ export const exportBackupData = async () => {
     budgets,
     expenseTemplates,
     savingsGoals,
+    watchlist,
     appConfig,
   ] = await Promise.all([
     readActive(db.holdings),
@@ -857,6 +858,7 @@ export const exportBackupData = async () => {
     readActive(db.budgets),
     readActive(db.expense_templates),
     readActive(db.savings_goals),
+    readActive(db.watchlist),
     db.app_config.toArray(),
   ]);
   return {
@@ -870,6 +872,7 @@ export const exportBackupData = async () => {
     budgets,
     expenseTemplates,
     savingsGoals,
+    watchlist,
     appConfig,
   };
 };
@@ -1555,6 +1558,13 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
     if (summary.updatedCount === 0) {
       throw allQuotesFailedError(summary.failed);
     }
+    // A symbol both held and watched counts as a holding: the asset tab only
+    // reports holding failures, the 研究 tab has its own refresh.
+    const heldKeys = new Set(targetHoldings.map(quoteTargetKey));
+    const failed = summary.failed.map((item) => ({
+      ...item,
+      source: heldKeys.has(quoteTargetKey(item)) ? "holding" : "watchlist",
+    }));
 
     for (const holding of targetHoldings) {
       const { quote } = quotes.get(quoteTargetKey(holding));
@@ -1597,24 +1607,33 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
       await pruneEarlierSnapshotsSameDay(snapshot);
     }
 
-    await applyWatchlistQuotes(targetWatchlist, quotes, nowIso);
+    // Fresh stamp, taken after the quotes arrived: a removal made on another
+    // device while they were in flight must not lose to an older write.
+    await applyWatchlistQuotes(targetWatchlist, quotes, getNowIso());
 
-    await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, {
-      key: SYNC_KEY_PRICES,
-      lastUpdatedAt: nowIso,
-      status: "success",
-      errorMessage: "",
-      updatedAt: nowIso,
-      deletedAt: null,
-      syncState: SYNC_PENDING,
-    });
+    // The asset tab's "last updated" only moves when a holding got a price
+    // (or there were no holdings to price); watched stocks alone don't count.
+    let lastUpdatedAt = nowIso;
+    if (snapshots.length > 0 || targetHoldings.length === 0) {
+      await mirrorToCloud(CLOUD_COLLECTION.SYNC_META, {
+        key: SYNC_KEY_PRICES,
+        lastUpdatedAt: nowIso,
+        status: "success",
+        errorMessage: "",
+        updatedAt: nowIso,
+        deletedAt: null,
+        syncState: SYNC_PENDING,
+      });
+    } else {
+      lastUpdatedAt = (await db.sync_meta.get(SYNC_KEY_PRICES))?.lastUpdatedAt ?? null;
+    }
 
     return {
       updatedCount: summary.updatedCount,
       targetCount: summary.targetCount,
-      failed: summary.failed,
+      failed,
       market,
-      lastUpdatedAt: nowIso,
+      lastUpdatedAt,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

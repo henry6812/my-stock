@@ -3,6 +3,9 @@ import {
   formatSignedPrice,
   formatSignedTwd,
   formatChangePercent,
+  formatArrowPercent,
+  getDeltaClassName,
+  holdingFailedSymbols,
   floorToTenThousand,
   formatNetWorthScaleLabel,
   getHolderTagStyle,
@@ -27,6 +30,44 @@ describe('formatChangePercent', () => {
   it('returns -- for non-numbers', () => {
     expect(formatChangePercent(undefined)).toBe('--')
     expect(formatChangePercent(Number.NaN)).toBe('--')
+  })
+})
+
+describe('formatArrowPercent', () => {
+  it('gives the direction with an arrow instead of a sign', () => {
+    expect(formatArrowPercent(1)).toBe('▲ 1.00%')
+    expect(formatArrowPercent(-4)).toBe('▼ 4.00%')
+  })
+  it('has no arrow when flat', () => {
+    expect(formatArrowPercent(0)).toBe('0.00%')
+  })
+  it('returns -- for non-numbers', () => {
+    expect(formatArrowPercent(null)).toBe('--')
+    expect(formatArrowPercent(Number.NaN)).toBe('--')
+  })
+})
+
+describe('getDeltaClassName', () => {
+  it('colours up and down, and leaves flat or missing values neutral', () => {
+    expect(getDeltaClassName(1)).toBe('cell-delta cell-delta--up')
+    expect(getDeltaClassName(-1)).toBe('cell-delta cell-delta--down')
+    expect(getDeltaClassName(0)).toBe('cell-delta cell-delta--flat')
+    expect(getDeltaClassName(undefined)).toBe('cell-delta cell-delta--flat')
+  })
+})
+
+describe('holdingFailedSymbols', () => {
+  it('lists only the holdings whose quote failed', () => {
+    const result = {
+      failed: [
+        { symbol: '2330', market: 'TW', reason: 'x', source: 'holding' },
+        { symbol: 'NOPE', market: 'US', reason: 'x', source: 'watchlist' },
+      ],
+    }
+    expect(holdingFailedSymbols(result)).toEqual(['2330'])
+  })
+  it('handles a result without failures', () => {
+    expect(holdingFailedSymbols({})).toEqual([])
   })
 })
 

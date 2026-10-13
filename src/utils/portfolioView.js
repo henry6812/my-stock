@@ -105,6 +105,32 @@ export const formatChangePercent = (value) => {
   return `${sign}${value.toFixed(2)}%`;
 };
 
+// List rows (DESIGN.md Lists): the arrow gives the direction, so no sign;
+// flat has no arrow. `value` is already in percent (1.5 → 1.50%).
+export const formatArrowPercent = (value) => {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "--";
+  }
+  if (value === 0) {
+    return "0.00%";
+  }
+  return `${value > 0 ? "▲" : "▼"} ${Math.abs(value).toFixed(2)}%`;
+};
+
+export const getDeltaClassName = (value) => {
+  if (typeof value !== "number" || Number.isNaN(value) || value === 0) {
+    return "cell-delta cell-delta--flat";
+  }
+  return value > 0 ? "cell-delta cell-delta--up" : "cell-delta cell-delta--down";
+};
+
+// refreshPrices reports watched-only failures too; the asset tab only
+// tells about its own holdings.
+export const holdingFailedSymbols = (result) =>
+  (result?.failed ?? [])
+    .filter((item) => item.source === "holding")
+    .map((item) => item.symbol);
+
 export const floorToTenThousand = (value) => {
   const parsed = parseNumericLike(value, {
     fallback: Number.NaN,

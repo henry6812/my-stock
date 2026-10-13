@@ -129,7 +129,9 @@ describe('refreshPrices', () => {
     const result = await refreshPrices({ market: 'US' })
     expect(result.updatedCount).toBe(1)
     expect(result.targetCount).toBe(2)
-    expect(result.failed).toEqual([{ symbol: 'NOPE', market: 'US', reason: 'No quote found' }])
+    expect(result.failed).toEqual([
+      { symbol: 'NOPE', market: 'US', reason: 'No quote found', source: 'holding' },
+    ])
   })
 
   it('throws when every quote fails', async () => {
@@ -202,8 +204,71 @@ describe('refreshPrices with the watchlist', () => {
       return usQuote(100)
     })
     const result = await refreshPrices({ market: 'US' })
-    expect(result.failed).toEqual([{ symbol: 'NOPE', market: 'US', reason: 'No quote found' }])
+    expect(result.failed).toEqual([
+      { symbol: 'NOPE', market: 'US', reason: 'No quote found', source: 'watchlist' },
+    ])
     expect(result).toMatchObject({ updatedCount: 1, targetCount: 2 })
+  })
+
+  it('counts a failed symbol both held and watched as a holding failure', async () => {
+    await addHolding('US', 'NVDA')
+    await addHolding('US', 'NOPE')
+    await addWatched('US', 'NOPE')
+    vi.mocked(getHoldingQuote).mockImplementation(async ({ symbol }) => {
+      if (symbol === 'NOPE') throw new Error('No quote found')
+      return usQuote(100)
+    })
+    const result = await refreshPrices({ market: 'US' })
+    expect(result.failed).toEqual([
+      { symbol: 'NOPE', market: 'US', reason: 'No quote found', source: 'holding' },
+    ])
+  })
+
+  it('does not record a price update when only watched stocks got a quote', async () => {
+    await db.sync_meta.put({
+      key: 'prices',
+      lastUpdatedAt: '2026-10-12T06:00:00.000Z',
+      status: 'success',
+      errorMessage: '',
+      updatedAt: '2026-10-12T06:00:00.000Z',
+      deletedAt: null,
+    })
+    await addHolding('US', 'NOPE')
+    const watchId = await addWatched('US', 'NVDA')
+    vi.mocked(getHoldingQuote).mockImplementation(async ({ symbol }) => {
+      if (symbol === 'NOPE') throw new Error('No quote found')
+      return usQuote(100)
+    })
+    const result = await refreshPrices({ market: 'US' })
+    expect((await db.watchlist.get(watchId)).latestPrice).toBe(100)
+    expect(await db.price_snapshots.toArray()).toEqual([])
+    expect((await db.sync_meta.get('prices')).lastUpdatedAt).toBe('2026-10-12T06:00:00.000Z')
+    expect(result.lastUpdatedAt).toBe('2026-10-12T06:00:00.000Z')
+    expect(result.failed).toEqual([
+      { symbol: 'NOPE', market: 'US', reason: 'No quote found', source: 'holding' },
+    ])
+  })
+
+  it('records a price update when there are only watched stocks', async () => {
+    await addWatched('US', 'NVDA')
+    vi.mocked(getHoldingQuote).mockResolvedValue(usQuote(100))
+    const result = await refreshPrices({ market: 'US' })
+    const meta = await db.sync_meta.get('prices')
+    expect(meta).toMatchObject({ status: 'success', lastUpdatedAt: result.lastUpdatedAt })
+  })
+
+  it('stamps the watchlist write after the quotes arrive', async () => {
+    const holdingId = await addHolding('US', 'NVDA')
+    const watchId = await addWatched('US', 'AMD')
+    vi.mocked(getHoldingQuote).mockImplementation(async () => {
+      tick()
+      return usQuote(100)
+    })
+    await refreshPrices({ market: 'US' })
+    const snapshot = await latestPriceOf(holdingId)
+    const watched = await db.watchlist.get(watchId)
+    expect(watched.updatedAt).toBe(new Date(clock).toISOString())
+    expect(Date.parse(watched.updatedAt)).toBeGreaterThan(Date.parse(snapshot.capturedAt))
   })
 
   it('does not fetch the FX rate for watched US stocks alone', async () => {

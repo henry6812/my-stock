@@ -21,7 +21,9 @@ function WatchlistDetailSheet({ open, item, isMobile, disabled, onClose, onRemov
     <StockSheetShell open={open} isMobile={isMobile} name={item.name} symbol={item.symbol} onClose={onClose}>
       <section className="stock-detail-position watchlist-quote" aria-label="報價">
         <span className="stock-detail-position-label">現價</span>
-        <span className="watchlist-quote-price">{formatPrice(item.latestPrice ?? NaN, item.currency)}</span>
+        <span className="watchlist-quote-price">
+          {item.latestPrice === null ? "—" : formatPrice(item.latestPrice, item.currency)}
+        </span>
         {Number.isFinite(item.change) && (
           <span className={changeClass(item.change)}>
             {`${formatSignedPrice(item.change, item.currency)}（${formatSignedPercent(item.changePct)}）`}

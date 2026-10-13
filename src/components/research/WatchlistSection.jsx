@@ -6,14 +6,11 @@ import EmptyState from "../EmptyState";
 import MobileSwipeRow from "../MobileSwipeRow";
 import { swipeDeleteAction } from "../swipeActionItems";
 import { formatPrice } from "../../utils/formatters";
-import { formatSignedPercent } from "../../utils/stockDetail";
+import { formatArrowPercent, getDeltaClassName } from "../../utils/portfolioView";
 
 const { Text } = Typography;
 
 const MARKET_TITLES = { TW: "台股", US: "美股" };
-
-const changeClass = (value) =>
-  value >= 0 ? "stock-detail-change--up" : "stock-detail-change--down";
 
 // 研究 tab's first section: watched stocks by market, newest added last.
 // A row opens the stock's sheet; mobile swipes to delete, desktop has a
@@ -61,8 +58,8 @@ function WatchlistSection({
               {row.latestPrice === null ? "—" : formatPrice(row.latestPrice, row.currency)}
             </div>
             {Number.isFinite(row.changePct) && (
-              <div className={`watchlist-row-change ${changeClass(row.changePct)}`}>
-                {formatSignedPercent(row.changePct)}
+              <div className={`watchlist-row-change ${getDeltaClassName(row.changePct)}`}>
+                {formatArrowPercent(row.changePct * 100)}
               </div>
             )}
           </div>

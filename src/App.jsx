@@ -249,6 +249,8 @@ import {
   formatSignedPrice,
   formatSignedTwd,
   formatChangePercent,
+  getDeltaClassName,
+  holdingFailedSymbols,
   formatBudgetModeLabel,
   formatBudgetCycleLabel,
   createCashCsvContent,
@@ -2277,15 +2279,6 @@ function App() {
     (row) => row.key === activeAssetChartKey,
   );
 
-  const getDeltaClassName = useCallback((value) => {
-    if (typeof value !== "number" || Number.isNaN(value) || value === 0) {
-      return "cell-delta cell-delta--flat";
-    }
-    return value > 0
-      ? "cell-delta cell-delta--up"
-      : "cell-delta cell-delta--down";
-  }, []);
-
   const renderPriceDelta = useCallback(
     (record) => {
       if (!record.hasPreviousSnapshot) {
@@ -2309,7 +2302,7 @@ function App() {
         </div>
       );
     },
-    [getDeltaClassName],
+    [],
   );
 
   const renderValueDelta = useCallback(
@@ -2335,7 +2328,7 @@ function App() {
         </div>
       );
     },
-    [getDeltaClassName],
+    [],
   );
 
   const tableColumns = useMemo(() => {
@@ -2561,7 +2554,6 @@ function App() {
       },
     ];
   }, [
-    getDeltaClassName,
     getHolderTagStyle,
     holdingTagOptions,
     isMobileViewport,
@@ -3615,7 +3607,7 @@ function App() {
         shouldAnimateNumbersRef.current = true;
         await loadAllData();
         await performCloudSync();
-        const failedSymbols = (result.failed ?? []).map((item) => item.symbol);
+        const failedSymbols = holdingFailedSymbols(result);
         if (failedSymbols.length > 0) {
           setAutoRefreshIssue(`${failedSymbols.join("、")} 自動抓價失敗`);
         }
@@ -3966,7 +3958,7 @@ function App() {
       }
 
       const updatedLabel = `${result.updatedCount}/${result.targetCount} 檔`;
-      const failedSymbols = (result.failed ?? []).map((item) => item.symbol);
+      const failedSymbols = holdingFailedSymbols(result);
       if (failedSymbols.length > 0) {
         message.warning(
           `已更新 ${updatedLabel}，以下抓價失敗：${failedSymbols.join("、")}。可稍後再試。`,

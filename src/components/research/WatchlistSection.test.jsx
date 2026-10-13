@@ -45,8 +45,18 @@ describe('WatchlistSection', () => {
     expect(screen.getByText('台股')).toBeInTheDocument()
     expect(screen.getByText('美股')).toBeInTheDocument()
     expect(screen.getByText('台積電')).toBeInTheDocument()
-    expect(screen.getByText('+1.0%')).toBeInTheDocument()
-    expect(screen.getByText('−4.0%')).toBeInTheDocument()
+  })
+
+  it('shows today\'s change with an arrow and no sign', () => {
+    renderSection()
+    expect(screen.getByText('▲ 1.00%')).toHaveClass('cell-delta--up')
+    expect(screen.getByText('▼ 4.00%')).toHaveClass('cell-delta--down')
+    expect(screen.queryByText(/[+−-]\d/)).not.toBeInTheDocument()
+  })
+
+  it('shows a flat change without an arrow in the neutral style', () => {
+    renderSection({ view: buildWatchlistView([item({ latestPrice: 1000 })]) })
+    expect(screen.getByText('0.00%')).toHaveClass('cell-delta--flat')
   })
 
   it('opens a stock when its row is tapped', () => {

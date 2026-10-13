@@ -50,6 +50,8 @@ describe('WatchlistDetailSheet', () => {
   it('says when there is no quote yet', () => {
     renderSheet({ item: { ...item, latestPrice: null, change: null, changePct: null, priceUpdatedAt: null } })
     expect(screen.getByText('尚未取得報價')).toBeInTheDocument()
+    expect(screen.getByText('—')).toHaveClass('watchlist-quote-price')
+    expect(screen.queryByText('--')).not.toBeInTheDocument()
   })
 
   it('asks to remove from the watchlist', () => {

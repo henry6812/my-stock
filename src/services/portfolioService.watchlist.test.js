@@ -20,7 +20,7 @@ vi.mock('./priceProviders/twseDailyProvider', () => ({
 import { db } from '../db/database'
 import { assertCloudWriteReady } from './firebase/cloudSyncService'
 import { getHoldingQuote } from './priceProviders/finnhubProvider'
-import { addWatchlistItem, getWatchlistView, refreshWatchlistPrices, removeWatchlistItem } from './portfolioService'
+import { addWatchlistItem, exportBackupData, getWatchlistView, refreshWatchlistPrices, removeWatchlistItem } from './portfolioService'
 
 let clock = Date.parse('2026-10-13T06:00:00.000Z')
 const tick = () => {
@@ -113,6 +113,18 @@ describe('removeWatchlistItem', () => {
 
   it('rejects an unknown id', async () => {
     await expect(removeWatchlistItem({ id: 999 })).rejects.toThrow('找不到這支觀察股票')
+  })
+})
+
+describe('exportBackupData', () => {
+  it('includes the watched stocks, without removed ones', async () => {
+    const { id } = await addWatchlistItem({ market: 'TW', symbol: '2330' })
+    tick()
+    await addWatchlistItem({ market: 'US', symbol: 'NVDA' })
+    tick()
+    await removeWatchlistItem({ id })
+    const backup = await exportBackupData()
+    expect(backup.watchlist.map((row) => row.remoteKey)).toEqual(['US_NVDA'])
   })
 })
 
