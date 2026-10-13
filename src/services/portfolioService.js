@@ -9,11 +9,8 @@ import {
   SYNC_KEY_PRICES,
 } from "../db/database";
 import { getUsdTwdRate } from "./priceProviders/fxProvider";
-import { getTwseDailyQuotes } from "./priceProviders/twseDailyProvider";
-import {
-  getHoldingQuote,
-  sleepForRateLimit,
-} from "./priceProviders/finnhubProvider";
+import { getHoldingQuote } from "./priceProviders/finnhubProvider";
+import { fetchQuotes, quoteTargetKey } from "./quoteBatch";
 import {
   applyCollectionRecordLocally,
   assertCloudWriteReady,
@@ -40,7 +37,6 @@ import {
   rankCategoriesByUsage,
 } from "../utils/expenseSuggestions";
 import { MODEL_FIELDS, parseQuarterKey, quarterIndexOf } from "../utils/incomeModel";
-import { mapWithConcurrency } from "../utils/concurrency";
 import {
   buildTemplateRows,
   getNextTemplateSortOrder,
@@ -100,9 +96,6 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const isDeleted = (item) => Boolean(item?.deletedAt);
-
-// Finnhub free tier: 60 calls/min, 30/sec — a few in flight is safe.
-const US_QUOTE_CONCURRENCY = 4;
 
 const getNowIso = () => new Date().toISOString();
 const getNowDate = () => dayjs().format("YYYY-MM-DD");
@@ -1029,12 +1022,6 @@ export const saveValuationSettings = async ({ market, symbol, patch, snapshot = 
   return next;
 };
 
-const settleQuote = (promise) =>
-  promise.then(
-    (quote) => ({ quote }),
-    (error) => ({ error }),
-  );
-
 const parsePositiveShares = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -1478,57 +1465,19 @@ export const refreshPrices = async ({ market: inputMarket = "ALL" } = {}) => {
     const nowIso = getNowIso();
     const snapshots = [];
 
-    // TW and US quotes hit different hosts, so fetch both lanes at once.
-    // TW: one MI_INDEX request covers every TWSE-listed symbol; only misses
-    // (TPEX symbols, no trade today, or MI_INDEX down) go per-symbol, paced
-    // because TWSE rate-limits per IP. US: Finnhub allows short bursts →
-    // small parallel batches.
-    const twHoldings = targetHoldings.filter(
-      (item) => item.market !== MARKET.US,
+    const quotes = await fetchQuotes(
+      targetHoldings.map((holding) => ({
+        market: holding.market,
+        symbol: holding.symbol,
+        companyName: holding.companyName,
+      })),
     );
-    const fetchTwQuotes = async () => {
-      let daily = null;
-      if (twHoldings.length > 0) {
-        try {
-          daily = await getTwseDailyQuotes();
-        } catch (error) {
-          console.warn("[refreshPrices] MI_INDEX batch failed, falling back per symbol", error);
-        }
-      }
-
-      const quotes = [];
-      for (const holding of twHoldings) {
-        const hit = daily?.quotes[holding.symbol];
-        if (hit) {
-          quotes.push({ quote: hit });
-          continue;
-        }
-        // Not TWSE-listed at all → it's a TPEX symbol; the same-origin TPEX
-        // snapshot needs no pacing. Anything else hits TWSE again.
-        const tpexFirst = Boolean(daily) && !daily.listedSymbols.has(holding.symbol);
-        if (!tpexFirst) {
-          await sleepForRateLimit(1_200);
-        }
-        quotes.push(await settleQuote(getHoldingQuote(holding, { tpexFirst })));
-      }
-      return quotes;
-    };
-    const [twQuotes, usQuotes] = await Promise.all([
-      fetchTwQuotes(),
-      mapWithConcurrency(usHoldings, US_QUOTE_CONCURRENCY, (holding) =>
-        settleQuote(getHoldingQuote(holding)),
-      ),
-    ]);
-    const quoteByHoldingId = new Map([
-      ...twHoldings.map((holding, i) => [holding.id, twQuotes[i]]),
-      ...usHoldings.map((holding, i) => [holding.id, usQuotes[i]]),
-    ]);
 
     // One bad symbol shouldn't discard every other quote: save what we got
     // and report the misses. Only when nothing succeeds is it a hard error.
     const failed = [];
     for (const holding of targetHoldings) {
-      const { quote, error } = quoteByHoldingId.get(holding.id);
+      const { quote, error } = quotes.get(quoteTargetKey(holding));
       if (!quote) {
         console.warn(`[refreshPrices] ${holding.market}:${holding.symbol} failed`, error);
         failed.push({
