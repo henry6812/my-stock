@@ -12,6 +12,13 @@ import { getUsdTwdRate } from "./priceProviders/fxProvider";
 import { getHoldingQuote } from "./priceProviders/finnhubProvider";
 import { fetchQuotes, quoteTargetKey } from "./quoteBatch";
 import {
+  WATCHLIST_DUPLICATE_MESSAGE,
+  WATCHLIST_NOT_FOUND_MESSAGE,
+  buildWatchlistRemoteKey,
+  buildWatchlistView,
+  watchlistQuoteFields,
+} from "../utils/watchlist";
+import {
   applyCollectionRecordLocally,
   assertCloudWriteReady,
   deleteCollectionDoc,
@@ -3315,6 +3322,68 @@ export const removeSavingsGoal = async ({ id }) => {
     syncState: SYNC_PENDING,
   });
 };
+
+// A stock to research without holding it. Adding fetches one quote, which
+// checks the symbol exists and gives its name; a removed one comes back
+// on the same cloud doc (its key is market + symbol).
+export const addWatchlistItem = async ({ market, symbol }) => {
+  ensureCloudWritable();
+  const normalizedMarket = market === MARKET.US ? MARKET.US : MARKET.TW;
+  const normalizedSymbol = normalizeSymbol(symbol, normalizedMarket);
+  if (!normalizedSymbol) {
+    throw new Error("請輸入代號");
+  }
+  const remoteKey = buildWatchlistRemoteKey({
+    market: normalizedMarket,
+    symbol: normalizedSymbol,
+  });
+  const existing = await db.watchlist.where("remoteKey").equals(remoteKey).first();
+  if (existing && !isDeleted(existing)) {
+    throw new Error(WATCHLIST_DUPLICATE_MESSAGE);
+  }
+
+  let quote;
+  try {
+    quote = await getHoldingQuote({ market: normalizedMarket, symbol: normalizedSymbol });
+  } catch (error) {
+    console.warn(`[addWatchlistItem] ${remoteKey} quote failed`, error);
+    throw new Error(WATCHLIST_NOT_FOUND_MESSAGE);
+  }
+
+  const nowIso = getNowIso();
+  await mirrorToCloud(CLOUD_COLLECTION.WATCHLIST, {
+    ...(existing ?? {}),
+    remoteKey,
+    market: normalizedMarket,
+    symbol: normalizedSymbol,
+    name: quote.name || normalizedSymbol,
+    ...watchlistQuoteFields(quote, nowIso),
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  });
+  const saved = await db.watchlist.where("remoteKey").equals(remoteKey).first();
+  return { id: requireLocalId(saved, "觀察股票") };
+};
+
+export const removeWatchlistItem = async ({ id }) => {
+  ensureCloudWritable();
+  const existing = await db.watchlist.get(id);
+  if (!existing || isDeleted(existing)) {
+    throw new Error("找不到這支觀察股票");
+  }
+  const nowIso = getNowIso();
+  await mirrorToCloud(CLOUD_COLLECTION.WATCHLIST, {
+    ...existing,
+    deletedAt: nowIso,
+    updatedAt: nowIso,
+    syncState: SYNC_PENDING,
+  });
+};
+
+export const getWatchlistView = async () =>
+  buildWatchlistView(await db.watchlist.toArray());
 
 export const upsertBudget = async ({
   id,
