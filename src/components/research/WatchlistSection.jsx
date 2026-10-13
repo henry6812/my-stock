@@ -73,6 +73,7 @@ function WatchlistSection({
               icon={<Trash />}
               aria-label={`刪除 ${row.name}`}
               disabled={disabled}
+              onKeyDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
                 onRemove(row);

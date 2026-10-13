@@ -81,4 +81,11 @@ describe('WatchlistSection', () => {
     expect(onRemove).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }))
     expect(onOpen).not.toHaveBeenCalled()
   })
+
+  it('keeps keyboard activation of the desktop delete button from opening the row', () => {
+    const onOpen = vi.fn()
+    renderSection({ isMobile: false, onOpen })
+    fireEvent.keyDown(screen.getByRole('button', { name: '刪除 台積電' }), { key: 'Enter' })
+    expect(onOpen).not.toHaveBeenCalled()
+  })
 })
