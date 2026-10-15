@@ -39,6 +39,7 @@ import {
   EMPTY_VALUATION_SETTINGS,
   VALUATION_SETTING_FIELDS,
 } from "../utils/valuation";
+import { normalizeScreenSettings } from "../utils/stockScreen";
 import {
   buildExpenseNameSuggestions,
   rankCategoriesByUsage,
@@ -1080,6 +1081,36 @@ export const saveValuationSettings = async ({ market, symbol, patch, snapshot = 
     syncState: SYNC_PENDING,
   });
   return next;
+};
+
+// 低估候選 thresholds and industry choice, synced like other settings.
+const SCREEN_SETTINGS_KEY = "stock_screen:settings";
+
+export const getScreenSettings = async () => {
+  const config = await db.app_config.get(SCREEN_SETTINGS_KEY);
+  return normalizeScreenSettings(config && !config.deletedAt ? config.screen : null);
+};
+
+export const saveScreenSettings = async (settings) => {
+  ensureCloudWritable();
+  const next = normalizeScreenSettings(settings);
+  await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, {
+    key: SCREEN_SETTINGS_KEY,
+    screen: next,
+    updatedAt: getNowIso(),
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  });
+  return next;
+};
+
+// Symbols with a saved valuation override; the screener recomputes these.
+export const listValuationOverrideSymbols = async (market) => {
+  const prefix = valuationConfigKey(market, "");
+  const configs = await db.app_config.toArray();
+  return configs
+    .filter((config) => !config.deletedAt && config.key?.startsWith(prefix))
+    .map((config) => config.key.slice(prefix.length));
 };
 
 const parsePositiveShares = (value) => {

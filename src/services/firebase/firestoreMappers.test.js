@@ -265,3 +265,13 @@ describe('watchlist mappers', () => {
     expect(remoteToWatchlistItem({ market: 'TW', symbol: '2330' }).currency).toBe('TWD')
   })
 })
+
+describe('app_config screen settings', () => {
+  it('round-trips the screen map', () => {
+    const screen = { version: 1, industries: ['24'], flags: { nonOperating: { enabled: true, max: 0.3 } } }
+    const remote = appConfigToRemote({ key: 'stock_screen:settings', screen, updatedAt: '2026-10-15T00:00:00.000Z' })
+    expect(remote.screen).toEqual(screen)
+    expect(remoteToAppConfig(remote).screen).toEqual(screen)
+    expect(appConfigToRemote({ key: 'x', updatedAt: 't' })).not.toHaveProperty('screen')
+  })
+})
