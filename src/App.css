@@ -4860,3 +4860,65 @@ button.valuation-factor {
 .income-history-diff--down {
   color: var(--c-down);
 }
+
+/* 研究 › 低估候選 sheets: industries as chips, thresholds as rows. */
+.screen-industries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.screen-settings {
+  display: flex;
+  flex-direction: column;
+}
+
+.screen-settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-row-y) 0;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.screen-settings-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.screen-settings-label {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.screen-settings-description {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+}
+
+.screen-settings-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--fs-body);
+  color: var(--c-ink);
+}
+
+.screen-settings-field .ant-input-affix-wrapper {
+  max-width: 160px;
+  min-height: 44px;
+}
+
+.screen-settings-footer {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.screen-settings-footer .ant-btn {
+  flex: 1;
+  min-height: 44px;
+}
