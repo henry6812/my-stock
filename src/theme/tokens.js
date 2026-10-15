@@ -1,26 +1,27 @@
-// Design tokens ("鈷藍舞台" direction): cobalt-tinted greys with cobalt CTAs,
-// one deep cobalt stage per main tab under the hero, and teal (mint on the
-// stage) kept for the savings visuals only. CSS mirrors these as custom properties
+// Design tokens ("家計簿" direction): neutral cool greys with charcoal CTAs,
+// tabs and tables. Bold colour is spent only where the product shows its
+// character: vivid emerald for the savings visuals, saturated category
+// tiles, holder tags and chart series. CSS mirrors these as custom properties
 // in index.css; JS consumers (antd theme, Recharts, tags) import from here.
 
 export const COLORS = {
-  ink: "#141633",
+  ink: "#1C1F23",
   // Secondary text: ≥4.5:1 on paper, surface, neutral-fill and track.
-  muted: "#5A5F80",
+  muted: "#636970",
   // Tertiary: ≥3:1 on paper / surface, so only for large text (the hero
   // currency sign) and non-text marks. Small text that must be read uses muted.
-  subtle: "#8A8FB0",
+  subtle: "#8B9198",
   // The page colour: the one place to change it. vite.config.js fills it into
   // --c-paper (index.css), the theme-color meta and the PWA manifest.
-  paper: "#F4F5FC",
+  paper: "#fdfdfd",
   surface: "#FFFFFF",
-  line: "#E6E8F4",
-  lineStrong: "#D2D6EC",
-  // Every CTA, selected control, link and focus ring: cobalt (white text
-  // 7:1).
-  action: "#2E44E0",
-  actionHover: "#4358F2",
-  actionActive: "#2133BE",
+  line: "#EBEDF0",
+  lineStrong: "#DADDE2",
+  // Every CTA, selected control, link and focus ring: charcoal, not pure
+  // black (white text 15.8:1).
+  action: "#1F2328",
+  actionHover: "#353B43",
+  actionActive: "#121417",
   // Teal belongs to the savings visuals only: the jar's water, the towers,
   // the month bars and the net-worth trend.
   teal: "#00957A",
@@ -38,24 +39,14 @@ export const COLORS = {
   // Soft fills behind warn / down text: the savings goal status pill and cup.
   warnSoft: "#F6EBD3",
   downSoft: "#FDE0E3",
-  neutralFill: "#EEF0FB",
+  neutralFill: "#F3F4F6",
   // Holder group headings on the asset tab (CSS --c-group-heading).
   groupHeading: "#FFFFFF",
   // Rows of an open holder group (CSS --c-group-rows).
-  groupRows: "#EEF0FB",
+  groupRows: "#DDF0F0",
   // The net-worth jar's body (CSS --c-jar-body).
-  jarBody: "#3445CC",
-  track: "#E6E9F8",
-  // The cobalt hero stage and the colours that sit on it (CSS --c-stage*,
-  // --c-on-stage-*).
-  stage: "#1A28A6",
-  stageRaised: "#2A3BC4",
-  onStage: "#FFFFFF",
-  onStageMuted: "#C3CBFF",
-  onStageSubtle: "#8E9BF0",
-  onStageUp: "#7DF5A8",
-  onStageDown: "#FFA3AE",
-  onStageMint: "#3BF0BE",
+  jarBody: "#E2F4EE",
+  track: "#EDEFF2",
 };
 
 // Category tile tints (CategoryIcon), mirrored as --c-cat-* in index.css and
@@ -134,8 +125,8 @@ export const antdTheme = {
     colorWarning: COLORS.warn,
     // Status surfaces set explicitly: antd's derivation from these darker
     // brand colours produced muddy alert backgrounds.
-    colorInfoBg: "#EEF0FF",
-    colorInfoBorder: "#C9D0FF",
+    colorInfoBg: COLORS.neutralFill,
+    colorInfoBorder: COLORS.line,
     colorSuccessBg: "#E6F7EC",
     colorSuccessBorder: "#C9E0BD",
     colorWarningBg: "#FDF6E7",
@@ -155,8 +146,8 @@ export const antdTheme = {
     fontSize: 14,
     fontFamily:
       "'PingFang TC', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    boxShadow: "0 8px 24px rgba(20, 22, 51, 0.14)",
-    boxShadowSecondary: "0 8px 24px rgba(20, 22, 51, 0.14)",
+    boxShadow: "0 8px 24px rgba(28, 31, 35, 0.14)",
+    boxShadowSecondary: "0 8px 24px rgba(28, 31, 35, 0.14)",
   },
   components: {
     // Flat controls: only floating things (FAB, tab bar, overlays) cast shadows.

@@ -1,20 +1,22 @@
 /* Design tokens — mirror of src/theme/tokens.js for CSS. */
 :root {
-  /* Cobalt-tinted greys carry the interface; cobalt `action` is every CTA
-     and a deep cobalt stage sits under each hero. Teal is reserved for the savings visuals (jar, towers,
+  /* Neutral, slightly cool greys carry the interface; charcoal `action` is
+     every CTA, control and table. Bold colour is spent only where the
+     product shows its character: the savings visuals (vivid emerald), the
+     category tiles and holder tags. Teal is reserved for the savings visuals (jar, towers,
      month bars, net-worth trend). */
-  --c-ink: #141633;
-  --c-muted: #5a5f80;
-  --c-subtle: #8a8fb0;
+  --c-ink: #1c1f23;
+  --c-muted: #636970;
+  --c-subtle: #8b9198;
   /* The page colour. APP_PAPER is filled in at build / dev time from
      COLORS.paper in src/theme/tokens.js (vite.config.js); change it there. */
   --c-paper: APP_PAPER;
   --c-surface: #ffffff;
-  --c-line: #e6e8f4;
-  --c-line-strong: #d2d6ec;
-  --c-action: #2e44e0;
-  --c-action-hover: #4358f2;
-  --c-action-active: #2133be;
+  --c-line: #ebedf0;
+  --c-line-strong: #dadde2;
+  --c-action: #1f2328;
+  --c-action-hover: #353b43;
+  --c-action-active: #121417;
   --c-teal: #00957a;
   --c-teal-hover: #00a887;
   --c-teal-bright: #12c29a;
@@ -27,27 +29,16 @@
   --c-warn-ink: #a36100;
   --c-warn-soft: #f6ebd3;
   --c-down-soft: #fde0e3;
-  --c-neutral-fill: #eef0fb;
-  --c-track: #e6e9f8;
+  --c-neutral-fill: #f3f4f6;
+  --c-track: #edeff2;
   /* Holder group headings on the asset tab (holdings, cash): white like
      the rows; a line under an open heading separates it from its rows. */
   --c-group-heading: #ffffff;
   /* Rows of an open holder group (holdings, cash): a faint tint below the
      white heading. */
-  --c-group-rows: #eef0fb;
+  --c-group-rows: #ededed;
   /* The net-worth jar's body on the asset tab (NetWorthJar). */
-  --c-jar-body: #3445cc;
-  /* The cobalt stage: the one loud region on the asset and expense tabs
-     (the hero). Everything that sits on it remaps its tokens under
-     .hero-stage in App.css. */
-  --c-stage: #1a28a6;
-  --c-stage-raised: #2a3bc4;
-  --c-on-stage: #ffffff;
-  --c-on-stage-muted: #c3cbff;
-  --c-on-stage-subtle: #8e9bf0;
-  --c-on-stage-up: #7df5a8;
-  --c-on-stage-down: #ffa3ae;
-  --c-on-stage-mint: #3bf0be;
+  --c-jar-body: #e2f4ee;
 
   /* Category tile tints: soft pastels, one per family of expense category,
      behind ink icons (≥12:1). Decoration that tells categories apart at a
@@ -67,12 +58,12 @@
   --radius-sheet: 20px;
   --radius-pill: 999px;
 
-  --shadow-float: 0 8px 24px rgba(20, 22, 51, 0.14);
+  --shadow-float: 0 8px 24px rgba(28, 31, 35, 0.14);
   /* The one resting card that lifts off the page: 本月預計. */
-  --shadow-card: 0 4px 20px rgba(20, 22, 51, 0.07);
+  --shadow-card: 0 4px 20px rgba(28, 31, 35, 0.07);
   /* An open holder heading over its rows: falls downward only (negative
      spread), so it never spills past the list's sides. */
-  --shadow-heading: 0 6px 10px -6px rgba(20, 22, 51, 0.14);
+  --shadow-heading: 0 6px 10px -6px rgba(28, 31, 35, 0.14);
 
   /* Spacing: a 4px-based scale, plus the semantic roles every page uses.
      The expense tab is the reference for these roles. */
@@ -154,7 +145,7 @@ textarea {
   caret-color: var(--c-action);
 }
 
-/* Links are cobalt like every other action, so the underline marks them. */
+/* Links are charcoal like everything else, so the underline marks them. */
 a,
 .ant-btn-link {
   text-decoration: underline;

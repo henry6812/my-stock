@@ -1,42 +1,34 @@
 ---
 name: 我的資產
-description: 家庭共用的資產與家計簿 PWA。鈷藍舞台上的存錢罐，飽和而有自信的帳本。
+description: 家庭共用的資產與家計簿 PWA。安靜的帳本，會動的存錢罐。
 colors:
-  action: "#2E44E0"
-  action-hover: "#4358F2"
-  action-active: "#2133BE"
+  action: "#1F2328"
+  action-hover: "#353B43"
+  action-active: "#121417"
   teal: "#00957A"
   teal-hover: "#00A887"
   teal-bright: "#12C29A"
   teal-soft: "#BDEFE0"
   teal-tint: "#74DDBF"
   teal-ink: "#00715C"
-  ink: "#141633"
-  muted: "#5A5F80"
-  subtle: "#8A8FB0"
-  paper: "#F4F5FC"
+  ink: "#1C1F23"
+  muted: "#636970"
+  subtle: "#8B9198"
+  paper: "#F2F3F5"
   surface: "#FFFFFF"
-  line: "#E6E8F4"
-  line-strong: "#D2D6EC"
-  neutral-fill: "#EEF0FB"
-  track: "#E6E9F8"
+  line: "#EBEDF0"
+  line-strong: "#DADDE2"
+  neutral-fill: "#F3F4F6"
+  track: "#EDEFF2"
   group-heading: "#FFFFFF"
-  group-rows: "#EEF0FB"
-  jar-body: "#3445CC"
+  group-rows: "#DDF0F0"
+  jar-body: "#E2F4EE"
   up: "#0B8239"
   down: "#E0142B"
   warn: "#D48806"
   warn-ink: "#A36100"
   warn-soft: "#F6EBD3"
   down-soft: "#FDE0E3"
-  stage: "#1A28A6"
-  stage-raised: "#2A3BC4"
-  on-stage: "#FFFFFF"
-  on-stage-muted: "#C3CBFF"
-  on-stage-subtle: "#8E9BF0"
-  on-stage-up: "#7DF5A8"
-  on-stage-down: "#FFA3AE"
-  on-stage-mint: "#3BF0BE"
   cat-peach: "#FFC9A3"
   cat-butter: "#FFE27A"
   cat-sky: "#A9D4FF"
@@ -165,15 +157,15 @@ components:
 
 ## Overview
 
-**Creative North Star: "鈷藍舞台，薄荷存錢罐"（The Cobalt Stage, the Mint Jar）**
-
-> 2026-10-15 實驗分支 `experiment/bold-color`：從「安靜的帳本」改為強烈大膽的配色。結構、元件、間距不變；顏色改成三層：每頁一塊鈷藍 hero 舞台（`stage`）承載大數字與存錢主角、鈷藍 `action` 作為所有可操作的強調、飽和的分類色讓列表一眼可分。下文中「炭黑」「冷灰」的描述以本段與 Colors 為準。
+**Creative North Star: "安靜的帳本，會動的存錢罐"（The Quiet Ledger, the Living Jar）**
 
 介面的預設狀態是一本安靜的家用帳本：冷灰紙色的底、炭黑的控制項、細線分隔、平面的元件，畫面上唯一大聲的東西是置中的大數字。打開 App 的人要在幾秒內讀到「全家有多少錢、這個月花了多少」，所以外框退後，數字向前。
 
 帳本裡只住一種有生命的東西：存錢的主角。資產頁的淨資產罐（淡底色的罐身，前後兩層水波、漲跌色帶、突破千萬的氣泡）、支出頁的存錢塔與累計成長塔（沒有底色的圓角色塊，花掉的部分碎成小塊掉落）、可點的月份長條。它們是 App 情緒的核心，有實體感、會動、可互動；其餘一切都保持安靜。
 
 密度偏手機單手：主要觸控目標 44px 以上，表單在底部 sheet 中完成，主導覽是浮在左下的膠囊 tab bar，記一筆支出的 FAB 在右下。桌面使用同一套元件，只是內容區最寬 1200px。
+
+**Bold where it counts（2026-10-15）：** 按鈕、tab、表格、列表維持炭黑與冷灰；大膽的顏色只花在表現產品個性的少數地方：存錢視覺（飽和的翡翠綠）、支出頁的「存下 N%」膠囊、分類圖示 tile、holder tag 與圖表色。
 
 **Key Characteristics:**
 - 中性冷灰撐起整個介面，結構灰（線、框、底色）刻意壓得很淡，像紙上的印線而不是線稿；所有 CTA 是炭黑（不是純黑）；teal 只留給存錢視覺，所以一出現就知道是「存下來的錢」。
@@ -189,16 +181,10 @@ components:
 
 ## Colors
 
-一組帶鈷藍調的冷灰 + 鈷藍 `action` 撐起介面；每個主頁的 hero 坐在一塊深鈷藍舞台上；teal 加飽和成翡翠綠，在舞台上換成亮薄荷，仍是存錢視覺的專屬色；再加上三個只用於語意的狀態色。
-
-### Stage（hero 舞台）
-- **Stage** (`stage`, #1A28A6)：資產頁 `.asset-hero` 與支出頁 `.expense-card` 的底，`--radius-sheet` 圓角，最寬 560px。每頁只有這一塊大面積的顏色。
-- 舞台上**不另寫顏色規則**：`App.css` 在這兩個容器上把 `--c-ink` / `--c-muted` / `--c-subtle` / `--c-up` / `--c-down` / `--c-track` / `--c-line` / `--c-teal*` / `--c-action` 重新指向 `on-stage-*` 與 `stage-raised`，罐、塔、月份長條沿用原本的 token 自動換色。新增放在 hero 裡的元件也照這個做。
-- **On Stage** 白（大數字，11:1）、**On Stage Muted**（標籤與次要字，7:1）、**On Stage Subtle**（只給大字的 `$` 與停用狀態）、**On Stage Up / Down**（亮綠 / 亮粉，≥5.8:1，仍搭配 ▲ ▼ 與正負號）、**On Stage Mint**（存下的錢、選中的月份）。
-- **Stage Raised** (`stage-raised`)：舞台上的軌道、空月份外框、罐身（`jar-body`）。
+一組中性冷灰 + 炭黑 `action` 撐起介面；teal 是存錢視覺的專屬色；再加上三個只用於語意的狀態色。
 
 ### Action
-- **Action** (`action`, #2E44E0)：鈷藍，白字 7:1。所有 CTA 與「可操作」的強調：primary 按鈕、FAB、選中的 chip、開關、存檔鍵、左滑「編輯」、focus 外框、連結（連結加底線區分）、選中的圖示格、手機 tab bar 的選中項（白字）。
+- **Action** (`action`, #1F2328)：所有 CTA 與「可操作」的強調：primary 按鈕、FAB、選中的 chip、開關、存檔鍵、左滑「編輯」、focus 外框、連結（連結加底線區分）、選中的圖示格。炭黑而不是純黑，白字 15.8:1。
 - **Action hover / active** (`action-hover`, `action-active`)：只用於 action 底元件的互動狀態。
 
 ### Savings（teal，只給存錢視覺）
@@ -234,15 +220,13 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 
 ### Data & Identity Palettes
 不屬於 UI 色，但同樣是 token，定義在 `src/theme/tokens.js`：
-- **`CHART_PALETTE`**：圖表類別色，石板灰為第一色，其餘是沉穩的色相（藍、赭、梅、苔綠⋯），不含 teal；`CHART_NEUTRAL` 保留給「其他 / 現金」。個股細節的 EPS / 本益比圖用 **`CHART_STOCK`**：`primary` 是色票裡的鈷藍（`#2E44E0`，單季 EPS 柱、本益比線），`previous` 是它的淡色（`#BAC3FA`，去年同季柱）；不用炭黑或灰，那兩個留給文字與結構。預算條平時為 `muted`，接近上限 `warn`、超支 `down`。
+- **`CHART_PALETTE`**：圖表類別色，飽和的鈷藍為第一色，其餘是鮮明的色相（橘、金、紫、玫瑰、天藍⋯），不含 teal；`CHART_NEUTRAL` 保留給「其他 / 現金」。個股細節的 EPS / 本益比圖用 **`CHART_STOCK`**：`primary` 是色票第一色的鈷藍（`#2E44E0`，單季 EPS 柱、本益比線），`previous` 是它的淡色（`#BAC3FA`，去年同季柱）；不用炭黑或灰，那兩個留給文字與結構。預算條平時為 `muted`，接近上限 `warn`、超支 `down`。
   - 河流圖（`PeRiverChart`）：股價為 `primary` 實線 2px；便宜–昂貴帶為 `previous` 填色、合理線為半透明 `primary` 虛線；「今天」之後的推估段降低透明度、邊線改虛線，以 `line` 色直線分隔。推估值（EPS 趨勢圖的推估季、河流圖未來段）一律用空心或虛線表示，圖例用虛線外框色塊（`stock-detail-legend-swatch--outline`），不另用新色。
-- **`CATEGORY_TONES`**（CSS `--c-cat-*`）：分類圖示 tile 的八個淡底色：peach、butter、sky、periwinkle、lavender、mint、rose、sand，不含 teal。依分類性質分組（外食 / 咖啡 peach；買菜 / 日用 butter；水電 / 通訊 sky；交通 / 旅遊 periwinkle；房屋 / 學習 / 保險 lavender；運動 / 健康 mint；衣服 / 禮物 / 寶寶 rose；娛樂 sand；其他維持 `neutral-fill`），對應寫在 `App.css` 的 `.category-icon[data-category-icon]`。底上一律放 `ink` 圖示（≥12:1）。純粹讓分類一眼可分，不帶狀態語意。
+- **`CATEGORY_TONES`**（CSS `--c-cat-*`）：分類圖示 tile 的八個飽和中間色：peach、butter、sky、periwinkle、lavender、mint、rose、sand，不含 teal。依分類性質分組（外食 / 咖啡 peach；買菜 / 日用 butter；水電 / 通訊 sky；交通 / 旅遊 periwinkle；房屋 / 學習 / 保險 lavender；運動 / 健康 mint；衣服 / 禮物 / 寶寶 rose；娛樂 sand；其他維持 `neutral-fill`），對應寫在 `App.css` 的 `.category-icon[data-category-icon]`。底上一律放 `ink` 圖示（≥12:1）。純粹讓分類一眼可分，不帶狀態語意。
 - **`HOLDER_TONES`**：holder tag 的五組字色 + 底色，依 holder 在設定中的順序分配，保證兩人不撞色；teal 那組排在最後，避免 teal 出現在存錢視覺以外。holder tag 是唯一保留彩色的 tag，因為一眼分出是誰的資產就是它的用途。
 
 ### Named Rules
-**The Saved-Money Color Rule.** Teal（舞台上為薄荷）只代表「存下來的錢」。可操作的強調用鈷藍 `action` 或字重，不要用 teal。
-
-**The One Stage Rule.** 大面積的顏色每頁只有一塊：hero 舞台。列表、卡片、表單維持白底；顏色在列表裡只以 `action`（選中、按鈕）、分類 tile 與語意色出現。
+**The Saved-Money Color Rule.** Teal 只代表「存下來的錢」。可操作的強調用炭黑 `action` 或字重，不要用 teal，也不要引入新色相（唯一的例外是下面的分類底色）。
 
 **The Semantic-Only Rule.** `up` / `down` / `warn` 只表達財務或動作的語意（漲跌、超支、危險），不當裝飾色使用。
 
@@ -262,7 +246,7 @@ Teal 不再是 UI 主色，只出現在表現「錢存下來、錢累積」的�
 - **Label**（400–600，12px）：時間戳、分組標題、tab bar 文字、tag、次要 meta。
 
 ### Named Rules
-**The Weight-Not-Size Rule.** 在 body 與 subhead 之間，用 600 字重而不是新字級拉出層級，不另開 13px。hero 的次要行：資產頁的漲跌用 body 600；支出頁的「存下 N%」退成 `muted` label，讓數字與塔領頭。
+**The Weight-Not-Size Rule.** 在 body 與 subhead 之間，用 600 字重而不是新字級拉出層級，不另開 13px。hero 的次要行：資產頁的漲跌用 body 600；支出頁的「存下 N%」是 12px 600 的翡翠膠囊（`teal-soft` 底、`teal-ink` 字，4.7:1），是 hero 數字下唯一帶色的標記；超支時退回純 `down` 字，不加膠囊。
 
 ## Layout
 
