@@ -91,8 +91,9 @@ FX (`fxProvider.js`) 打 open.er-api 取得 USD/TWD；不需要 API key。
 - `eps_history.json`：TWSE openapi `t187ap06_L_*` 的最新一季損益表（**年度累計**；EPS、營收、毛利、營業利益、業外、稅前、所得稅、稅後、母公司淨利），公司另存 `statement`（`general` 有毛利欄位；`financial` 為金融業版面）。
 - `pe_history.json`：每月補上月底的 `[month, 本益比, 收盤價]`（TWSE rwd `BWIBBU_d`）。
 - `monthly_revenue.json`：MOPS `t21sc03`（Big5 HTML，`_0` 國內、`_1` KY）近兩個月月營收，每日 merge；**不要**換成 openapi `t187ap05_L`，它落後一個多月。
+- `company_profile.json`：TWSE openapi `t187ap03_L` 的產業別與已發行股數（整份快照，不累積；抓取失敗只 warning）。供研究 tab「低估候選」用。
 
-有變更才 commit，並以 `gh workflow run deploy.yml` 觸發部署（`GITHUB_TOKEN` 的 push 不會觸發 `deploy.yml`）。`predev`／`prebuild` 跑 `scripts/split-tw-fundamentals.mjs` 把大檔拆成 `public/data/tw/{code}.json`（gitignore），細節頁只載入該檔。`scripts/check-tw-fundamentals.mjs` 發現漏季會讓 job 失敗；修法是以 `backfill=true` 手動跑 workflow（`scripts/backfill-tw-fundamentals.mjs`，MOPS 用 `mopsov.twse.com.tw`）。純邏輯在 `src/utils/twFundamentalsMerge.js`。
+有變更才 commit，並以 `gh workflow run deploy.yml` 觸發部署（`GITHUB_TOKEN` 的 push 不會觸發 `deploy.yml`）。`predev`／`prebuild` 跑 `scripts/split-tw-fundamentals.mjs` 把大檔拆成 `public/data/tw/{code}.json`（gitignore），細節頁只載入該檔。同一步也會用 `src/utils/stockScreen.js` 的 `buildScreenFile` 產生 `public/data/tw/screen.json`（每家一列的估價原始值；前端 `useStockScreen` 套現價、門檻與自訂估價假設）。`src/utils/` 中被 scripts import 的檔案，相對 import 必須帶 `.js`。`scripts/check-tw-fundamentals.mjs` 發現漏季會讓 job 失敗；修法是以 `backfill=true` 手動跑 workflow（`scripts/backfill-tw-fundamentals.mjs`，MOPS 用 `mopsov.twse.com.tw`）。純邏輯在 `src/utils/twFundamentalsMerge.js`。
 
 估價推估在 `src/utils/incomeModel.js`（逐季損益表推估，台股上市非金融股）、`src/utils/valuation.js`（本益比與估價基準）、`src/utils/peRiver.js`（河流圖）；假設與預估快照存在 `app_config` 的 `valuation:<market>_<symbol>`（`model`、`snapshots`）。
 

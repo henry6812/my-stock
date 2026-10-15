@@ -153,6 +153,12 @@ import WatchlistDetailSheet from "./components/WatchlistDetailSheet";
 import WatchlistSection from "./components/research/WatchlistSection";
 import WatchlistForm, { WATCHLIST_FORM_ID } from "./components/research/WatchlistForm";
 import useWatchlist from "./hooks/useWatchlist";
+import ScreenSection from "./components/research/ScreenSection";
+import ScreenListSheet from "./components/research/ScreenListSheet";
+import ScreenSettingsSheet from "./components/research/ScreenSettingsSheet";
+import ScreenIndustrySheet from "./components/research/ScreenIndustrySheet";
+import useStockScreen from "./hooks/useStockScreen";
+import { formatQuotesDate, monthEndLabel } from "./utils/stockScreen";
 import HoldingActionForm from "./components/HoldingActionForm";
 import {
   HOLDING_ACTION_SUBMIT_TEXT,
@@ -517,6 +523,27 @@ function App() {
     enabled: Boolean(authUser) && bootPhase === "ready",
     autoRefresh: activeMainTab === "research" && !isWriteDisabled && !loadingRefresh,
   });
+  // 低估候選 marks held / watched TW stocks and always lists them.
+  const ownedTwSymbols = useMemo(
+    () => new Set(rows.filter((row) => row.market === "TW").map((row) => row.symbol)),
+    [rows],
+  );
+  const watchedTwSymbols = useMemo(
+    () => new Set(watchlist.view.rows.filter((row) => row.market === "TW").map((row) => row.symbol)),
+    [watchlist.view.rows],
+  );
+  const stockScreen = useStockScreen({
+    enabled: Boolean(authUser) && bootPhase === "ready",
+    active: activeMainTab === "research",
+    canWrite: !isWriteDisabled,
+    owned: ownedTwSymbols,
+    watched: watchedTwSymbols,
+  });
+  // 'list' | 'settings' | 'industries' | null
+  const [screenSheet, setScreenSheet] = useState(null);
+  const [screenSelection, setScreenSelection] = useState(null);
+  const [savingScreenSettings, setSavingScreenSettings] = useState(false);
+  const [addingScreenWatch, setAddingScreenWatch] = useState(false);
   // Main tab switches slide in the direction of travel (View Transitions API);
   // flushSync makes React commit inside the transition's update callback, and
   // scrolling there means the incoming tab is captured already at the top.
@@ -4026,6 +4053,54 @@ function App() {
     });
   };
 
+  const handleSaveScreenSettings = async (next) => {
+    setSavingScreenSettings(true);
+    try {
+      await stockScreen.saveSettings(next);
+      setScreenSheet(null);
+      message.success("已儲存篩選門檻");
+    } catch (error) {
+      message.error(toUserMessage(error, "儲存篩選門檻失敗"));
+    } finally {
+      setSavingScreenSettings(false);
+    }
+  };
+
+  const handleAddScreenWatch = async (code) => {
+    setAddingScreenWatch(true);
+    try {
+      await addWatchlistItem({ market: "TW", symbol: code });
+      await watchlist.reload();
+      message.success("已加入觀察清單");
+    } catch (error) {
+      message.error(toUserMessage(error, "加入觀察清單失敗"));
+    } finally {
+      setAddingScreenWatch(false);
+    }
+  };
+
+  // The screen row opened in the research sheet: its watchlist entry once
+  // watched, else a quote-only item from the screen.
+  const screenWatchItem = screenSelection
+    ? watchlist.view.rows.find((row) => row.market === "TW" && row.symbol === screenSelection.code) ?? null
+    : null;
+  const screenSheetItem = screenSelection
+    ? screenWatchItem ?? {
+        market: "TW",
+        symbol: screenSelection.code,
+        name: screenSelection.name,
+        latestPrice: screenSelection.price,
+        currency: "TWD",
+        priceUpdatedAt: null,
+        change: null,
+        changePct: null,
+        quoteNote:
+          screenSelection.priceSource === "daily"
+            ? `${formatQuotesDate(stockScreen.quotesDate)} 收盤`
+            : monthEndLabel(screenSelection.fallbackMonth),
+      }
+    : null;
+
   const handleAddCashAccount = async (values) => {
     const selected = bankOptions.find(
       (item) => item.bankName === values.bankName,
@@ -5929,6 +6004,19 @@ function App() {
                 onOpen={watchlist.openItem}
                 onRemove={handleRemoveWatch}
               />
+              <ScreenSection
+                status={stockScreen.status}
+                result={stockScreen.result}
+                basis={stockScreen.basis}
+                onBasisChange={stockScreen.setBasis}
+                industries={stockScreen.settings.industries}
+                quotesDate={stockScreen.quotesDate}
+                quotesFailed={stockScreen.quotesFailed}
+                onOpen={setScreenSelection}
+                onOpenAll={() => setScreenSheet("list")}
+                onOpenSettings={() => setScreenSheet("settings")}
+                onOpenIndustries={() => setScreenSheet("industries")}
+              />
             </div>
           ) : (
             <Row
@@ -7239,6 +7327,44 @@ function App() {
             disabled={isWriteDisabled}
             onClose={watchlist.closeItem}
             onRemove={() => handleRemoveWatch(watchlist.selectedItem)}
+          />
+
+          <ScreenListSheet
+            open={screenSheet === "list"}
+            isMobile={isMobileViewport}
+            result={stockScreen.result}
+            onClose={() => setScreenSheet(null)}
+            onOpen={setScreenSelection}
+          />
+          <ScreenSettingsSheet
+            key={screenSheet === "settings" ? "settings-open" : "settings-closed"}
+            open={screenSheet === "settings"}
+            isMobile={isMobileViewport}
+            settings={stockScreen.settings}
+            disabled={isWriteDisabled}
+            saving={savingScreenSettings}
+            onClose={() => setScreenSheet(null)}
+            onSave={handleSaveScreenSettings}
+          />
+          <ScreenIndustrySheet
+            open={screenSheet === "industries"}
+            isMobile={isMobileViewport}
+            industries={stockScreen.settings.industries}
+            onClose={() => setScreenSheet(null)}
+            onChange={stockScreen.setIndustries}
+          />
+          <WatchlistDetailSheet
+            key={screenSelection ? `screen-${screenSelection.code}` : "screen-none"}
+            open={Boolean(screenSheetItem)}
+            item={screenSheetItem}
+            isMobile={isMobileViewport}
+            disabled={isWriteDisabled}
+            inWatchlist={Boolean(screenWatchItem)}
+            adding={addingScreenWatch}
+            initialBasis={stockScreen.basis}
+            onClose={() => setScreenSelection(null)}
+            onAdd={() => handleAddScreenWatch(screenSelection.code)}
+            onRemove={() => handleRemoveWatch(screenWatchItem)}
           />
 
           <MobileFormSheetLayout
