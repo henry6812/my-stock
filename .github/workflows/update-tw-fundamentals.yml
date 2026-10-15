@@ -42,7 +42,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          FILES="data/twse/eps_history.json data/twse/pe_history.json data/twse/monthly_revenue.json"
+          FILES="data/twse/eps_history.json data/twse/pe_history.json data/twse/monthly_revenue.json data/twse/company_profile.json"
           if [ -z "$(git status --porcelain -- $FILES)" ]; then
             echo "No snapshot changes"
             exit 0

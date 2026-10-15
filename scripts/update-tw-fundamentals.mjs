@@ -21,6 +21,7 @@ import {
   fetchMopsRevenueMonth,
   readJson,
   sleep,
+  updateCompanyProfile,
   writeJson,
 } from './lib/twse.mjs'
 
@@ -64,3 +65,5 @@ const { history: nextRevenue, changed: revenueChanged } = await mergeRevenueMont
 if (revenueChanged) {
   await writeJson(REVENUE_PATH, { ...nextRevenue, updatedAt: new Date().toISOString() })
 }
+
+await updateCompanyProfile()

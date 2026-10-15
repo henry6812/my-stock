@@ -293,3 +293,17 @@ export const buildCompanyFiles = ({ eps, pe, revenue }) =>
       },
     ]),
   )
+
+// t187ap03_L (上市公司基本資料) → { code: { industry, sharesIssued } } for
+// the screener, sorted by code so an unchanged day writes identical JSON.
+export const parseCompanyProfileRows = (rows) => {
+  const entries = []
+  for (const row of rows ?? []) {
+    const code = String(row['公司代號'] ?? '').trim()
+    const industry = String(row['產業別'] ?? '').trim()
+    if (!code || !industry) continue
+    const shares = parseTwNumber(row['已發行普通股數或TDR原股發行股數'])
+    entries.push([code, { industry, sharesIssued: shares > 0 ? shares : null }])
+  }
+  return Object.fromEntries(entries.sort(([a], [b]) => (a < b ? -1 : 1)))
+}

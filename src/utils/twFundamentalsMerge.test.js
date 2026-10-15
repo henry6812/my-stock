@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  parseCompanyProfileRows,
   INCOME_VALUE_FIELDS,
   buildCompanyFiles,
   findRecentGaps,
@@ -436,5 +437,20 @@ describe('mergeRevenueMonths', () => {
       warn: () => {},
     })
     expect(result).toEqual({ history, changed: false })
+  })
+})
+
+describe('parseCompanyProfileRows', () => {
+  it('keeps 產業別 and issued shares by company code, sorted', () => {
+    const rows = [
+      { 公司代號: '2330', 產業別: '24', '已發行普通股數或TDR原股發行股數': '25,932,070,992' },
+      { 公司代號: '1101 ', 產業別: '01', '已發行普通股數或TDR原股發行股數': '' },
+      { 公司代號: '', 產業別: '24' },
+      { 公司代號: '9999', 產業別: '' },
+    ]
+    const companies = parseCompanyProfileRows(rows)
+    expect(Object.keys(companies)).toEqual(['1101', '2330'])
+    expect(companies['2330']).toEqual({ industry: '24', sharesIssued: 25932070992 })
+    expect(companies['1101']).toEqual({ industry: '01', sharesIssued: null })
   })
 })

@@ -1,10 +1,16 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { monthDaysDescending, parseBwibbuRows, parseMopsRevenueRows } from '../../src/utils/twFundamentalsMerge.js'
+import {
+  monthDaysDescending,
+  parseBwibbuRows,
+  parseCompanyProfileRows,
+  parseMopsRevenueRows,
+} from '../../src/utils/twFundamentalsMerge.js'
 
 export const EPS_PATH = 'data/twse/eps_history.json'
 export const PE_PATH = 'data/twse/pe_history.json'
 export const REVENUE_PATH = 'data/twse/monthly_revenue.json'
+export const PROFILE_PATH = 'data/twse/company_profile.json'
 export const TWSE_DELAY_MS = 1_200
 export const MOPS_DELAY_MS = 3_000
 
@@ -66,4 +72,22 @@ export const fetchMopsRevenueMonth = async (month) => {
     }
   }
   return rows
+}
+
+// 產業別 and issued shares for the screener: a snapshot, rewritten whole.
+// A failure keeps the old file so the day's other updates still commit.
+export const updateCompanyProfile = async () => {
+  try {
+    const companies = parseCompanyProfileRows(await fetchJson('https://openapi.twse.com.tw/v1/opendata/t187ap03_L'))
+    if (Object.keys(companies).length === 0) throw new Error('t187ap03_L returned no rows')
+    const previous = await readJson(PROFILE_PATH, null)
+    if (JSON.stringify(previous?.companies) === JSON.stringify(companies)) {
+      console.log('Profile: unchanged')
+      return
+    }
+    await writeJson(PROFILE_PATH, { updatedAt: new Date().toISOString(), companies })
+    console.log(`Profile: ${Object.keys(companies).length} companies`)
+  } catch (error) {
+    console.warn(`::warning::Company profile update failed: ${error.message}`)
+  }
 }
