@@ -206,16 +206,17 @@
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  background: var(--c-track);
+  background: var(--c-action);
 }
 
 /* The thumb that slides between tabs carries the same fill. */
 .mobile-main-tabbar .ant-segmented-thumb {
-  background: var(--c-track);
+  background: var(--c-action);
 }
 
-.mobile-main-tabbar .ant-segmented-item-selected {
-  color: var(--c-ink);
+.mobile-main-tabbar .ant-segmented .ant-segmented-item-selected,
+.mobile-main-tabbar .ant-segmented .ant-segmented-item-selected:hover {
+  color: var(--c-surface);
 }
 
 .expense-fab.ant-btn {
@@ -363,9 +364,63 @@
   padding: var(--space-6) 0 var(--space-2);
 }
 
+/* ===== Hero stage (asset hero + expense summary card) =====
+   The one loud region of each main tab: a cobalt stage under the big number
+   and the savings visual. Everything on it reads the same tokens as the
+   rest of the app, remapped here to their on-stage values, so the jar,
+   towers and month bars need no stage-specific rules of their own. */
+.asset-hero,
+.expense-card {
+  --c-ink: var(--c-on-stage);
+  --c-muted: var(--c-on-stage-muted);
+  --c-subtle: var(--c-on-stage-subtle);
+  --c-up: var(--c-on-stage-up);
+  --c-down: var(--c-on-stage-down);
+  --c-track: var(--c-stage-raised);
+  --c-line: var(--c-stage-raised);
+  --c-line-strong: var(--c-on-stage-subtle);
+  --c-teal: var(--c-on-stage-mint);
+  --c-teal-bright: var(--c-on-stage-mint);
+  --c-teal-tint: #22b79b;
+  --c-teal-soft: #1a8f9a;
+  --c-teal-ink: #14a382;
+  --c-action: var(--c-on-stage);
+  box-sizing: border-box;
+  width: min(560px, 100%);
+  padding: var(--space-6) var(--space-4) var(--space-5);
+  border-radius: var(--radius-sheet);
+  background: var(--c-stage);
+  color: var(--c-ink);
+}
+
+/* The month bars need every pixel of the stage's width for twelve labels. */
+.expense-card {
+  padding-inline: 0;
+}
+
+.asset-hero :focus-visible,
+.expense-card :focus-visible {
+  outline-color: var(--c-on-stage);
+}
+
+.asset-hero .networth-jar-band--up {
+  fill: rgba(125, 245, 168, 0.32);
+}
+
+.asset-hero .networth-jar-band--down {
+  fill: rgba(255, 163, 174, 0.32);
+}
+
+.expense-card .expense-month-bar.is-on .expense-month-bar-label {
+  color: var(--c-on-stage-mint);
+}
+
+.expense-card .expense-month-bars-all.is-on {
+  color: var(--c-stage);
+}
+
 /* ===== Asset hero (components/AssetSummaryHero.jsx) ===== */
 .asset-hero {
-  width: min(420px, 100%);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -895,12 +950,8 @@ button.asset-hero-jar {
 
 /* ===== Expense summary card (components/ExpenseSummaryCard.jsx) ===== */
 .expense-card {
-  /* No side padding: on a phone the month bars run the full content width
-     (the page gutter already keeps them inside the safe area). */
-  width: min(560px, 100%);
+  /* Width, padding and colour come from the hero stage above. */
   margin: 0 auto;
-  box-sizing: border-box;
-  padding: var(--space-6) 0 var(--space-2);
   display: flex;
   flex-direction: column;
   align-items: center;

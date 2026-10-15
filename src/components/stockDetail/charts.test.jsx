@@ -54,10 +54,10 @@ describe("chart components", () => {
     expect(screen.getByText("Q3 財報法定截止日")).toBeInTheDocument()
   })
 
-  it("draws the EPS series in misty blue, not black and grey", () => {
+  it("draws the EPS series in cobalt, not black and grey", () => {
     const { container } = render(<EpsTrendChart fundamentals={{ singles, surprises: [], nextEarnings: null }} />)
     const swatches = [...container.querySelectorAll(".stock-detail-legend-swatch")].map((el) => el.style.background)
-    expect(swatches).toEqual(["rgb(76, 111, 168)", "rgb(195, 208, 230)"])
+    expect(swatches).toEqual(["rgb(46, 68, 224)", "rgb(186, 195, 250)"])
   })
 
   it("labels the two EPS series", () => {

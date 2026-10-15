@@ -139,7 +139,7 @@ describe('color helpers', () => {
   })
   it('picks chart colours deterministically from the palette', () => {
     expect(getStableChartColor('2330')).toBe(getStableChartColor('2330'))
-    expect(getStableChartColor('   ')).toBe('#3D4550')
+    expect(getStableChartColor('   ')).toBe('#2E44E0')
   })
 })
 
