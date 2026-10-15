@@ -1,7 +1,7 @@
 // EPS × P/E valuation maths for the stock detail sheet. Pure functions; see
 // docs/superpowers/specs/2026-10-05-stock-valuation-design.md for the rules.
 
-import { MODEL_FIELDS, projectIncome, UNAVAILABLE_REASONS } from './incomeModel'
+import { MODEL_FIELDS, projectIncome, UNAVAILABLE_REASONS } from './incomeModel.js'
 
 export const VALUATION_SETTING_FIELDS = ['peCheap', 'peFair', 'peExpensive', 'forwardEps']
 
