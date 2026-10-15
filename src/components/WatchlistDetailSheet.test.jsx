@@ -66,6 +66,24 @@ describe('WatchlistDetailSheet', () => {
     expect(screen.getByRole('button', { name: '從觀察清單移除' })).toBeDisabled()
   })
 
+  it('offers to add a stock that is not watched yet', () => {
+    const onAdd = vi.fn()
+    renderSheet({
+      item: { ...item, id: undefined, priceUpdatedAt: null, change: null, changePct: null, quoteNote: '10/14 收盤' },
+      inWatchlist: false,
+      onAdd,
+    })
+    expect(screen.getByText('10/14 收盤')).toBeInTheDocument()
+    expect(screen.queryByText('從觀察清單移除')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '加入觀察清單' }))
+    expect(onAdd).toHaveBeenCalled()
+  })
+
+  it('opens at the basis it is given', () => {
+    renderSheet({ initialBasis: 'thisYear' })
+    expect(screen.getByRole('radio', { name: '今年' })).toBeChecked()
+  })
+
   it('renders nothing without an item', () => {
     const { container } = renderSheet({ item: null })
     expect(container).toBeEmptyDOMElement()

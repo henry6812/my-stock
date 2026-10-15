@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "antd";
 import { formatDateTime, formatPrice } from "../utils/formatters";
 import { formatSignedPercent } from "../utils/stockDetail";
 import StockResearchContent from "./stockDetail/StockResearchContent";
@@ -10,10 +11,22 @@ const changeClass = (value) =>
 const formatSignedPrice = (value, currency) =>
   `${value >= 0 ? "+" : "−"}${formatPrice(Math.abs(value), currency)}`;
 
-// A watched stock: its last quote, then the same research as a holding —
-// no position, no buy / sell. The parent keys this by item id.
-function WatchlistDetailSheet({ open, item, isMobile, disabled, onClose, onRemove }) {
-  const [basis, setBasis] = useState("ttm");
+// A watched stock — or one opened from 低估候選 that is not watched yet:
+// its last quote, then the same research as a holding — no position, no
+// buy / sell. The parent keys this by stock.
+function WatchlistDetailSheet({
+  open,
+  item,
+  isMobile,
+  disabled,
+  onClose,
+  onRemove,
+  inWatchlist = true,
+  onAdd,
+  adding = false,
+  initialBasis = "ttm",
+}) {
+  const [basis, setBasis] = useState(initialBasis);
 
   if (!item) return null;
 
@@ -30,7 +43,8 @@ function WatchlistDetailSheet({ open, item, isMobile, disabled, onClose, onRemov
           </span>
         )}
         <span className="watchlist-quote-time">
-          {item.priceUpdatedAt ? `更新於 ${formatDateTime(item.priceUpdatedAt)}` : "尚未取得報價"}
+          {item.quoteNote ??
+            (item.priceUpdatedAt ? `更新於 ${formatDateTime(item.priceUpdatedAt)}` : "尚未取得報價")}
         </span>
       </section>
       <StockResearchContent
@@ -47,16 +61,22 @@ function WatchlistDetailSheet({ open, item, isMobile, disabled, onClose, onRemov
       />
       <section className="stock-detail-section" aria-label="管理觀察">
         <h3 className="stock-detail-heading">管理</h3>
-        <div className="stock-detail-manage">
-          <button
-            type="button"
-            className="stock-detail-manage-row stock-detail-manage-row--danger"
-            disabled={disabled}
-            onClick={onRemove}
-          >
-            <span>從觀察清單移除</span>
-          </button>
-        </div>
+        {inWatchlist ? (
+          <div className="stock-detail-manage">
+            <button
+              type="button"
+              className="stock-detail-manage-row stock-detail-manage-row--danger"
+              disabled={disabled}
+              onClick={onRemove}
+            >
+              <span>從觀察清單移除</span>
+            </button>
+          </div>
+        ) : (
+          <Button type="primary" block className="sheet-submit-btn" loading={adding} disabled={disabled} onClick={onAdd}>
+            加入觀察清單
+          </Button>
+        )}
       </section>
     </StockSheetShell>
   );
