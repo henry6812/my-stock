@@ -46,6 +46,7 @@ const parseDailyTable = (table) => {
   const closeIdx = col('收盤價')
   const signIdx = col('漲跌(+/-)')
   const changeIdx = col('漲跌價差')
+  const tradeValueIdx = col('成交金額')
 
   const quotes = {}
   const listedSymbols = new Set()
@@ -65,11 +66,15 @@ const parseDailyTable = (table) => {
         ? undefined
         : Math.round((price - sign * change) * 10_000) / 10_000
 
+    const tradeValue = tradeValueIdx >= 0 ? parseNumber(row[tradeValueIdx]) : null
+
     quotes[symbol] = {
       price,
       name: String(row[nameIdx] ?? '').trim() || symbol,
       currency: 'TWD',
       previousClose,
+      // 成交金額 (NTD), for the screener's 成交量低 flag.
+      tradeValue: tradeValue ?? undefined,
     }
   }
   return { quotes, listedSymbols }

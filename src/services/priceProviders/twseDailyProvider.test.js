@@ -11,8 +11,8 @@ const FIELDS = [
   '證券代號', '證券名稱', '成交股數', '成交筆數', '成交金額', '開盤價', '最高價', '最低價',
   '收盤價', '漲跌(+/-)', '漲跌價差', '最後揭示買價', '最後揭示買量', '最後揭示賣價', '最後揭示賣量', '本益比',
 ]
-const row = (code, name, close, sign, change) => (
-  [code, name, '0', '0', '0', '0', '0', '0', close, sign, change, '0', '0', '0', '0', '0']
+const row = (code, name, close, sign, change, tradeValue = '0') => (
+  [code, name, '0', '0', tradeValue, '0', '0', '0', close, sign, change, '0', '0', '0', '0', '0']
 )
 
 const dailyBody = {
@@ -24,7 +24,7 @@ const dailyBody = {
       title: '115年09月30日 每日收盤行情(全部(不含權證、牛熊證、可展延牛熊證))',
       fields: FIELDS,
       data: [
-        row('0050', '元大台灣50', '112.05', '<p style= color:red>+</p>', '0.75'),
+        row('0050', '元大台灣50', '112.05', '<p style= color:red>+</p>', '0.75', '12,345,678,901'),
         row('2330', '台積電', '2,480.00', '<p style= color:green>-</p>', '5.00'),
         row('0056', '元大高股息', '56.95', '<p> </p>', '0.00'),
         row('00878', '國泰永續高股息', '56.95', '<p style= color:red>+</p>', '0.40'),
@@ -51,7 +51,9 @@ describe('getTwseDailyQuotes', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(String(fetchMock.mock.calls[0][0])).toContain('/rwd/zh/afterTrading/MI_INDEX')
     expect(date).toBe('20260930')
-    expect(quotes['0050']).toEqual({ price: 112.05, name: '元大台灣50', currency: 'TWD', previousClose: 111.3 })
+    expect(quotes['0050']).toEqual({
+      price: 112.05, name: '元大台灣50', currency: 'TWD', previousClose: 111.3, tradeValue: 12345678901,
+    })
     expect(quotes['2330']).toMatchObject({ price: 2480, previousClose: 2485 })
     expect(quotes['0056']).toMatchObject({ price: 56.95, previousClose: 56.95 })
     expect(quotes['00878'].previousClose).toBe(56.55) // no float noise
@@ -62,6 +64,19 @@ describe('getTwseDailyQuotes', () => {
     expect(quotes['00625K']).toBeUndefined()
     expect(listedSymbols.has('00625K')).toBe(true)
     expect(listedSymbols.has('00679B')).toBe(false)
+  })
+
+  it('leaves tradeValue undefined when the column is missing', async () => {
+    const fields = FIELDS.filter((field) => field !== '成交金額')
+    const body = {
+      stat: 'OK',
+      date: '20260930',
+      tables: [{ fields, data: [['2330', '台積電', '0', '0', '0', '0', '0', '1,000.00', '<p> </p>', '0.00', '0', '0', '0', '0', '0']] }],
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(body)))
+    const { quotes } = await getTwseDailyQuotes()
+    expect(quotes['2330'].price).toBe(1000)
+    expect(quotes['2330'].tradeValue).toBeUndefined()
   })
 
   it('walks back to the latest trading day when today has no data yet', async () => {
