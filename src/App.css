@@ -2742,6 +2742,75 @@ button.expense-card-chip {
   gap: var(--space-2);
 }
 
+/* 研究 › 低估候選: basis / industry chips, then rows grouped by zone. */
+.screen-controls {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+  scrollbar-width: none;
+}
+
+.screen-chip {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font-size: var(--fs-body);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.screen-chip.is-active {
+  border-color: var(--c-action);
+  background: var(--c-action);
+  color: var(--c-surface);
+}
+
+.screen-note,
+.screen-message {
+  margin: var(--space-2) 0 var(--space-section-head);
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+}
+
+.screen-message {
+  padding: var(--space-row-y) var(--space-row-x);
+  font-size: var(--fs-body);
+}
+
+.screen-group .mobile-swipe-row {
+  min-height: 72px;
+  padding-block: var(--space-row-y);
+}
+
+.screen-group-head {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-row-x);
+  background: var(--c-group-heading);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.screen-group-count,
+.screen-row-distance {
+  font-size: var(--fs-caption);
+  color: var(--c-muted);
+}
+
+.watchlist-row-symbol {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Holder groups (holdings, cash): both start folded. Headings sit on
    --c-group-heading, get a line under them while open, and stick to the
    top while their rows scroll by; a stuck heading stretches to the full
