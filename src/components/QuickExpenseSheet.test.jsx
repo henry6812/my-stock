@@ -112,9 +112,15 @@ const press = async (user, keys) => {
 
 const saveButton = () => screen.getByRole('button', { name: '存' })
 
+// The sheet opens on the 常用支出 grid; the summary line swaps in the
+// category / payer / budget chips, and 常用支出 swaps them back.
+const editDetails = (user) => user.click(screen.getByRole('button', { name: /自訂/ }))
+const backToTemplates = (user) => user.click(screen.getByRole('button', { name: '常用支出' }))
+
 describe('<QuickExpenseSheet />', () => {
   it('evaluates the keypad expression and submits it with the category name', async () => {
     const { user, onSubmit } = renderSheet()
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     await press(user, ['1', '2', '0', '+', '8', '5'])
 
@@ -141,9 +147,10 @@ describe('<QuickExpenseSheet />', () => {
     await user.click(screen.getByRole('button', { name: '常用 早餐' }))
 
     expect(screen.getByLabelText('名稱')).toHaveValue('早餐')
-    expect(screen.getByRole('button', { name: '餐飲' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: '常用 早餐' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByLabelText('金額')).toHaveTextContent('$5')
+    await editDetails(user)
+    expect(screen.getByRole('button', { name: '餐飲' })).toHaveAttribute('aria-pressed', 'true')
 
     await press(user, ['clear', '9', '0'])
     await user.click(saveButton())
@@ -162,9 +169,11 @@ describe('<QuickExpenseSheet />', () => {
   it('changing category clears a suggestion-filled name and its extras', async () => {
     const { user, onSubmit } = renderSheet()
     await user.click(screen.getByRole('button', { name: '常用 早餐' }))
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '交通' }))
 
     expect(screen.getByLabelText('名稱')).toHaveValue('')
+    await backToTemplates(user)
     expect(screen.getByRole('button', { name: '常用 早餐' })).toHaveAttribute('aria-pressed', 'false')
 
     await press(user, ['5', '0'])
@@ -182,6 +191,7 @@ describe('<QuickExpenseSheet />', () => {
 
   it('keeps a hand-typed name when the category changes', async () => {
     const { user } = renderSheet()
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     await user.type(screen.getByLabelText('名稱'), '午餐')
     await user.keyboard('{Enter}')
@@ -230,6 +240,7 @@ describe('<QuickExpenseSheet />', () => {
       ],
     })
     await user.click(screen.getByRole('button', { name: '常用 雜支' }))
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     expect(screen.getByLabelText('名稱')).toHaveValue('雜支')
     expect(screen.getByLabelText('金額')).toHaveTextContent('$30')
@@ -254,9 +265,49 @@ describe('<QuickExpenseSheet />', () => {
     expect(screen.getByLabelText('金額')).toHaveTextContent('$65')
   })
 
-  it('hides the 常用 row when there are no templates', () => {
+  it('opens straight on the chips when there are no templates', () => {
     renderSheet({ templates: [] })
     expect(screen.queryByRole('group', { name: '常用' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /自訂/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '常用支出' })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '分類' })).toBeInTheDocument()
+  })
+
+  it('opens on the templates alone and switches to the chips and back', async () => {
+    const { user } = renderSheet()
+    expect(screen.getByRole('group', { name: '常用' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: '分類' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: '預算' })).not.toBeInTheDocument()
+    await editDetails(user)
+    expect(screen.queryByRole('group', { name: '常用' })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '分類' })).toBeInTheDocument()
+    await backToTemplates(user)
+    expect(screen.getByRole('group', { name: '常用' })).toBeInTheDocument()
+  })
+
+  it('the summary line shows what a template filled in', async () => {
+    const payerOptions = [
+      { label: '小明', value: '小明' },
+      { label: '共同帳戶', value: '共同帳戶' },
+    ]
+    const { user } = renderSheet({ payerOptions })
+    const summary = () => screen.getByRole('button', { name: /自訂/ })
+    expect(summary()).toHaveTextContent('未選分類 · 共同帳戶 · 不計預算')
+    await user.click(screen.getByRole('button', { name: '常用 早餐' }))
+    expect(summary()).toHaveTextContent('餐飲 · 小明 · 日常生活')
+  })
+
+  it('the summary line leaves out payer and budget when there are none', () => {
+    renderSheet({ budgets: [] })
+    expect(screen.getByRole('button', { name: /自訂/ })).toHaveTextContent(/^未選分類自訂$/)
+  })
+
+  it('flashes the summary line when saving without a category', async () => {
+    const { user, onSubmit } = renderSheet()
+    await press(user, ['5'])
+    await user.click(saveButton())
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /自訂/ })).toHaveClass('is-flashing')
   })
 
   it('name autocomplete draws on history, not templates', async () => {
@@ -270,6 +321,7 @@ describe('<QuickExpenseSheet />', () => {
 
   it('blocks save without an amount', async () => {
     const { user, onSubmit } = renderSheet()
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     expect(saveButton()).toHaveAttribute('aria-disabled', 'true')
     await user.click(saveButton())
@@ -278,6 +330,7 @@ describe('<QuickExpenseSheet />', () => {
 
   it('blocks save when the result is not positive', async () => {
     const { user, onSubmit } = renderSheet()
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     await press(user, ['5', '-', '1', '0'])
     expect(saveButton()).toHaveAttribute('aria-disabled', 'true')
@@ -307,6 +360,7 @@ describe('<QuickExpenseSheet />', () => {
   it('submits only once on a double tap', async () => {
     const onSubmit = vi.fn(() => new Promise(() => {}))
     const { user } = renderSheet({ onSubmit })
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     await press(user, ['8'])
     await user.click(saveButton())
@@ -316,6 +370,7 @@ describe('<QuickExpenseSheet />', () => {
 
   it('does not submit again after a successful save', async () => {
     const { user, onSubmit } = renderSheet()
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     await press(user, ['8'])
     await user.click(saveButton())
@@ -340,6 +395,7 @@ describe('<QuickExpenseSheet />', () => {
   it('stays usable after a failed submit', async () => {
     const onSubmit = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
     const { user } = renderSheet({ onSubmit })
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     await press(user, ['8'])
     await user.click(saveButton())
@@ -361,14 +417,16 @@ describe('<QuickExpenseSheet />', () => {
     await user.type(screen.getByLabelText('名稱'), '早')
     await user.click(screen.getByRole('button', { name: '早餐' }))
     expect(screen.getByLabelText('名稱')).toHaveValue('早餐')
-    expect(screen.getByRole('button', { name: '餐飲' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: '存' })).toBeInTheDocument()
+    await editDetails(user)
+    expect(screen.getByRole('button', { name: '餐飲' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('date chips switch the date', async () => {
     const { user, onSubmit } = renderSheet()
     await user.click(screen.getByRole('button', { name: '昨天' }))
     expect(screen.getByRole('button', { name: '昨天' })).toHaveAttribute('aria-pressed', 'true')
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     await press(user, ['1'])
     await user.click(saveButton())
@@ -381,6 +439,7 @@ describe('<QuickExpenseSheet />', () => {
 
   it('更多 opens the full category list', async () => {
     const { user } = renderSheet()
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '更多' }))
     await user.click(screen.getByRole('button', { name: '家用' }))
     expect(screen.getByText('家用', { selector: '.quick-expense-category-label' })).toBeInTheDocument()
@@ -405,14 +464,16 @@ describe('<QuickExpenseSheet />', () => {
 
   it('locks the save key while disabled', async () => {
     const { user, onSubmit } = renderSheet({ disabled: true })
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     await user.click(saveButton())
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  it('titles each group of options', () => {
-    renderSheet()
-    for (const title of ['常用支出', '分類', '預算']) {
+  it('titles each group of options', async () => {
+    const { user } = renderSheet()
+    await editDetails(user)
+    for (const title of ['分類', '預算']) {
       expect(screen.getByText(title, { selector: '.quick-expense-section-label' })).toBeInTheDocument()
     }
   })
@@ -423,8 +484,8 @@ describe('<QuickExpenseSheet />', () => {
       screen.getByLabelText('名稱'),
       screen.getByLabelText('金額'),
       screen.getByRole('group', { name: '日期' }),
+      screen.getByRole('button', { name: /自訂/ }),
       screen.getByRole('group', { name: '常用' }),
-      screen.getByRole('group', { name: '預算' }),
     ]
     for (let i = 1; i < order.length; i++) {
       expect(
@@ -453,7 +514,7 @@ describe('<QuickExpenseSheet />', () => {
     const { user } = renderSheet()
     await user.click(screen.getByLabelText('名稱'))
     expect(screen.queryByRole('group', { name: '日期' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: '分類' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: '常用' })).not.toBeInTheDocument()
   })
 
   it('gives a short haptic tick once saved, not on a failed save', async () => {
@@ -462,6 +523,7 @@ describe('<QuickExpenseSheet />', () => {
     try {
       const onSubmit = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
       const { user } = renderSheet({ onSubmit })
+      await editDetails(user)
       await user.click(screen.getByRole('button', { name: '餐飲' }))
       await press(user, ['8'])
       await user.click(saveButton())
@@ -475,6 +537,7 @@ describe('<QuickExpenseSheet />', () => {
 
   it('picks a budget for the expense', async () => {
     const { user, onSubmit } = renderSheet()
+    await editDetails(user)
     const trip = screen.getByRole('button', { name: '旅遊' })
     await user.click(trip)
     expect(trip).toHaveAttribute('aria-pressed', 'true')
@@ -486,6 +549,7 @@ describe('<QuickExpenseSheet />', () => {
 
   it('a second tap on the picked budget clears it', async () => {
     const { user } = renderSheet()
+    await editDetails(user)
     const trip = screen.getByRole('button', { name: '旅遊' })
     await user.click(trip)
     await user.click(trip)
@@ -495,12 +559,14 @@ describe('<QuickExpenseSheet />', () => {
   it('a template pre-selects its budget', async () => {
     const { user } = renderSheet()
     await user.click(screen.getByRole('button', { name: '常用 早餐' }))
+    await editDetails(user)
     expect(screen.getByRole('button', { name: '日常生活' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('keeps a hand-picked budget when the category change clears a template', async () => {
     const { user, onSubmit } = renderSheet()
     await user.click(screen.getByRole('button', { name: '常用 加油' }))
+    await editDetails(user)
     await user.click(screen.getByRole('button', { name: '旅遊' }))
     await user.click(screen.getByRole('button', { name: '餐飲' }))
     expect(screen.getByRole('button', { name: '旅遊' })).toHaveAttribute('aria-pressed', 'true')
@@ -509,8 +575,9 @@ describe('<QuickExpenseSheet />', () => {
     expect(onSubmit).toHaveBeenLastCalledWith(expect.objectContaining({ budgetId: 'b-2', categoryId: 'c-food' }))
   })
 
-  it('hides the budget group when there are no budgets', () => {
-    renderSheet({ budgets: [] })
+  it('hides the budget group when there are no budgets', async () => {
+    const { user } = renderSheet({ budgets: [] })
+    await editDetails(user)
     expect(screen.queryByText('預算', { selector: '.quick-expense-section-label' })).not.toBeInTheDocument()
   })
   it('shows the remembered payer and lets it be changed', async () => {
@@ -520,18 +587,21 @@ describe('<QuickExpenseSheet />', () => {
       { label: '共同帳戶', value: '共同帳戶' },
     ]
     const { user, onSubmit } = renderSheet({ payerOptions })
+    await editDetails(user)
     expect(screen.getByRole('button', { name: '共同帳戶' })).toHaveAttribute('aria-pressed', 'true')
     await user.click(screen.getByRole('button', { name: 'Wei' }))
     expect(screen.getByRole('button', { name: 'Wei' })).toHaveAttribute('aria-pressed', 'true')
     // A template without its own payer keeps the hand-picked one.
+    await backToTemplates(user)
     await user.click(screen.getByRole('button', { name: '常用 加油' }))
     await press(user, ['5', '0'])
     await user.click(saveButton())
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ payer: 'Wei' }))
   })
 
-  it('hides the payer group when there are no payers', () => {
-    renderSheet()
+  it('hides the payer group when there are no payers', async () => {
+    const { user } = renderSheet()
+    await editDetails(user)
     expect(screen.queryByRole('group', { name: '支出人' })).toBeNull()
   })
 })

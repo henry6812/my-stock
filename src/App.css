@@ -1990,10 +1990,102 @@ button.expense-card-chip {
   color: #fff;
 }
 
-.quick-expense-chip-meta {
-  margin-left: 2px;
-  opacity: 0.7;
+/* What the entry will be saved under; the whole line opens the chips. */
+.quick-expense-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--c-neutral-fill);
+  color: var(--c-ink);
+  font-size: var(--fs-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.quick-expense-summary:active {
+  background: var(--c-track);
+}
+
+.quick-expense-summary-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-expense-summary-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--c-muted);
+}
+
+/* 常用支出 laid out in full: fixed columns so names and amounts line up. */
+.quick-expense-templates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.quick-expense-template {
+  min-height: 52px;
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2px;
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.quick-expense-template-name,
+.quick-expense-template-meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-expense-template-name {
+  font-size: var(--fs-body);
+}
+
+.quick-expense-template-meta {
+  min-height: 1lh;
+  color: var(--c-muted);
   font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.quick-expense-template.is-active {
+  border-color: var(--c-action);
+  background: var(--c-action);
+  color: var(--c-surface);
+}
+
+.quick-expense-template.is-active .quick-expense-template-meta {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.quick-expense-back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .quick-expense-date-chip {

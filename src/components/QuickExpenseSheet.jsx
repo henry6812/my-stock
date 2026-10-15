@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer } from "antd";
 import { LoadingOutlined } from "@ant-design/icons";
-import { Calendar } from "iconoir-react";
+import { Calendar, NavArrowLeft, NavArrowRight } from "iconoir-react";
 import dayjs from "dayjs";
 import {
   evaluateExpression,
@@ -11,8 +11,10 @@ import {
 import { filterNameSuggestions } from "../utils/expenseSuggestions";
 import useBodyScrollLock from "../hooks/useBodyScrollLock";
 
-// Mobile-only "add one expense" sheet: custom keypad, category grid and the
-// user's 常用支出 chips so a typical entry never opens the system keyboard.
+// Mobile-only "add one expense" sheet: custom keypad, the user's 常用支出 and
+// a category grid so a typical entry never opens the system keyboard. It
+// opens on the 常用支出 alone; one summary line shows what the pick filled in
+// and swaps them for the category / payer / budget chips.
 // Owns its own state; the parent remounts it (via `key`) on every open.
 
 const NAME_MATCH_LIMIT = 6;
@@ -77,6 +79,11 @@ function QuickExpenseSheet({
   const [occurredAt, setOccurredAt] = useState(today);
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isPickingCategory, setIsPickingCategory] = useState(false);
+  // Category / payer / budget chips instead of the 常用支出 grid. Without
+  // templates there is nothing else to show.
+  const [isEditingDetails, setIsEditingDetails] = useState(
+    () => templates.length === 0,
+  );
   const [flashTarget, setFlashTarget] = useState(null);
   const submittingRef = useRef(false);
   const nameInputRef = useRef(null);
@@ -254,33 +261,72 @@ function QuickExpenseSheet({
     </div>
   );
 
+  // What the entry will be saved under, so a template's picks can be checked
+  // without opening the chips. Payer / budget only when there are any.
+  const detailsSummary = [
+    categoryName || "未選分類",
+    payerOptions.length > 0 &&
+      (payerOptions.find((item) => item.value === extras.payer)?.label ??
+        extras.payer ??
+        "未選支出人"),
+    budgets.length > 0 &&
+      (budgets.find((item) => item.id === extras.budgetId)?.name ?? "不計預算"),
+  ].filter(Boolean);
+
+  const renderTemplates = () => (
+    <>
+      <button
+        type="button"
+        className={`quick-expense-summary${
+          flashTarget === "category" ? " is-flashing" : ""
+        }`}
+        onClick={() => setIsEditingDetails(true)}
+      >
+        <span className="quick-expense-summary-text">
+          {detailsSummary.join(" · ")}
+        </span>
+        <span className="quick-expense-summary-action">
+          自訂
+          <NavArrowRight aria-hidden />
+        </span>
+      </button>
+      <div className="quick-expense-templates" role="group" aria-label="常用">
+        {templates.map((item) => {
+          const meta =
+            item.amountTwd > 0
+              ? `$${item.amountTwd.toLocaleString("zh-TW")}`
+              : categoryNames.get(item.categoryId);
+          const isPicked = pickedTemplateId === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`quick-expense-template${isPicked ? " is-active" : ""}`}
+              aria-label={`常用 ${item.name}`}
+              aria-pressed={isPicked}
+              onClick={() => applyTemplate(item)}
+            >
+              <span className="quick-expense-template-name">{item.name}</span>
+              <span className="quick-expense-template-meta">{meta ?? ""}</span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+
   const renderSelectors = () => (
     <>
-      {templates.length > 0 &&
-        section(
-          "常用支出",
-          <div className="quick-expense-scroll" role="group" aria-label="常用">
-            {templates.map((item) => {
-              const meta =
-                item.amountTwd > 0
-                  ? `$${item.amountTwd.toLocaleString("zh-TW")}`
-                  : categoryNames.get(item.categoryId);
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={chipClass(pickedTemplateId === item.id)}
-                  aria-label={`常用 ${item.name}`}
-                  aria-pressed={pickedTemplateId === item.id}
-                  onClick={() => applyTemplate(item)}
-                >
-                  {item.name}
-                  {meta && <span className="quick-expense-chip-meta">·{meta}</span>}
-                </button>
-              );
-            })}
-          </div>,
-        )}
+      {templates.length > 0 && (
+        <button
+          type="button"
+          className="quick-expense-link quick-expense-back"
+          onClick={() => setIsEditingDetails(false)}
+        >
+          <NavArrowLeft aria-hidden />
+          常用支出
+        </button>
+      )}
       {section(
         "分類",
         <div
@@ -517,7 +563,7 @@ function QuickExpenseSheet({
             ) : (
               <>
                 {renderDates()}
-                {renderSelectors()}
+                {isEditingDetails ? renderSelectors() : renderTemplates()}
               </>
             )}
           </div>
