@@ -18,6 +18,7 @@ import {
 } from '../services/portfolioService'
 import { getTwseDailyQuotes } from '../services/priceProviders/twseDailyProvider'
 import { loadStockFundamentals } from '../services/fundamentalsProviders'
+import { CLOUD_SYNC_UPDATED_EVENT } from '../services/firebase/cloudSyncService'
 import { DEFAULT_SCREEN_SETTINGS } from '../utils/stockScreen'
 import { EMPTY_VALUATION_SETTINGS } from '../utils/valuation'
 import { TW_FUNDAMENTALS } from '../utils/incomeModel.fixture'
@@ -115,6 +116,29 @@ describe('useStockScreen', () => {
     expect(result.current.settings.industries).toEqual(['14'])
     expect(result.current.result.counts.listed).toBe(0)
     expect(saveScreenSettings).not.toHaveBeenCalled()
+  })
+
+  it('keeps a local industry choice across cloud sync reloads', async () => {
+    const { result } = renderHook(() => useStockScreen({ ...props, canWrite: false }))
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    act(() => result.current.setIndustries(['14']))
+    act(() => {
+      window.dispatchEvent(new Event(CLOUD_SYNC_UPDATED_EVENT))
+    })
+    await waitFor(() => expect(getScreenSettings).toHaveBeenCalledTimes(2))
+    await act(async () => {})
+    expect(result.current.settings.industries).toEqual(['14'])
+  })
+
+  it('retries the quotes on the next visit after a failure', async () => {
+    vi.mocked(getTwseDailyQuotes).mockRejectedValueOnce(new Error('down'))
+    const { result, rerender } = renderHook((p) => useStockScreen(p), { initialProps: props })
+    await waitFor(() => expect(result.current.quotesFailed).toBe(true))
+    rerender({ ...props, active: false })
+    rerender({ ...props, active: true })
+    await waitFor(() => expect(result.current.quotesDate).toBe('20261014'))
+    expect(getTwseDailyQuotes).toHaveBeenCalledTimes(2)
+    expect(result.current.quotesFailed).toBe(false)
   })
 
   it('does nothing while disabled', () => {

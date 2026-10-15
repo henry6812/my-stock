@@ -58,7 +58,10 @@ const loadOverrides = async (codes, basis) => {
 export default function useStockScreen({ enabled, active, canWrite, owned, watched }) {
   const [file, setFile] = useState({ status: 'idle', rows: [] })
   const [quotes, setQuotes] = useState({ quotes: {}, date: null, failed: false })
-  const [settings, setSettings] = useState(DEFAULT_SCREEN_SETTINGS)
+  const [storedSettings, setStoredSettings] = useState(DEFAULT_SCREEN_SETTINGS)
+  // An industry choice not saved yet (signed out, offline or a failed
+  // save): kept for the session so a cloud-sync reload cannot undo it.
+  const [localIndustries, setLocalIndustries] = useState(null)
   const [basis, setBasis] = useState('ttm')
   const [overrides, setOverrides] = useState({})
   const [syncVersion, setSyncVersion] = useState(0)
@@ -89,7 +92,7 @@ export default function useStockScreen({ enabled, active, canWrite, owned, watch
     const load = () => {
       getScreenSettings().then((next) => {
         if (cancelled) return
-        setSettings(next)
+        setStoredSettings(next)
         setSyncVersion((version) => version + 1)
       })
     }
@@ -109,6 +112,8 @@ export default function useStockScreen({ enabled, active, canWrite, owned, watch
       .then(({ date, quotes: next }) => setQuotes({ quotes: next, date, failed: false }))
       .catch((error) => {
         console.warn('[stockScreen] quotes failed', error)
+        // Not throttled: the next visit to the tab tries again.
+        lastQuotesAtRef.current = 0
         setQuotes((current) => ({ ...current, failed: true }))
       })
   }, [enabled, active, file.status])
@@ -124,20 +129,29 @@ export default function useStockScreen({ enabled, active, canWrite, owned, watch
     }
   }, [file, basis, syncVersion])
 
+  const settings = useMemo(
+    () => (localIndustries ? normalizeScreenSettings({ ...storedSettings, industries: localIndustries }) : storedSettings),
+    [storedSettings, localIndustries],
+  )
+
   const saveSettings = useCallback(async (next) => {
     const saved = await saveScreenSettings(next)
-    setSettings(saved)
+    setStoredSettings(saved)
+    setLocalIndustries(null)
     return saved
   }, [])
 
   // Applies at once; saved (and synced) only when signed in.
   const setIndustries = useCallback(
     (industries) => {
-      const next = normalizeScreenSettings({ ...settings, industries })
-      setSettings(next)
-      if (canWrite) {
-        saveScreenSettings(next).catch((error) => console.warn('[stockScreen] save industries failed', error))
-      }
+      setLocalIndustries(industries)
+      if (!canWrite) return
+      saveScreenSettings(normalizeScreenSettings({ ...settings, industries }))
+        .then((saved) => {
+          setStoredSettings(saved)
+          setLocalIndustries((current) => (current === industries ? null : current))
+        })
+        .catch((error) => console.warn('[stockScreen] save industries failed', error))
     },
     [settings, canWrite],
   )
