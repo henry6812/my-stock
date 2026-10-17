@@ -132,6 +132,8 @@ import {
   setTiltEnabled,
 } from "./utils/deviceTilt";
 import MobileIncomeSettings from "./components/MobileIncomeSettings";
+import MobileHolderSettings from "./components/MobileHolderSettings";
+import MobileDataExport from "./components/MobileDataExport";
 import MobileSwipeRow from "./components/MobileSwipeRow";
 import {
   swipeDeleteAction,
@@ -3053,6 +3055,8 @@ function App() {
                   }),
                 ),
               ]}
+              onTap={isWriteDisabled ? undefined : () => openTemplateForm(record)}
+              label={`${record.name}，編輯`}
               main={renderTemplateName(record)}
             />
           ),
@@ -3329,6 +3333,8 @@ function App() {
                 }),
               ),
             ]}
+            onTap={isWriteDisabled ? undefined : () => openCategoryForm(record)}
+            label={`${record.name}，編輯`}
             main={
               <span className="category-list-name">
                 <CategoryIcon name={record.name} icon={record.icon} />
@@ -3336,7 +3342,12 @@ function App() {
               </span>
             }
             side={
-              <span className="mobile-inline-field">
+              // The switch toggles in place; it must not also open the form.
+              <span
+                className="mobile-inline-field"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
                 <Text type="secondary" className="mobile-inline-label">
                   快速選取
                 </Text>
@@ -3373,6 +3384,8 @@ function App() {
                   }),
                 ),
               ]}
+              onTap={isWriteDisabled ? undefined : () => openBudgetForm(record)}
+              label={`${record.name}，編輯`}
               main={
             <div>
               <div className="holding-main-text">{record.name}</div>
@@ -3420,6 +3433,8 @@ function App() {
                   }),
                 ),
               ]}
+              onTap={isWriteDisabled ? undefined : () => openBudgetForm(record)}
+              label={`${record.name}，編輯`}
               main={
             <div>
               <div className="holding-main-text">{record.name}</div>
@@ -5155,8 +5170,12 @@ function App() {
     return normalizedDraftValues.some((value, index) => value !== holderOptions[index]);
   }, [holderDraftRows, holderOptions]);
 
-  const handleSaveHolderSettings = useCallback(async () => {
-    const trimmedRows = holderDraftRows.map((row) => ({
+  // Saves a whole holder list: rows of { value, originalValue } (an empty
+  // originalValue is a new holder). Resolves to true once saved. With
+  // confirmRemoval, removing a holder always asks first (the phone's swipe
+  // 移除), not only when records still use it.
+  const saveHolderRows = useCallback(async (rows, { confirmRemoval = false } = {}) => {
+    const trimmedRows = rows.map((row) => ({
       ...row,
       value: row.value.trim(),
       originalValue: row.originalValue.trim(),
@@ -5188,6 +5207,20 @@ function App() {
           (item) => item.totalAffected > 0,
         );
 
+        if (!hasAffectedRecords && confirmRemoval) {
+          const confirmed = await new Promise((resolve) => {
+            confirmDestructive({
+              title: `移除持有人「${removedHolders.join("、")}」？`,
+              okText: "移除",
+              onOk: () => resolve(true),
+              onCancel: () => resolve(false),
+            });
+          });
+          if (!confirmed) {
+            return false;
+          }
+        }
+
         if (hasAffectedRecords) {
           const confirmed = await new Promise((resolve) => {
             Modal.confirm({
@@ -5211,7 +5244,7 @@ function App() {
           });
 
           if (!confirmed) {
-            return;
+            return false;
           }
         }
       }
@@ -5229,15 +5262,17 @@ function App() {
       ]);
       await performCloudSync();
       message.success("持有人設定已儲存");
+      return true;
     } catch (error) {
       message.error(
         toUserMessage(error, "儲存持有人設定失敗"),
       );
+      return false;
     } finally {
       setLoadingHolderSettings(false);
     }
   }, [
-    holderDraftRows,
+    confirmDestructive,
     holderOptions,
     loadAllData,
     loadExpenseData,
@@ -5245,6 +5280,40 @@ function App() {
     message,
     performCloudSync,
   ]);
+
+  const handleSaveHolderSettings = useCallback(
+    () => saveHolderRows(holderDraftRows),
+    [holderDraftRows, saveHolderRows],
+  );
+
+  // Phone: each sheet / swipe saves the list right away, with one holder
+  // added, renamed or removed.
+  const savedHolderRows = useCallback(
+    () => holderOptions.map((value) => ({ value, originalValue: value })),
+    [holderOptions],
+  );
+  const handleAddHolder = useCallback(
+    (name) =>
+      saveHolderRows([...savedHolderRows(), { value: name, originalValue: "" }]),
+    [saveHolderRows, savedHolderRows],
+  );
+  const handleRenameHolder = useCallback(
+    (holder, name) =>
+      saveHolderRows(
+        savedHolderRows().map((row) =>
+          row.originalValue === holder ? { ...row, value: name } : row,
+        ),
+      ),
+    [saveHolderRows, savedHolderRows],
+  );
+  const handleRemoveHolder = useCallback(
+    (holder) =>
+      saveHolderRows(
+        savedHolderRows().filter((row) => row.originalValue !== holder),
+        { confirmRemoval: true },
+      ),
+    [saveHolderRows, savedHolderRows],
+  );
 
   const effectiveExpenseAnalytics = useMemo(
     () =>
@@ -6429,66 +6498,77 @@ function App() {
                     )}
                   </Col>
                   <Col xs={24}>
-                    <Card title={<SectionTitle icon={Group}>持有人設定</SectionTitle>}>
-                      <Space
-                        direction="vertical"
-                        size={12}
-                        style={{ width: "100%" }}
-                      >
-                        <Alert
-                          type="info"
-                          showIcon
-                          message="這份持有人名單會同步套用到持股、現金帳戶、支出人與資產總覽篩選。"
-                          description="移除仍在使用中的持有人時，相關資料會改成未設定；支出的「共同帳戶」會保留為固定選項。"
-                        />
-                        {holderDraftRows.map((row, index) => (
-                          <Space.Compact
-                            key={row.id}
-                            style={{ width: "100%" }}
-                          >
-                            <Input
-                              value={row.value}
-                              placeholder={`持有人 ${index + 1}`}
-                              disabled={isWriteDisabled || loadingHolderSettings}
-                              onChange={(event) =>
-                                handleHolderDraftValueChange(
-                                  row.id,
-                                  event.target.value,
-                                )
-                              }
-                            />
+                    {isMobileViewport ? (
+                      <MobileHolderSettings
+                        holders={holderOptions}
+                        disabled={isWriteDisabled}
+                        loading={loadingHolderSettings}
+                        onAdd={handleAddHolder}
+                        onRename={handleRenameHolder}
+                        onRemove={handleRemoveHolder}
+                      />
+                    ) : (
+                      <Card title={<SectionTitle icon={Group}>持有人設定</SectionTitle>}>
+                        <Space
+                          direction="vertical"
+                          size={12}
+                          style={{ width: "100%" }}
+                        >
+                          <Alert
+                            type="info"
+                            showIcon
+                            message="這份持有人名單會同步套用到持股、現金帳戶、支出人與資產總覽篩選。"
+                            description="移除仍在使用中的持有人時，相關資料會改成未設定；支出的「共同帳戶」會保留為固定選項。"
+                          />
+                          {holderDraftRows.map((row, index) => (
+                            <Space.Compact
+                              key={row.id}
+                              style={{ width: "100%" }}
+                            >
+                              <Input
+                                value={row.value}
+                                placeholder={`持有人 ${index + 1}`}
+                                disabled={isWriteDisabled || loadingHolderSettings}
+                                onChange={(event) =>
+                                  handleHolderDraftValueChange(
+                                    row.id,
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                              <Button
+                                className="row-action row-action--danger"
+                                icon={<Trash />}
+                                aria-label="移除持有人"
+                                disabled={
+                                  isWriteDisabled ||
+                                  loadingHolderSettings ||
+                                  holderDraftRows.length <= 1
+                                }
+                                onClick={() => handleRemoveHolderDraftRow(row.id)}
+                              />
+                            </Space.Compact>
+                          ))}
+                          <Space wrap>
                             <Button
-                              className="row-action row-action--danger"
-                              icon={<Trash />}
-                              aria-label="移除持有人"
-                              disabled={
-                                isWriteDisabled ||
-                                loadingHolderSettings ||
-                                holderDraftRows.length <= 1
-                              }
-                              onClick={() => handleRemoveHolderDraftRow(row.id)}
-                            />
-                          </Space.Compact>
-                        ))}
-                        <Space wrap>
-                          <Button
-                            icon={<Plus />}
-                            onClick={handleAddHolderDraftRow}
-                            disabled={isWriteDisabled || loadingHolderSettings}
-                          >
-                            新增持有人
-                          </Button>
-                          <Button
-                            type="primary"
-                            onClick={handleSaveHolderSettings}
-                            loading={loadingHolderSettings}
-                            disabled={isWriteDisabled || !hasHolderSettingChanges}
-                          >
-                            儲存持有人設定
-                          </Button>
+                              icon={<Plus />}
+                              onClick={handleAddHolderDraftRow}
+                              disabled={isWriteDisabled || loadingHolderSettings}
+                            >
+                              新增持有人
+                            </Button>
+                            <Button
+                              type="primary"
+                              onClick={handleSaveHolderSettings}
+                              loading={loadingHolderSettings}
+                              disabled={isWriteDisabled || !hasHolderSettingChanges}
+                            >
+                              儲存持有人設定
+                            </Button>
+                          </Space>
                         </Space>
-                      </Space>
-                    </Card>
+                      </Card>
+                    )}
                   </Col>
                   <Col xs={24} lg={24}>
                     {isMobileViewport ? (
@@ -6709,42 +6789,81 @@ function App() {
                     )}
                   </Col>
                   <Col xs={24}>
-                    <Card title={<SectionTitle icon={Download}>資料匯出</SectionTitle>}>
-                      <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                        <Text type="secondary">
-                          匯出你輸入的資料（不含每日股價紀錄）。CSV 可用
-                          Excel / Numbers 開啟；JSON 為完整備份。
-                        </Text>
-                        <Space wrap>
-                          <Button
-                            icon={<Download />}
-                            onClick={handleExportHoldingsCsv}
-                            disabled={rows.length === 0}
-                          >
-                            持股 CSV
-                          </Button>
-                          <Button
-                            icon={<Download />}
-                            onClick={handleExportCashCsv}
-                            disabled={cashRows.length === 0}
-                          >
-                            現金帳戶 CSV
-                          </Button>
-                          <Button
-                            icon={<Download />}
-                            onClick={handleExportExpensesCsv}
-                          >
-                            支出 CSV（全部）
-                          </Button>
-                          <Button
-                            icon={<Download />}
-                            onClick={handleExportBackupJson}
-                          >
-                            完整備份 JSON
-                          </Button>
+                    {isMobileViewport ? (
+                      <MobileDataExport
+                        items={[
+                          {
+                            key: "holdings",
+                            label: "持股",
+                            hint:
+                              rows.length > 0
+                                ? `CSV · ${rows.length} 檔`
+                                : "還沒有持股",
+                            disabled: rows.length === 0,
+                            onExport: handleExportHoldingsCsv,
+                          },
+                          {
+                            key: "cash",
+                            label: "現金帳戶",
+                            hint:
+                              cashRows.length > 0
+                                ? `CSV · ${cashRows.length} 個帳戶`
+                                : "還沒有現金帳戶",
+                            disabled: cashRows.length === 0,
+                            onExport: handleExportCashCsv,
+                          },
+                          {
+                            key: "expenses",
+                            label: "支出",
+                            hint: "CSV · 全部月份",
+                            onExport: handleExportExpensesCsv,
+                          },
+                          {
+                            key: "backup",
+                            label: "完整備份",
+                            hint: "JSON · 你輸入的所有資料，不含每日股價紀錄",
+                            onExport: handleExportBackupJson,
+                          },
+                        ]}
+                      />
+                    ) : (
+                      <Card title={<SectionTitle icon={Download}>資料匯出</SectionTitle>}>
+                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                          <Text type="secondary">
+                            匯出你輸入的資料（不含每日股價紀錄）。CSV 可用
+                            Excel / Numbers 開啟；JSON 為完整備份。
+                          </Text>
+                          <Space wrap>
+                            <Button
+                              icon={<Download />}
+                              onClick={handleExportHoldingsCsv}
+                              disabled={rows.length === 0}
+                            >
+                              持股 CSV
+                            </Button>
+                            <Button
+                              icon={<Download />}
+                              onClick={handleExportCashCsv}
+                              disabled={cashRows.length === 0}
+                            >
+                              現金帳戶 CSV
+                            </Button>
+                            <Button
+                              icon={<Download />}
+                              onClick={handleExportExpensesCsv}
+                            >
+                              支出 CSV（全部）
+                            </Button>
+                            <Button
+                              icon={<Download />}
+                              onClick={handleExportBackupJson}
+                            >
+                              完整備份 JSON
+                            </Button>
+                          </Space>
                         </Space>
-                      </Space>
-                    </Card>
+                      </Card>
+                    )}
                   </Col>
                   {isMobileViewport && (
                     <Col xs={24}>

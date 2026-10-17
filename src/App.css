@@ -125,6 +125,52 @@
   color: var(--c-muted);
 }
 
+/* 設定 → 資料匯出 (phone): each row is one file to download; label over a
+   caption, the download icon on the right. */
+.settings-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-row-y) var(--space-row-x);
+  border: 0;
+  border-bottom: 1px solid var(--c-line);
+  background: none;
+  font: inherit;
+  text-align: start;
+  color: inherit;
+  cursor: pointer;
+}
+
+.settings-action-row:last-child {
+  border-bottom: 0;
+}
+
+.settings-action-row:focus-visible {
+  outline: 2px solid var(--c-action);
+  outline-offset: -2px;
+}
+
+.settings-action-row:disabled {
+  cursor: default;
+}
+
+.settings-action-row:disabled .device-setting-label,
+.settings-action-icon {
+  color: var(--c-muted);
+}
+
+.settings-action-icon {
+  flex: none;
+  font-size: var(--icon-md);
+}
+
+.settings-action-row:disabled .settings-action-icon {
+  color: var(--c-subtle);
+}
+
 .account-logout.ant-btn {
   min-height: 44px;
   border-radius: 0;
@@ -3160,8 +3206,9 @@ button.expense-card-chip {
   padding-block: var(--space-row-y);
 }
 
-/* Settings 類別列表 rows match the expense list's row height. */
-.mobile-list-section--category .mobile-swipe-row {
+/* Settings 類別列表 and 持有人 rows match the expense list's row height. */
+.mobile-list-section--category .mobile-swipe-row,
+.mobile-list-section--holder .mobile-swipe-row {
   min-height: 72px;
   padding-block: var(--space-row-y);
 }
@@ -3593,8 +3640,9 @@ button.expense-card-chip {
   gap: var(--space-1);
 }
 
-/* Settings 類別列表: icon tile + name. */
-.category-list-name {
+/* Settings 類別列表 / 持有人: icon tile (or avatar) + name. */
+.category-list-name,
+.holder-list-name {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
