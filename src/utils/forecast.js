@@ -3,6 +3,165 @@
 // income / expense stay flat because they are assumed to grow with inflation.
 // Spec: docs/superpowers/specs/2026-10-17-financial-forecast-design.md
 import dayjs from "dayjs";
+import { normalizeTotalCost } from "./holdingShares";
+
+export const FORECAST_HORIZONS = [10, 20, 30, 40];
+
+// null amounts / ratio mean "use the automatic value".
+export const FORECAST_DEFAULTS = {
+  monthlyIncomeTwd: null,
+  monthlyExpenseTwd: null,
+  investRatio: null,
+  stockReturn: 0.06,
+  cashReturn: 0.01,
+  inflation: 0.02,
+  withdrawalRate: 0.04,
+  horizonYears: 30,
+};
+
+export const FORECAST_LIMITS = {
+  stockReturn: { min: -0.2, max: 0.3, label: "股票年報酬" },
+  cashReturn: { min: -0.2, max: 0.3, label: "現金年利率" },
+  inflation: { min: 0, max: 0.15, label: "通膨率" },
+  withdrawalRate: { min: 0.01, max: 0.1, label: "提領率" },
+  investRatio: { min: 0, max: 1, label: "新存款投資比例" },
+};
+
+const RATE_KEYS = ["stockReturn", "cashReturn", "inflation", "withdrawalRate"];
+const AMOUNT_LABELS = {
+  monthlyIncomeTwd: "每月收入",
+  monthlyExpenseTwd: "每月支出",
+};
+
+const toFiniteOrNull = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const inRange = (value, { min, max }) => value >= min && value <= max;
+
+const formatLimitPercent = (value) => `${Math.round(value * 100)}%`;
+
+// Whatever is stored (or nothing) → a complete settings object; a missing,
+// broken or out-of-range value falls back to its default.
+export const normalizeForecastSettings = (raw) => {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const next = { ...FORECAST_DEFAULTS };
+  for (const key of Object.keys(AMOUNT_LABELS)) {
+    const value = toFiniteOrNull(source[key]);
+    next[key] = value !== null && value >= 0 ? Math.round(value) : null;
+  }
+  const ratio = toFiniteOrNull(source.investRatio);
+  next.investRatio =
+    ratio !== null && inRange(ratio, FORECAST_LIMITS.investRatio) ? ratio : null;
+  for (const key of RATE_KEYS) {
+    const value = toFiniteOrNull(source[key]);
+    if (value !== null && inRange(value, FORECAST_LIMITS[key])) next[key] = value;
+  }
+  const horizon = Number(source.horizonYears);
+  if (FORECAST_HORIZONS.includes(horizon)) next.horizonYears = horizon;
+  return next;
+};
+
+// A save must not store what normalize would silently drop: throw instead.
+export const validateForecastSettings = (settings = {}) => {
+  for (const [key, label] of Object.entries(AMOUNT_LABELS)) {
+    const raw = settings[key];
+    if (raw === null || raw === undefined) continue;
+    const value = toFiniteOrNull(raw);
+    if (value === null || value < 0) throw new Error(`${label}不能小於 0`);
+  }
+  for (const key of [...RATE_KEYS, "investRatio"]) {
+    const limit = FORECAST_LIMITS[key];
+    const raw = settings[key];
+    if (raw === null || raw === undefined) {
+      if (key === "investRatio") continue;
+      throw new Error(`請輸入${limit.label}`);
+    }
+    const value = toFiniteOrNull(raw);
+    if (value === null || !inRange(value, limit)) {
+      throw new Error(
+        `${limit.label}需介於 ${formatLimitPercent(limit.min)} 到 ${formatLimitPercent(limit.max)}`,
+      );
+    }
+  }
+  if (
+    settings.horizonYears !== undefined &&
+    !FORECAST_HORIZONS.includes(Number(settings.horizonYears))
+  ) {
+    throw new Error("預估年限只能是 10、20、30 或 40 年");
+  }
+};
+
+// Today's stock and cash, plus the cumulative return of the holdings that
+// have a cost (not annualised: holdings carry no purchase date). A holding
+// without a price is left out; one without a cost (or a US one without a
+// rate) counts toward the stock total but not the return.
+export const getForecastStartingPoint = ({ rows = [], cashRows = [] } = {}) => {
+  let stockTwd = 0;
+  let valueWithCostTwd = 0;
+  let costTwd = 0;
+  let unsetCostCount = 0;
+  for (const row of rows ?? []) {
+    const valueTwd = Number(row?.latestValueTwd);
+    if (row?.latestValueTwd === null || !Number.isFinite(valueTwd)) continue;
+    stockTwd += valueTwd;
+    const cost = normalizeTotalCost(row.totalCost);
+    const rate = row.market === "US" ? Number(row.fxRateToTwd) : 1;
+    if (cost === null || !Number.isFinite(rate)) {
+      unsetCostCount += 1;
+      continue;
+    }
+    valueWithCostTwd += valueTwd;
+    costTwd += cost * rate;
+  }
+  const cashTwd = (cashRows ?? []).reduce(
+    (sum, row) => sum + (Number(row?.balanceTwd) || 0),
+    0,
+  );
+  return {
+    stockTwd,
+    cashTwd,
+    holdingsReturn: costTwd > 0 ? (valueWithCostTwd - costTwd) / costTwd : null,
+    unsetCostCount,
+  };
+};
+
+export const getAutoInvestRatio = ({ stockTwd, cashTwd }) => {
+  const stock = Math.max(0, Number(stockTwd) || 0);
+  const total = stock + Math.max(0, Number(cashTwd) || 0);
+  return total > 0 ? stock / total : 0.5;
+};
+
+// Settings + automatic values → the assumptions the projection runs on.
+// `sources` says which of the three automatic fields were overridden.
+export const resolveForecastAssumptions = ({ settings, auto = {} }) => {
+  const normalized = normalizeForecastSettings(settings);
+  const pick = (key) =>
+    normalized[key] !== null
+      ? { value: normalized[key], source: "custom" }
+      : { value: auto[key] ?? null, source: "auto" };
+  const income = pick("monthlyIncomeTwd");
+  const expense = pick("monthlyExpenseTwd");
+  const ratio = pick("investRatio");
+  return {
+    monthlyIncomeTwd: income.value,
+    monthlyExpenseTwd: expense.value,
+    investRatio: ratio.value ?? 0.5,
+    stockReturn: normalized.stockReturn,
+    cashReturn: normalized.cashReturn,
+    inflation: normalized.inflation,
+    withdrawalRate: normalized.withdrawalRate,
+    horizonYears: normalized.horizonYears,
+    sources: {
+      monthlyIncomeTwd: income.source,
+      monthlyExpenseTwd: expense.source,
+      investRatio: ratio.source,
+    },
+    isComplete: income.value !== null && expense.value !== null,
+  };
+};
 
 export const toRealMonthlyRate = (nominalAnnual, inflation = 0) =>
   Math.pow(
