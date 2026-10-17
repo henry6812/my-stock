@@ -45,6 +45,7 @@ import {
   rankCategoriesByUsage,
 } from "../utils/expenseSuggestions";
 import { MODEL_FIELDS, parseQuarterKey, quarterIndexOf } from "../utils/incomeModel";
+import { normalizeForecastSettings, validateForecastSettings } from "../utils/forecast";
 import {
   buildTemplateRows,
   getNextTemplateSortOrder,
@@ -1097,6 +1098,30 @@ export const saveScreenSettings = async (settings) => {
   await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, {
     key: SCREEN_SETTINGS_KEY,
     screen: next,
+    updatedAt: getNowIso(),
+    deletedAt: null,
+    syncState: SYNC_PENDING,
+  });
+  return next;
+};
+
+// 財務預估 assumptions, synced like other settings. A patch merges into what
+// is stored; null on an amount / ratio puts its automatic value back.
+const FORECAST_SETTINGS_KEY = "forecast_settings";
+
+export const getForecastSettings = async () => {
+  const config = await db.app_config.get(FORECAST_SETTINGS_KEY);
+  return normalizeForecastSettings(config && !config.deletedAt ? config.forecast : null);
+};
+
+export const saveForecastSettings = async (patch = {}) => {
+  ensureCloudWritable();
+  const merged = { ...(await getForecastSettings()), ...patch };
+  validateForecastSettings(merged);
+  const next = normalizeForecastSettings(merged);
+  await mirrorToCloud(CLOUD_COLLECTION.APP_CONFIG, {
+    key: FORECAST_SETTINGS_KEY,
+    forecast: next,
     updatedAt: getNowIso(),
     deletedAt: null,
     syncState: SYNC_PENDING,
@@ -4193,6 +4218,9 @@ export const getExpenseDashboardView = async (input = {}) => {
         monthOverridesMap,
       }),
   });
+  const expenseAverage = averageMonthlyExpense(monthlySummaries, {
+    firstExpenseDate,
+  });
   // Deleted accounts stay in so a goal can tell a removed link from none.
   const goalCashAccounts = (await db.cash_accounts.toArray()).map((item) => ({
     key: buildCashAccountKey(item),
@@ -4277,10 +4305,9 @@ export const getExpenseDashboardView = async (input = {}) => {
       firstExpenseDate,
       today,
     }),
-    savingsGoalAverageMonthlyExpenseTwd: averageMonthlyExpense(
-      monthlySummaries,
-      { firstExpenseDate },
-    ).averageTwd,
+    savingsGoalAverageMonthlyExpenseTwd: expenseAverage.averageTwd,
+    averageMonthlyExpense: expenseAverage,
+    forecastSettings: await getForecastSettings(),
     savingsGoalAccountOptions: goalCashAccounts
       .filter((item) => !item.deletedAt)
       .map(({ deletedAt, ...item }) => {

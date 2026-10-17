@@ -275,3 +275,22 @@ describe('app_config screen settings', () => {
     expect(appConfigToRemote({ key: 'x', updatedAt: 't' })).not.toHaveProperty('screen')
   })
 })
+
+describe('app_config forecast settings', () => {
+  it('round-trips the forecast map', () => {
+    const forecast = {
+      monthlyIncomeTwd: null,
+      monthlyExpenseTwd: 60000,
+      investRatio: null,
+      stockReturn: 0.06,
+      cashReturn: 0.01,
+      inflation: 0.02,
+      withdrawalRate: 0.04,
+      horizonYears: 30,
+    }
+    const remote = appConfigToRemote({ key: 'forecast_settings', forecast, updatedAt: '2026-10-17T00:00:00.000Z' })
+    expect(remote.forecast).toEqual(forecast)
+    expect(remoteToAppConfig(remote).forecast).toEqual(forecast)
+    expect(appConfigToRemote({ key: 'x', updatedAt: 't' })).not.toHaveProperty('forecast')
+  })
+})

@@ -267,6 +267,9 @@ export const appConfigToRemote = (config) => ({
   ...(config.screen && typeof config.screen === 'object'
     ? { screen: config.screen }
     : {}),
+  ...(config.forecast && typeof config.forecast === 'object'
+    ? { forecast: config.forecast }
+    : {}),
   updatedAt: config.updatedAt,
   deletedAt: config.deletedAt ?? null,
   clientUpdatedAt: config.updatedAt,
@@ -488,6 +491,8 @@ export const remoteToAppConfig = (data) => ({
     data.valuation && typeof data.valuation === 'object' ? data.valuation : undefined,
   screen:
     data.screen && typeof data.screen === 'object' ? data.screen : undefined,
+  forecast:
+    data.forecast && typeof data.forecast === 'object' ? data.forecast : undefined,
   updatedAt: toIso(data.updatedAt) ?? data.clientUpdatedAt ?? null,
   deletedAt: toIso(data.deletedAt),
 })
