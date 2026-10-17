@@ -106,7 +106,7 @@
 }
 ```
 
-讀取時缺少的欄位補預設值。寫入沿用既有 `INCOME_SETTINGS_KEY` 的模式（雲端優先、需登入）。`firestoreMappers.js` 的 `appConfigToRemote` 已支援任意 value，不需修改。
+讀取時缺少或不合法的欄位補預設值。寫入沿用既有 `stock_screen:settings` 的模式（雲端優先、需登入）：設定存在 record 的 `forecast` 欄位（上面的 `value` 只是示意）。`firestoreMappers.js` 的 `appConfigToRemote` / `remoteToAppConfig` 是白名單式的，**需新增 `forecast` 欄位**，否則不會同步到雲端。
 
 ## 「如果…」線
 
@@ -127,16 +127,15 @@
 
 改 UI 前依 `DESIGN.md` / `PRODUCT.md`：只用 token、小字灰用 `muted`、每頁一個 display 級大數字。
 
-### 資產頁入口卡 `ForecastEntryCard`
+### 資產頁入口：「資產分析」列表的第一列
 
-- 位置：`AssetSummaryHero` 所在的 `asset-summary-panel` 下方、持股列表上方。
-- 一列小卡，不放 display 數字（資產頁的 display 數字仍是淨資產）：
-  - 標題「財務預估」
-  - 結論句（見「財務自由」三種文案）
-  - 副文字：「30 年後約 NT$X（今日幣值）」（年數跟著 `horizonYears`）
-- 點整列打開 forecast sheet。
-- 未登入、或股票與現金都為 0 且沒有收入 / 支出資料時不顯示。
-- 每月收入或每月支出無法取得（沒設定收入 / 沒有完整月份的支出且未覆寫）時，結論句改為「設定每月收入與支出以開始預估」，點開直接進假設區塊。
+（2026-10-17 修訂：原設計為 hero 下方的入口卡；`DESIGN.md` 規定分析入口用「資產分析」列表、頁面上不放縮圖卡片，改用既有列表。）
+
+- 「資產分析」列表（`.analysis-*`）新增第一列，`StatUp` 圖示：
+  - 名稱「財務預估」
+  - 重點句：結論句（見「財務自由」三種文案）
+- 點列打開 forecast sheet（不是既有的分析 modal）。
+- 每月收入或每月支出無法取得（沒設定收入 / 沒有完整月份的支出且未覆寫）時，重點句改為「設定每月收入與支出以開始預估」。
 
 ### Forecast sheet `ForecastSheet`
 
@@ -157,13 +156,14 @@
 
 | 檔案 | 職責 |
 |---|---|
-| `src/utils/forecast.js` | 純函式：`toRealMonthlyRate`、`resolveForecastAssumptions`（合併設定與自動值、標記來源 `auto` / `custom`）、`projectNetWorth`、`getFiThreshold`、`findFiMonth`、`applyWhatIf` |
-| `src/services/portfolioService.js` | `getForecastSettings()`、`setForecastSettings(patch)`（含驗證）、`getForecastAutoValues()`（收入設定、`buildMonthlySummaries` 的過去完整月份支出、持股市值與現金合計、有成本持股的總報酬 %） |
-| `src/hooks/useForecast.js` | 讀設定與自動值，算基準結果；持有旋鈕 state，算「如果…」結果與差異 |
-| `src/components/forecast/` | `ForecastEntryCard`、`ForecastSheet`、`ForecastChart`、`ForecastWhatIf`、`ForecastAssumptions` |
-| `src/App.jsx` | 只加入口卡與 sheet 的開關（一個 `useState`） |
+| `src/utils/forecast.js` | 純函式：設定的預設 / 正規化 / 驗證、`getForecastStartingPoint`（持股市值、現金、有成本持股的總報酬 %）、`resolveForecastAssumptions`（合併設定與自動值、標記來源 `auto` / `custom`）、`toRealMonthlyRate`、`projectNetWorth`、`getFiThreshold`、`findFiMonth`、`runForecast`、`applyWhatIf`、文案 |
+| `src/services/firebase/firestoreMappers.js` | `app_config` 新增 `forecast` 欄位 |
+| `src/services/portfolioService.js` | `getForecastSettings()`、`saveForecastSettings(patch)`（含驗證）；`getExpenseDashboardView` 多回傳 `forecastSettings` 與 `averageMonthlyExpense`（既有 `savingsGoals.averageMonthlyExpense` 的完整結果 `{ averageTwd, monthsUsed }`） |
+| `src/hooks/useForecast.js` | 由 App 已載入的持股、現金、收入、平均支出與設定算基準結果；持有旋鈕與檢視年限 state，算「如果…」結果與差異 |
+| `src/components/forecast/` | `ForecastSheet`、`ForecastChart`、`ForecastWhatIf`、`ForecastAssumptions` |
+| `src/App.jsx` | 「資產分析」新增一列、sheet 開關、`forecastSettings` state；既有 `averageMonthlyExpenseTwd` state 擴充為 `averageMonthlyExpense` 物件 |
 
-資料流：開 App → 既有流程從 Firestore 載入 → `useForecast` 取自動值與設定 → `forecast.js` 計算。改假設 → `setForecastSettings` → 重算。旋鈕只改 hook state。
+資料流：開 App → 既有 `loadAllData`（持股、現金）與 `loadExpenseData`（收入、平均支出、forecast 設定）從 Firestore 載入 → `useForecast` → `forecast.js` 計算。改假設 → `saveForecastSettings` → `loadExpenseData` → 重算。旋鈕只改 hook state。
 
 ## 測試
 
@@ -181,8 +181,8 @@ Vitest，測試檔與被測檔同層。
   - 設定讀寫與驗證範圍。
   - 自動支出：不含本月、不足 12 個月時用現有月數並回傳月數、沒有完整月份時為 `null`。
   - 投資比例自動值（總資產為 0 時 50%）。
+- 結論文案（`describeFiResult`）：已達 / 期間內 / 未達 / 缺資料四種。
 - 元件 smoke test
-  - `ForecastEntryCard`：已達 / 期間內 / 未達 / 缺資料四種文案。
   - `ForecastWhatIf`：無調整時不顯示差異；調整後顯示提早 / 延後與金額差。
 
 ## 下一版候選
