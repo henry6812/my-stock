@@ -3,6 +3,7 @@
 // income / expense stay flat because they are assumed to grow with inflation.
 // Spec: docs/superpowers/specs/2026-10-17-financial-forecast-design.md
 import dayjs from "dayjs";
+import { formatTwd } from "./formatters";
 import { normalizeTotalCost } from "./holdingShares";
 
 export const FORECAST_HORIZONS = [10, 20, 30, 40];
@@ -256,3 +257,98 @@ export const runForecast = ({
     horizonYears: years,
   };
 };
+
+export const DEFAULT_WHAT_IF = {
+  expenseDeltaTwd: 0,
+  incomeDeltaTwd: 0,
+  investRatio: null,
+  stockReturn: null,
+};
+
+const EPS = 1e-9;
+
+export const applyWhatIf = (assumptions, knobs = DEFAULT_WHAT_IF) => ({
+  ...assumptions,
+  monthlyIncomeTwd: Math.max(
+    0,
+    (Number(assumptions.monthlyIncomeTwd) || 0) + (Number(knobs.incomeDeltaTwd) || 0),
+  ),
+  monthlyExpenseTwd: Math.max(
+    0,
+    (Number(assumptions.monthlyExpenseTwd) || 0) + (Number(knobs.expenseDeltaTwd) || 0),
+  ),
+  investRatio: knobs.investRatio ?? assumptions.investRatio,
+  stockReturn: knobs.stockReturn ?? assumptions.stockReturn,
+});
+
+const differs = (knobValue, baseValue) =>
+  knobValue !== null &&
+  knobValue !== undefined &&
+  Math.abs(Number(knobValue) - Number(baseValue)) > EPS;
+
+export const isWhatIfActive = (assumptions, knobs = DEFAULT_WHAT_IF) =>
+  (Number(knobs.expenseDeltaTwd) || 0) !== 0 ||
+  (Number(knobs.incomeDeltaTwd) || 0) !== 0 ||
+  differs(knobs.investRatio, assumptions.investRatio) ||
+  differs(knobs.stockReturn, assumptions.stockReturn);
+
+// ± range of the income / expense knobs: half the base, in whole thousands,
+// at least 10,000.
+export const getWhatIfAmountRange = (amountTwd) =>
+  Math.max(10000, Math.round(((Number(amountTwd) || 0) * 0.5) / 1000) * 1000);
+
+export const FORECAST_INCOMPLETE_TEXT = "設定每月收入與支出以開始預估";
+
+const describeSpan = (months) =>
+  months >= 12 ? `${Math.round(months / 12)} 年` : `${months} 個月`;
+
+const fiYear = (result) => result.fiMonth.slice(0, 4);
+
+export const describeFiResult = (result) => {
+  if (!result) return FORECAST_INCOMPLETE_TEXT;
+  if (result.fiMonthIndex === null) return `${result.horizonYears} 年內未達財務自由`;
+  if (result.fiMonthIndex === 0) return "已達財務自由門檻";
+  return `照目前步調，${fiYear(result)} 年可財務自由（約 ${describeSpan(result.fiMonthIndex)}後）`;
+};
+
+export const getFiHeadline = (result) => {
+  if (result.fiMonthIndex === null) return "未達";
+  if (result.fiMonthIndex === 0) return "已達成";
+  return `${fiYear(result)} 年`;
+};
+
+export const describeWhatIfDiff = (base, alt) => {
+  const parts = [];
+  if (base.fiMonthIndex !== null && alt.fiMonthIndex !== null) {
+    const diff = base.fiMonthIndex - alt.fiMonthIndex;
+    if (diff !== 0) {
+      parts.push(`財務自由${diff > 0 ? "提早" : "延後"} ${describeSpan(Math.abs(diff))}`);
+    }
+  } else if (alt.fiMonthIndex !== null) {
+    parts.push(
+      alt.fiMonthIndex === 0 ? "變成已達財務自由門檻" : `變成 ${fiYear(alt)} 年可財務自由`,
+    );
+  } else if (base.fiMonthIndex !== null) {
+    parts.push(`變成 ${alt.horizonYears} 年內未達財務自由`);
+  }
+  const delta = alt.endTotalTwd - base.endTotalTwd;
+  if (Math.abs(delta) >= 1) {
+    parts.push(
+      `${alt.horizonYears} 年後${delta > 0 ? "多" : "少"} ${formatTwd(Math.abs(delta), true)}`,
+    );
+  }
+  return parts.length ? parts.join(" · ") : "跟目前步調一樣";
+};
+
+// One point a year (month 0, 12, 24…) for the chart.
+export const buildForecastChartData = ({ base, whatIf = null }) =>
+  base.series
+    .filter((point) => point.monthIndex % 12 === 0)
+    .map((point) => ({
+      yearsFromNow: point.monthIndex / 12,
+      year: Number(point.month.slice(0, 4)),
+      stockTwd: point.stockTwd,
+      cashTwd: point.cashTwd,
+      totalTwd: point.totalTwd,
+      whatIfTotalTwd: whatIf ? whatIf.series[point.monthIndex].totalTwd : null,
+    }));

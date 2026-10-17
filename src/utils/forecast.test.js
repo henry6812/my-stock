@@ -1,6 +1,16 @@
 import { describe, it, expect } from 'vitest'
+import { formatTwd } from './formatters'
 import {
+  applyWhatIf,
+  buildForecastChartData,
+  DEFAULT_WHAT_IF,
+  describeFiResult,
+  describeWhatIfDiff,
   FORECAST_DEFAULTS,
+  FORECAST_INCOMPLETE_TEXT,
+  getFiHeadline,
+  getWhatIfAmountRange,
+  isWhatIfActive,
   findFiMonth,
   getAutoInvestRatio,
   getFiThreshold,
@@ -334,5 +344,98 @@ describe('resolveForecastAssumptions', () => {
     expect(
       resolveForecastAssumptions({ settings: null, auto: { ...auto, monthlyExpenseTwd: null } }).isComplete,
     ).toBe(false)
+  })
+})
+
+describe('what-if', () => {
+  const base = { ...flat, monthlyIncomeTwd: 90000, monthlyExpenseTwd: 60000, investRatio: 0.7, stockReturn: 0.06 }
+
+  it('leaves the assumptions alone with the default knobs', () => {
+    expect(applyWhatIf(base, DEFAULT_WHAT_IF)).toEqual(base)
+    expect(isWhatIfActive(base, DEFAULT_WHAT_IF)).toBe(false)
+  })
+
+  it('adds the deltas and replaces the ratio and return', () => {
+    const knobs = { expenseDeltaTwd: -5000, incomeDeltaTwd: 2000, investRatio: 0.9, stockReturn: 0.08 }
+    expect(applyWhatIf(base, knobs)).toMatchObject({
+      monthlyIncomeTwd: 92000,
+      monthlyExpenseTwd: 55000,
+      investRatio: 0.9,
+      stockReturn: 0.08,
+    })
+    expect(isWhatIfActive(base, knobs)).toBe(true)
+  })
+
+  it('never takes income or expense below zero', () => {
+    const applied = applyWhatIf(base, { ...DEFAULT_WHAT_IF, expenseDeltaTwd: -70000, incomeDeltaTwd: -100000 })
+    expect(applied.monthlyExpenseTwd).toBe(0)
+    expect(applied.monthlyIncomeTwd).toBe(0)
+  })
+
+  it('is inactive when a knob is set back to the base value', () => {
+    expect(isWhatIfActive(base, { ...DEFAULT_WHAT_IF, investRatio: 0.7, stockReturn: 6 / 100 })).toBe(false)
+  })
+
+  it('ranges the amount knobs over half the base, at least 10,000', () => {
+    expect(getWhatIfAmountRange(60000)).toBe(30000)
+    expect(getWhatIfAmountRange(61000)).toBe(31000)
+    expect(getWhatIfAmountRange(5000)).toBe(10000)
+    expect(getWhatIfAmountRange(null)).toBe(10000)
+  })
+})
+
+describe('forecast copy', () => {
+  const result = (fiMonthIndex, fiMonth = null) => ({ fiMonthIndex, fiMonth, horizonYears: 30, endTotalTwd: 0 })
+
+  it('describes the FI result', () => {
+    expect(describeFiResult(null)).toBe(FORECAST_INCOMPLETE_TEXT)
+    expect(FORECAST_INCOMPLETE_TEXT).toBe('設定每月收入與支出以開始預估')
+    expect(describeFiResult(result(0, '2026-10'))).toBe('已達財務自由門檻')
+    expect(describeFiResult(result(180, '2041-10'))).toBe('照目前步調，2041 年可財務自由（約 15 年後）')
+    expect(describeFiResult(result(5, '2027-03'))).toBe('照目前步調，2027 年可財務自由（約 5 個月後）')
+    expect(describeFiResult(result(null))).toBe('30 年內未達財務自由')
+  })
+
+  it('heads the sheet with the FI year', () => {
+    expect(getFiHeadline(result(0, '2026-10'))).toBe('已達成')
+    expect(getFiHeadline(result(180, '2041-10'))).toBe('2041 年')
+    expect(getFiHeadline(result(null))).toBe('未達')
+  })
+
+  it('describes how the what-if line differs', () => {
+    const base = { fiMonthIndex: 180, fiMonth: '2041-10', horizonYears: 30, endTotalTwd: 10_000_000 }
+    expect(
+      describeWhatIfDiff(base, { ...base, fiMonthIndex: 144, fiMonth: '2038-10', endTotalTwd: 14_800_000 }),
+    ).toBe(`財務自由提早 3 年 · 30 年後多 ${formatTwd(4_800_000, true)}`)
+    expect(
+      describeWhatIfDiff(base, { ...base, fiMonthIndex: 186, fiMonth: '2042-04', endTotalTwd: 9_000_000 }),
+    ).toBe(`財務自由延後 6 個月 · 30 年後少 ${formatTwd(1_000_000, true)}`)
+    expect(describeWhatIfDiff(base, { ...base })).toBe('跟目前步調一樣')
+  })
+
+  it('describes reaching or losing FI within the horizon', () => {
+    const never = { fiMonthIndex: null, fiMonth: null, horizonYears: 30, endTotalTwd: 100 }
+    const reached = { fiMonthIndex: 300, fiMonth: '2051-10', horizonYears: 30, endTotalTwd: 100 }
+    expect(describeWhatIfDiff(never, reached)).toBe('變成 2051 年可財務自由')
+    expect(describeWhatIfDiff(reached, never)).toBe('變成 30 年內未達財務自由')
+  })
+})
+
+describe('buildForecastChartData', () => {
+  it('keeps one point a year and lines up the what-if total', () => {
+    const base = runForecast({ stockTwd: 0, cashTwd: 0, assumptions: flat, startMonth: '2026-10', horizonYears: 2 })
+    const whatIf = runForecast({
+      stockTwd: 0,
+      cashTwd: 0,
+      assumptions: { ...flat, monthlyIncomeTwd: 40 },
+      startMonth: '2026-10',
+      horizonYears: 2,
+    })
+    expect(buildForecastChartData({ base })).toEqual([
+      { yearsFromNow: 0, year: 2026, stockTwd: 0, cashTwd: 0, totalTwd: 0, whatIfTotalTwd: null },
+      { yearsFromNow: 1, year: 2027, stockTwd: 180, cashTwd: 60, totalTwd: 240, whatIfTotalTwd: null },
+      { yearsFromNow: 2, year: 2028, stockTwd: 360, cashTwd: 120, totalTwd: 480, whatIfTotalTwd: null },
+    ])
+    expect(buildForecastChartData({ base, whatIf }).map((point) => point.whatIfTotalTwd)).toEqual([0, 360, 720])
   })
 })
