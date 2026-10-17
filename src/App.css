@@ -4970,3 +4970,43 @@ button.valuation-factor {
   flex: 1;
   min-height: 44px;
 }
+
+/* ---- 財務預估 sheet ----
+   Same rhythm as the stock detail sheet: the FI year leads, sections sit
+   apart with subhead titles (.stock-detail-section / -heading). */
+.forecast-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.forecast-whatif {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.forecast-knob-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--c-ink);
+}
+
+.forecast-knob-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-whatif-diff {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-row-x);
+  border-radius: var(--radius-lg);
+  background: var(--c-neutral-fill);
+  color: var(--c-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
