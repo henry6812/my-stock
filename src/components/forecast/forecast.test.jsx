@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
+import ForecastSheet from './ForecastSheet'
+import useForecast from '../../hooks/useForecast'
 import ForecastAssumptions from './ForecastAssumptions'
 import ForecastChart from './ForecastChart'
 import ForecastWhatIf from './ForecastWhatIf'
@@ -115,5 +117,47 @@ describe('ForecastAssumptions', () => {
       <ForecastAssumptions assumptions={resolved} auto={auto} start={start} isMobile disabled onSave={vi.fn()} />,
     )
     expect(screen.queryByRole('button', { name: /，編輯$/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('ForecastSheet', () => {
+  const hookInput = {
+    rows: [{ market: 'TW', latestValueTwd: 3_000_000, totalCost: 2_000_000 }],
+    cashRows: [{ balanceTwd: 1_000_000 }],
+    defaultMonthlyIncomeTwd: 100_000,
+    averageMonthlyExpense: { averageTwd: 60_000, monthsUsed: 12 },
+    settings: null,
+    currentMonth: '2026-10',
+  }
+
+  it('leads with the FI year and the end total', () => {
+    const { result } = renderHook(() => useForecast(hookInput))
+    render(
+      <ForecastSheet open isMobile onClose={() => {}} forecast={result.current} onSaveSettings={vi.fn()} />,
+    )
+    expect(screen.getByText('財務預估')).toBeInTheDocument()
+    expect(screen.getByText(/^\d{4} 年$/)).toBeInTheDocument()
+    expect(screen.getByText(/^30 年後總資產/)).toBeInTheDocument()
+    expect(screen.getByText('以今日幣值計算，假設收入與支出隨通膨成長；不構成投資建議。')).toBeInTheDocument()
+  })
+
+  it('asks for income and expense when they are missing', () => {
+    const { result } = renderHook(() => useForecast({ ...hookInput, defaultMonthlyIncomeTwd: null }))
+    render(
+      <ForecastSheet open isMobile onClose={() => {}} forecast={result.current} onSaveSettings={vi.fn()} />,
+    )
+    expect(screen.getByText('設定每月收入與支出以開始預估')).toBeInTheDocument()
+    expect(screen.queryByText('如果…')).not.toBeInTheDocument()
+    expect(screen.getByText('每月收入')).toBeInTheDocument()
+  })
+
+  it('saves the viewed horizon when writing is allowed', () => {
+    const onSaveSettings = vi.fn().mockResolvedValue(true)
+    const { result } = renderHook(() => useForecast(hookInput))
+    render(
+      <ForecastSheet open isMobile onClose={() => {}} forecast={result.current} onSaveSettings={onSaveSettings} />,
+    )
+    fireEvent.click(screen.getByText('20 年'))
+    expect(onSaveSettings).toHaveBeenCalledWith({ horizonYears: 20 })
   })
 })

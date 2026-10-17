@@ -72,6 +72,7 @@ import {
   Settings,
   SmartphoneDevice,
   Star,
+  StatUp,
   StatsReport,
   Trash,
   User,
@@ -152,9 +153,11 @@ import SavingsGoalForm from "./components/SavingsGoalForm";
 import StaleBalanceIcon from "./components/StaleBalanceIcon";
 import StockDetailSheet from "./components/StockDetailSheet";
 import WatchlistDetailSheet from "./components/WatchlistDetailSheet";
+import ForecastSheet from "./components/forecast/ForecastSheet";
 import WatchlistSection from "./components/research/WatchlistSection";
 import WatchlistForm, { WATCHLIST_FORM_ID } from "./components/research/WatchlistForm";
 import useWatchlist from "./hooks/useWatchlist";
+import useForecast from "./hooks/useForecast";
 import ScreenSection from "./components/research/ScreenSection";
 import ScreenListSheet from "./components/research/ScreenListSheet";
 import ScreenSettingsSheet from "./components/research/ScreenSettingsSheet";
@@ -203,6 +206,7 @@ import {
   upsertHolding,
   getExpenseDashboardView,
   saveHolderOptions,
+  saveForecastSettings,
   saveIncomeSettings,
   setIncomeOverride,
   removeIncomeOverride,
@@ -571,7 +575,13 @@ function App() {
   const [savingsGoals, setSavingsGoals] = useState([]);
   const [savingsGoalAccountOptions, setSavingsGoalAccountOptions] = useState([]);
   // Every ongoing goal uses the same average; the form previews from it.
-  const [averageMonthlyExpenseTwd, setAverageMonthlyExpenseTwd] = useState(null);
+  const [averageMonthlyExpense, setAverageMonthlyExpense] = useState({
+    averageTwd: null,
+    monthsUsed: 0,
+  });
+  // 財務預估: saved assumptions (null until the first expense load) and the sheet.
+  const [forecastSettings, setForecastSettings] = useState(null);
+  const [isForecastOpen, setIsForecastOpen] = useState(false);
   const [savingsGoalDetailId, setSavingsGoalDetailId] = useState(null);
   const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
@@ -1109,7 +1119,10 @@ function App() {
       setExpenseMonthlySummaries(view.monthlySummaries ?? []);
       setSavingsGoals(view.savingsGoals ?? []);
       setSavingsGoalAccountOptions(view.savingsGoalAccountOptions ?? []);
-      setAverageMonthlyExpenseTwd(view.savingsGoalAverageMonthlyExpenseTwd ?? null);
+      setAverageMonthlyExpense(
+        view.averageMonthlyExpense ?? { averageTwd: null, monthsUsed: 0 },
+      );
+      setForecastSettings(view.forecastSettings ?? null);
       setExpenseCategoryRows(view.categoryRows ?? []);
       setExpenseNameSuggestions(view.expenseNameSuggestions ?? []);
       setExpenseTemplateRows(view.expenseTemplates ?? []);
@@ -2278,8 +2291,39 @@ function App() {
     ].filter((item) => item.value > 0);
   }, [cashRows, rows]);
 
+  const forecast = useForecast({
+    rows,
+    cashRows,
+    defaultMonthlyIncomeTwd,
+    averageMonthlyExpense,
+    settings: forecastSettings,
+  });
+  const forecastSummary = forecast.summary;
+  const { resetKnobs: resetForecastKnobs, setHorizonYears: setForecastHorizon } =
+    forecast;
+
+  const closeForecast = useCallback(() => {
+    setIsForecastOpen(false);
+    resetForecastKnobs();
+    setForecastHorizon(null);
+  }, [resetForecastKnobs, setForecastHorizon]);
+
+  const handleSaveForecastSettings = useCallback(
+    async (patch) => {
+      try {
+        await saveForecastSettings(patch);
+        await loadExpenseData();
+        return true;
+      } catch (error) {
+        message.error(toUserMessage(error, "儲存預估假設失敗"));
+        return false;
+      }
+    },
+    [loadExpenseData, message],
+  );
+
   // 資產分析 rows: each chart with a one-line headline; the chart itself
-  // opens in a modal (same pattern as 支出分析).
+  // opens in a modal (same pattern as 支出分析). 財務預估 opens its own sheet.
   const assetChartRows = useMemo(() => {
     // No figure for the trend: its first point is a snapshot from the start
     // of the range, not yesterday's close, so a 「近 24 小時 ▼ $X」 would
@@ -2289,6 +2333,13 @@ function App() {
         ? "總資產在 24 小時、一週、一個月內的變化"
         : "尚無走勢資料";
     return [
+      {
+        key: "forecast",
+        title: "財務預估",
+        icon: StatUp,
+        summary: forecastSummary,
+        onOpen: () => setIsForecastOpen(true),
+      },
       { key: "trend", title: "現值走勢", icon: GraphUp, summary: trendSummary },
       {
         key: "assetType",
@@ -2303,7 +2354,7 @@ function App() {
         summary: describeAllocation(marketAllocation) || "尚無資料",
       },
     ];
-  }, [assetTypeAllocation, marketAllocation, trend]);
+  }, [assetTypeAllocation, forecastSummary, marketAllocation, trend]);
   const activeAssetChart = assetChartRows.find(
     (row) => row.key === activeAssetChartKey,
   );
@@ -4781,7 +4832,7 @@ function App() {
       onSubmit={handleSubmitGoal}
       initialValues={editingGoal}
       accountOptions={savingsGoalAccountOptions}
-      averageMonthlyExpenseTwd={averageMonthlyExpenseTwd}
+      averageMonthlyExpenseTwd={averageMonthlyExpense.averageTwd}
       today={dayjs().format("YYYY-MM-DD")}
       popupContainer={getSheetPopupContainer}
       disabled={isWriteDisabled}
@@ -6039,7 +6090,11 @@ function App() {
                         <button
                           type="button"
                           className="analysis-item"
-                          onClick={() => setActiveAssetChartKey(chart.key)}
+                          onClick={() =>
+                            chart.onOpen
+                              ? chart.onOpen()
+                              : setActiveAssetChartKey(chart.key)
+                          }
                         >
                           <chart.icon className="analysis-item-icon" />
                           <span className="analysis-item-main">
@@ -7393,6 +7448,17 @@ function App() {
           >
             {!isMobileViewport && savingsGoalFormNode}
           </Modal>
+
+          <ForecastSheet
+            open={isForecastOpen}
+            isMobile={isMobileViewport}
+            onClose={closeForecast}
+            forecast={forecast}
+            disabled={isWriteDisabled}
+            onSaveSettings={handleSaveForecastSettings}
+            priceDataStale={priceDataStale}
+            quoteAt={latestPriceCapturedAt}
+          />
 
           <StockDetailSheet
             key={stockDetail ? stockDetail.id : "none"}
