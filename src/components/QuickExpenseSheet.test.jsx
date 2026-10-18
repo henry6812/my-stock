@@ -138,6 +138,7 @@ describe('<QuickExpenseSheet />', () => {
       payer: '共同帳戶',
       expenseKind: '家庭',
       budgetId: null,
+      saveAsTemplate: false,
     })
   })
 
@@ -603,5 +604,76 @@ describe('<QuickExpenseSheet />', () => {
     const { user } = renderSheet()
     await editDetails(user)
     expect(screen.queryByRole('group', { name: '支出人' })).toBeNull()
+  })
+
+  it('asks to add the entry to 常用支出 when 加入常用支出 is on', async () => {
+    const { user, onSubmit } = renderSheet()
+    await user.type(screen.getByLabelText('名稱'), '午餐便當')
+    await user.keyboard('{Enter}')
+    await press(user, ['5', '0'])
+    const toggle = screen.getByRole('button', { name: '加入常用支出' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    await user.click(saveButton())
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: '午餐便當', amountTwd: 50, saveAsTemplate: true }),
+    )
+  })
+
+  it('a second tap turns 加入常用支出 off again', async () => {
+    const { user, onSubmit } = renderSheet()
+    await user.type(screen.getByLabelText('名稱'), '午餐便當')
+    await user.keyboard('{Enter}')
+    await press(user, ['5', '0'])
+    const toggle = screen.getByRole('button', { name: '加入常用支出' })
+    await user.click(toggle)
+    await user.click(toggle)
+    await user.click(saveButton())
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ saveAsTemplate: false }),
+    )
+  })
+
+  it('offers 加入常用支出 among the chips too', async () => {
+    const { user } = renderSheet()
+    await editDetails(user)
+    expect(screen.getByRole('button', { name: '加入常用支出' })).toBeInTheDocument()
+  })
+
+  it('hides 加入常用支出 for an entry picked from 常用支出', async () => {
+    const { user } = renderSheet()
+    await user.click(screen.getByRole('button', { name: '常用 停車' }))
+    expect(screen.queryByRole('button', { name: '加入常用支出' })).toBeNull()
+  })
+
+  it('hides 加入常用支出 when a template already has that name', async () => {
+    const { user } = renderSheet()
+    await user.type(screen.getByLabelText('名稱'), ' 加油 ')
+    await user.keyboard('{Enter}')
+    expect(screen.queryByRole('button', { name: '加入常用支出' })).toBeNull()
+  })
+
+  it('a hidden 加入常用支出 is not submitted as on', async () => {
+    const { user, onSubmit } = renderSheet()
+    await user.type(screen.getByLabelText('名稱'), '加')
+    await user.keyboard('{Enter}')
+    await user.click(screen.getByRole('button', { name: '加入常用支出' }))
+    await user.type(screen.getByLabelText('名稱'), '油')
+    await user.keyboard('{Enter}')
+    await press(user, ['5'])
+    await user.click(saveButton())
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: '加油', saveAsTemplate: false }),
+    )
+  })
+
+  it('matches the category name when the name is left blank', async () => {
+    const { user } = renderSheet({
+      templates: [...templates, { id: 4, name: '餐飲', categoryId: 'c-food' }],
+    })
+    await editDetails(user)
+    await user.click(screen.getByRole('button', { name: '餐飲' }))
+    expect(screen.queryByRole('button', { name: '加入常用支出' })).toBeNull()
   })
 })

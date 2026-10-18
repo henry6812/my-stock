@@ -2149,6 +2149,17 @@ button.expense-card-chip {
   gap: 4px;
 }
 
+/* Last thing above the keypad: an opt-in for this one entry, not an option
+   of what it is, so it sits apart from the chips that describe it. */
+.quick-expense-save-template {
+  display: flex;
+  margin-top: auto;
+}
+
+.quick-expense-save-template .quick-expense-chip {
+  gap: 4px;
+}
+
 .quick-expense-date-input {
   position: absolute;
   inset: 0;

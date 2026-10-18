@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer } from "antd";
 import { LoadingOutlined } from "@ant-design/icons";
-import { Calendar, NavArrowLeft, NavArrowRight } from "iconoir-react";
+import { Calendar, NavArrowLeft, NavArrowRight, Star } from "iconoir-react";
 import dayjs from "dayjs";
 import {
   evaluateExpression,
@@ -14,7 +14,8 @@ import useBodyScrollLock from "../hooks/useBodyScrollLock";
 // Mobile-only "add one expense" sheet: custom keypad, the user's 常用支出 and
 // a category grid so a typical entry never opens the system keyboard. It
 // opens on the 常用支出 alone; one summary line shows what the pick filled in
-// and swaps them for the category / payer / budget chips.
+// and swaps them for the category / payer / budget chips. A new entry can be
+// added to the 常用支出 as it's saved (`saveAsTemplate` in the payload).
 // Owns its own state; the parent remounts it (via `key`) on every open.
 
 const NAME_MATCH_LIMIT = 6;
@@ -85,6 +86,7 @@ function QuickExpenseSheet({
     () => templates.length === 0,
   );
   const [flashTarget, setFlashTarget] = useState(null);
+  const [isSaveAsTemplateOn, setIsSaveAsTemplateOn] = useState(false);
   const submittingRef = useRef(false);
   const nameInputRef = useRef(null);
 
@@ -105,6 +107,11 @@ function QuickExpenseSheet({
   const isNegativeOrZero = amount !== null && amount <= 0;
   const isBusy = loading || disabled;
   const canSave = amount > 0 && Boolean(categoryId || trimmedName) && !isBusy;
+  const entryName = trimmedName || categoryName;
+  // Not for a pick from the 常用支出 itself, nor a name one already has.
+  const canSaveAsTemplate =
+    pickedTemplateId === null &&
+    !templates.some((item) => item.name.trim() === entryName);
   const nameMatches =
     isNameFocused && trimmedName
       ? filterNameSuggestions(nameSuggestions, trimmedName, {
@@ -195,12 +202,13 @@ function QuickExpenseSheet({
     submittingRef.current = true;
     try {
       await onSubmit({
-        name: trimmedName || categoryName,
+        name: entryName,
         amountTwd: amount,
         occurredAt: occurredAt.format("YYYY-MM-DD"),
         entryType: "ONE_TIME",
         categoryId: categoryId ?? null,
         ...extras,
+        saveAsTemplate: canSaveAsTemplate && isSaveAsTemplateOn,
       });
       // A short tick in the hand that it's saved (Android; iOS has no
       // Vibration API and ignores this).
@@ -393,6 +401,21 @@ function QuickExpenseSheet({
     </>
   );
 
+  const renderSaveAsTemplate = () =>
+    canSaveAsTemplate && (
+      <div className="quick-expense-save-template">
+        <button
+          type="button"
+          className={chipClass(isSaveAsTemplateOn)}
+          aria-pressed={isSaveAsTemplateOn}
+          onClick={() => setIsSaveAsTemplateOn((on) => !on)}
+        >
+          <Star aria-hidden />
+          加入常用支出
+        </button>
+      </div>
+    );
+
   // Right under the amount and without a title: the chips say what they are,
   // and a back-dated entry must not hinge on finding a row below the keypad.
   const renderDates = () => (
@@ -564,6 +587,7 @@ function QuickExpenseSheet({
               <>
                 {renderDates()}
                 {isEditingDetails ? renderSelectors() : renderTemplates()}
+                {renderSaveAsTemplate()}
               </>
             )}
           </div>

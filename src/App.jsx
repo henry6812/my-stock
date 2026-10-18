@@ -1443,23 +1443,51 @@ function App() {
   );
 
   const handleSubmitQuickExpense = useCallback(
-    async (payload) => {
+    async ({ saveAsTemplate, ...payload }) => {
       try {
         setLoadingExpenseAction(true);
         await saveExpenseEntry(payload);
-        setIsQuickExpenseOpen(false);
-        message.success(
-          `已記錄 ${payload.name} ${formatTwd(payload.amountTwd)}`,
-        );
       } catch (error) {
         message.error(toUserMessage(error, "儲存支出失敗"));
+        setLoadingExpenseAction(false);
         // Rethrow so the sheet unlocks its save key for a retry.
         throw error;
+      }
+      const saved = `已記錄 ${payload.name} ${formatTwd(payload.amountTwd)}`;
+      try {
+        if (!saveAsTemplate) {
+          message.success(saved);
+          return;
+        }
+        // The entry is already saved, so a failed template must not reach
+        // the sheet as a failure: a retry would write the entry twice. The
+        // amount is left out: what was paid this time isn't a fixed price.
+        try {
+          await upsertExpenseTemplate({
+            name: payload.name,
+            amountTwd: null,
+            categoryId: payload.categoryId,
+            payer: payload.payer,
+            expenseKind: payload.expenseKind,
+            budgetId: payload.budgetId,
+          });
+          message.success(`${saved}，並加入常用支出`);
+        } catch (error) {
+          console.warn("[expense] save as template failed", error);
+          message.warning(`${saved}，但加入常用支出失敗`);
+          return;
+        }
+        // saveExpenseEntry's own refresh may have read the templates before
+        // this one was written.
+        loadExpenseData().catch((error) => {
+          console.warn("[expense] post-template refresh failed", error);
+        });
       } finally {
+        setIsQuickExpenseOpen(false);
         setLoadingExpenseAction(false);
       }
     },
-    [message, saveExpenseEntry],
+    [loadExpenseData, message, saveExpenseEntry],
   );
 
   const handleSubmitBudget = useCallback(async () => {
